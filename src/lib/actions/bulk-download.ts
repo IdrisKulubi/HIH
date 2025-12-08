@@ -48,7 +48,7 @@ export async function bulkDownloadApplications(applicationIds: number[]) {
     // Generate ZIP blob
     const zipBlob = await zip.generateAsync({ type: "blob" });
     const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const filename = `InCountryYouthADAPT_Applications_${timestamp}.zip`;
+    const filename = `BIREProgramme_Applications_${timestamp}.zip`;
 
     return {
       success: true,

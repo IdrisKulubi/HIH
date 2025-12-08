@@ -36,23 +36,23 @@ export default async function ProfileSetupPage() {
   const checklistItems = [
     {
       icon: <Building className="w-5 h-5 text-blue-500" />,
-      title: "Business Details",
-      description: "Name, Registration Status, Sector, & Description"
+      title: "Personal Details",
+      description: "Full Name, ID/Passport Number, Phone, Email & Gender"
     },
     {
       icon: <Globe className="w-5 h-5 text-teal-500" />,
-      title: "Location & Impact",
-      description: "County, City, & Climate Adaptation Impact"
+      title: "Business Information",
+      description: "Business Name, Sector, County, City & Problem Solved"
     },
     {
       icon: <FileText className="w-5 h-5 text-purple-500" />,
-      title: "Key Documents",
-      description: "Registration Certificate, Financial Records, & Audited Accounts"
+      title: "Required Documents",
+      description: "Registration Certificate, Financial Records & Audited Accounts (PDF)"
     },
     {
       icon: <TrendingUp className="w-5 h-5 text-emerald-500" />,
-      title: "Financials",
-      description: "Revenue, Years Operational, & Funding History"
+      title: "Financial & Impact Data",
+      description: "Annual Revenue, Customer Count, Employees & Environmental Impact"
     }
   ];
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard | YouthAdapt Challenge",
-  description: "Administration panel for the YouthAdapt Challenge program",
+  title: "Admin Dashboard | BIRE Programme",
+  description: "Administration panel for the BIRE Programme program",
 };
 
 export default function AdminLayout({
@@ -18,10 +18,10 @@ export default function AdminLayout({
       <header className="border-b bg-background">
         <div className="container mx-auto py-4 px-4 flex justify-between items-center">
           <Link href="/admin" className="font-bold text-xl">
-            In-Country YouthAdapt Admin
+          BIRE Programme  Admin
           </Link>
           <nav>
-            <ul className="flex space-x-8">
+            {/* <ul className="flex space-x-8">
               <li>
                 <Link href="/admin" className="hover:underline">
                   Dashboard
@@ -47,7 +47,7 @@ export default function AdminLayout({
                   Back to Site
                 </Link>
               </li>
-            </ul>
+            </ul> */}
           </nav>
         </div>
       </header>
@@ -58,7 +58,7 @@ export default function AdminLayout({
       
       <footer className="border-t py-6 bg-background">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-         In-Country YouthAdapt Challenge Admin Panel © {new Date().getFullYear()}
+         BIRE Programme Admin Panel © {new Date().getFullYear()}
         </div>
       </footer>
     </div>

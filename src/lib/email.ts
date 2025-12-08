@@ -14,10 +14,10 @@ import {
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
-  process.env.RESEND_FROM_EMAIL || 'YouthADAPT <verify@incountryouthadapt.kenyacic.org>';
+  process.env.RESEND_FROM_EMAIL || 'YouthADAPT <verify@bireprogramme.org>';
 
 if (!process.env.RESEND_API_KEY) {
-  console.warn('⚠️ RESEND_API_KEY is not set. Emails will not be sent.');
+  console.warn(' RESEND_API_KEY is not set. Emails will not be sent.');
 }
 
 export interface SendEmailParams {
@@ -69,7 +69,7 @@ export async function sendApplicationSubmissionEmail(
 ) {
   return sendEmail({
     to: props.userEmail,
-    subject: '🎉 Application Submitted Successfully - In-Country YouthADAPT',
+    subject: '🎉 Application Submitted Successfully - BIRE Programme',
     react: ApplicationSubmissionEmail(props),
   });
 }
@@ -89,7 +89,7 @@ interface PasswordResetEmailProps {
 export async function sendPasswordResetEmail(props: PasswordResetEmailProps) {
   return sendEmail({
     to: props.to,
-    subject: 'Reset Your In-Country YouthADAPT Password',
+    subject: 'Reset Your BIRE Programme Password',
     react: PasswordResetEmail(props),
   });
 }

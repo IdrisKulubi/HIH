@@ -5,6 +5,7 @@ import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { APP_CONFIG } from "@/lib/config";
+import { getUserApplication } from "@/lib/actions";
 
 export default async function ApplyPage() {
   // Check if applications are open
@@ -14,11 +15,11 @@ export default async function ApplyPage() {
 
   // Check if user is authenticated
   const session = await auth();
-  
+
   if (!session?.user) {
     // User is not logged in - show login prompt
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-green-600 rounded-full flex items-center justify-center">
@@ -27,7 +28,7 @@ export default async function ApplyPage() {
             <div>
               <CardTitle className="text-2xl font-bold text-gray-900">Login Required</CardTitle>
               <CardDescription className="text-gray-600 mt-2">
-                You must be logged in to submit an application for the In-Country YouthADAPT Challenge
+                You must be logged in to submit an application for the BIRE Challenge
               </CardDescription>
             </div>
           </CardHeader>
@@ -44,7 +45,7 @@ export default async function ApplyPage() {
                 <li>Prevent duplicate submissions</li>
               </ul>
             </div>
-            
+
             <div className="space-y-3">
               <Link href="/login" className="w-full">
                 <Button className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white shadow-lg">
@@ -52,7 +53,7 @@ export default async function ApplyPage() {
                   Login to Continue
                 </Button>
               </Link>
-              
+
               <p className="text-center text-sm text-gray-500">
                 Don&apos;t have an account? The login page will help you create one with Google.
               </p>
@@ -62,7 +63,14 @@ export default async function ApplyPage() {
       </div>
     );
   }
-  
-  // User is authenticated - redirect to preparation page
+
+  // Check if user already has an application
+  const existingApplication = await getUserApplication();
+
+  if (existingApplication.success && existingApplication.data) {
+    redirect('/profile');
+  }
+
+  // User is authenticated and has no application - redirect to preparation page
   redirect('/apply/prepare');
 } 

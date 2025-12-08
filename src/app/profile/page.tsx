@@ -303,7 +303,7 @@ export default async function ProfilePage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-center text-white shadow-xl shadow-blue-200">
+                  <div className="bg-brand-blue     rounded-3xl p-8 text-center text-white shadow-xl shadow-blue-200">
                     <Sparkles className="w-12 h-12 mx-auto mb-4 text-blue-200" />
                     <h3 className="text-2xl font-bold mb-2">Start Your Application</h3>
                     <p className="text-blue-100 mb-6 max-w-md mx-auto">

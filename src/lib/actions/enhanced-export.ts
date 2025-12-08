@@ -199,7 +199,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       new Paragraph({
         children: [
           new TextRun({
-            text: "InCountryYouthADAPT Challenge 2025 Application Review Document",
+            text: "BIRE Programme Application Review Document",
             bold: true,
             size: 48,
             color: "1D4ED8"
@@ -518,7 +518,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       new Paragraph({
         children: [
           new TextRun({
-            text: `https://incountryouthadapt.kenyacic.org/admin/applications/${application.id}`,
+            text: `https://bireprogramme.org/admin/applications/${application.id}`,
             size: 16,
             color: "2563EB",
             underline: {}
