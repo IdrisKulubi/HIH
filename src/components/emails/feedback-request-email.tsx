@@ -6,10 +6,14 @@ import {
   Heading,
   Hr,
   Html,
+  Link,
   Preview,
   Section,
   Text,
+  Tailwind,
+  Img,
 } from "@react-email/components";
+import * as React from "react";
 
 interface FeedbackRequestEmailProps {
   recipientName: string;
@@ -18,162 +22,82 @@ interface FeedbackRequestEmailProps {
   linkDisplayText?: string;
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bire-platform.org';
+
 export default function FeedbackRequestEmail({
   recipientName = "Participant",
-  emailBody = "",
+  emailBody = "<p>We hope you are finding the program valuable. We would appreciate your thoughts on the recent workshop.</p>",
   feedbackFormUrl = "#",
   linkDisplayText = "Share Your Feedback",
 }: FeedbackRequestEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>We&apos;d love to hear your feedback on the YouthAdapt Challenge</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          {/* Header with gradient */}
-          <Section style={header}>
-            <Heading style={h1}>YouthAdapt Challenge</Heading>
-            <Text style={subtitle}>In-Country Program Feedback</Text>
-          </Section>
+      <Preview>We'd love to hear your feedback on the BIRE Challenge</Preview>
+      <Tailwind
+        config={{
+          theme: {
+            extend: {
+              colors: {
+                brand: {
+                  blue: '#0B5FBA',
+                  teal: '#00D0AB',
+                  dark: '#1e293b',
+                  light: '#f8fafc',
+                },
+              },
+            },
+          },
+        }}
+      >
+        <Body className="bg-slate-50 font-sans my-auto mx-auto px-2">
+          <Container className="border border-solid border-slate-200 rounded-2xl my-[40px] mx-auto p-[20px] max-w-[560px] bg-white shadow-xl">
+            {/* Header/Icon */}
+            <Section className="mt-[20px] text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-3xl">
+                📣
+              </div>
+            </Section>
 
-          {/* Main Content */}
-          <Section style={content}>
-            <Text style={greeting}>Hello {recipientName},</Text>
-            
-            {/* Custom email body - rendered as HTML */}
-            <div dangerouslySetInnerHTML={{ __html: emailBody }} style={bodyContent} />
+            <Heading className="text-slate-900 text-[24px] font-bold text-center p-0 my-[10px] mx-0 tracking-tight">
+              We Value Your Feedback
+            </Heading>
 
-            {/* Call to Action Button */}
-            <Section style={buttonContainer}>
-              <Button style={button} href={feedbackFormUrl}>
+            <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-8">
+              Hi <strong>{recipientName}</strong>, <br />
+              Help us improve the BIRE Challenge.
+            </Text>
+
+            {/* Custom email body card */}
+            <Section className="bg-white border border-slate-200 rounded-xl p-6 mx-auto w-full mb-8 shadow-sm">
+              <div
+                className="text-slate-700 text-[15px] leading-[26px]"
+                dangerouslySetInnerHTML={{ __html: emailBody }}
+              />
+            </Section>
+
+            <Section className="text-center mb-[20px]">
+              <Button
+                className="bg-[#0B5FBA] text-white rounded-lg px-8 py-4 text-[15px] font-bold no-underline hover:bg-blue-700 transition shadow-md block w-full sm:w-auto"
+                href={feedbackFormUrl}
+              >
                 {linkDisplayText}
               </Button>
             </Section>
 
-            <Text style={note}>
+            <Text className="text-slate-500 text-[13px] italic text-center mx-auto max-w-[400px]">
               Your responses are anonymous and will help us improve the program for future participants.
             </Text>
-          </Section>
 
-          <Hr style={hr} />
+            <Hr className="border-slate-200 my-8" />
 
-          {/* Footer */}
-          <Section style={footer}>
-            <Text style={footerText}>
-              YouthAdapt Challenge - In-Country Program
+            <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 max-w-[400px] mx-auto">
+              BIRE Challenge • Hand in Hand Eastern Africa <br />
+              © {new Date().getFullYear()} All rights reserved.
             </Text>
-            <Text style={footerText}>
-              Supporting youth entrepreneurs in climate adaptation solutions
-            </Text>
-            <Text style={footerTextSmall}>
-              © {new Date().getFullYear()} YouthAdapt Challenge. All rights reserved.
-            </Text>
-          </Section>
-        </Container>
-      </Body>
+          </Container>
+        </Body>
+      </Tailwind>
     </Html>
   );
 }
-
-// Styles
-const main = {
-  backgroundColor: "#f6f9fc",
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
-};
-
-const container = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-  padding: "20px 0 48px",
-  marginBottom: "64px",
-  maxWidth: "600px",
-};
-
-const header = {
-  background: "#0B5FBA",
-  padding: "32px 24px",
-  textAlign: "center" as const,
-};
-
-const h1 = {
-  color: "#ffffff",
-  fontSize: "32px",
-  fontWeight: "bold",
-  margin: "0 0 8px",
-  padding: "0",
-  lineHeight: "1.2",
-};
-
-const subtitle = {
-  color: "#b3d9ff",
-  fontSize: "16px",
-  margin: "0",
-  padding: "0",
-};
-
-const content = {
-  padding: "24px 32px",
-};
-
-const greeting = {
-  fontSize: "18px",
-  fontWeight: "600",
-  color: "#1f2937",
-  margin: "0 0 16px",
-};
-
-const bodyContent = {
-  fontSize: "16px",
-  lineHeight: "1.6",
-  color: "#4b5563",
-  margin: "16px 0",
-};
-
-const buttonContainer = {
-  textAlign: "center" as const,
-  margin: "32px 0",
-};
-
-const button = {
-  backgroundColor: "#5B8DEE",
-  borderRadius: "8px",
-  color: "#ffffff",
-  fontSize: "16px",
-  fontWeight: "600",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "14px 32px",
-  cursor: "pointer",
-};
-
-const note = {
-  fontSize: "14px",
-  color: "#6b7280",
-  fontStyle: "italic",
-  textAlign: "center" as const,
-  margin: "24px 0 0",
-};
-
-const hr = {
-  borderColor: "#e5e7eb",
-  margin: "32px 0",
-};
-
-const footer = {
-  padding: "0 32px",
-  textAlign: "center" as const,
-};
-
-const footerText = {
-  fontSize: "14px",
-  color: "#6b7280",
-  margin: "4px 0",
-};
-
-const footerTextSmall = {
-  fontSize: "12px",
-  color: "#9ca3af",
-  margin: "8px 0 0",
-};

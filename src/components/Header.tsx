@@ -172,17 +172,12 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/apply" className="flex items-center">
+                      <Link href="/profile?tab=application" className="flex items-center">
                         <FileText className="mr-2 h-4 w-4" />
                         <span>My Application</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                      </Link>
-                    </DropdownMenuItem>
+                   
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
                       <LogOut className="mr-2 h-4 w-4" />

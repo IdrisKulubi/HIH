@@ -22,14 +22,14 @@ interface SupportTicketResponseEmailProps {
   loginUrl?: string;
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org";
 
 export const SupportTicketResponseEmail = ({
-  userName,
-  ticketNumber,
-  responseMessage,
-  ticketSubject,
-  loginUrl = `${baseUrl}/login`,
+  userName = "User",
+  ticketNumber = "#1234",
+  responseMessage = "We have reviewed your inquiry and have provided a detailed response...",
+  ticketSubject = "Question about Eligibility",
+  loginUrl = `${baseUrl}/dashboard/support`,
 }: SupportTicketResponseEmailProps) => {
   const previewText = `New response on your support ticket ${ticketNumber}`;
 
@@ -37,56 +37,81 @@ export const SupportTicketResponseEmail = ({
     <Html>
       <Head />
       <Preview>{previewText}</Preview>
-      <Tailwind>
-        <Body className="bg-white my-auto mx-auto font-sans">
-          <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] w-[465px]">
-            <Section className="mt-[32px] text-center">
-            
+      <Tailwind
+        config={{
+          theme: {
+            extend: {
+              colors: {
+                brand: {
+                  blue: '#0B5FBA',
+                  teal: '#00D0AB',
+                  dark: '#1e293b',
+                  light: '#f8fafc',
+                },
+              },
+            },
+          },
+        }}
+      >
+        <Body className="bg-slate-50 font-sans my-auto mx-auto px-2">
+          <Container className="border border-solid border-slate-200 rounded-2xl my-[40px] mx-auto p-[20px] max-w-[560px] bg-white shadow-xl">
+            {/* Header/Icon */}
+            <Section className="mt-[20px] text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-3xl">
+                💬
+              </div>
             </Section>
-            <Heading className="text-black text-[24px] font-normal text-center p-0 my-[30px] mx-0">
-              New Response on Your Support Ticket
+
+            <Heading className="text-slate-900 text-[24px] font-bold text-center p-0 my-[10px] mx-0 tracking-tight">
+              New Support Response
             </Heading>
-            <Text className="text-black text-[14px] leading-[24px]">
-              Hello {userName},
+
+            <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-6">
+              Hi <strong>{userName}</strong>, <br />
+              A member of our team has replied to your support ticket.
             </Text>
-            <Text className="text-black text-[14px] leading-[24px]">
-              A new response has been posted to your support ticket:
-            </Text>
-            <Section className="bg-gray-100 p-4 rounded-lg my-4">
-              <Text className="font-semibold">
-                Ticket Number: {ticketNumber}
-              </Text>
-              <Text className="font-semibold">
-                Subject: {ticketSubject}
-              </Text>
-              <Hr className="border-gray-300 my-2" />
-              <Text className="text-black text-[14px] leading-[24px]">
-                <strong>💬 Response:</strong>
-              </Text>
-              <Text className="text-black text-[14px] leading-[24px] whitespace-pre-wrap">
-                {responseMessage}
-              </Text>
+
+            {/* Ticket Details Card */}
+            <Section className="bg-slate-50 border border-slate-200 rounded-xl my-[24px] mx-auto w-full p-6">
+              <div className="mb-4">
+                <Text className="text-[12px] text-slate-500 uppercase font-bold m-0 tracking-wide">Ticket ID</Text>
+                <Text className="text-[14px] font-mono font-bold text-blue-600 m-0">{ticketNumber}</Text>
+              </div>
+
+              <div className="mb-6">
+                <Text className="text-[12px] text-slate-500 uppercase font-bold m-0 tracking-wide">Subject</Text>
+                <Text className="text-[16px] font-semibold text-slate-800 m-0">{ticketSubject}</Text>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-slate-200">
+                <Text className="text-[12px] text-blue-600 uppercase font-bold m-0 tracking-wide mb-2">Latest Response</Text>
+                <Text className="text-slate-700 text-[14px] leading-[24px] m-0 whitespace-pre-wrap">
+                  "{responseMessage}"
+                </Text>
+              </div>
             </Section>
-            <Text className="text-black text-[14px] leading-[24px]">
-              You can view the full conversation and reply by logging into your account.
-            </Text>
+
             <Section className="text-center mt-[32px] mb-[32px]">
               <Button
-                className="bg-primary text-white rounded-md px-6 py-3 text-sm font-medium"
+                className="bg-[#0B5FBA] text-white rounded-lg px-6 py-3 text-[14px] font-bold no-underline hover:bg-blue-700 transition"
                 href={loginUrl}
               >
-                View Ticket
+                View Full Conversation
               </Button>
             </Section>
-            <Text className="text-black text-[14px] leading-[24px]">
-              or copy and paste this URL into your browser:{" "}
-              <Link href={loginUrl} className="text-blue-600 no-underline">
-                Click here to view the ticket
+
+            <Text className="text-slate-400 text-[12px] leading-[20px] text-center mt-8">
+              Or copy this link to your browser: <br />
+              <Link href={loginUrl} className="text-blue-600 no-underline hover:underline">
+                {loginUrl}
               </Link>
             </Text>
-            <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
-            <Text className="text-[#666666] text-[12px] leading-[24px]">
-              This email was intended for <span className="text-black">{userName}</span>. This email was sent from the Incountry-YouhthADAPT application. If you were not expecting this email, you can ignore it. If you are concerned about your account&apos;s safety, please reply to this email to get in touch with us.
+
+            <Hr className="border-slate-200 my-8" />
+
+            <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 max-w-[400px] mx-auto">
+              This email was sent to {userName}. If you didn't create this ticket, please ignore this email. <br />
+              © {new Date().getFullYear()} Hand in Hand Eastern Africa.
             </Text>
           </Container>
         </Body>
@@ -95,4 +120,4 @@ export const SupportTicketResponseEmail = ({
   );
 };
 
-export default SupportTicketResponseEmail; 
+export default SupportTicketResponseEmail;

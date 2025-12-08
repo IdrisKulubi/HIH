@@ -92,6 +92,7 @@ export const {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           prompt: "select_account",
@@ -126,18 +127,18 @@ export const {
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.user.email = token.email as string;
-        
+
         try {
           // Check if user exists in our custom users table
           const user = await db.select().from(users)
             .where(eq(users.id, token.sub))
             .limit(1);
-          
+
           // Check if user has a profile
           const profile = await db.query.userProfiles.findFirst({
             where: eq(userProfiles.userId, token.sub)
           });
-          
+
           session.user.hasProfile = !!profile;
           session.user.role = profile?.role || 'applicant';
           session.user.profileCompleted = profile?.isCompleted || false;

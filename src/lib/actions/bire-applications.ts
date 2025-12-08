@@ -508,6 +508,8 @@ export async function getUserApplication(): Promise<ActionResponse<{
         sector: string | null;
         county: string | null;
         city: string;
+        isRegistered: boolean;
+        yearsOperational: number;
     };
     applicant: {
         firstName: string;
@@ -553,6 +555,8 @@ export async function getUserApplication(): Promise<ActionResponse<{
                 sector: applicationData.business.sector,
                 county: applicationData.business.county,
                 city: applicationData.business.city,
+                isRegistered: applicationData.business.isRegistered,
+                yearsOperational: applicationData.business.yearsOperational,
             },
             applicant: {
                 firstName: applicationData.business.applicant.firstName,

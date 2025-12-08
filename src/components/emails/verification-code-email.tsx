@@ -4,12 +4,13 @@ import {
   Head,
   Heading,
   Html,
-  
   Link,
   Preview,
   Section,
   Text,
   render,
+  Tailwind,
+  Img,
 } from '@react-email/components';
 import * as React from 'react';
 
@@ -18,135 +19,94 @@ export interface VerificationCodeEmailProps {
   userEmail: string;
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bire-platform.org';
+
 export const VerificationCodeEmail = ({
   verificationCode = '123456',
   userEmail = 'user@example.com',
-}: VerificationCodeEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Your YouthADAPT Challenge verification code</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        
-        
-        <Section style={content}>
-          <Heading style={heading}>Verify Your Email Address</Heading>
-          
-          <Text style={paragraph}>
-            Welcome to the In-Country YouthADAPT Challenge! To complete your registration, please verify your email address using the code below:
-          </Text>
-          
-          <Section style={codeSection}>
-            <Text style={codeText}>{verificationCode}</Text>
-          </Section>
-          
-          <Text style={paragraph}>
-            This verification code will expire in <strong>10 minutes</strong>. If you didn&apos;t request this code, please ignore this email.
-          </Text>
-          
-          <Text style={paragraph}>
-            The In-Country YouthADAPT Challenge is a unique opportunity for younth-led  MSMEs across the five eligible countries to showcase their climate adaptation solutions. We&apos;re excited to have you join us!
-          </Text>
-          
-          <Section style={footer}>
-            <Text style={footerText}>
-              Best regards,<br />
-              The In-Country YouthADAPT Challenge Team
+}: VerificationCodeEmailProps) => {
+  return (
+    <Html>
+      <Head />
+      <Preview>Your BIRE Verification Code</Preview>
+      <Tailwind
+        config={{
+          theme: {
+            extend: {
+              colors: {
+                brand: {
+                  blue: '#0B5FBA',
+                  teal: '#00D0AB',
+                  dark: '#1e293b',
+                  light: '#f8fafc',
+                },
+              },
+            },
+          },
+        }}
+      >
+        <Body className="bg-slate-50 font-sans my-auto mx-auto px-2">
+          <Container className="border border-solid border-slate-200 rounded-2xl my-[40px] mx-auto p-[20px] max-w-[465px] bg-white shadow-xl">
+            {/* Logo/Header Section */}
+            <Section className="mt-[20px] text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-3xl">
+                🔐
+              </div>
+            </Section>
+
+            <Heading className="text-slate-900 text-[24px] font-bold text-center p-0 my-[10px] mx-0 tracking-tight">
+              Verify Your Email
+            </Heading>
+
+            <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-8">
+              Welcome to the <strong>BIRE Redesign  Challenge</strong>. <br />
+              Please use the code below to complete your registration.
             </Text>
 
-            <Text style={footerText}>
-              <Link href="https://incountryouthadapt.kenyacic.org/" style={link}>
-                incountryouthadapt.kenyacic.org
+            <Section className="bg-slate-50 border border-dashed border-slate-200 rounded-xl my-[24px] mx-auto w-full text-center py-6">
+              <Text className="text-4xl font-mono font-bold tracking-[0.25em] text-[#0B5FBA] m-0">
+                {verificationCode}
+              </Text>
+              <Text className="text-slate-400 text-[12px] uppercase font-semibold tracking-wider mt-2 mb-0">
+                Verification Code
+              </Text>
+            </Section>
+
+            <Text className="text-slate-600 text-[14px] leading-[24px] text-center">
+              This code will expire in 15 minutes. If you didn't request this code, you can safely ignore this email.
+            </Text>
+
+            <Section className="text-center mt-[32px] mb-[32px]">
+              <div className="h-px w-full bg-slate-100" />
+            </Section>
+
+            <Text className="text-slate-400 text-[12px] leading-[20px] text-center">
+              Best regards,<br />
+              <strong>The BIRE Challenge Team</strong>
+            </Text>
+
+            <Text className="text-center mt-4">
+              <Link
+                href={baseUrl}
+                className="text-[#0B5FBA] text-[12px] font-medium no-underline hover:underline"
+              >
+                Visit Portal
               </Link>
             </Text>
-            
-            <Text style={disclaimer}>
-              This email was sent to {userEmail}. If you received this email in error, please ignore it.
-            </Text>
-          </Section>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
+          </Container>
+
+          <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 mb-10 max-w-[400px] mx-auto">
+            This email was sent to <span className="text-slate-500">{userEmail}</span>. <br />
+            © {new Date().getFullYear()} Hand in Hand Eastern Africa. All rights reserved.
+          </Text>
+        </Body>
+      </Tailwind>
+    </Html>
+  );
+};
 
 export const renderVerificationCodeEmail = (props: VerificationCodeEmailProps) => {
-    return render(<VerificationCodeEmail {...props} />);
+  return render(<VerificationCodeEmail {...props} />);
 };
 
 export default VerificationCodeEmail;
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  maxWidth: '560px',
-};
-
-const content = {
-  padding: '0 20px',
-};
-
-const heading = {
-  fontSize: '24px',
-  lineHeight: '1.3',
-  fontWeight: '700',
-  color: '#0B5FBA',
-  textAlign: 'center' as const,
-  margin: '30px 0',
-};
-
-const paragraph = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#374151',
-  margin: '16px 0',
-};
-
-const codeSection = {
-  textAlign: 'center' as const,
-  margin: '32px 0',
-  padding: '20px',
-  backgroundColor: '#f8fafc',
-  borderRadius: '8px',
-  border: '2px solid #0B5FBA',
-};
-
-const codeText = {
-  fontSize: '32px',
-  fontWeight: '700',
-  color: '#0B5FBA',
-  letterSpacing: '8px',
-  margin: '0',
-  fontFamily: 'monospace',
-};
-
-const footer = {
-  borderTop: '1px solid #e5e7eb',
-  paddingTop: '20px',
-  marginTop: '40px',
-  textAlign: 'center' as const,
-};
-
-const footerText = {
-  fontSize: '14px',
-  lineHeight: '1.5',
-  color: '#6b7280',
-  margin: '8px 0',
-};
-
-const link = {
-  color: '#0B5FBA',
-  textDecoration: 'none',
-};
-
-const disclaimer = {
-  fontSize: '12px',
-  lineHeight: '1.4',
-  color: '#9ca3af',
-  margin: '16px 0 0',
-}; 

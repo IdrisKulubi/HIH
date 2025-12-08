@@ -9,6 +9,8 @@ import {
   Section,
   Text,
   render,
+  Tailwind,
+  Hr,
 } from '@react-email/components';
 import * as React from 'react';
 
@@ -20,187 +22,143 @@ export interface ApplicationSubmissionEmailProps {
   userEmail: string;
 }
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bire-platform.org';
+
 export const ApplicationSubmissionEmail = ({
   applicantName = 'John Doe',
   applicationId = 'APP-12345',
   businessName = 'Climate Solutions Ltd',
   submissionDate = '2025-01-01',
   userEmail = 'user@example.com',
-}: ApplicationSubmissionEmailProps) => (
-  <Html>
-    <Head />
-    <Preview>Your In-Country YouthADAPT Challenge application has been submitted successfully</Preview>
-    <Body style={main}>
-      <Container style={container}>
-        <Section style={content}>
-          <Heading style={heading}>Application Submitted Successfully! 🎉</Heading>
-          
-          <Text style={paragraph}>
-            Dear {applicantName},
-          </Text>
-          
-          <Text style={paragraph}>
-            Congratulations! Your application for the In-Country YouthADAPT Challenge has been successfully submitted. 
-            We&apos;re excited to review your climate adaptation solution and learn more about {businessName}.
-          </Text>
-          
-          <Section style={detailsSection}>
-            <Text style={detailsTitle}>Application Details:</Text>
-            <Text style={detailsText}>
-              <strong>Application ID:</strong> {applicationId}<br />
-              <strong>Business Name:</strong> {businessName}<br />
-              <strong>Submission Date:</strong> {submissionDate}<br />
-              <strong>Applicant:</strong> {applicantName}
+}: ApplicationSubmissionEmailProps) => {
+  return (
+    <Html>
+      <Head />
+      <Preview>Application Submitted Successfully - In-Country YouthADAPT</Preview>
+      <Tailwind
+        config={{
+          theme: {
+            extend: {
+              colors: {
+                brand: {
+                  blue: '#0B5FBA',
+                  teal: '#00D0AB',
+                  dark: '#1e293b',
+                  light: '#f8fafc',
+                },
+              },
+            },
+          },
+        }}
+      >
+        <Body className="bg-slate-50 font-sans my-auto mx-auto px-2">
+          <Container className="border border-solid border-slate-200 rounded-2xl my-[40px] mx-auto p-[20px] max-w-[560px] bg-white shadow-xl">
+            {/* Logo/Header Section */}
+            <Section className="mt-[20px] text-center">
+              <div className="w-16 h-16 bg-teal-50 text-teal-600 rounded-full mx-auto flex items-center justify-center mb-6 text-3xl border border-teal-100">
+                🎉
+              </div>
+            </Section>
+
+            <Heading className="text-slate-900 text-[26px] font-bold text-center p-0 my-[10px] mx-0 tracking-tight">
+              Application Submitted!
+            </Heading>
+
+            <Text className="text-slate-500 text-[16px] leading-[24px] text-center mb-6">
+              Hi <strong>{applicantName}</strong>, <br />
+              We have successfully received your application.
             </Text>
-          </Section>
-          
-          <Text style={paragraph}>
-            <strong>What happens next?</strong>
-          </Text>
-          
-          <Text style={paragraph}>
-            1. <strong>Initial Review (1-2 weeks):</strong> Our team will conduct an initial eligibility assessment<br />
-            2. <strong>Detailed Evaluation (2-3 weeks):</strong> Qualified applications will undergo comprehensive evaluation<br />
-            3. <strong>Selection & Notification (1 week):</strong> Selected participants will be notified via email<br />
-            4. <strong>Program Launch:</strong> Successful applicants begin the accelerator program
-          </Text>
-          
-          <Text style={paragraph}>
-            You can track your application status and access your profile at any time by visiting your dashboard.
-          </Text>
-          
-          <Section style={ctaSection}>
-            <Link href={`${process.env.NEXTAUTH_URL || 'https://incountryouthadapt.org'}/profile`} style={ctaButton}>
-              View Application Status
-            </Link>
-          </Section>
-          
-          <Text style={paragraph}>
-            If you have any questions about your application or the program, please don&apos;t hesitate to reach out to our support team.
-          </Text>
-          
-          <Section style={footer}>
-            <Text style={footerText}>
+
+            {/* Application Details Card */}
+            <Section className="bg-blue-50 border border-blue-100 rounded-xl my-[24px] mx-auto w-full p-6">
+              <Text className="text-[12px] uppercase font-bold text-blue-800 tracking-wider mb-4 border-b border-blue-200 pb-2">
+                Application Summary
+              </Text>
+
+              <div className="mb-2">
+                <Text className="text-[12px] text-blue-600 uppercase font-semibold m-0">Reference ID</Text>
+                <Text className="text-[16px] font-mono font-bold text-slate-800 m-0">{applicationId}</Text>
+              </div>
+
+              <div className="mb-2">
+                <Text className="text-[12px] text-blue-600 uppercase font-semibold m-0">Business Name</Text>
+                <Text className="text-[16px] font-medium text-slate-800 m-0">{businessName}</Text>
+              </div>
+
+              <div>
+                <Text className="text-[12px] text-blue-600 uppercase font-semibold m-0">Submitted On</Text>
+                <Text className="text-[16px] font-medium text-slate-800 m-0">{submissionDate}</Text>
+              </div>
+            </Section>
+
+            <Heading className="text-slate-800 text-[18px] font-bold text-left mt-8 mb-4">
+              What Happens Next?
+            </Heading>
+
+            <Section className="mb-8">
+              <div className="flex mb-4 items-start">
+                <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-[12px] font-bold mr-3 mt-1 shrink-0">1</div>
+                <div>
+                  <Text className="font-bold text-slate-800 text-[14px] m-0">Initial Review (1-2 Weeks)</Text>
+                  <Text className="text-slate-500 text-[13px] m-0">Eligibility assessment and completeness check.</Text>
+                </div>
+              </div>
+
+              <div className="flex mb-4 items-start">
+                <div className="bg-slate-200 text-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-[12px] font-bold mr-3 mt-1 shrink-0">2</div>
+                <div>
+                  <Text className="font-bold text-slate-800 text-[14px] m-0">Evaluation (2-3 Weeks)</Text>
+                  <Text className="text-slate-500 text-[13px] m-0">Detailed scoring based on impact and viability.</Text>
+                </div>
+              </div>
+
+              <div className="flex mb-0 items-start">
+                <div className="bg-slate-200 text-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-[12px] font-bold mr-3 mt-1 shrink-0">3</div>
+                <div>
+                  <Text className="font-bold text-slate-800 text-[14px] m-0">Notification</Text>
+                  <Text className="text-slate-500 text-[13px] m-0">Results will be communicated via email.</Text>
+                </div>
+              </div>
+            </Section>
+
+            <Section className="text-center mb-[20px]">
+              <Link
+                href={`${baseUrl}/dashboard`}
+                className="bg-[#0B5FBA] text-white px-6 py-3 rounded-lg font-bold text-[14px] no-underline inline-block hover:bg-blue-700 transition"
+              >
+                Track Status
+              </Link>
+            </Section>
+
+            <Hr className="border-slate-200 my-8" />
+
+            <Text className="text-slate-400 text-[12px] leading-[20px] text-center">
               Best regards,<br />
-              The In-Country YouthADAPT Challenge Team<br />
-              Global Center on Adaptation (GCA)<br />
-              Kenya Climate Innovation Center (KCIC)
+              <strong>The BIRE Challenge Team</strong><br />
+              Hand in Hand Eastern Africa
             </Text>
-            
-            <Text style={footerText}>
-              <Link href={`${process.env.NEXTAUTH_URL || 'https://incountryouthadapt.org'}`} style={link}>
-                Visit In-Country YouthADAPT Challenge
+
+            <Text className="text-center mt-4">
+              <Link
+                href={baseUrl}
+                className="text-[#0B5FBA] text-[12px] font-medium no-underline hover:underline"
+              >
+                Visit Main Portal
               </Link>
             </Text>
-            
-            <Text style={disclaimer}>
-              This email was sent to {userEmail} regarding your In-Country YouthADAPT Challenge application. 
-              Please keep this email for your records.
-            </Text>
-          </Section>
-        </Section>
-      </Container>
-    </Body>
-  </Html>
-);
+          </Container>
+
+          <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 mb-10 max-w-[400px] mx-auto">
+            © {new Date().getFullYear()} Hand in Hand Eastern Africa. All rights reserved.
+          </Text>
+        </Body>
+      </Tailwind>
+    </Html>
+  );
+};
 
 export const renderApplicationSubmissionEmail = (props: ApplicationSubmissionEmailProps) => {
-    return render(<ApplicationSubmissionEmail {...props} />);
+  return render(<ApplicationSubmissionEmail {...props} />);
 }
 
 export default ApplicationSubmissionEmail;
-
-const main = {
-  backgroundColor: '#ffffff',
-  fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-};
-
-const container = {
-  margin: '0 auto',
-  padding: '20px 0 48px',
-  maxWidth: '560px',
-};
-
-const content = {
-  padding: '0 20px',
-};
-
-const heading = {
-  fontSize: '28px',
-  lineHeight: '1.3',
-  fontWeight: '700',
-  color: '#0B5FBA',
-  textAlign: 'center' as const,
-  margin: '30px 0',
-};
-
-const paragraph = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#374151',
-  margin: '16px 0',
-};
-
-const detailsSection = {
-  backgroundColor: '#f0f9ff',
-  borderRadius: '8px',
-  padding: '20px',
-  margin: '24px 0',
-  border: '1px solid #0ea5e9',
-};
-
-const detailsTitle = {
-  fontSize: '18px',
-  fontWeight: '600',
-  color: '#0B5FBA',
-  margin: '0 0 12px 0',
-};
-
-const detailsText = {
-  fontSize: '16px',
-  lineHeight: '1.6',
-  color: '#374151',
-  margin: '0',
-};
-
-const ctaSection = {
-  textAlign: 'center' as const,
-  margin: '32px 0',
-};
-
-const ctaButton = {
-  backgroundColor: '#0B5FBA',
-  color: '#ffffff',
-  padding: '14px 28px',
-  borderRadius: '8px',
-  textDecoration: 'none',
-  fontSize: '16px',
-  fontWeight: '600',
-  display: 'inline-block',
-};
-
-const footer = {
-  borderTop: '1px solid #e5e7eb',
-  paddingTop: '20px',
-  marginTop: '40px',
-  textAlign: 'center' as const,
-};
-
-const footerText = {
-  fontSize: '14px',
-  lineHeight: '1.5',
-  color: '#6b7280',
-  margin: '8px 0',
-};
-
-const link = {
-  color: '#0B5FBA',
-  textDecoration: 'none',
-};
-
-const disclaimer = {
-  fontSize: '12px',
-  lineHeight: '1.4',
-  color: '#9ca3af',
-  margin: '16px 0 0',
-}; 
