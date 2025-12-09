@@ -73,3 +73,13 @@ export {
 // =============================================================================
 export { checkEligibility } from "./eligibility";
 
+// =============================================================================
+// BIRE SCORING ENGINE
+// =============================================================================
+export type { ScoringBreakdown, TrackScore } from "./bire-scoring";
+
+export {
+    scoreFoundationTrack,
+    scoreAccelerationTrack,
+    scoreApplication,
+} from "./bire-scoring";

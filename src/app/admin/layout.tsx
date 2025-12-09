@@ -21,7 +21,7 @@ export default function AdminLayout({
           BIRE Programme  Admin
           </Link>
           <nav>
-            {/* <ul className="flex space-x-8">
+             <ul className="flex space-x-8">
               <li>
                 <Link href="/admin" className="hover:underline">
                   Dashboard
@@ -47,7 +47,7 @@ export default function AdminLayout({
                   Back to Site
                 </Link>
               </li>
-            </ul> */}
+            </ul> 
           </nav>
         </div>
       </header>

@@ -4,156 +4,16 @@
 import { eligibilityResults } from "../../../db/schema";
 import { revalidatePath } from "next/cache";
 import db from "../../../db/drizzle";
+import { scoreFoundationTrack, scoreAccelerationTrack, TrackScore } from "./bire-scoring";
 
-// Function to calculate age from date of birth
-function getAge(birthDate: Date | string): number {
-  const today = new Date();
-  
-  // Convert string date to Date object if needed
-  const birthDateObj = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
-  
-  let age = today.getFullYear() - birthDateObj.getFullYear();
-  const monthDifference = today.getMonth() - birthDateObj.getMonth();
-  
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDateObj.getDate())) {
-    age--;
-  }
-  
-  return age;
-}
+// ============================================================================
+// BIRE ELIGIBILITY CHECK
+// ============================================================================
 
-// Check if applicant meets the mandatory criteria
-function checkMandatoryCriteria(
-  application: any,
-  applicant: any,
-  business: any,
-): {
-  isEligible: boolean;
-  ageEligible: boolean;
-  registrationEligible: boolean;
-  revenueEligible: boolean;
-  businessPlanEligible: boolean;
-  impactEligible: boolean;
-} {
-  // Age criteria: Between 18-35 years
-  const age = getAge(applicant.dateOfBirth);
-  const ageEligible = age >= 18 && age <= 35;
-  
-  // Business registration criteria: Business must be legally registered
-  const registrationEligible = business.isRegistered;
-  
-  // Revenue generation criteria: Business must have generated revenues over 2 years
-  const revenueEligible = business.revenueLastTwoYears > 0;
-  
-  // Business Plan criteria: Must have a SMART business plan
-  // This would require a more complex evaluation, for now we'll assume it's based on
-  // completeness of the business description and problem statement
-  const businessPlanEligible = 
-    business.description?.length > 100 && 
-    business.problemSolved?.length > 100;
-  
-  // Impact criteria: Must demonstrate direct impact in food security or infrastructure
-  // This would be evaluated from the climate adaptation section
-  const impactEligible = 
-    business.climateAdaptationContribution?.length > 100 &&
-    business.climateExtremeImpact?.length > 100;
-  
-  // Overall eligibility requires all mandatory criteria to be met
-  const isEligible = 
-    ageEligible && 
-    registrationEligible && 
-    revenueEligible && 
-    businessPlanEligible && 
-    impactEligible;
-  
-  return {
-    isEligible,
-    ageEligible,
-    registrationEligible,
-    revenueEligible,
-    businessPlanEligible,
-    impactEligible,
-  };
-}
-
-// Score evaluation criteria (if all mandatory criteria are met)
-function scoreEvaluationCriteria(
-  application: any,
-  applicant: any,
-  business: any,
-): {
-  marketPotentialScore: number;
-  innovationScore: number;
-  climateAdaptationScore: number;
-  jobCreationScore: number;
-  viabilityScore: number;
-  managementCapacityScore: number;
-  locationBonus: number;
-  genderBonus: number;
-  totalScore: number;
-} {
-  // Market potential (0-10)
-  const marketPotentialScore = Math.min(10, Math.floor(business.customerCountLastSixMonths / 100));
-  
-  // Innovation level (0-10)
-  // Complex evaluation would be needed here, for now we use a placeholder
-  const innovationScore = 5; // Placeholder
-  
-  // Climate adaptation impact (0-20)
-  // Complex evaluation would be needed here, for now we use a placeholder
-  const climateAdaptationScore = 10; // Placeholder
-  
-  // Job creation potential (0-10)
-  const totalEmployees = 
-    business.fullTimeEmployeesMale + 
-    business.fullTimeEmployeesFemale + 
-    business.partTimeEmployeesMale + 
-    business.partTimeEmployeesFemale;
-  const jobCreationScore = Math.min(10, totalEmployees);
-  
-  // Financial viability (0-10)
-  // Complex evaluation would be needed here, for now we use a placeholder
-  const viabilityScore = 5; // Placeholder
-  
-  // Management capacity (0-10)
-  // Complex evaluation would be needed here, for now we use a placeholder
-  const managementCapacityScore = 5; // Placeholder
-  
-  // Location bonus (0-5)
-  // Preference for focus countries
-  const focusCountries = ["ghana", "kenya", "nigeria", "rwanda", "tanzania"];
-  const locationBonus = focusCountries.includes(business.country) ? 5 : 0;
-  
-  // Gender balance bonus (0-5)
-  // Aim for 50% women-led enterprises
-  const isWomanLed = applicant.gender === "female";
-  const genderBonus = isWomanLed ? 5 : 0;
-  
-  // Calculate total score (max 100)
-  const totalScore = 
-    marketPotentialScore +
-    innovationScore +
-    climateAdaptationScore +
-    jobCreationScore +
-    viabilityScore +
-    managementCapacityScore +
-    locationBonus +
-    genderBonus;
-  
-  return {
-    marketPotentialScore,
-    innovationScore,
-    climateAdaptationScore,
-    jobCreationScore,
-    viabilityScore,
-    managementCapacityScore,
-    locationBonus,
-    genderBonus,
-    totalScore,
-  };
-}
-
-// Main eligibility check function
+/**
+ * Check eligibility and calculate scores for a BIRE application.
+ * Uses track-specific scoring based on Foundation or Acceleration track.
+ */
 export async function checkEligibility(applicationId: number) {
   try {
     // Fetch application, applicant, and business data
@@ -167,93 +27,222 @@ export async function checkEligibility(applicationId: number) {
         },
       },
     });
-    
+
     if (!application) {
       throw new Error("Application not found");
     }
-    
+
     const { business } = application;
     const { applicant } = business;
-    
-    // Check mandatory criteria
-    const mandatoryCriteria = checkMandatoryCriteria(application, applicant, business);
-    
-    // If all mandatory criteria are met, score evaluation criteria
-    let evaluationScores = {
-      marketPotentialScore: 0,
-      innovationScore: 0,
-      climateAdaptationScore: 0,
-      jobCreationScore: 0,
-      viabilityScore: 0,
-      managementCapacityScore: 0,
-      locationBonus: 0,
-      genderBonus: 0,
-      totalScore: 0,
-    };
-    
-    if (mandatoryCriteria.isEligible) {
-      evaluationScores = scoreEvaluationCriteria(application, applicant, business);
+    const track = application.track as "foundation" | "acceleration" | null;
+
+    // Check mandatory eligibility criteria
+    const mandatoryCriteria = checkMandatoryCriteria(business);
+
+    // Calculate track-specific scores
+    let trackScore: TrackScore;
+    if (track === "acceleration") {
+      trackScore = scoreAccelerationTrack(business);
+    } else {
+      // Default to foundation if track is null or foundation
+      trackScore = scoreFoundationTrack(business);
     }
-    
+
+    // Determine overall eligibility
+    const isEligible = mandatoryCriteria.isEligible && trackScore.isPassing;
+
+    // Map breakdown to legacy score fields for database compatibility
+    const scoreMapping = mapBreakdownToLegacyFields(trackScore, applicant);
+
     // Create or update eligibility result
     const [eligibilityResult] = await db
       .insert(eligibilityResults)
       .values({
         applicationId,
-        isEligible: mandatoryCriteria.isEligible,
+        isEligible,
         ageEligible: mandatoryCriteria.ageEligible,
         registrationEligible: mandatoryCriteria.registrationEligible,
         revenueEligible: mandatoryCriteria.revenueEligible,
         businessPlanEligible: mandatoryCriteria.businessPlanEligible,
         impactEligible: mandatoryCriteria.impactEligible,
-        marketPotentialScore: evaluationScores.marketPotentialScore,
-        innovationScore: evaluationScores.innovationScore,
-        climateAdaptationScore: evaluationScores.climateAdaptationScore,
-        jobCreationScore: evaluationScores.jobCreationScore,
-        viabilityScore: evaluationScores.viabilityScore,
-        managementCapacityScore: evaluationScores.managementCapacityScore,
-        locationBonus: evaluationScores.locationBonus,
-        genderBonus: evaluationScores.genderBonus,
-        totalScore: evaluationScores.totalScore,
-        // TODO: Add evaluator ID once authentication is implemented
+        marketPotentialScore: scoreMapping.marketPotentialScore,
+        innovationScore: scoreMapping.innovationScore,
+        climateAdaptationScore: scoreMapping.climateAdaptationScore,
+        jobCreationScore: scoreMapping.jobCreationScore,
+        viabilityScore: scoreMapping.viabilityScore,
+        managementCapacityScore: scoreMapping.managementCapacityScore,
+        locationBonus: scoreMapping.locationBonus,
+        genderBonus: scoreMapping.genderBonus,
+        totalScore: trackScore.totalScore,
+        customScores: JSON.stringify({
+          track: trackScore.track,
+          breakdown: trackScore.breakdown,
+          passThreshold: trackScore.passThreshold,
+          isPassing: trackScore.isPassing
+        }),
       })
       .onConflictDoUpdate({
         target: eligibilityResults.applicationId,
         set: {
-          isEligible: mandatoryCriteria.isEligible,
+          isEligible,
           ageEligible: mandatoryCriteria.ageEligible,
           registrationEligible: mandatoryCriteria.registrationEligible,
           revenueEligible: mandatoryCriteria.revenueEligible,
           businessPlanEligible: mandatoryCriteria.businessPlanEligible,
           impactEligible: mandatoryCriteria.impactEligible,
-          marketPotentialScore: evaluationScores.marketPotentialScore,
-          innovationScore: evaluationScores.innovationScore,
-          climateAdaptationScore: evaluationScores.climateAdaptationScore,
-          jobCreationScore: evaluationScores.jobCreationScore,
-          viabilityScore: evaluationScores.viabilityScore,
-          managementCapacityScore: evaluationScores.managementCapacityScore,
-          locationBonus: evaluationScores.locationBonus,
-          genderBonus: evaluationScores.genderBonus,
-          totalScore: evaluationScores.totalScore,
+          marketPotentialScore: scoreMapping.marketPotentialScore,
+          innovationScore: scoreMapping.innovationScore,
+          climateAdaptationScore: scoreMapping.climateAdaptationScore,
+          jobCreationScore: scoreMapping.jobCreationScore,
+          viabilityScore: scoreMapping.viabilityScore,
+          managementCapacityScore: scoreMapping.managementCapacityScore,
+          locationBonus: scoreMapping.locationBonus,
+          genderBonus: scoreMapping.genderBonus,
+          totalScore: trackScore.totalScore,
+          customScores: JSON.stringify({
+            track: trackScore.track,
+            breakdown: trackScore.breakdown,
+            passThreshold: trackScore.passThreshold,
+            isPassing: trackScore.isPassing
+          }),
           updatedAt: new Date(),
         },
       })
       .returning();
-    
+
     revalidatePath(`/admin/applications/${applicationId}`);
-    
+
     return {
       success: true,
       data: {
         eligibilityResult,
+        trackScore,
       },
     };
   } catch (error) {
     console.error("Error checking eligibility:", error);
-    
+
     return {
       success: false,
       message: "Failed to check eligibility",
     };
   }
-} 
+}
+
+// ============================================================================
+// MANDATORY CRITERIA CHECK
+// ============================================================================
+
+/**
+ * Check if business meets mandatory eligibility criteria for BIRE
+ */
+function checkMandatoryCriteria(business: any): {
+  isEligible: boolean;
+  ageEligible: boolean;
+  registrationEligible: boolean;
+  revenueEligible: boolean;
+  businessPlanEligible: boolean;
+  impactEligible: boolean;
+} {
+  // BIRE Mandatory: Business must be registered in Kenya
+  const registrationEligible = business.isRegistered === true;
+
+  // BIRE Mandatory: Must have operational years (at least 1 for Foundation, 2 for Acceleration)
+  const yearsOperational = business.yearsOperational ?? 0;
+  const ageEligible = yearsOperational >= 1;
+
+  // BIRE Mandatory: Must have revenue (500k-3M for Foundation, 3M+ for Acceleration)
+  const revenue = typeof business.revenueLastYear === 'string'
+    ? parseFloat(business.revenueLastYear)
+    : (business.revenueLastYear ?? 0);
+  const revenueEligible = revenue >= 500000;
+
+  // BIRE Mandatory: Must have management books of accounts
+  const businessPlanEligible = business.hasFinancialRecords === true;
+
+  // BIRE: Must demonstrate climate adaptation focus
+  const impactEligible =
+    (business.description?.length ?? 0) > 50 &&
+    (business.problemSolved?.length ?? 0) > 50;
+
+  // Overall eligibility requires all mandatory criteria
+  const isEligible =
+    registrationEligible &&
+    ageEligible &&
+    revenueEligible &&
+    businessPlanEligible &&
+    impactEligible;
+
+  return {
+    isEligible,
+    ageEligible,
+    registrationEligible,
+    revenueEligible,
+    businessPlanEligible,
+    impactEligible,
+  };
+}
+
+// ============================================================================
+// LEGACY FIELD MAPPING
+// ============================================================================
+
+/**
+ * Map BIRE track scoring breakdown to legacy database fields
+ */
+function mapBreakdownToLegacyFields(
+  trackScore: TrackScore,
+  applicant: any
+): {
+  marketPotentialScore: number;
+  innovationScore: number;
+  climateAdaptationScore: number;
+  jobCreationScore: number;
+  viabilityScore: number;
+  managementCapacityScore: number;
+  locationBonus: number;
+  genderBonus: number;
+} {
+  const breakdown = trackScore.breakdown;
+
+  // Find categories by name
+  const findCategory = (name: string) =>
+    breakdown.find(b => b.category.toLowerCase().includes(name.toLowerCase()));
+
+  if (trackScore.track === "foundation") {
+    // Foundation track mapping
+    const commercial = findCategory("Commercial");
+    const businessModel = findCategory("Business Model");
+    const market = findCategory("Market");
+    const social = findCategory("Social");
+
+    return {
+      marketPotentialScore: market?.earnedPoints ?? 0,
+      innovationScore: businessModel?.earnedPoints ?? 0,
+      climateAdaptationScore: social?.earnedPoints ?? 0,
+      jobCreationScore: 0, // Not directly in Foundation
+      viabilityScore: commercial?.earnedPoints ?? 0,
+      managementCapacityScore: 0, // Not directly in Foundation
+      locationBonus: 5, // Kenya-based (always qualifies)
+      genderBonus: applicant?.gender === "female" ? 5 : 0,
+    };
+  } else {
+    // Acceleration track mapping
+    const revenues = findCategory("Revenues");
+    const impact = findCategory("Impact Potential");
+    const scalability = findCategory("Scalability");
+    const socialEnv = findCategory("Social & Environmental");
+    const businessModel = findCategory("Business Model");
+
+    return {
+      marketPotentialScore: scalability?.earnedPoints ?? 0,
+      innovationScore: businessModel?.earnedPoints ?? 0,
+      climateAdaptationScore: socialEnv?.earnedPoints ?? 0,
+      jobCreationScore: impact?.earnedPoints ?? 0,
+      viabilityScore: revenues?.earnedPoints ?? 0,
+      managementCapacityScore: 0, // Could be derived from business model
+      locationBonus: 5, // Kenya-based (always qualifies)
+      genderBonus: applicant?.gender === "female" ? 5 : 0,
+    };
+  }
+}
