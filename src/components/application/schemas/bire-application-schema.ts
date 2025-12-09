@@ -13,10 +13,24 @@ export const applicantSchema = z.object({
 });
 
 // === BUSINESS ELIGIBILITY SCHEMA ===
+// New strict requirements: immediate auto-disqualify for missing docs/invalid status
 export const businessEligibilitySchema = z.object({
     name: z.string().min(2, "Business name is required"),
-    isRegistered: z.boolean(),
+    isRegistered: z.boolean().refine(val => val === true, "Business must be registered in Kenya to be eligible"),
+    registrationType: z.enum([
+        "limited_company",
+        "partnership",
+        "cooperative",
+        "self_help_group_cbo",
+        "sole_proprietorship"
+    ], { required_error: "Please select your registration type" }),
     registrationCertificateUrl: z.string().min(1, "Please upload your registration certificate"),
+    yearsOperational: z.number().min(0, "Years operational must be a number"),
+    // Logic note: UI handles the auto-disqualify check (<1 year), schema just enforces number
+
+    hasFinancialRecords: z.boolean().refine(val => val === true, "Must have at least 1 year of financial records"),
+    financialRecordsUrl: z.string().optional(), // Made optional in schema as UI might handle upload conditionally based on step
+
     sector: z.enum([
         "agriculture_and_agribusiness",
         "manufacturing",
@@ -36,144 +50,162 @@ export const businessEligibilitySchema = z.object({
     sectorOther: z.string().optional(),
     description: z.string().min(50, "Description must be at least 50 characters"),
     problemSolved: z.string().min(50, "Please describe the problem your business solves"),
-    country: z.literal("kenya"),
+    country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
-    city: z.string().min(2, "City is required"),
-    yearsOperational: z.number().min(0, "Years operational must be 0 or more"),
-    hasFinancialRecords: z.boolean(),
-    financialRecordsUrl: z.string().min(1, "Please upload your financial records"),
-    hasAuditedAccounts: z.boolean(),
-    auditedAccountsUrl: z.string().min(1, "Please upload your audited financial statements"),
 });
 
 // === FOUNDATION TRACK SCHEMA ===
 
-// Commercial Viability (20 marks)
+// Business Model (10 marks)
+export const foundationBusinessModelSchema = z.object({
+    businessModelInnovation: z.enum(["innovative_concept", "relatively_innovative", "existing"], {
+        required_error: "Please describe your business model",
+    }),
+});
+
+// Commercial Viability (30 marks total: Rev=10, Cust=10, Fund=5, Digit=5)
 export const foundationCommercialViabilitySchema = z.object({
     revenueLastYear: z.number().min(0, "Revenue is required"),
     customerCount: z.number().min(0, "Customer count is required"),
+    keyCustomerSegments: z.string().min(10, "Please describe your customer segments"),
     hasExternalFunding: z.boolean(),
-    fundsRaised: z.number().optional(),
-    fundingType: z.string().optional(),
-    fundingSource: z.string().optional(),
-    fundingDetails: z.string().optional(),
-});
-
-// Business Model (10 marks)
-export const foundationBusinessModelSchema = z.object({
-    businessModelInnovation: z.enum(["new", "relatively_new", "existing"], {
-        required_error: "Please select the innovation level",
-    }),
+    externalFundingDetails: z.string().optional(), // Required if hasExternalFunding is true (handled in UI/logic)
+    digitizationLevel: z.boolean({ required_error: "Please answer if you use digital tools" }),
+    digitizationReason: z.string().optional(), // Required if digitizationLevel is false
 });
 
 // Market Potential (30 marks)
 export const foundationMarketPotentialSchema = z.object({
     relativePricing: z.enum(["lower", "equal", "higher"], {
-        required_error: "Please select your pricing strategy",
+        required_error: "How does your pricing compare?",
     }),
-    productDifferentiation: z.enum(["new", "relatively_new", "existing"], {
-        required_error: "Please select product differentiation",
+    relativePricingReason: z.string().min(10, "Please explain your pricing"),
+    productDifferentiation: z.enum(["new", "relatively_new", "similar"], {
+        required_error: "How unique is your product?",
     }),
+    productDifferentiationDescription: z.string().min(10, "Please describe what makes it unique"),
     threatOfSubstitutes: z.enum(["low", "moderate", "high"], {
-        required_error: "Please select threat level",
+        required_error: "Select intensity of competition",
     }),
+    competitorOverview: z.string().min(10, "Provide a brief overview of competitors"),
     easeOfMarketEntry: z.enum(["low", "moderate", "high"], {
-        required_error: "Please select market entry ease",
+        required_error: "How easy is it for others to enter?",
     }),
-    competitiveIntensity: z.enum(["low", "moderate", "high"], {
-        required_error: "Please select competitive intensity",
-    }),
-    productDescription: z.string().optional(),
 });
 
-// Social Impact (40 marks)
+// Social Impact (30 marks)
 export const foundationSocialImpactSchema = z.object({
-    environmentalImpact: z.enum(["clearly_defined", "neutral", "not_defined"], {
-        required_error: "Please select environmental impact level",
+    environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"], {
+        required_error: "Does your business conserve the environment?",
     }),
-    environmentalExamples: z.string().optional(),
-    specialGroupsEmployed: z.number().min(0, "Number of special groups employed is required"),
+    environmentalImpactDescription: z.string().optional(), // Required if not 'not_defined'
+
+    // Breakdown of employees
+    fullTimeEmployeesTotal: z.number().min(1, "Must be at least 1"),
+    fullTimeEmployeesWomen: z.number().default(0),
+    fullTimeEmployeesYouth: z.number().default(0),
+    fullTimeEmployeesPwd: z.number().default(0),
+
     businessCompliance: z.enum(["fully_compliant", "partially_compliant", "not_clear"], {
-        required_error: "Please select compliance status",
+        required_error: "What is your compliance status?",
     }),
+    complianceDocumentsUrl: z.string().optional(),
 });
 
 // === ACCELERATION TRACK SCHEMA ===
 
-// Revenues (20 marks)
+// Revenue & Growth (20 marks)
 export const accelerationRevenuesSchema = z.object({
-    revenueLastYear: z.number().min(0, "Revenue is required"),
-    yearsOperational: z.number().min(1, "Years operational is required"),
-    revenueTrend: z.enum(["growing", "stable", "declining"]).optional(),
+    revenueLastYear: z.number().min(3000000, "Revenue must be above KES 3,000,000 to qualify for Accelerator"), // Enforcement
+    auditedAccountsUrl: z.string().min(1, "Management or audited accounts are mandatory"),
+    yearsOperational: z.number().min(2, "Must be operational for at least 2 years"),
+    growthHistory: z.string().min(20, "Provide a brief history of growth"),
     futureSalesGrowth: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select projected growth",
+        required_error: "Rate your projected sales growth",
     }),
+    futureSalesGrowthReason: z.string().min(20, "Explain the basis for projected growth"),
     hasExternalFunding: z.boolean(),
-    fundsRaised: z.number().optional(),
-    fundingType: z.string().optional(),
-    fundingSource: z.string().optional(),
-    fundingDetails: z.string().optional(),
+    externalFundingDetails: z.string().optional(),
 });
 
 // Impact Potential (20 marks)
 export const accelerationImpactPotentialSchema = z.object({
-    currentSpecialGroupsEmployed: z.number().min(0, "Number of special groups employed is required"),
+    // Current employees
+    fullTimeEmployeesTotal: z.number().min(1, "Total employees required"),
+    fullTimeEmployeesWomen: z.number().default(0),
+    fullTimeEmployeesYouth: z.number().default(0),
+    fullTimeEmployeesPwd: z.number().default(0),
+
     jobCreationPotential: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select job creation potential",
+        required_error: "Rate potential to create new jobs",
     }),
 });
 
 // Scalability (20 marks)
 export const accelerationScalabilitySchema = z.object({
     marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"], {
-        required_error: "Please select market differentiation",
+        required_error: "How differentiated is your product?",
     }),
+    marketDifferentiationDescription: z.string().min(20, "Explain your key competitive strengths"),
     competitiveAdvantage: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select competitive advantage",
+        required_error: "Level of competitive advantage",
     }),
-    offeringFocus: z.enum(["outcome_focused", "solution_focused", "feature_focused"], {
-        required_error: "Please select offering focus",
+    competitiveAdvantageSource: z.string().min(20, "Describe sources of advantage"),
+    technologyIntegration: z.enum(["high", "moderate", "low"], {
+        required_error: "Level of technology application",
     }),
-    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "no_alignment"], {
-        required_error: "Please select sales/marketing integration",
+    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"], {
+        required_error: "Sales & marketing integration level",
     }),
+    salesMarketingApproach: z.string().min(20, "Describe sales channels & marketing approach"),
 });
 
-// Social Impact (20 marks)
+// Social & Env Impact (20 marks)
 export const accelerationSocialImpactSchema = z.object({
-    socialImpactHousehold: z.enum(["high", "moderate", "none"], {
-        required_error: "Please select social impact level",
+    socialImpactContribution: z.enum(["high", "moderate", "none"], {
+        required_error: "Rate contribution to social improvements",
     }),
-    supplierInvolvement: z.enum(["direct_engagement", "network_engagement", "none"], {
-        required_error: "Please select supplier involvement",
+    supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"], {
+        required_error: "How do you engage suppliers?",
     }),
-    environmentalImpact: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select environmental impact",
+    supplierSupportDescription: z.string().min(20, "Describe supplier support"),
+    environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"], {
+        required_error: "Do you conserve the environment?",
     }),
-    environmentalExamples: z.string().optional(),
+    environmentalImpactDescription: z.string().optional(),
 });
 
 // Business Model (20 marks)
 export const accelerationBusinessModelSchema = z.object({
     businessModelUniqueness: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select business model uniqueness",
+        required_error: "How unique is your business model?",
     }),
+    businessModelUniquenessDescription: z.string().min(20, "Describe difference"),
     customerValueProposition: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select value proposition strength",
+        required_error: "Strength of value proposition",
     }),
     competitiveAdvantageStrength: z.enum(["high", "moderate", "low"], {
-        required_error: "Please select competitive advantage strength",
+        required_error: "Strength of competitive advantage",
     }),
+    competitiveAdvantageBarriers: z.string().min(20, "Explain barriers protecting position"),
 });
 
-// === DOCUMENT UPLOADS SCHEMA ===
+// === DECLARATION & UPLOADS ===
+export const declarationSchema = z.object({
+    hasSocialSafeguarding: z.boolean().refine(val => val === true, "Social safeguarding guidelines are required"),
+    confirmTruth: z.boolean().refine(val => val === true, "You must certify information is accurate"),
+    declarationName: z.string().min(2, "Name is required"),
+    declarationDate: z.date(),
+});
+
 export const documentsSchema = z.object({
-    registrationCertificateUrl: z.string().optional(),
+    registrationCertificateUrl: z.string().optional(), // Usually captured in eligibility, but good to have here
     financialRecordsUrl: z.string().optional(),
     auditedAccountsUrl: z.string().optional(),
     salesEvidenceUrl: z.string().optional(),
     photosUrl: z.string().optional(),
     taxComplianceUrl: z.string().optional(),
+    otherFilesUrl: z.string().optional(),
 });
 
 // === COMBINED SCHEMAS ===
@@ -181,22 +213,24 @@ export const documentsSchema = z.object({
 export const foundationApplicationSchema = z.object({
     applicant: applicantSchema,
     business: businessEligibilitySchema,
-    commercialViability: foundationCommercialViabilitySchema,
     businessModel: foundationBusinessModelSchema,
+    commercialViability: foundationCommercialViabilitySchema,
     marketPotential: foundationMarketPotentialSchema,
     socialImpact: foundationSocialImpactSchema,
     documents: documentsSchema,
+    declaration: declarationSchema,
 });
 
 export const accelerationApplicationSchema = z.object({
     applicant: applicantSchema,
     business: businessEligibilitySchema,
-    revenues: accelerationRevenuesSchema,
+    revenues: accelerationRevenuesSchema, // Renamed from commercialViability for Acceleration track in logic
     impactPotential: accelerationImpactPotentialSchema,
     scalability: accelerationScalabilitySchema,
     socialImpact: accelerationSocialImpactSchema,
     businessModel: accelerationBusinessModelSchema,
     documents: documentsSchema,
+    declaration: declarationSchema,
 });
 
 // Type exports
@@ -205,29 +239,12 @@ export type BusinessEligibilityFormData = z.infer<typeof businessEligibilitySche
 export type FoundationApplicationFormData = z.infer<typeof foundationApplicationSchema>;
 export type AccelerationApplicationFormData = z.infer<typeof accelerationApplicationSchema>;
 
-// Default values
+// Default values (helpers)
 export const defaultApplicant: Partial<ApplicantFormData> = {
     firstName: "",
     lastName: "",
     idPassportNumber: "",
-    gender: undefined,
+    // gender undefined
     phoneNumber: "",
     email: "",
-};
-
-export const defaultBusinessEligibility: Partial<BusinessEligibilityFormData> = {
-    name: "",
-    isRegistered: true, // Always true since eligibility screening confirmed
-    registrationCertificateUrl: "",
-    sector: undefined,
-    description: "",
-    problemSolved: "",
-    country: "kenya",
-    county: "",
-    city: "",
-    yearsOperational: 0,
-    hasFinancialRecords: true, // Always true since eligibility screening confirmed
-    financialRecordsUrl: "",
-    hasAuditedAccounts: true, // Always true since eligibility screening confirmed
-    auditedAccountsUrl: "",
 };

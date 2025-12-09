@@ -1,3 +1,4 @@
+
 import {
   pgTable,
   serial,
@@ -14,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Enums
 export const genderEnum = pgEnum('gender', ['male', 'female', 'other']);
@@ -164,6 +165,15 @@ export const verificationStatusEnum = pgEnum('verification_status', [
   'needs_info'
 ]);
 
+export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
+  'limited_company',
+  'partnership',
+  'cooperative',
+  'self_help_group_cbo',
+  'sole_proprietorship',
+  'other'
+]);
+
 // Tables
 
 
@@ -302,6 +312,7 @@ export const businesses = pgTable('businesses', {
 
   // === ELIGIBILITY FIELDS ===
   isRegistered: boolean('is_registered').notNull(),
+  registrationType: businessRegistrationTypeEnum('registration_type'),
   registrationCertificateUrl: varchar('registration_certificate_url', { length: 500 }),
   sector: businessSectorEnum('sector').notNull(),
   sectorOther: text('sector_other'),
@@ -318,56 +329,79 @@ export const businesses = pgTable('businesses', {
   hasAuditedAccounts: boolean('has_audited_accounts').notNull(),
   auditedAccountsUrl: varchar('audited_accounts_url', { length: 500 }),
 
-  // === FOUNDATION TRACK: COMMERCIAL VIABILITY (20 marks) ===
-  revenueLastYear: decimal('revenue_last_year', { precision: 12, scale: 2 }).notNull(), // >2M=10, 1-2M=5, 500k-1M=2
-  customerCount: integer('customer_count'), // >401=10, 200-400=5, 1-200=2
-  hasExternalFunding: boolean('has_external_funding'), // Yes=10, No=5
+  // === FOUNDATION TRACK: COMMERCIAL VIABILITY (30 marks) ===
+  revenueLastYear: decimal('revenue_last_year', { precision: 12, scale: 2 }).notNull(),
+  customerCount: integer('customer_count'),
+  hasExternalFunding: boolean('has_external_funding'),
+  externalFundingDetails: text('external_funding_details'), // List funders/amounts
 
   // === FOUNDATION TRACK: BUSINESS MODEL (10 marks) ===
-  businessModelInnovation: text('business_model_innovation'), // New=10, Relatively New=5, Existing=2
+  businessModelInnovation: text('business_model_innovation'),
+  digitizationLevel: boolean('digitization_level'), // Yes/No for Foundation D4
+  digitizationReason: text('digitization_reason'), // If No, why?
 
   // === FOUNDATION TRACK: MARKET POTENTIAL (30 marks) ===
-  relativePricing: text('relative_pricing'), // Lower=7, Equal=4, Higher=1
-  productDifferentiation: text('product_differentiation'), // New=8, Relatively New=5, Existing=2
-  threatOfSubstitutes: text('threat_of_substitutes'), // Low=7, Moderate=4, High=0
-  easeOfMarketEntry: text('ease_of_market_entry'), // Low=8, Moderate=5, High=1
+  relativePricing: text('relative_pricing'),
+  productDifferentiation: text('product_differentiation'),
+  threatOfSubstitutes: text('threat_of_substitutes'),
+  competitorOverview: text('competitor_overview'), // Brief overview of competitors
+  easeOfMarketEntry: text('ease_of_market_entry'),
 
-  // === FOUNDATION TRACK: SOCIAL IMPACT (40 marks) ===
-  environmentalImpact: text('environmental_impact'), // Clearly Defined=15, Neutral=10, Not Defined=5
-  specialGroupsEmployed: integer('special_groups_employed'), // Women, Youth, PWD: >10=15, 6-9=10, 5=5
-  businessCompliance: text('business_compliance'), // Fully=10, Partially=3, Not Clear=1
+  // === FOUNDATION TRACK: SOCIAL IMPACT (30 marks) ===
+  environmentalImpact: text('environmental_impact'), // Clearly defined, Minimal, Not defined
+  environmentalImpactDescription: text('environmental_impact_description'), // Provide examples
+  fullTimeEmployeesTotal: integer('full_time_employees_total'),
+  fullTimeEmployeesWomen: integer('full_time_employees_women'),
+  fullTimeEmployeesYouth: integer('full_time_employees_youth'),
+  fullTimeEmployeesPwd: integer('full_time_employees_pwd'),
+  businessCompliance: text('business_compliance'), // Fully, Partially, None
+  complianceDocumentsUrl: varchar('compliance_documents_url', { length: 500 }),
 
-  // === ACCELERATION TRACK: REVENUES (20 marks) ===
-  // revenueLastYear reused: >5M=5, 3.5-5M=3, 3-3.5M=1
-  // yearsOperational reused: >4=5, >3=3, 2=1
-  futureSalesGrowth: text('future_sales_growth'), // High=5, Moderate=3, Low=1
-  // hasExternalFunding reused: Yes=5, No=1
+  // === ACCELERATION TRACK: REVENUE & GROWTH (20 marks) ===
+  // revenueLastYear reused
+  // yearsOperational reused
+  growthHistory: text('growth_history'),
+  futureSalesGrowth: text('future_sales_growth'),
+  futureSalesGrowthReason: text('future_sales_growth_reason'), // Explain the basis
+  // hasExternalFunding reused
+  // externalFundingDetails reused
 
   // === ACCELERATION TRACK: IMPACT POTENTIAL (20 marks) ===
-  currentSpecialGroupsEmployed: integer('current_special_groups_employed'), // >10=10, 6-9=6, 5=3
-  jobCreationPotential: text('job_creation_potential'), // High=10, Moderate=6, Low=3
+  // fullTimeEmployees breakdowns reused for "Current Job Creation"
+  jobCreationPotential: text('job_creation_potential'), // High, Moderate, Low
 
   // === ACCELERATION TRACK: SCALABILITY (20 marks) ===
-  marketDifferentiation: text('market_differentiation'), // Truly Unique=5, Provably Better=3, Undifferentiated=1
-  competitiveAdvantage: text('competitive_advantage'), // High=5, Moderate=3, Low=1
-  offeringFocus: text('offering_focus'), // Outcome=5, Solution=3, Feature=1
-  salesMarketingIntegration: text('sales_marketing_integration'), // Fully Integrated=5, Aligned=3, No Alignment=1
+  marketDifferentiation: text('market_differentiation'), // Truly unique, Provably better, Undifferentiated
+  competitiveAdvantage: text('competitive_advantage'), // High, Moderate, Low
+  competitiveAdvantageSource: text('competitive_advantage_source'), // Describe sources
+  technologyIntegration: text('technology_integration'), // High, Moderate, Low
+  salesMarketingIntegration: text('sales_marketing_integration'), // Fully, Aligned, Not aligned
+  salesMarketingApproach: text('sales_marketing_approach'), // Describe channels
 
-  // === ACCELERATION TRACK: SOCIAL IMPACT (20 marks) ===
-  socialImpactHousehold: text('social_impact_household'), // High=6, Moderate=4, None=0
-  supplierInvolvement: text('supplier_involvement'), // Direct=6, Network=3, None=1
-  // environmentalImpact reused: High=6, Moderate=4, Low=0
+  // === ACCELERATION TRACK: SOCIAL & ENVIRONMENTAL IMPACT (20 marks) ===
+  socialImpactContribution: text('social_impact_contribution'), // High, Moderate, None
+  supplierInvolvement: text('supplier_involvement'), // Direct, Network, None
+  supplierSupportDescription: text('supplier_support_description'), // Describe support
+  // environmentalImpact reused
+  // environmentalImpactDescription reused
 
   // === ACCELERATION TRACK: BUSINESS MODEL (20 marks) ===
-  businessModelUniqueness: text('business_model_uniqueness'), // High=7, Moderate=3, Low=1
-  customerValueProposition: text('customer_value_proposition'), // High=7, Moderate=3, Low=1
-  competitiveAdvantageStrength: text('competitive_advantage_strength'), // High=6, Moderate=3, Low=1
+  businessModelUniqueness: text('business_model_uniqueness'), // High, Moderate, Low
+  businessModelUniquenessDescription: text('business_model_uniqueness_description'), // Describe what makes it different
+  customerValueProposition: text('customer_value_proposition'), // High, Moderate, Low
+  competitiveAdvantageStrength: text('competitive_advantage_strength'), // High, Moderate, Low
+  competitiveAdvantageBarriers: text('competitive_advantage_barriers'), // Explain barriers
 
   // === DOCUMENT UPLOADS ===
   salesEvidenceUrl: varchar('sales_evidence_url', { length: 500 }),
   photosUrl: varchar('photos_url', { length: 500 }),
   taxComplianceUrl: varchar('tax_compliance_url', { length: 500 }),
-  fundingDetails: text('funding_details'),
+  fundingDetails: text('funding_details'), // Legacy separate field, maybe keep for backward compat
+
+  // === DECLARATIONS ===
+  hasSocialSafeguarding: boolean('has_social_safeguarding'),
+  declarationName: text('declaration_name'),
+  declarationDate: timestamp('declaration_date'),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
@@ -398,204 +432,165 @@ export const eligibilityResults = pgTable('eligibility_results', {
   revenueEligible: boolean('revenue_eligible').notNull(),
   businessPlanEligible: boolean('business_plan_eligible').notNull(),
   impactEligible: boolean('impact_eligible').notNull(),
-  marketPotentialScore: integer('market_potential_score'),
-  innovationScore: integer('innovation_score'),
-  climateAdaptationScore: integer('climate_adaptation_score'),
-  jobCreationScore: integer('job_creation_score'),
-  viabilityScore: integer('viability_score'),
-  managementCapacityScore: integer('management_capacity_score'),
-  locationBonus: integer('location_bonus'),
-  genderBonus: integer('gender_bonus'),
+  totalScore: decimal('total_score', { precision: 5, scale: 2 }).default("0"),
 
-  // New dynamic scoring fields
-  customScores: text('custom_scores'), // JSON field for flexible scoring
+  // Auto-calculated score breakdown
+  commercialViabilityScore: decimal('commercial_viability_score', { precision: 5, scale: 2 }),
+  businessModelScore: decimal('business_model_score', { precision: 5, scale: 2 }),
+  marketPotentialScore: decimal('market_potential_score', { precision: 5, scale: 2 }),
+  socialImpactScore: decimal('social_impact_score', { precision: 5, scale: 2 }),
+  revenueGrowthScore: decimal('revenue_growth_score', { precision: 5, scale: 2 }),
+  scalabilityScore: decimal('scalability_score', { precision: 5, scale: 2 }),
 
-  totalScore: integer('total_score'),
-  evaluationNotes: text('evaluation_notes'),
-  evaluatedAt: timestamp('evaluated_at').defaultNow().notNull(),
-  evaluatedBy: text('evaluated_by'),
-
-  // Two-tier review system fields
-  // Reviewer 1 (Initial Review)
-  reviewer1Id: text('reviewer1_id'),
-  reviewer1Score: integer('reviewer1_score'),
+  // Two-Tier Review Fields
+  reviewer1Score: decimal('reviewer1_score', { precision: 5, scale: 2 }),
   reviewer1Notes: text('reviewer1_notes'),
+  reviewer1Id: text('reviewer1_id').references(() => users.id), // ID of the first reviewer
   reviewer1At: timestamp('reviewer1_at'),
 
-  // Reviewer 2 (Senior Review)
-  reviewer2Id: text('reviewer2_id'),
-  reviewer2Score: integer('reviewer2_score'),
+  reviewer2Score: decimal('reviewer2_score', { precision: 5, scale: 2 }),
   reviewer2Notes: text('reviewer2_notes'),
+  reviewer2Id: text('reviewer2_id').references(() => users.id), // ID of the second reviewer
   reviewer2At: timestamp('reviewer2_at'),
-  reviewer2OverrodeReviewer1: boolean('reviewer2_overrode_reviewer1').default(false),
+  reviewer2OverrodeReviewer1: boolean('reviewer2_overrode_reviewer1').default(false), // Flag if R2 changed R1's verdict significantly
 
-  // Locking mechanism
+  evaluatedBy: text('evaluated_by'), // Legacy field, maybe keep or migrate
+  evaluatedAt: timestamp('evaluated_at'),
+  evaluationNotes: text('evaluation_notes'), // Legacy field
+
+  // Locking mechanism to prevent race conditions during review
   isLocked: boolean('is_locked').default(false),
-  lockedBy: text('locked_by'),
+  lockedBy: text('locked_by').references(() => users.id), // User ID who locked it
   lockedAt: timestamp('locked_at'),
-  lockReason: text('lock_reason'),
+  lockReason: text('lock_reason'), // "Reviewing", "Auditing", etc.
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
-// New tables for configurable scoring system
-export const scoringConfigurations = pgTable('scoring_configurations', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  description: text('description'),
-  version: varchar('version', { length: 50 }).notNull().default('1.0'),
-  isActive: boolean('is_active').default(false),
-  isDefault: boolean('is_default').default(false),
-  totalMaxScore: integer('total_max_score').notNull().default(100),
-  passThreshold: integer('pass_threshold').notNull().default(60),
-  createdBy: text('created_by').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
-});
-
+// Scoring Criteria Table implementation
 export const scoringCriteria = pgTable('scoring_criteria', {
   id: serial('id').primaryKey(),
-  configId: integer('config_id').notNull().references(() => scoringConfigurations.id, { onDelete: 'cascade' }),
-  category: varchar('category', { length: 100 }).notNull(), // e.g., "Innovation and Climate Adaptation Focus"
-  name: text('name').notNull(), // e.g., "Demonstratable Climate Adaptation Benefits"
-  description: text('description'),
-  maxPoints: integer('max_points').notNull(),
-  weightage: decimal('weightage', { precision: 5, scale: 2 }), // Percentage weight in category
-  scoringLevels: text('scoring_levels'), // JSON: [{level: "Limited", points: 0, description: "..."}, ...]
-  evaluationType: varchar('evaluation_type', { length: 50 }).default('manual'), // 'manual', 'auto', 'hybrid'
-  sortOrder: integer('sort_order').default(0),
-  isRequired: boolean('is_required').default(true),
+  category: text('category').notNull(), // "Commercial Viability", "Business Model", etc.
+  criteriaName: text('criteria_name').notNull(), // "Annual Revenue", "Customer Count"
+  track: applicationTrackEnum('track').notNull(), // "foundation" or "acceleration"
+  weight: integer('weight').notNull(), // Max marks for this criteria
+  scoringLogic: text('scoring_logic').notNull(), // JSON string describing logic e.g., { ">2M": 10, "1-2M": 5 } OR "manual"
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
 export const applicationScores = pgTable('application_scores', {
   id: serial('id').primaryKey(),
-  applicationId: integer('application_id').notNull().references(() => applications.id, { onDelete: 'cascade' }),
+  eligibilityResultId: integer('eligibility_result_id').notNull().references(() => eligibilityResults.id, { onDelete: 'cascade' }),
   criteriaId: integer('criteria_id').notNull().references(() => scoringCriteria.id, { onDelete: 'cascade' }),
-  configId: integer('config_id').notNull().references(() => scoringConfigurations.id, { onDelete: 'cascade' }),
-  score: integer('score').notNull(),
-  maxScore: integer('max_score').notNull(),
-  level: varchar('level', { length: 100 }), // e.g., "Strong Capacity", "Moderate", etc.
-  notes: text('notes'),
-  evaluatedBy: text('evaluated_by'),
-  evaluatedAt: timestamp('evaluated_at').defaultNow().notNull(),
+  score: decimal('score', { precision: 5, scale: 2 }).notNull(),
+  reviewerComment: text('reviewer_comment'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const funding = pgTable('funding', {
+  id: serial('id').primaryKey(),
+  businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+  hasExternalFunding: boolean('has_external_funding').notNull(),
+  fundingSource: fundingSourceEnum('funding_source'),
+  funderName: text('funder_name'),
+  amountUsd: decimal('amount_usd', { precision: 12, scale: 2 }),
+  fundingDate: date('funding_date'),
+  fundingInstrument: fundingInstrumentEnum('funding_instrument'),
+  repaymentTerms: text('repayment_terms'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
-// Table to track re-evaluation history
-export const evaluationHistory = pgTable('evaluation_history', {
+export const employees = pgTable('employees', {
   id: serial('id').primaryKey(),
-  applicationId: integer('application_id').notNull().references(() => applications.id, { onDelete: 'cascade' }),
-  previousConfigId: integer('previous_config_id'),
-  newConfigId: integer('new_config_id').notNull().references(() => scoringConfigurations.id),
-  previousTotalScore: integer('previous_total_score'),
-  newTotalScore: integer('new_total_score'),
-  previousIsEligible: boolean('previous_is_eligible'),
-  newIsEligible: boolean('new_is_eligible'),
-  changeReason: text('change_reason'),
-  evaluatedBy: text('evaluated_by').notNull(),
-  evaluatedAt: timestamp('evaluated_at').defaultNow().notNull(),
+  businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+  fullTimeMale: integer('full_time_male').default(0),
+  fullTimeFemale: integer('full_time_female').default(0),
+  partTimeMale: integer('part_time_male').default(0),
+  partTimeFemale: integer('part_time_female').default(0),
+  totalEmployees: integer('total_employees').generatedAlwaysAs(
+    sql`"full_time_male" + "full_time_female" + "part_time_male" + "part_time_female"`
+  ),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+export const targetCustomers = pgTable('target_customers', {
+  id: serial('id').primaryKey(),
+  businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+  customerSegment: customerSegmentEnum('customer_segment').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Feedback System Tables
+
+export const supportTickets = pgTable('support_tickets', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ticketNumber: varchar('ticket_number', { length: 20 }).notNull().unique(), // e.g., TKT-1001
+  subject: varchar('subject', { length: 255 }).notNull(),
+  message: text('message').notNull(),
+  category: supportCategoryEnum('category').notNull(),
+  priority: supportPriorityEnum('priority').notNull().default('medium'),
+  status: supportStatusEnum('status').notNull().default('open'),
+  assignedTo: text('assigned_to').references(() => users.id), // Admin user assigned
+  resolution: text('resolution'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at')
+});
+
+export const ticketMessages = pgTable('ticket_messages', {
+  id: serial('id').primaryKey(),
+  ticketId: integer('ticket_id').notNull().references(() => supportTickets.id, { onDelete: 'cascade' }),
+  senderId: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message: text('message').notNull(),
+  isInternal: boolean('is_internal').default(false).notNull(), // For admin-only notes
   createdAt: timestamp('created_at').defaultNow().notNull()
 });
 
-export const applicationVerifications = pgTable('application_verifications', {
+export const ticketAttachments = pgTable('ticket_attachments', {
   id: serial('id').primaryKey(),
-  applicationId: integer('application_id').notNull().references(() => applications.id, { onDelete: 'cascade' }),
-  verifierId: text('verifier_id').notNull().references(() => users.id),
-  status: verificationStatusEnum('status').default('pending').notNull(),
-  comments: text('comments'),
-  reviewedAt: timestamp('reviewed_at').defaultNow(),
+  messageId: integer('message_id').notNull().references(() => ticketMessages.id, { onDelete: 'cascade' }),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileUrl: varchar('file_url', { length: 500 }).notNull(),
+  fileSize: integer('file_size').notNull(),
+  mimeType: varchar('mime_type', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+export const feedbackCampaigns = pgTable('feedback_campaigns', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  targetRole: userRoleEnum('target_role'), // e.g. send to all 'applicant'
+  status: feedbackCampaignStatusEnum('status').default('draft').notNull(),
+  scheduledAt: timestamp('scheduled_at'), // If scheduled for future
+  sentAt: timestamp('sent_at'),
+  createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
-// Support system tables
-export const supportTickets = pgTable('support_tickets', {
+export const feedbackEmails = pgTable('feedback_emails', {
   id: serial('id').primaryKey(),
-  ticketNumber: varchar('ticket_number', { length: 20 }).notNull().unique(), // e.g., "TKT-2024-001"
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  category: supportCategoryEnum('category').notNull(),
-  priority: supportPriorityEnum('priority').default('medium').notNull(),
-  status: supportStatusEnum('status').default('open').notNull(),
-  subject: text('subject').notNull(),
-  description: text('description').notNull(),
-  userEmail: varchar('user_email', { length: 255 }).notNull(),
-  userName: text('user_name').notNull(),
-  attachmentUrl: varchar('attachment_url', { length: 500 }), // Optional file attachment
-  assignedTo: text('assigned_to').references(() => users.id), // Admin user assigned to ticket
-  resolvedAt: timestamp('resolved_at'),
-  resolvedBy: text('resolved_by').references(() => users.id),
-  resolutionNotes: text('resolution_notes'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
-}, (table) => ({
-  ticketNumberIdx: index("support_tickets_ticket_number_idx").on(table.ticketNumber),
-  userIdIdx: index("support_tickets_user_id_idx").on(table.userId),
-  statusIdx: index("support_tickets_status_idx").on(table.status),
-  categoryIdx: index("support_tickets_category_idx").on(table.category),
-  priorityIdx: index("support_tickets_priority_idx").on(table.priority),
-  createdAtIdx: index("support_tickets_created_at_idx").on(table.createdAt),
-}));
+  campaignId: integer('campaign_id').notNull().references(() => feedbackCampaigns.id, { onDelete: 'cascade' }),
+  recipientId: text('recipient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: feedbackEmailStatusEnum('status').default('pending').notNull(),
+  sentAt: timestamp('sent_at'),
+  openedAt: timestamp('opened_at'), // Tracking (optional)
+  clickedAt: timestamp('clicked_at'),
+  errorMessage: text('error_message'), // If skipped or bounced
+});
 
-export const supportResponses = pgTable('support_responses', {
-  id: serial('id').primaryKey(),
-  ticketId: integer('ticket_id').notNull().references(() => supportTickets.id, { onDelete: 'cascade' }),
-  responderId: text('responder_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  responderName: text('responder_name').notNull(),
-  responderRole: varchar('responder_role', { length: 50 }).notNull(), // 'user', 'admin', 'support'
-  message: text('message').notNull(),
-  attachmentUrl: varchar('attachment_url', { length: 500 }), // Optional file attachment
-  isInternal: boolean('is_internal').default(false), // Internal notes not visible to user
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
-}, (table) => ({
-  ticketIdIdx: index("support_responses_ticket_id_idx").on(table.ticketId),
-  responderIdIdx: index("support_responses_responder_id_idx").on(table.responderId),
-  createdAtIdx: index("support_responses_created_at_idx").on(table.createdAt),
-}));
 
 // Relations
-export const applicantRelations = relations(applicants, ({ one, many }) => ({
-  user: one(users, {
-    fields: [applicants.userId],
-    references: [users.id]
-  }),
-  businesses: many(businesses)
-}));
-
-export const businessRelations = relations(businesses, ({ one, many }) => ({
-  applicant: one(applicants, {
-    fields: [businesses.applicantId],
-    references: [applicants.id]
-  }),
-  applications: many(applications)
-}));
-
-
-
-export const applicationRelations = relations(applications, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [applications.businessId],
-    references: [businesses.id]
-  }),
-  eligibilityResults: many(eligibilityResults)
-}));
-
-export const eligibilityResultsRelations = relations(eligibilityResults, ({ one }) => ({
-  application: one(applications, {
-    fields: [eligibilityResults.applicationId],
-    references: [applications.id]
-  }),
-  evaluator: one(users, {
-    fields: [eligibilityResults.evaluatedBy],
-    references: [users.id]
-  })
-}));
-
 export const userRelations = relations(users, ({ one, many }) => ({
+  accounts: many(accounts),
+  sessions: many(sessions),
   userProfile: one(userProfiles, {
     fields: [users.id],
     references: [userProfiles.userId]
@@ -604,170 +599,133 @@ export const userRelations = relations(users, ({ one, many }) => ({
     fields: [users.id],
     references: [applicants.userId]
   }),
-  evaluations: many(eligibilityResults, { relationName: "evaluator" }),
-  scoringConfigurations: many(scoringConfigurations),
-  applicationScores: many(applicationScores),
-  evaluationHistory: many(evaluationHistory)
+  assignedTickets: many(supportTickets, { relationName: 'assignedTo' }),
+  sentMessages: many(ticketMessages, { relationName: 'sender' }),
+  createdCampaigns: many(feedbackCampaigns, { relationName: 'creator' })
 }));
 
-export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
+export const userProfileRelations = relations(userProfiles, ({ one }) => ({
   user: one(users, {
     fields: [userProfiles.userId],
     references: [users.id]
   })
 }));
 
-// New relations for scoring system
-export const scoringConfigurationsRelations = relations(scoringConfigurations, ({ one, many }) => ({
-  creator: one(users, {
-    fields: [scoringConfigurations.createdBy],
+
+export const applicantRelations = relations(applicants, ({ one, many }) => ({
+  user: one(users, {
+    fields: [applicants.userId],
     references: [users.id]
   }),
-  criteria: many(scoringCriteria),
-  applicationScores: many(applicationScores),
-  evaluationHistory: many(evaluationHistory)
+  businesses: many(businesses) // One applicant can theoretically have many businesses, but usually 1
 }));
 
-export const scoringCriteriaRelations = relations(scoringCriteria, ({ one, many }) => ({
-  configuration: one(scoringConfigurations, {
-    fields: [scoringCriteria.configId],
-    references: [scoringConfigurations.id]
+export const businessRelations = relations(businesses, ({ one, many }) => ({
+  applicant: one(applicants, {
+    fields: [businesses.applicantId],
+    references: [applicants.id]
   }),
-  applicationScores: many(applicationScores)
+  application: one(applications, { // Link business back to application if needed directly
+    fields: [businesses.id],
+    references: [applications.businessId]
+  }),
+  funding: many(funding),
+  employees: one(employees, {
+    fields: [businesses.id],
+    references: [employees.businessId]
+  }),
+  targetCustomers: many(targetCustomers)
+}));
+
+export const applicationRelations = relations(applications, ({ one, many }) => ({
+  user: one(users, {
+    fields: [applications.userId],
+    references: [users.id]
+  }),
+  business: one(businesses, {
+    fields: [applications.businessId],
+    references: [businesses.id]
+  }),
+  eligibilityResults: many(eligibilityResults)
+}));
+
+export const eligibilityResultsRelations = relations(eligibilityResults, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [eligibilityResults.applicationId],
+    references: [applications.id]
+  }),
+  scores: many(applicationScores),
+  evaluator: one(users, { // Relation for evaluatedBy
+    fields: [eligibilityResults.evaluatedBy],
+    references: [users.id]
+  })
+}));
+
+export const scoringCriteriaRelations = relations(scoringCriteria, ({ many }) => ({
+  scores: many(applicationScores)
 }));
 
 export const applicationScoresRelations = relations(applicationScores, ({ one }) => ({
-  application: one(applications, {
-    fields: [applicationScores.applicationId],
-    references: [applications.id]
+  eligibilityResult: one(eligibilityResults, {
+    fields: [applicationScores.eligibilityResultId],
+    references: [eligibilityResults.id]
   }),
   criteria: one(scoringCriteria, {
     fields: [applicationScores.criteriaId],
     references: [scoringCriteria.id]
-  }),
-  configuration: one(scoringConfigurations, {
-    fields: [applicationScores.configId],
-    references: [scoringConfigurations.id]
-  }),
-  evaluator: one(users, {
-    fields: [applicationScores.evaluatedBy],
-    references: [users.id]
   })
 }));
 
-export const evaluationHistoryRelations = relations(evaluationHistory, ({ one }) => ({
-  application: one(applications, {
-    fields: [evaluationHistory.applicationId],
-    references: [applications.id]
-  }),
-  previousConfig: one(scoringConfigurations, {
-    fields: [evaluationHistory.previousConfigId],
-    references: [scoringConfigurations.id]
-  }),
-  newConfig: one(scoringConfigurations, {
-    fields: [evaluationHistory.newConfigId],
-    references: [scoringConfigurations.id]
-  })
-}));
-
-export const applicationVerificationsRelations = relations(applicationVerifications, ({ one }) => ({
-  application: one(applications, {
-    fields: [applicationVerifications.applicationId],
-    references: [applications.id]
-  }),
-  verifier: one(users, {
-    fields: [applicationVerifications.verifierId],
-    references: [users.id]
-  })
-}));
-
-// Support system relations
-export const supportTicketsRelations = relations(supportTickets, ({ one, many }) => ({
+export const supportTicketRelations = relations(supportTickets, ({ one, many }) => ({
   user: one(users, {
     fields: [supportTickets.userId],
-    references: [users.id]
+    references: [users.id],
+    relationName: 'creator' // Although userRelations defines 'user' generally
   }),
-  assignedToUser: one(users, {
+  assignee: one(users, {
     fields: [supportTickets.assignedTo],
-    references: [users.id]
+    references: [users.id],
+    relationName: 'assignedTo'
   }),
-  resolvedByUser: one(users, {
-    fields: [supportTickets.resolvedBy],
-    references: [users.id]
-  }),
-  responses: many(supportResponses)
+  messages: many(ticketMessages)
 }));
 
-export const supportResponsesRelations = relations(supportResponses, ({ one }) => ({
+export const ticketMessageRelations = relations(ticketMessages, ({ one, many }) => ({
   ticket: one(supportTickets, {
-    fields: [supportResponses.ticketId],
+    fields: [ticketMessages.ticketId],
     references: [supportTickets.id]
   }),
-  responder: one(users, {
-    fields: [supportResponses.responderId],
-    references: [users.id]
+  sender: one(users, {
+    fields: [ticketMessages.senderId],
+    references: [users.id],
+    relationName: 'sender'
+  }),
+  attachments: many(ticketAttachments)
+}));
+
+export const ticketAttachmentRelations = relations(ticketAttachments, ({ one }) => ({
+  message: one(ticketMessages, {
+    fields: [ticketAttachments.messageId],
+    references: [ticketMessages.id]
   })
 }));
 
-// Feedback email campaign system
-export const feedbackCampaigns = pgTable('feedback_campaigns', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  subject: text('subject').notNull(),
-  emailBody: text('email_body').notNull(), // HTML content
-  feedbackFormUrl: text('feedback_form_url').notNull(),
-  linkDisplayText: varchar('link_display_text', { length: 100 }).default('Share Your Feedback'),
-  status: feedbackCampaignStatusEnum('status').default('draft').notNull(),
-  batchSize: integer('batch_size').default(5).notNull(),
-  totalRecipients: integer('total_recipients').default(0),
-  sentCount: integer('sent_count').default(0),
-  failedCount: integer('failed_count').default(0),
-  createdBy: text('created_by').notNull().references(() => users.id),
-  scheduledAt: timestamp('scheduled_at'),
-  startedAt: timestamp('started_at'),
-  completedAt: timestamp('completed_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
-}, (table) => ({
-  statusIdx: index("feedback_campaigns_status_idx").on(table.status),
-  createdByIdx: index("feedback_campaigns_created_by_idx").on(table.createdBy),
-  createdAtIdx: index("feedback_campaigns_created_at_idx").on(table.createdAt),
-}));
-
-export const feedbackEmails = pgTable('feedback_emails', {
-  id: serial('id').primaryKey(),
-  campaignId: integer('campaign_id').notNull().references(() => feedbackCampaigns.id, { onDelete: 'cascade' }),
-  recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
-  recipientName: varchar('recipient_name', { length: 255 }).notNull(),
-  status: feedbackEmailStatusEnum('status').default('pending').notNull(),
-  batchNumber: integer('batch_number').notNull(),
-  sentAt: timestamp('sent_at'),
-  failedAt: timestamp('failed_at'),
-  errorMessage: text('error_message'),
-  retryCount: integer('retry_count').default(0),
-  responded: boolean('responded').default(false),
-  respondedAt: timestamp('responded_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
-}, (table) => ({
-  campaignIdIdx: index("feedback_emails_campaign_id_idx").on(table.campaignId),
-  statusIdx: index("feedback_emails_status_idx").on(table.status),
-  recipientEmailIdx: index("feedback_emails_recipient_email_idx").on(table.recipientEmail),
-  batchNumberIdx: index("feedback_emails_batch_number_idx").on(table.batchNumber),
-}));
-
-// Feedback campaign relations
-export const feedbackCampaignsRelations = relations(feedbackCampaigns, ({ one, many }) => ({
+export const feedbackCampaignRelations = relations(feedbackCampaigns, ({ one, many }) => ({
   creator: one(users, {
     fields: [feedbackCampaigns.createdBy],
-    references: [users.id]
+    references: [users.id],
+    relationName: 'creator'
   }),
   emails: many(feedbackEmails)
 }));
 
-export const feedbackEmailsRelations = relations(feedbackEmails, ({ one }) => ({
+export const feedbackEmailRelations = relations(feedbackEmails, ({ one }) => ({
   campaign: one(feedbackCampaigns, {
     fields: [feedbackEmails.campaignId],
     references: [feedbackCampaigns.id]
+  }),
+  recipient: one(users, {
+    fields: [feedbackEmails.recipientId],
+    references: [users.id]
   })
 }));

@@ -18,6 +18,7 @@ import {
     CaretUpIcon,
     SpinnerIcon,
     DownloadIcon,
+    HandshakeIcon,
 } from "@phosphor-icons/react";
 import { generateBireApplicationDocx } from "@/lib/bire-docx-generator";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ const formatValue = (value: unknown): string => {
     if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "number") return value.toLocaleString();
+    if (value instanceof Date) return value.toLocaleDateString();
     if (Array.isArray(value)) return value.join(", ");
     if (typeof value === "string") {
         return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -103,8 +105,7 @@ const FOUNDATION_SECTIONS: SectionConfig[] = [
             { key: "business.name", label: "Business Name" },
             { key: "business.sector", label: "Sector" },
             { key: "business.county", label: "County" },
-            { key: "business.city", label: "City" },
-            { key: "business.isRegistered", label: "Registered" },
+            { key: "business.registrationType", label: "Registration" },
             { key: "business.yearsOperational", label: "Years Operational" },
         ],
     },
@@ -116,6 +117,7 @@ const FOUNDATION_SECTIONS: SectionConfig[] = [
             { key: "commercialViability.revenueLastYear", label: "Revenue (Last Year)", formatter: formatCurrency },
             { key: "commercialViability.customerCount", label: "Customer Count" },
             { key: "commercialViability.hasExternalFunding", label: "External Funding" },
+            { key: "commercialViability.digitizationLevel", label: "Uses Digital Tools?" },
         ],
     },
     {
@@ -126,7 +128,7 @@ const FOUNDATION_SECTIONS: SectionConfig[] = [
             { key: "marketPotential.relativePricing", label: "Pricing Strategy" },
             { key: "marketPotential.productDifferentiation", label: "Product Differentiation" },
             { key: "marketPotential.threatOfSubstitutes", label: "Threat of Substitutes" },
-            { key: "marketPotential.easeOfMarketEntry", label: "Ease of Market Entry" },
+            { key: "marketPotential.easeOfMarketEntry", label: "Entry Barriers" },
         ],
     },
     {
@@ -135,8 +137,19 @@ const FOUNDATION_SECTIONS: SectionConfig[] = [
         icon: LeafIcon,
         fields: [
             { key: "socialImpact.environmentalImpact", label: "Environmental Impact" },
-            { key: "socialImpact.specialGroupsEmployed", label: "Special Groups Employed" },
-            { key: "socialImpact.businessCompliance", label: "Business Compliance" },
+            { key: "socialImpact.fullTimeEmployeesTotal", label: "Total Employees" },
+            { key: "socialImpact.businessCompliance", label: "Compliance Status" },
+        ],
+    },
+    {
+        id: "declaration",
+        label: "Declaration",
+        icon: HandshakeIcon,
+        fields: [
+            { key: "declaration.hasSocialSafeguarding", label: "Social Safeguarding" },
+            { key: "declaration.confirmTruth", label: "Verified Truth" },
+            { key: "declaration.declarationName", label: "Signed By" },
+            { key: "declaration.declarationDate", label: "Date" },
         ],
     },
 ];
@@ -162,8 +175,7 @@ const ACCELERATION_SECTIONS: SectionConfig[] = [
             { key: "business.name", label: "Business Name" },
             { key: "business.sector", label: "Sector" },
             { key: "business.county", label: "County" },
-            { key: "business.city", label: "City" },
-            { key: "business.isRegistered", label: "Registered" },
+            { key: "business.registrationType", label: "Registration" },
             { key: "business.yearsOperational", label: "Years Operational" },
         ],
     },
@@ -173,7 +185,7 @@ const ACCELERATION_SECTIONS: SectionConfig[] = [
         icon: CurrencyDollarIcon,
         fields: [
             { key: "revenues.revenueLastYear", label: "Revenue (Last Year)", formatter: formatCurrency },
-            { key: "revenues.futureSalesGrowth", label: "Revenue Growth" },
+            { key: "revenues.futureSalesGrowth", label: "Projected Growth" },
             { key: "revenues.hasExternalFunding", label: "External Funding" },
         ],
     },
@@ -182,7 +194,7 @@ const ACCELERATION_SECTIONS: SectionConfig[] = [
         label: "Impact Potential",
         icon: ChartLineUpIcon,
         fields: [
-            { key: "impactPotential.currentSpecialGroupsEmployed", label: "Special Groups Employed" },
+            { key: "impactPotential.fullTimeEmployeesTotal", label: "Total Employees" },
             { key: "impactPotential.jobCreationPotential", label: "Job Creation Potential" },
         ],
     },
@@ -193,7 +205,7 @@ const ACCELERATION_SECTIONS: SectionConfig[] = [
         fields: [
             { key: "scalability.marketDifferentiation", label: "Market Differentiation" },
             { key: "scalability.competitiveAdvantage", label: "Competitive Advantage" },
-            { key: "scalability.offeringFocus", label: "Offering Focus" },
+            { key: "scalability.technologyIntegration", label: "Tech Integration" },
         ],
     },
     {
@@ -201,8 +213,19 @@ const ACCELERATION_SECTIONS: SectionConfig[] = [
         label: "Social Impact",
         icon: LeafIcon,
         fields: [
-            { key: "socialImpact.socialImpactHousehold", label: "Household Impact" },
+            { key: "socialImpact.socialImpactContribution", label: "Social Contribution" },
             { key: "socialImpact.environmentalImpact", label: "Environmental Impact" },
+        ],
+    },
+    {
+        id: "declaration",
+        label: "Declaration",
+        icon: HandshakeIcon,
+        fields: [
+            { key: "declaration.hasSocialSafeguarding", label: "Social Safeguarding" },
+            { key: "declaration.confirmTruth", label: "Verified Truth" },
+            { key: "declaration.declarationName", label: "Signed By" },
+            { key: "declaration.declarationDate", label: "Date" },
         ],
     },
 ];
@@ -406,7 +429,7 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                             className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
                         />
                         <Label htmlFor="terms" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
-                            I confirm that all information provided is accurate and complete.
+                            I confirm that all information provided is accurate and complete, and I agree to use the grant funds solely for the business purpose stated.
                         </Label>
                     </label>
 
@@ -418,7 +441,7 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                             className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
                         />
                         <Label htmlFor="privacy" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
-                            I agree to the Privacy Policy and consent to data processing.
+                            I agree to the BIRE Project Privacy Policy and allow Hand in Hand Eastern Africa to process my data for the purpose of this application.
                         </Label>
                     </label>
                 </div>

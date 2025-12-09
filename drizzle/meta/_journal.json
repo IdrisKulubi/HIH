@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1765144717046,
-      "tag": "0000_sticky_vivisector",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1765279751425,
-      "tag": "0001_early_patch",
+      "when": 1765297103165,
+      "tag": "0000_tiresome_texas_twister",
       "breakpoints": true
     }
   ]

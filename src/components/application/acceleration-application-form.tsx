@@ -22,10 +22,21 @@ import {
     PlantIcon,
     LightbulbIcon,
     ClipboardTextIcon,
+    HandshakeIcon,
+    WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Progress } from "@/components/ui/progress";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 // Form sections
@@ -34,6 +45,7 @@ import { BusinessEligibilityForm } from "./forms/business-eligibility-form";
 import { AccelerationRevenuesForm } from "./forms/acceleration-revenues-form";
 import { AccelerationImpactForm, AccelerationScalabilityForm } from "./forms/acceleration-impact-scalability-form";
 import { AccelerationSocialImpactForm, AccelerationBusinessModelForm } from "./forms/acceleration-social-model-form";
+import { DeclarationForm } from "./forms/declaration-form";
 import { ReviewSubmitSection } from "./forms/review-submit-section";
 
 // Schema
@@ -52,49 +64,56 @@ const STEPS = [
         label: "Applicant Details",
         shortLabel: "Applicant",
         icon: UserIcon,
-        description: "Your personal information",
+        description: "Personal information",
     },
     {
         id: "business",
         label: "Business Profile",
         shortLabel: "Business",
         icon: BuildingsIcon,
-        description: "Business eligibility details",
+        description: "Eligibility details",
     },
     {
         id: "revenues",
         label: "Revenue & Growth",
         shortLabel: "Revenues",
         icon: ChartLineUpIcon,
-        description: "Revenue metrics (20 marks)",
+        description: "Financial performance",
     },
     {
         id: "impact",
         label: "Impact Potential",
         shortLabel: "Impact",
         icon: UsersIcon,
-        description: "Job creation potential (20 marks)",
+        description: "Job creation potential",
     },
     {
         id: "scalability",
         label: "Scalability",
         shortLabel: "Scalability",
         icon: RocketLaunchIcon,
-        description: "Growth potential (20 marks)",
+        description: "Growth potential",
     },
     {
         id: "social",
         label: "Social Impact",
         shortLabel: "Social",
         icon: PlantIcon,
-        description: "Environmental & social (20 marks)",
+        description: "Environmental & social",
     },
     {
         id: "businessModel",
         label: "Business Model",
         shortLabel: "Model",
         icon: LightbulbIcon,
-        description: "Model innovation (20 marks)",
+        description: "Model innovation",
+    },
+    {
+        id: "declaration",
+        label: "Declaration",
+        shortLabel: "Declaration",
+        icon: HandshakeIcon,
+        description: "Sign & Certify",
     },
     {
         id: "review",
@@ -112,6 +131,7 @@ export function AccelerationApplicationForm() {
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [isAutoSaving, setIsAutoSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [disqualifiedReason, setDisqualifiedReason] = useState<string | null>(null);
 
     const form = useForm<AccelerationApplicationFormData>({
         resolver: zodResolver(accelerationApplicationSchema),
@@ -126,7 +146,7 @@ export function AccelerationApplicationForm() {
                 fundingDetails: "",
             },
             impactPotential: {
-                currentSpecialGroupsEmployed: 0,
+                fullTimeEmployeesTotal: 0,
                 jobCreationPotential: undefined,
             },
             scalability: {
@@ -146,6 +166,12 @@ export function AccelerationApplicationForm() {
                 customerValueProposition: undefined,
                 competitiveAdvantageStrength: undefined,
             },
+            declaration: {
+                hasSocialSafeguarding: false,
+                confirmTruth: false,
+                declarationName: "",
+                declarationDate: new Date(),
+            },
             documents: {},
         },
         mode: "onChange",
@@ -157,12 +183,24 @@ export function AccelerationApplicationForm() {
         if (savedDraft) {
             try {
                 const parsed = JSON.parse(savedDraft);
+                // Handle date reconstruction
+                if (parsed.data?.declaration?.declarationDate) {
+                    parsed.data.declaration.declarationDate = new Date(parsed.data.declaration.declarationDate);
+                }
+                if (parsed.data?.applicant?.dob) {
+                    parsed.data.applicant.dob = new Date(parsed.data.applicant.dob);
+                }
+
                 form.reset(parsed.data);
-                setActiveStep(parsed.step || 0);
+
+                const savedStep = parsed.step || 0;
+                setActiveStep(savedStep < STEPS.length ? savedStep : 0);
+
                 setCompletedSteps(parsed.completedSteps || []);
                 toast.info("Draft loaded", { description: "Your previous progress has been restored." });
             } catch (e) {
                 console.error("Failed to load draft:", e);
+                localStorage.removeItem(DRAFT_KEY);
             }
         }
     }, [form]);
@@ -198,37 +236,73 @@ export function AccelerationApplicationForm() {
     const progress = ((activeStep + 1) / STEPS.length) * 100;
 
     // Get fields to validate for current step
-    const getFieldsForStep = (stepId: string): (keyof AccelerationApplicationFormData)[] => {
+    const getFieldsForStep = (stepId: string): any[] => {
         switch (stepId) {
-            case "applicant":
-                return ["applicant"];
-            case "business":
-                return ["business"];
-            case "revenues":
-                return ["revenues"];
-            case "impact":
-                return ["impactPotential"];
-            case "scalability":
-                return ["scalability"];
-            case "social":
-                return ["socialImpact"];
-            case "businessModel":
-                return ["businessModel"];
-            default:
-                return [];
+            case "applicant": return ["applicant"];
+            case "business": return ["business"];
+            case "revenues": return ["revenues"];
+            case "impact": return ["impactPotential"];
+            case "scalability": return ["scalability"];
+            case "social": return ["socialImpact"];
+            case "businessModel": return ["businessModel"];
+            case "declaration": return ["declaration"];
+            default: return [];
         }
+    };
+
+    const checkEligibility = (data: AccelerationApplicationFormData) => {
+        // 1. Age Check (18-35)
+        if (activeStep === 0) { // Applicant
+            const dob = new Date(data.applicant.dob);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            if (age < 18 || age > 35) {
+                return "You must be between 18 and 35 years old to be eligible for this program.";
+            }
+        }
+
+        // 2. Business Check
+        if (activeStep === 1) { // Business
+            // Explicitly require registration for Acceleration
+            if (!data.business.isRegistered) {
+                return "Your business must be officially registered to be eligible for the Acceleration Track.";
+            }
+            if (data.business.country?.toLowerCase() !== "kenya") {
+                return "This program is currently open only to businesses based in Kenya.";
+            }
+        }
+
+        // 3. Revenue Check
+        if (activeStep === 2) { // Revenues
+            if (data.revenues.revenueLastYear <= 3000000) {
+                return "Your annual revenue must be above KES 3 Million to qualify for the Acceleration Track. Consider applying for the Foundation Track.";
+            }
+        }
+
+        return null;
     };
 
     const goToNextStep = async () => {
         if (activeStep < STEPS.length - 1) {
-            // Validate fields for current step
             const currentStepId = STEPS[activeStep].id;
             const fieldsToValidate = getFieldsForStep(currentStepId);
 
-            // @ts-ignore - path string access is valid for trigger but TS doesn't infer it perfectly with nested Zod schemas
+            // @ts-ignore
             const isValid = await form.trigger(fieldsToValidate);
 
             if (isValid) {
+                const currentData = form.getValues();
+                const disqualification = checkEligibility(currentData);
+
+                if (disqualification) {
+                    setDisqualifiedReason(disqualification);
+                    return;
+                }
+
                 if (!completedSteps.includes(activeStep)) {
                     setCompletedSteps([...completedSteps, activeStep]);
                 }
@@ -237,6 +311,7 @@ export function AccelerationApplicationForm() {
                 window.scrollTo({ top: 0, behavior: "smooth" });
             } else {
                 toast.error("Please fill in all required fields before proceeding.");
+                console.log("Validation errors:", form.formState.errors);
             }
         }
     };
@@ -286,6 +361,8 @@ export function AccelerationApplicationForm() {
                 return <AccelerationSocialImpactForm form={form} />;
             case "businessModel":
                 return <AccelerationBusinessModelForm form={form} />;
+            case "declaration":
+                return <DeclarationForm form={form} />;
             case "review":
                 return (
                     <ReviewSubmitSection
@@ -302,6 +379,29 @@ export function AccelerationApplicationForm() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-blue/5">
+            {/* Disqualification Modal */}
+            <AlertDialog open={!!disqualifiedReason} onOpenChange={(open) => !open && setDisqualifiedReason(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                            <WarningCircleIcon className="w-6 h-6" />
+                            Not Eligible
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="pt-2 text-slate-700 text-base">
+                            {disqualifiedReason}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            onClick={() => router.push("/")}
+                            className="bg-slate-900 hover:bg-slate-800"
+                        >
+                            Return Home
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {/* Header */}
             <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm">
                 <div className="container mx-auto px-4 py-4">
@@ -319,7 +419,7 @@ export function AccelerationApplicationForm() {
                             <div className="h-6 w-px bg-slate-200" />
                             <div>
                                 <h1 className="text-lg font-bold text-slate-900">
-                                    Acceleration Track Application
+                                    Acceleration Track
                                 </h1>
                                 <p className="text-xs text-slate-500">
                                     Step {activeStep + 1} of {STEPS.length}
@@ -341,7 +441,7 @@ export function AccelerationApplicationForm() {
                                 className="border-brand-blue text-gray-900 hover:bg-brand-blue/5"
                             >
                                 <FloppyDiskIcon className={cn("w-4 h-4 mr-2", isAutoSaving && "animate-spin")} />
-                                Save Draft
+                                Save
                             </Button>
                         </div>
                     </div>
@@ -361,9 +461,6 @@ export function AccelerationApplicationForm() {
                             {STEPS.map((step, index) => {
                                 const isActive = index === activeStep;
                                 const isCompleted = completedSteps.includes(index);
-
-                                // Calculate if this step is reachable
-                                // Simplified: Can navigate to any step <= max(completedSteps) + 1
                                 const maxAccessibleStep = Math.max(-1, ...completedSteps) + 1;
                                 const isAccessible = index <= maxAccessibleStep;
 
@@ -375,7 +472,7 @@ export function AccelerationApplicationForm() {
                                                 saveDraft();
                                                 setActiveStep(index);
                                             } else {
-                                                toast.error("Please complete previous steps first to unlock this section.");
+                                                toast.error("Complete previous steps first");
                                             }
                                         }}
                                         disabled={!isAccessible}
@@ -411,12 +508,7 @@ export function AccelerationApplicationForm() {
                                             </div>
                                             <div>
                                                 <div className="font-medium text-sm">{step.shortLabel}</div>
-                                                <div
-                                                    className={cn(
-                                                        "text-xs",
-                                                        isActive ? "text-white/70" : isAccessible ? "text-slate-500" : "text-slate-300"
-                                                    )}
-                                                >
+                                                <div className="hidden xl:block text-xs opacity-70">
                                                     {step.description}
                                                 </div>
                                             </div>

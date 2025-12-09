@@ -14,7 +14,10 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
+    FormDescription,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
     SelectContent,
@@ -23,21 +26,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 interface FoundationMarketPotentialFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
 }
-
-const ScoringInfo = ({ maxPoints, description }: { maxPoints: number; description: string }) => (
-    <div className="flex items-center gap-2 mt-1">
-        <Badge variant="outline" className="text-xs bg-brand-blue/5 text-brand-blue border-brand-blue/20">
-            Max {maxPoints} pts
-        </Badge>
-        <span className="text-xs text-slate-500">{description}</span>
-    </div>
-);
 
 export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentialFormProps) {
     return (
@@ -51,7 +44,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                     <TargetIcon className="w-8 h-8 text-orange-600" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Market Potential</h2>
-                <p className="text-slate-500 mt-2">Section D: Maximum 30 Marks</p>
+                <p className="text-slate-500 mt-2">Section D: Market Analysis</p>
             </div>
 
             {/* Relative Pricing */}
@@ -67,7 +60,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
                         name="marketPotential.relativePricing"
@@ -81,27 +74,29 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="lower">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">7 pts</Badge>
-                                                Lower than competitors
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="equal">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">4 pts</Badge>
-                                                Equal to competitors
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="higher">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                                Higher than competitors
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="lower">Lower than competitors</SelectItem>
+                                        <SelectItem value="equal">Equal to competitors</SelectItem>
+                                        <SelectItem value="higher">Higher than competitors</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={7} description="Based on competitive pricing" />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="marketPotential.relativePricingReason"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Explanation</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Explain your pricing strategy..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -122,7 +117,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
                         name="marketPotential.productDifferentiation"
@@ -136,27 +131,29 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="new">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">8 pts</Badge>
-                                                New / Unique product
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="relatively_new">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">5 pts</Badge>
-                                                Relatively new
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="existing">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">2 pts</Badge>
-                                                Similar to existing products
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="new">New / Very Unique</SelectItem>
+                                        <SelectItem value="relatively_new">Relatively New</SelectItem>
+                                        <SelectItem value="similar">Similar to existing solutions</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={8} description="Based on product uniqueness" />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="marketPotential.productDifferentiationDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Description</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe what makes your product/service unique..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -177,7 +174,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
                         name="marketPotential.threatOfSubstitutes"
@@ -191,27 +188,29 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="low">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">7 pts</Badge>
-                                                Low competition
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="moderate">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">4 pts</Badge>
-                                                Moderate competition
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="high">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">0 pts</Badge>
-                                                High competition
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="high">High</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={7} description="Less competition = more points" />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
+                        name="marketPotential.competitorOverview"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Competitor Overview</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Provide a brief overview of competitors/substitutes..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -228,7 +227,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         </div>
                         <div>
                             <CardTitle className="text-lg">Ease of Market Entry</CardTitle>
-                            <CardDescription>How easy is it for others to enter your market?</CardDescription>
+                            <CardDescription>How easy is it for other businesses to enter your market?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -242,31 +241,15 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select entry barrier" />
+                                            <SelectValue placeholder="Select ease of entry" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="low">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">8 pts</Badge>
-                                                Low ease (High barriers)
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="moderate">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">5 pts</Badge>
-                                                Moderate ease
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="high">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                                High ease (Low barriers)
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="low">Low (Difficult to enter/copy)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="high">High (Easy to enter)</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={8} description="Higher barriers = more points" />
                                 <FormMessage />
                             </FormItem>
                         )}

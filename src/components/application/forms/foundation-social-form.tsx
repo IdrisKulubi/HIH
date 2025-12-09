@@ -25,21 +25,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 interface FoundationSocialImpactFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
 }
-
-const ScoringInfo = ({ maxPoints, description }: { maxPoints: number; description: string }) => (
-    <div className="flex items-center gap-2 mt-1">
-        <Badge variant="outline" className="text-xs bg-brand-green/10 text-brand-green border-brand-green/20">
-            Max {maxPoints} pts
-        </Badge>
-        <span className="text-xs text-slate-500">{description}</span>
-    </div>
-);
 
 export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormProps) {
     return (
@@ -53,7 +43,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                     <LeafIcon className="w-8 h-8 text-brand-green" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Social Impact</h2>
-                <p className="text-slate-500 mt-2">Section E: Maximum 40 Marks</p>
+                <p className="text-slate-500 mt-2">Section E: Environmental & Social Responsibility</p>
             </div>
 
             {/* Environmental Impact */}
@@ -83,27 +73,11 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="clearly_defined">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">15 pts</Badge>
-                                                Clearly Defined environmental practices
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="neutral">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">10 pts</Badge>
-                                                Neutral / Minimal impact
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="not_defined">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">5 pts</Badge>
-                                                Not Defined
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="clearly_defined">Clearly Defined (recycling, solar, etc.)</SelectItem>
+                                        <SelectItem value="minimal">Minimal</SelectItem>
+                                        <SelectItem value="not_defined">Not Defined</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={15} description="Clear environmental practices = more points" />
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -111,7 +85,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
 
                     <FormField
                         control={form.control}
-                        name="socialImpact.environmentalExamples"
+                        name="socialImpact.environmentalImpactDescription"
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="text-slate-700">Provide Examples</FormLabel>
@@ -119,7 +93,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                     <Textarea
                                         {...field}
                                         placeholder="Describe your environmental conservation practices..."
-                                        className="min-h-[100px] rounded-xl bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
+                                        className="min-h-[100px] rounded-xl"
                                     />
                                 </FormControl>
                                 <FormDescription className="text-slate-500 text-sm">
@@ -140,36 +114,96 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <UsersThreeIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Special Groups Employed</CardTitle>
-                            <CardDescription>Number of women, youth, and PWD employees</CardDescription>
+                            <CardTitle className="text-lg">Inclusion of Special Groups</CardTitle>
+                            <CardDescription>Employees from vulnerable or underrepresented groups</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <FormField
-                        control={form.control}
-                        name="socialImpact.specialGroupsEmployed"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-slate-700">Total Women, Youth & PWD Employees</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        type="number"
-                                        min="0"
-                                        placeholder="Enter total count"
-                                        className="h-12 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
-                                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                    />
-                                </FormControl>
-                                <ScoringInfo maxPoints={15} description=">10 = 15pts, 6-9 = 10pts, 5 = 5pts" />
-                                <FormDescription className="text-slate-500 text-sm">
-                                    Combined count of women, youth (18-35), and persons with disabilities
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="socialImpact.fullTimeEmployeesTotal"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-slate-700">Total Full-time Employees</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            type="number"
+                                            min="0"
+                                            className="h-12 rounded-xl"
+                                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-slate-900">Breakdown (Women, Youth, PWD)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="socialImpact.fullTimeEmployeesWomen"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs text-slate-500 uppercase font-semibold">Women</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                type="number"
+                                                min="0"
+                                                className="h-10 rounded-lg"
+                                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="socialImpact.fullTimeEmployeesYouth"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs text-slate-500 uppercase font-semibold">Youth</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                type="number"
+                                                min="0"
+                                                className="h-10 rounded-lg"
+                                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="socialImpact.fullTimeEmployeesPwd"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs text-slate-500 uppercase font-semibold">PWD</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                type="number"
+                                                min="0"
+                                                className="h-10 rounded-lg"
+                                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -200,27 +234,11 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="fully_compliant">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-green-100 text-green-700">10 pts</Badge>
-                                                Fully Compliant
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="partially_compliant">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-yellow-100 text-yellow-700">3 pts</Badge>
-                                                Partially Compliant
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="not_clear">
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                                Not Clear
-                                            </div>
-                                        </SelectItem>
+                                        <SelectItem value="fully_compliant">Fully Compliant (licenses, tax, permits)</SelectItem>
+                                        <SelectItem value="partially_compliant">Partially Compliant</SelectItem>
+                                        <SelectItem value="not_clear">Not Clear / Non-compliant</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <ScoringInfo maxPoints={10} description="Full compliance = maximum points" />
                                 <FormMessage />
                             </FormItem>
                         )}

@@ -82,6 +82,8 @@ export default function ApplicationDetail({
         fullTimeFemale: number;
         partTimeMale: number;
         partTimeFemale: number;
+        fullTimeYouth: number;
+        fullTimePwd: number;
       };
       currentChallenges?: string;
       supportNeeded?: string;
@@ -89,6 +91,12 @@ export default function ApplicationDetail({
       climateAdaptationContribution?: string;
       productServiceDescription?: string;
       climateExtremeImpact?: string;
+      growthHistory?: string;
+      futureSalesGrowth?: string;
+      futureSalesGrowthReason?: string;
+      businessModelUniquenessDescription?: string;
+      competitiveAdvantageBarriers?: string;
+      externalFundingDetails?: string;
       funding?: Array<{
         id: number;
         hasExternalFunding: boolean;
@@ -865,6 +873,14 @@ export default function ApplicationDetail({
                           <p>{application.business.employees.fullTimeFemale}</p>
                         </div>
                         <div>
+                          <h4 className="font-medium">Full-Time Youth</h4>
+                          <p>{application.business.employees.fullTimeYouth}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Full-Time PWD</h4>
+                          <p>{application.business.employees.fullTimePwd}</p>
+                        </div>
+                        <div>
                           <h4 className="font-medium">Part-Time Male</h4>
                           <p>{application.business.employees.partTimeMale}</p>
                         </div>
@@ -905,6 +921,49 @@ export default function ApplicationDetail({
                         <p className="text-muted-foreground whitespace-pre-wrap text-sm">
                           {application.business.additionalInformation}
                         </p>
+                      </div>
+                    )}
+                    {/* New Detailed Fields from Updated Schema */}
+                    {application.business.growthHistory && (
+                      <div className="mt-6 border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-2">History & Growth</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-medium text-sm">Growth History</h4>
+                            <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.growthHistory}</p>
+                          </div>
+                          {application.business.futureSalesGrowth && (
+                            <div>
+                              <h4 className="font-medium text-sm">Future Sales Growth</h4>
+                              <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                                {application.business.futureSalesGrowth.toUpperCase()} - {application.business.futureSalesGrowthReason || ""}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {application.business.businessModelUniquenessDescription && (
+                      <div className="mt-6 border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-2">Strategy & Differentiation</h3>
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-medium text-sm">Uniqueness</h4>
+                            <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.businessModelUniquenessDescription}</p>
+                          </div>
+                          {application.business.competitiveAdvantageBarriers && (
+                            <div>
+                              <h4 className="font-medium text-sm">Barriers to Entry</h4>
+                              <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.competitiveAdvantageBarriers}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {application.business.externalFundingDetails && (
+                      <div className="mt-6 border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-2">External Funding Details</h3>
+                        <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.externalFundingDetails}</p>
                       </div>
                     )}
                   </CardContent>

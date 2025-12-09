@@ -21,10 +21,21 @@ import {
     TargetIcon,
     PlantIcon,
     ClipboardTextIcon,
+    HandshakeIcon,
+    WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Progress } from "@/components/ui/progress";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 // Form sections
@@ -33,6 +44,7 @@ import { BusinessEligibilityForm } from "./forms/business-eligibility-form";
 import { FoundationCommercialViabilityForm, FoundationBusinessModelForm } from "./forms/foundation-commercial-form";
 import { FoundationMarketPotentialForm } from "./forms/foundation-market-form";
 import { FoundationSocialImpactForm } from "./forms/foundation-social-form";
+import { DeclarationForm } from "./forms/declaration-form";
 import { ReviewSubmitSection } from "./forms/review-submit-section";
 
 // Schema
@@ -40,7 +52,6 @@ import {
     foundationApplicationSchema,
     FoundationApplicationFormData,
     defaultApplicant,
-    defaultBusinessEligibility,
 } from "./schemas/bire-application-schema";
 
 const DRAFT_KEY = "bire_foundation_draft";
@@ -51,42 +62,49 @@ const STEPS = [
         label: "Applicant Details",
         shortLabel: "Applicant",
         icon: UserIcon,
-        description: "Your personal information",
+        description: "Personal information",
     },
     {
         id: "business",
         label: "Business Profile",
         shortLabel: "Business",
         icon: BuildingsIcon,
-        description: "Business eligibility details",
-    },
-    {
-        id: "commercial",
-        label: "Commercial Viability",
-        shortLabel: "Commercial",
-        icon: CurrencyDollarIcon,
-        description: "Revenue and customers (20 marks)",
+        description: "Eligibility details",
     },
     {
         id: "businessModel",
         label: "Business Model",
         shortLabel: "Model",
         icon: LightbulbIcon,
-        description: "Innovation level (10 marks)",
+        description: "Innovation level",
+    },
+    {
+        id: "commercial",
+        label: "Commercial Viability",
+        shortLabel: "Commercial",
+        icon: CurrencyDollarIcon,
+        description: "Revenue and customers",
     },
     {
         id: "market",
         label: "Market Potential",
         shortLabel: "Market",
         icon: TargetIcon,
-        description: "Market analysis (30 marks)",
+        description: "Market analysis",
     },
     {
         id: "social",
         label: "Social Impact",
         shortLabel: "Impact",
         icon: PlantIcon,
-        description: "Environmental & social (40 marks)",
+        description: "Environmental & social",
+    },
+    {
+        id: "declaration",
+        label: "Declaration",
+        shortLabel: "Declaration",
+        icon: HandshakeIcon,
+        description: "Sign & Certify",
     },
     {
         id: "review",
@@ -104,20 +122,26 @@ export function FoundationApplicationForm() {
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [isAutoSaving, setIsAutoSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [disqualifiedReason, setDisqualifiedReason] = useState<string | null>(null);
 
     const form = useForm<FoundationApplicationFormData>({
         resolver: zodResolver(foundationApplicationSchema),
         defaultValues: {
             applicant: defaultApplicant as FoundationApplicationFormData["applicant"],
-            business: defaultBusinessEligibility as FoundationApplicationFormData["business"],
+            business: {
+                isRegistered: true,
+                hasFinancialRecords: true,
+                yearsOperational: 0,
+                country: "kenya",
+            } as any,
+            businessModel: {
+                businessModelInnovation: undefined,
+            },
             commercialViability: {
                 revenueLastYear: 0,
                 customerCount: 0,
                 hasExternalFunding: false,
-                fundingDetails: "",
-            },
-            businessModel: {
-                businessModelInnovation: undefined,
+                digitizationLevel: undefined,
             },
             marketPotential: {
                 relativePricing: undefined,
@@ -127,32 +151,50 @@ export function FoundationApplicationForm() {
             },
             socialImpact: {
                 environmentalImpact: undefined,
-                environmentalExamples: "",
                 specialGroupsEmployed: 0,
                 businessCompliance: undefined,
+            },
+            declaration: {
+                hasSocialSafeguarding: false,
+                confirmTruth: false,
+                declarationName: "",
+                declarationDate: new Date(),
             },
             documents: {},
         },
         mode: "onChange",
     });
 
-    // Load draft on mount
+    // Load draft
     useEffect(() => {
         const savedDraft = localStorage.getItem(DRAFT_KEY);
         if (savedDraft) {
             try {
                 const parsed = JSON.parse(savedDraft);
+                if (parsed.data?.declaration?.declarationDate) {
+                    parsed.data.declaration.declarationDate = new Date(parsed.data.declaration.declarationDate);
+                }
+                // Also restore dates for applicant dob if it exists as string
+                if (parsed.data?.applicant?.dob) {
+                    parsed.data.applicant.dob = new Date(parsed.data.applicant.dob);
+                }
+
                 form.reset(parsed.data);
-                setActiveStep(parsed.step || 0);
+
+                // Restore progress but check bounds
+                const savedStep = parsed.step || 0;
+                setActiveStep(savedStep < STEPS.length ? savedStep : 0);
                 setCompletedSteps(parsed.completedSteps || []);
-                toast.info("Draft loaded", { description: "Your previous progress has been restored." });
+
+                toast.info("Draft loaded", { description: "Your previous progress was restored." });
             } catch (e) {
                 console.error("Failed to load draft:", e);
+                localStorage.removeItem(DRAFT_KEY);
             }
         }
     }, [form]);
 
-    // Auto-save draft
+    // Auto-save logic
     const saveDraft = useCallback(() => {
         setIsAutoSaving(true);
         const data = form.getValues();
@@ -167,13 +209,11 @@ export function FoundationApplicationForm() {
         setIsAutoSaving(false);
     }, [form, activeStep, completedSteps]);
 
-    // Auto-save every 30 seconds
     useEffect(() => {
         const interval = setInterval(saveDraft, 30000);
         return () => clearInterval(interval);
     }, [saveDraft]);
 
-    // Auth guard
     useEffect(() => {
         if (status === "unauthenticated") {
             router.push("/login?callbackUrl=/apply/foundation");
@@ -182,45 +222,72 @@ export function FoundationApplicationForm() {
 
     const progress = ((activeStep + 1) / STEPS.length) * 100;
 
-    // Get fields to validate for current step
-    const getFieldsForStep = (stepId: string): (keyof FoundationApplicationFormData)[] => {
+    const getFieldsForStep = (stepId: string): any[] => {
         switch (stepId) {
-            case "applicant":
-                return ["applicant"];
-            case "business":
-                return ["business"];
-            case "commercial":
-                return ["commercialViability"];
-            case "businessModel":
-                return ["businessModel"];
-            case "market":
-                return ["marketPotential"];
-            case "social":
-                return ["socialImpact"];
-            default:
-                return [];
+            case "applicant": return ["applicant"];
+            case "business": return ["business"];
+            case "businessModel": return ["businessModel"];
+            case "commercial": return ["commercialViability"];
+            case "market": return ["marketPotential"];
+            case "social": return ["socialImpact"];
+            case "declaration": return ["declaration"];
+            default: return [];
         }
     };
 
-    const goToNextStep = async () => {
-        if (activeStep < STEPS.length - 1) {
-            // Validate fields for current step
-            const currentStepId = STEPS[activeStep].id;
-            const fieldsToValidate = getFieldsForStep(currentStepId);
-
-            // @ts-ignore - path string access is valid for trigger but TS doesn't infer it perfectly with nested Zod schemas
-            const isValid = await form.trigger(fieldsToValidate);
-
-            if (isValid) {
-                if (!completedSteps.includes(activeStep)) {
-                    setCompletedSteps([...completedSteps, activeStep]);
-                }
-                saveDraft();
-                setActiveStep(activeStep + 1);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-            } else {
-                toast.error("Please fill in all required fields before proceeding.");
+    const checkEligibility = (data: FoundationApplicationFormData) => {
+        // 1. Age Check (18-35)
+        if (activeStep === 0) { // Applicant Step
+            const dob = new Date(data.applicant.dob);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                age--;
             }
+            if (age < 18 || age > 35) {
+                return "You must be between 18 and 35 years old to be eligible for this program.";
+            }
+        }
+
+        // 2. Business Country Check
+        if (activeStep === 1) { // Business Step
+            if (data.business.country?.toLowerCase() !== "kenya") {
+                return "This program is currently open only to businesses based in Kenya.";
+            }
+        }
+
+        return null;
+    };
+
+    const goToNextStep = async () => {
+        if (activeStep >= STEPS.length - 1) return;
+
+        const currentStepId = STEPS[activeStep].id;
+        const fieldsToValidate = getFieldsForStep(currentStepId);
+
+        // @ts-ignore
+        const isValid = await form.trigger(fieldsToValidate);
+
+        if (isValid) {
+            const currentData = form.getValues();
+            const disqualification = checkEligibility(currentData);
+
+            if (disqualification) {
+                setDisqualifiedReason(disqualification);
+                return;
+            }
+
+            if (!completedSteps.includes(activeStep)) {
+                setCompletedSteps([...completedSteps, activeStep]);
+            }
+            saveDraft();
+            setActiveStep(activeStep + 1);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+            toast.error("Please fill in all required fields.");
+            // Log errors for debugging
+            console.log("Validation errors:", form.formState.errors);
         }
     };
 
@@ -234,7 +301,7 @@ export function FoundationApplicationForm() {
 
     const handleManualSave = () => {
         saveDraft();
-        toast.success("Draft saved!", { description: "Your progress has been saved." });
+        toast.success("Draft saved!");
     };
 
     const clearDraft = () => {
@@ -259,14 +326,16 @@ export function FoundationApplicationForm() {
                 return <ApplicantDetailsForm form={form} />;
             case "business":
                 return <BusinessEligibilityForm form={form} />;
-            case "commercial":
-                return <FoundationCommercialViabilityForm form={form} />;
             case "businessModel":
                 return <FoundationBusinessModelForm form={form} />;
+            case "commercial":
+                return <FoundationCommercialViabilityForm form={form} />;
             case "market":
                 return <FoundationMarketPotentialForm form={form} />;
             case "social":
                 return <FoundationSocialImpactForm form={form} />;
+            case "declaration":
+                return <DeclarationForm form={form} />;
             case "review":
                 return (
                     <ReviewSubmitSection
@@ -283,6 +352,29 @@ export function FoundationApplicationForm() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-blue/5">
+            {/* Disqualification Modal */}
+            <AlertDialog open={!!disqualifiedReason} onOpenChange={(open) => !open && setDisqualifiedReason(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                            <WarningCircleIcon className="w-6 h-6" />
+                            Not Eligible
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="pt-2 text-slate-700 text-base">
+                            {disqualifiedReason}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            onClick={() => router.push("/")}
+                            className="bg-slate-900 hover:bg-slate-800"
+                        >
+                            Return Home
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {/* Header */}
             <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm">
                 <div className="container mx-auto px-4 py-4">
@@ -300,7 +392,7 @@ export function FoundationApplicationForm() {
                             <div className="h-6 w-px bg-slate-200" />
                             <div>
                                 <h1 className="text-lg font-bold text-slate-900">
-                                    🌱 Foundation Track Application
+                                    Foundation Track
                                 </h1>
                                 <p className="text-xs text-slate-500">
                                     Step {activeStep + 1} of {STEPS.length}
@@ -322,7 +414,7 @@ export function FoundationApplicationForm() {
                                 className="border-brand-blue text-gray-900 hover:bg-brand-blue/5"
                             >
                                 <FloppyDiskIcon className={cn("w-4 h-4 mr-2", isAutoSaving && "animate-spin")} />
-                                Save Draft
+                                Save
                             </Button>
                         </div>
                     </div>
@@ -342,12 +434,6 @@ export function FoundationApplicationForm() {
                             {STEPS.map((step, index) => {
                                 const isActive = index === activeStep;
                                 const isCompleted = completedSteps.includes(index);
-
-                                // Calculate if this step is reachable
-                                // A step is reachable if:
-                                // 1. It is the first step (index 0)
-                                // 2. All previous steps have been completed (or at least touched sequentially)
-                                // Simplified: Can navigate to any step <= max(completedSteps) + 1
                                 const maxAccessibleStep = Math.max(-1, ...completedSteps) + 1;
                                 const isAccessible = index <= maxAccessibleStep;
 
@@ -359,7 +445,7 @@ export function FoundationApplicationForm() {
                                                 saveDraft();
                                                 setActiveStep(index);
                                             } else {
-                                                toast.error("Please complete previous steps first to unlock this section.");
+                                                toast.error("Complete previous steps first");
                                             }
                                         }}
                                         disabled={!isAccessible}
@@ -395,12 +481,7 @@ export function FoundationApplicationForm() {
                                             </div>
                                             <div>
                                                 <div className="font-medium text-sm">{step.shortLabel}</div>
-                                                <div
-                                                    className={cn(
-                                                        "text-xs",
-                                                        isActive ? "text-white/70" : isAccessible ? "text-slate-500" : "text-slate-300"
-                                                    )}
-                                                >
+                                                <div className="hidden xl:block text-xs opacity-70">
                                                     {step.description}
                                                 </div>
                                             </div>

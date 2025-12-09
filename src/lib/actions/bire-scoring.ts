@@ -51,7 +51,10 @@ export function scoreFoundationTrack(business: {
     threatOfSubstitutes?: string | null;
     easeOfMarketEntry?: string | null;
     environmentalImpact?: string | null;
-    specialGroupsEmployed?: number | null;
+    specialGroupsEmployed?: number | null; // Compatibility legacy
+    fullTimeEmployeesWomen?: number | null;
+    fullTimeEmployeesYouth?: number | null;
+    fullTimeEmployeesPwd?: number | null;
     businessCompliance?: string | null;
 }): TrackScore {
     const breakdown: ScoringBreakdown[] = [];
@@ -95,7 +98,9 @@ export function scoreFoundationTrack(business: {
     // Innovation: New (10), Relatively New (5), Existing (2)
     let innovationScore = 0;
     switch (business.businessModelInnovation) {
+        case "innovative_concept":
         case "new": innovationScore = 10; break;
+        case "relatively_innovative":
         case "relatively_new": innovationScore = 5; break;
         case "existing": innovationScore = 2; break;
     }
@@ -125,7 +130,8 @@ export function scoreFoundationTrack(business: {
     switch (business.productDifferentiation) {
         case "new": diffScore = 8; break;
         case "relatively_new": diffScore = 5; break;
-        case "existing": diffScore = 2; break;
+        case "existing":
+        case "similar": diffScore = 2; break;
     }
     marketDetails.push({ criterion: "Product Differentiation", points: diffScore, maxPoints: 8 });
 
@@ -162,13 +168,19 @@ export function scoreFoundationTrack(business: {
     let envScore = 0;
     switch (business.environmentalImpact) {
         case "clearly_defined": envScore = 15; break;
-        case "neutral": envScore = 10; break;
+        case "neutral":
+        case "minimal": envScore = 10; break;
         case "not_defined": envScore = 5; break;
     }
     socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 15 });
 
     // Special Groups Employed: >10 (15), 6-9 (10), 5 (5)
-    const specialGroups = business.specialGroupsEmployed ?? 0;
+    // Calculate from components if available, else default to specialGroupsEmployed (legacy)
+    const breakdownSum = (business.fullTimeEmployeesWomen ?? 0) +
+        (business.fullTimeEmployeesYouth ?? 0) +
+        (business.fullTimeEmployeesPwd ?? 0);
+    const specialGroups = breakdownSum > 0 ? breakdownSum : (business.specialGroupsEmployed ?? 0);
+
     let groupsScore = 0;
     if (specialGroups > 10) groupsScore = 15;
     else if (specialGroups >= 6) groupsScore = 10;
@@ -226,13 +238,17 @@ export function scoreAccelerationTrack(business: {
     yearsOperational?: number | null;
     futureSalesGrowth?: string | null;
     hasExternalFunding?: boolean | null;
-    currentSpecialGroupsEmployed?: number | null;
+    currentSpecialGroupsEmployed?: number | null; // Legacy
+    fullTimeEmployeesWomen?: number | null;
+    fullTimeEmployeesYouth?: number | null;
+    fullTimeEmployeesPwd?: number | null;
     jobCreationPotential?: string | null;
     marketDifferentiation?: string | null;
     competitiveAdvantage?: string | null;
     offeringFocus?: string | null;
     salesMarketingIntegration?: string | null;
-    socialImpactHousehold?: string | null;
+    socialImpactContribution?: string | null; // Renamed from socialImpactHousehold (partially)
+    socialImpactHousehold?: string | null; // Check both
     supplierInvolvement?: string | null;
     environmentalImpact?: string | null;
     businessModelUniqueness?: string | null;
@@ -287,7 +303,11 @@ export function scoreAccelerationTrack(business: {
     const impactDetails: { criterion: string; points: number; maxPoints: number }[] = [];
 
     // Current Special Groups Employed: >10 (10), 6-9 (6), 5 (3)
-    const currentGroups = business.currentSpecialGroupsEmployed ?? 0;
+    const breakdownSum = (business.fullTimeEmployeesWomen ?? 0) +
+        (business.fullTimeEmployeesYouth ?? 0) +
+        (business.fullTimeEmployeesPwd ?? 0);
+    const currentGroups = breakdownSum > 0 ? breakdownSum : (business.currentSpecialGroupsEmployed ?? 0);
+
     let currentGroupsScore = 0;
     if (currentGroups > 10) currentGroupsScore = 10;
     else if (currentGroups >= 6) currentGroupsScore = 6;
@@ -346,7 +366,9 @@ export function scoreAccelerationTrack(business: {
     switch (business.salesMarketingIntegration) {
         case "fully_integrated": integrationScore = 5; break;
         case "aligned": integrationScore = 3; break;
+        case "not_aligned": // fallthrough or different key
         case "no_alignment": integrationScore = 1; break;
+        case "not_aligned": integrationScore = 1; break; // handle both cases
     }
     scalabilityDetails.push({ criterion: "Sales & Marketing Integration", points: integrationScore, maxPoints: 5 });
 
@@ -361,30 +383,37 @@ export function scoreAccelerationTrack(business: {
     // === SOCIAL & ENVIRONMENTAL IMPACT (20 pts) ===
     const socialDetails: { criterion: string; points: number; maxPoints: number }[] = [];
 
-    // Social Impact (Household income): High (6), Moderate (4), None (0)
+    // Social Impact: High (6), Moderate (4), None (0)
+    // Map new socialImpactContribution to scores
     let householdScore = 0;
-    switch (business.socialImpactHousehold) {
+    const socialImpactVal = business.socialImpactContribution || business.socialImpactHousehold;
+    switch (socialImpactVal) {
         case "high": householdScore = 6; break;
         case "moderate": householdScore = 4; break;
         case "none": householdScore = 0; break;
     }
-    socialDetails.push({ criterion: "Social Impact (Household Income)", points: householdScore, maxPoints: 6 });
+    socialDetails.push({ criterion: "Social Impact Score", points: householdScore, maxPoints: 6 });
 
     // Supplier Involvement: Direct (6), Network (3), None (1)
     let supplierScore = 0;
     switch (business.supplierInvolvement) {
         case "direct_engagement": supplierScore = 6; break;
-        case "network_engagement": supplierScore = 3; break;
+        case "network_engagement":
+        case "network_based": supplierScore = 3; break;
         case "none": supplierScore = 1; break;
     }
     socialDetails.push({ criterion: "Supplier Involvement", points: supplierScore, maxPoints: 6 });
 
     // Environmental Impact: High (6), Moderate (4), Low (0)
+    // Map "clearly_defined", "minimal", "not_defined" to Scoring
     let envScore = 0;
     switch (business.environmentalImpact) {
-        case "high": envScore = 6; break;
-        case "moderate": envScore = 4; break;
-        case "low": envScore = 0; break;
+        case "high":
+        case "clearly_defined": envScore = 6; break;
+        case "moderate":
+        case "minimal": envScore = 4; break;
+        case "low":
+        case "not_defined": envScore = 0; break;
     }
     socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 6 });
 

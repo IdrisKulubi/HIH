@@ -68,9 +68,23 @@ export interface DetailedApplication extends ApplicationListItem {
         revenueLastYear: string | null;
         customerCount: number | null;
         hasExternalFunding: boolean | null;
+        // employees structure to match Admin UI expectation
+        employees: {
+            fullTimeTotal: number;
+            fullTimeMale: number; // Derived/Legacy
+            fullTimeFemale: number;
+            partTimeMale: number;
+            partTimeFemale: number;
+            fullTimeYouth: number; // New field
+            fullTimePwd: number; // New field
+        };
         specialGroupsEmployed: number | null;
         environmentalImpact: string | null;
         businessCompliance: string | null;
+        growthHistory?: string | null;
+        futureSalesGrowth?: string | null;
+        futureSalesGrowthReason?: string | null;
+        externalFundingDetails?: string | null;
     };
     applicant: {
         id: number;
@@ -88,6 +102,8 @@ export interface DetailedApplication extends ApplicationListItem {
         evaluationNotes: string | null;
         evaluatedAt: string | null;
         evaluatedBy: string | null;
+        mandatoryCriteria?: any;
+        evaluationScores?: any;
     } | null;
 }
 
@@ -225,7 +241,7 @@ export async function getApplications(
             eligibility: app.eligibilityResults[0]
                 ? {
                     isEligible: app.eligibilityResults[0].isEligible,
-                    totalScore: app.eligibilityResults[0].totalScore,
+                    totalScore: app.eligibilityResults[0].totalScore ? Number(app.eligibilityResults[0].totalScore) : null,
                 }
                 : null,
         }));
@@ -263,7 +279,7 @@ export async function getApplicationById(
                     },
                 },
                 eligibilityResults: {
-                    orderBy: (results, { desc }) => [desc(results.evaluatedAt)],
+                    orderBy: (results: { evaluatedAt: any; }, { desc }: any) => [desc(results.evaluatedAt)],
                     limit: 1,
                 },
             },
@@ -295,9 +311,26 @@ export async function getApplicationById(
                 revenueLastYear: applicationData.business.revenueLastYear,
                 customerCount: applicationData.business.customerCount,
                 hasExternalFunding: applicationData.business.hasExternalFunding,
-                specialGroupsEmployed: applicationData.business.specialGroupsEmployed,
+                // Calculate special groups from breakdown
+                specialGroupsEmployed: (applicationData.business.fullTimeEmployeesWomen || 0) +
+                    (applicationData.business.fullTimeEmployeesYouth || 0) +
+                    (applicationData.business.fullTimeEmployeesPwd || 0),
                 environmentalImpact: applicationData.business.environmentalImpact,
                 businessCompliance: applicationData.business.businessCompliance,
+                growthHistory: applicationData.business.growthHistory,
+                futureSalesGrowth: applicationData.business.futureSalesGrowth,
+                futureSalesGrowthReason: applicationData.business.futureSalesGrowthReason,
+                externalFundingDetails: applicationData.business.externalFundingDetails,
+                // Manually map employee breakdown
+                employees: {
+                    fullTimeTotal: applicationData.business.fullTimeEmployeesTotal ?? 0,
+                    fullTimeMale: 0, // Not explicitly tracked in new form
+                    fullTimeFemale: applicationData.business.fullTimeEmployeesWomen ?? 0,
+                    partTimeMale: 0,
+                    partTimeFemale: 0,
+                    fullTimeYouth: applicationData.business.fullTimeEmployeesYouth ?? 0,
+                    fullTimePwd: applicationData.business.fullTimeEmployeesPwd ?? 0,
+                },
             },
             applicant: {
                 id: applicationData.business.applicant.id,
@@ -312,7 +345,7 @@ export async function getApplicationById(
                 ? {
                     id: applicationData.eligibilityResults[0].id,
                     isEligible: applicationData.eligibilityResults[0].isEligible,
-                    totalScore: applicationData.eligibilityResults[0].totalScore,
+                    totalScore: applicationData.eligibilityResults[0].totalScore ? Number(applicationData.eligibilityResults[0].totalScore) : null,
                     evaluationNotes: applicationData.eligibilityResults[0].evaluationNotes,
                     evaluatedAt: applicationData.eligibilityResults[0].evaluatedAt?.toISOString() ?? null,
                     evaluatedBy: applicationData.eligibilityResults[0].evaluatedBy,
@@ -331,11 +364,12 @@ export async function getApplicationById(
 // UPDATE APPLICATION STATUS (ADMIN)
 // =============================================================================
 
-type ApplicationStatus = "draft" | "submitted" | "under_review" | "approved" | "rejected" | "waitlisted";
+type ApplicationStatus = "draft" | "submitted" | "under_review" | "approved" | "rejected";
 
 export async function updateApplicationStatus(
     applicationId: number,
-    status: ApplicationStatus
+    status: ApplicationStatus,
+    reason?: string // Optional reason logging could be added
 ): Promise<ActionResponse<void>> {
     try {
         const session = await auth();
@@ -388,7 +422,7 @@ export async function saveEvaluation(
 
         const payload = {
             applicationId: data.applicationId,
-            totalScore: data.totalScore,
+            totalScore: String(data.totalScore), // Cast to string/decimal if needed
             isEligible: data.isEligible,
             evaluationNotes: data.evaluationNotes ?? null,
             evaluatedAt: new Date(),

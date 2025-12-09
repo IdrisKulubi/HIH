@@ -9,6 +9,7 @@ import {
     LightbulbIcon,
     StarIcon,
     ShieldCheckIcon,
+    HandshakeIcon,
 } from "@phosphor-icons/react";
 import {
     FormControl,
@@ -25,18 +26,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-const ScoringInfo = ({ maxPoints, description }: { maxPoints: number; description: string }) => (
-    <div className="flex items-center gap-2 mt-1">
-        <Badge variant="outline" className="text-xs bg-brand-orange/10 text-brand-orange border-brand-orange/20">
-            Max {maxPoints} pts
-        </Badge>
-        <span className="text-xs text-slate-500">{description}</span>
-    </div>
-);
-
-// === SOCIAL IMPACT FORM (20 marks) ===
+// === SOCIAL IMPACT FORM ===
 interface AccelerationSocialImpactFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
@@ -54,184 +46,108 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                     <HeartIcon className="w-8 h-8 text-rose-600" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Social & Environmental Impact</h2>
-                <p className="text-slate-500 mt-2">Section E: Maximum 20 Marks</p>
+                <p className="text-slate-500 mt-2">Section E: Creating Sustainable Change</p>
             </div>
 
-            {/* Social Impact - Household Income */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
-                        <HeartIcon className="w-5 h-5 text-rose-600" weight="duotone" />
+            {/* Social Impact - Contribution */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
+                            <HeartIcon className="w-5 h-5 text-rose-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">Social Contribution</CardTitle>
+                            <CardDescription>Contribution to household income and suppliers</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Social Impact</h3>
-                        <p className="text-sm text-slate-500">Contribution to improved household income</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="socialImpact.socialImpactHousehold"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700">Household Income Impact</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select impact level" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="high">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">6 pts</Badge>
-                                            High - Improved household income
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="moderate">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">4 pts</Badge>
-                                            Moderate improvement
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="none">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">0 pts</Badge>
-                                            None
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={6} description="Based on income improvement" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
-
-            {/* Supplier Involvement */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <TruckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Supplier Involvement</h3>
-                        <p className="text-sm text-slate-500">How do you engage with suppliers?</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="socialImpact.supplierInvolvement"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700">Engagement Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select engagement level" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="direct_engagement">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">6 pts</Badge>
-                                            Direct Engagement
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="network_engagement">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">3 pts</Badge>
-                                            Network-based Engagement
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="none">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                            No Clear Engagement
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={6} description="Based on supplier engagement" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
+                </CardHeader>
+                <CardContent>
+                    <FormField
+                        control={form.control}
+                        name="socialImpact.socialImpactContribution"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Impact Level</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select impact level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="high">High (Significant income improvement)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="low">Low / None</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
 
             {/* Environmental Impact */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <LeafIcon className="w-5 h-5 text-green-600" weight="duotone" />
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <LeafIcon className="w-5 h-5 text-green-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">Environmental Impact</CardTitle>
+                            <CardDescription>Environmental conservation practices</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Environmental Impact</h3>
-                        <p className="text-sm text-slate-500">Environmental conservation practices</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="socialImpact.environmentalImpact"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700">Impact Level</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="socialImpact.environmentalImpact"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Impact Level</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select environmental impact level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="high">High (Clear environmental benefits)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="low">Low / None</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="socialImpact.environmentalImpactDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Description</FormLabel>
                                 <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select impact level" />
-                                    </SelectTrigger>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe your environmental practices..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
                                 </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="high">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">6 pts</Badge>
-                                            High - Clear environmental benefits
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="moderate">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">4 pts</Badge>
-                                            Moderate impact
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="low">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">0 pts</Badge>
-                                            Low / None
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={6} description="Based on environmental practices" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-
-                <FormField
-                    control={form.control}
-                    name="socialImpact.environmentalExamples"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700">Provide Examples</FormLabel>
-                            <FormControl>
-                                <Textarea
-                                    {...field}
-                                    placeholder="Describe your environmental conservation practices..."
-                                    className="min-h-[100px] rounded-xl bg-white text-slate-900 placeholder:text-slate-400 border-slate-200"
-                                />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
         </motion.div>
     );
 }
 
-// === BUSINESS MODEL FORM (20 marks) ===
+// === BUSINESS MODEL FORM ===
 interface AccelerationBusinessModelFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
@@ -249,159 +165,137 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                     <LightbulbIcon className="w-8 h-8 text-amber-600" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Business Model</h2>
-                <p className="text-slate-500 mt-2">Section F: Maximum 20 Marks</p>
+                <p className="text-slate-500 mt-2">Section F: Innovation & Value Proposition</p>
             </div>
 
             {/* Business Model Uniqueness */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                        <LightbulbIcon className="w-5 h-5 text-amber-600" weight="duotone" />
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <LightbulbIcon className="w-5 h-5 text-amber-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">Model Innovation</CardTitle>
+                            <CardDescription>Uniqueness of your business model</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Business Model Uniqueness</h3>
-                        <p className="text-sm text-slate-500">How unique is your business model?</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="businessModel.businessModelUniqueness"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="businessModel.businessModelUniqueness"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Uniqueness Level</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select uniqueness level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="high">High (Truly unique)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="low">Low (Common model)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="businessModel.businessModelUniquenessDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Description</FormLabel>
                                 <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select uniqueness level" />
-                                    </SelectTrigger>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe what makes your business model unique..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
                                 </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="high">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">7 pts</Badge>
-                                            High - Truly unique model
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="moderate">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">3 pts</Badge>
-                                            Moderate
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="low">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                            Low - Common model
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={7} description="Based on model innovation" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
 
             {/* Customer Value Proposition */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <StarIcon className="w-5 h-5 text-purple-600" weight="duotone" />
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <StarIcon className="w-5 h-5 text-purple-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">Value Proposition</CardTitle>
+                            <CardDescription>Why customers buy from you</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Customer Value Proposition</h3>
-                        <p className="text-sm text-slate-500">Strength of your value proposition</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="businessModel.customerValueProposition"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select strength level" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="high">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">7 pts</Badge>
-                                            High - Strong value proposition
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="moderate">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">3 pts</Badge>
-                                            Moderate
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="low">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                            Low
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={7} description="Why customers buy from you" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
+                </CardHeader>
+                <CardContent>
+                    <FormField
+                        control={form.control}
+                        name="businessModel.customerValueProposition"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Strength of Proposition</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select strength level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="high">High (Strong value)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
 
-            {/* Competitive Advantage Strength */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <ShieldCheckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
+            {/* Supplier Support */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <TruckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">Supplier Engagement</CardTitle>
+                            <CardDescription>How you support and work with your suppliers</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Competitive Advantage Strength</h3>
-                        <p className="text-sm text-slate-500">Barriers protecting your market position</p>
-                    </div>
-                </div>
-                <FormField
-                    control={form.control}
-                    name="businessModel.competitiveAdvantageStrength"
-                    render={({ field }) => (
-                        <FormItem>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                </CardHeader>
+                <CardContent>
+                    <FormField
+                        control={form.control}
+                        name="businessModel.supplierSupportDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Supplier Support Description</FormLabel>
                                 <FormControl>
-                                    <SelectTrigger className="h-12 rounded-xl bg-white text-slate-900 border-slate-200">
-                                        <SelectValue placeholder="Select strength level" />
-                                    </SelectTrigger>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe how you support your suppliers (e.g. training, fair payments)..."
+                                        className="min-h-[80px] rounded-xl"
+                                    />
                                 </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="high">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-green-100 text-green-700">6 pts</Badge>
-                                            High - Strong barriers
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="moderate">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-yellow-100 text-yellow-700">3 pts</Badge>
-                                            Moderate
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="low">
-                                        <div className="flex items-center gap-2">
-                                            <Badge className="bg-slate-100 text-slate-700">1 pt</Badge>
-                                            Low
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <ScoringInfo maxPoints={6} description="Based on entry barriers" />
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
         </motion.div>
     );
 }
-
