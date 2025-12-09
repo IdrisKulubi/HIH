@@ -55,7 +55,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                         </div>
                         <div>
                             <CardTitle className="text-lg">Environmental Impact</CardTitle>
-                            <CardDescription>Does your business conserve the environment?</CardDescription>
+                            <CardDescription>To what level does your business conserve the environment?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -115,7 +115,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                         </div>
                         <div>
                             <CardTitle className="text-lg">Inclusion of Special Groups</CardTitle>
-                            <CardDescription>Employees from vulnerable or underrepresented groups</CardDescription>
+                            <CardDescription>How many women,youth ,and  PWD employees do you currently employ?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>

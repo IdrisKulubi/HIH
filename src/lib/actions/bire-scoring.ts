@@ -1,4 +1,4 @@
-"use server";
+
 
 /**
  * BIRE Programme Scoring Engine

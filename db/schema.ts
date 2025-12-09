@@ -543,6 +543,23 @@ export const supportTickets = pgTable('support_tickets', {
   resolvedAt: timestamp('resolved_at')
 });
 
+export const supportResponses = pgTable('support_responses', {
+  id: serial('id').primaryKey(),
+  ticketId: integer('ticket_id').notNull().references(() => supportTickets.id, { onDelete: 'cascade' }),
+  responderId: text('responder_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  responderName: text('responder_name').notNull(),
+  responderRole: varchar('responder_role', { length: 50 }).notNull(), // 'user', 'admin', 'support'
+  message: text('message').notNull(),
+  attachmentUrl: varchar('attachment_url', { length: 500 }), // Optional file attachment
+  isInternal: boolean('is_internal').default(false), // Internal notes not visible to user
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+}, (table) => ({
+  ticketIdIdx: index("support_responses_ticket_id_idx").on(table.ticketId),
+  responderIdIdx: index("support_responses_responder_id_idx").on(table.responderId),
+  createdAtIdx: index("support_responses_created_at_idx").on(table.createdAt),
+}));
+
 export const ticketMessages = pgTable('ticket_messages', {
   id: serial('id').primaryKey(),
   ticketId: integer('ticket_id').notNull().references(() => supportTickets.id, { onDelete: 'cascade' }),

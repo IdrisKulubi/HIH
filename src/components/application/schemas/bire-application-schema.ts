@@ -195,7 +195,7 @@ export const declarationSchema = z.object({
     hasSocialSafeguarding: z.boolean().refine(val => val === true, "Social safeguarding guidelines are required"),
     confirmTruth: z.boolean().refine(val => val === true, "You must certify information is accurate"),
     declarationName: z.string().min(2, "Name is required"),
-    declarationDate: z.date(),
+    declarationDate: z.coerce.date().default(() => new Date()),
 });
 
 export const documentsSchema = z.object({

@@ -11,23 +11,22 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FoundationApplicationFormData, AccelerationApplicationFormData } from "../schemas/bire-application-schema";
 
 interface DeclarationFormProps {
-    form: UseFormReturn<FoundationApplicationFormData> | UseFormReturn<AccelerationApplicationFormData>;
+    form: UseFormReturn<any>;
 }
 
 export function DeclarationForm({ form }: DeclarationFormProps) {
     return (
         <div className="space-y-8">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">Declaration</h2>
-                <p className="text-slate-600 mt-2">
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-700">Declaration</h2>
+                <p className="text-zinc-600 dark:text-zinc-400 mt-2">
                     Please review and certify your application details.
                 </p>
             </div>
 
-            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-6">
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-6">
                 <FormField
                     control={form.control}
                     name="declaration.hasSocialSafeguarding"
@@ -40,10 +39,10 @@ export function DeclarationForm({ form }: DeclarationFormProps) {
                                 />
                             </FormControl>
                             <div className="space-y-1 leading-none">
-                                <FormLabel>
+                                <FormLabel className="text-zinc-900 dark:text-zinc-50">
                                     Social Safeguarding Guidelines
                                 </FormLabel>
-                                <FormDescription>
+                                <FormDescription className="text-zinc-500 dark:text-zinc-400">
                                     Does the business have inclusive social safeguarding guidelines? (Required)
                                 </FormDescription>
                                 <FormMessage />
@@ -64,7 +63,7 @@ export function DeclarationForm({ form }: DeclarationFormProps) {
                                 />
                             </FormControl>
                             <div className="space-y-1 leading-none">
-                                <FormLabel>
+                                <FormLabel className="text-zinc-900 dark:text-zinc-50">
                                     I certify that all information submitted is true and accurate.
                                 </FormLabel>
                                 <FormMessage />
@@ -79,9 +78,9 @@ export function DeclarationForm({ form }: DeclarationFormProps) {
                         name="declaration.declarationName"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Full Name (Signature)</FormLabel>
+                                <FormLabel className="text-zinc-900 dark:text-zinc-50">Full Name (Signature)</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Enter your full name" {...field} />
+                                    <Input placeholder="Enter your full name" {...field} className="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 border-zinc-200 dark:border-zinc-800" />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -93,13 +92,13 @@ export function DeclarationForm({ form }: DeclarationFormProps) {
                         name="declaration.declarationDate"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Date</FormLabel>
+                                <FormLabel className="text-zinc-900 dark:text-zinc-50">Date</FormLabel>
                                 <FormControl>
                                     <Input
                                         type="text"
                                         value={field.value ? new Date(field.value).toLocaleDateString() : new Date().toLocaleDateString()}
                                         disabled
-                                        className="bg-slate-100 text-slate-500"
+                                        className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
                                     />
                                 </FormControl>
                                 <FormMessage />
