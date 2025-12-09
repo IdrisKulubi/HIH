@@ -68,6 +68,7 @@ export const applicationStatusEnum = pgEnum('application_status', [
   'draft',
   'submitted',
   'under_review',
+  'pending_senior_review',
   'shortlisted',
   'scoring_phase',
   'dragons_den',
@@ -413,6 +414,27 @@ export const eligibilityResults = pgTable('eligibility_results', {
   evaluationNotes: text('evaluation_notes'),
   evaluatedAt: timestamp('evaluated_at').defaultNow().notNull(),
   evaluatedBy: text('evaluated_by'),
+
+  // Two-tier review system fields
+  // Reviewer 1 (Initial Review)
+  reviewer1Id: text('reviewer1_id'),
+  reviewer1Score: integer('reviewer1_score'),
+  reviewer1Notes: text('reviewer1_notes'),
+  reviewer1At: timestamp('reviewer1_at'),
+
+  // Reviewer 2 (Senior Review)
+  reviewer2Id: text('reviewer2_id'),
+  reviewer2Score: integer('reviewer2_score'),
+  reviewer2Notes: text('reviewer2_notes'),
+  reviewer2At: timestamp('reviewer2_at'),
+  reviewer2OverrodeReviewer1: boolean('reviewer2_overrode_reviewer1').default(false),
+
+  // Locking mechanism
+  isLocked: boolean('is_locked').default(false),
+  lockedBy: text('locked_by'),
+  lockedAt: timestamp('locked_at'),
+  lockReason: text('lock_reason'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });

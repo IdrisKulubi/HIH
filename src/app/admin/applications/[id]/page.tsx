@@ -38,6 +38,7 @@ import {
   Download,
   ExternalLink,
 } from "lucide-react";
+import { TwoTierReviewPanel } from "@/components/admin/TwoTierReviewPanel";
 
 export default function ApplicationDetail({
   params,
@@ -51,6 +52,7 @@ export default function ApplicationDetail({
     status:
     | "submitted"
     | "under_review"
+    | "pending_senior_review"
     | "approved"
     | "rejected"
     | "draft"
@@ -1305,7 +1307,14 @@ export default function ApplicationDetail({
             </Tabs>
           </div>
 
-          <div>
+          <div className="space-y-6">
+            {/* Two-Tier Review Panel */}
+            <TwoTierReviewPanel
+              applicationId={application.id}
+              currentStatus={application.status}
+              isAdmin={true}
+            />
+
             <Card>
               <CardHeader>
                 <CardTitle>Eligibility Assessment</CardTitle>

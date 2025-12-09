@@ -83,3 +83,14 @@ export {
     scoreAccelerationTrack,
     scoreApplication,
 } from "./bire-scoring";
+
+// =============================================================================
+// TWO-TIER REVIEW SYSTEM
+// =============================================================================
+export {
+    submitReviewer1Review,
+    submitReviewer2Review,
+    lockApplication,
+    unlockApplication,
+    getReviewStatus,
+} from "./two-tier-review";
