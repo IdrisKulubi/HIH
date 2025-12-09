@@ -49,6 +49,10 @@ const formSchema = z.object({
   filters: z.object({
     status: z.array(z.string()).optional(),
     country: z.array(z.string()).optional(),
+    track: z.array(z.string()).optional(),
+    county: z.array(z.string()).optional(),
+    sector: z.array(z.string()).optional(),
+    gender: z.array(z.string()).optional(),
     isEligible: z.boolean().optional().nullable(),
     submittedAfter: z.date().optional().nullable(),
     submittedBefore: z.date().optional().nullable(),
@@ -60,7 +64,7 @@ type FormValues = z.infer<typeof formSchema>;
 export default function ExportPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -69,19 +73,23 @@ export default function ExportPage() {
       filters: {
         status: [],
         country: [],
+        track: [],
+        county: [],
+        sector: [],
+        gender: [],
         isEligible: null,
         submittedAfter: null,
         submittedBefore: null,
       },
     },
   });
-  
+
   // Get values for conditional rendering
   const exportType = form.watch("type");
-  
+
   async function onSubmit(values: FormValues) {
     setIsLoading(true);
-    
+
     try {
       // Clean up null values
       const cleanedValues = {
@@ -91,14 +99,14 @@ export default function ExportPage() {
           Object.entries(values.filters).filter(([_, v]) => v !== null && (Array.isArray(v) ? v.length > 0 : true))
         ),
       };
-      
+
       const result = await exportData(cleanedValues);
-      
+
       if (!result.success) {
         toast.error(result.error || "Failed to export data");
         return;
       }
-      
+
       // Handle API URL response for large datasets
       if ('apiUrl' in result && result.apiUrl) {
         // Create a form to POST to the API endpoint
@@ -106,34 +114,34 @@ export default function ExportPage() {
         form.method = 'POST';
         form.action = result.apiUrl as string; // Use the API URL from the response
         form.target = '_blank'; // Open in new tab
-        
+
         // Add export parameters as hidden fields
         const dataInput = document.createElement('input');
         dataInput.type = 'hidden';
         dataInput.name = 'exportData';
         dataInput.value = JSON.stringify(cleanedValues);
         form.appendChild(dataInput);
-        
+
         // Submit the form
         document.body.appendChild(form);
         form.submit();
         document.body.removeChild(form);
-        
+
         toast.success("Processing large export. Your download will begin shortly.");
         setIsLoading(false);
         return;
       }
-      
+
       // For regular-sized datasets, handle client-side download
       if (!result.data || !result.fileName) {
         toast.error("Failed to export data");
         return;
       }
-      
+
       // Handle different data formats
       let blobData: string | Uint8Array;
       const contentType = result.contentType || 'text/csv';
-      
+
       if (result.isBase64) {
         // Convert base64 back to binary data for Excel files
         const binaryString = atob(result.data);
@@ -146,7 +154,7 @@ export default function ExportPage() {
         // Text data (CSV, JSON)
         blobData = result.data;
       }
-      
+
       // Create a blob and download the file
       const blob = new Blob([blobData], { type: contentType });
       const url = URL.createObjectURL(blob);
@@ -157,7 +165,7 @@ export default function ExportPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       toast.success(`Export complete: ${result.fileName} (${result.recordCount || 0} records)`);
     } catch (error) {
       console.error("Export error:", error);
@@ -192,8 +200,8 @@ export default function ExportPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Export Type</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
+                      <Select
+                        onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
@@ -218,8 +226,8 @@ export default function ExportPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>File Format</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
+                      <Select
+                        onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
@@ -245,7 +253,7 @@ export default function ExportPage() {
                   <TabsTrigger value="status-filters">Status Filters</TabsTrigger>
                   <TabsTrigger value="location-filters">Location Filters</TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="date-filters" className="space-y-4 mt-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
@@ -286,7 +294,7 @@ export default function ExportPage() {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="filters.submittedBefore"
@@ -327,7 +335,7 @@ export default function ExportPage() {
                     />
                   </div>
                 </TabsContent>
-                
+
                 <TabsContent value="status-filters" className="space-y-4 mt-4">
                   <div className="space-y-4">
                     {exportType === "applications" || exportType === "eligibility" ? (
@@ -340,7 +348,7 @@ export default function ExportPage() {
                               <FormLabel className="text-base">Application Status</FormLabel>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {["draft", "submitted", "under_review", "shortlisted", "scoring_phase", "dragons_den", "finalist", "approved", "rejected"].map((status) => (
+                              {["draft", "submitted", "under_review", "pending_senior_review", "approved", "rejected"].map((status) => (
                                 <FormField
                                   key={status}
                                   control={form.control}
@@ -358,10 +366,10 @@ export default function ExportPage() {
                                               return checked
                                                 ? field.onChange([...(field.value || []), status])
                                                 : field.onChange(
-                                                    field.value?.filter(
-                                                      (value) => value !== status
-                                                    )
-                                                  );
+                                                  field.value?.filter(
+                                                    (value) => value !== status
+                                                  )
+                                                );
                                             }}
                                           />
                                         </FormControl>
@@ -379,7 +387,7 @@ export default function ExportPage() {
                         )}
                       />
                     ) : null}
-                    
+
                     {exportType === "eligibility" ? (
                       <FormField
                         control={form.control}
@@ -404,8 +412,8 @@ export default function ExportPage() {
                                 field.value === true
                                   ? "eligible"
                                   : field.value === false
-                                  ? "ineligible"
-                                  : "all"
+                                    ? "ineligible"
+                                    : "all"
                               }
                             >
                               <FormControl>
@@ -426,48 +434,181 @@ export default function ExportPage() {
                     ) : null}
                   </div>
                 </TabsContent>
-                
-                <TabsContent value="location-filters" className="space-y-4 mt-4">
+
+                <TabsContent value="location-filters" className="space-y-6 mt-4">
+                  {/* Track Filter */}
                   <FormField
                     control={form.control}
-                    name="filters.country"
+                    name="filters.track"
                     render={() => (
                       <FormItem>
                         <div className="mb-4">
-                          <FormLabel className="text-base">Country</FormLabel>
+                          <FormLabel className="text-base">Application Track</FormLabel>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                          {["ghana", "kenya", "nigeria", "rwanda", "tanzania"].map((country) => (
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: "foundation", label: "Foundation Track (Early-Stage)" },
+                            { value: "acceleration", label: "Acceleration Track (Growth-Stage)" }
+                          ].map((track) => (
                             <FormField
-                              key={country}
+                              key={track.value}
                               control={form.control}
-                              name="filters.country"
+                              name="filters.track"
                               render={({ field }) => {
                                 return (
                                   <FormItem
-                                    key={country}
+                                    key={track.value}
                                     className="flex flex-row items-start space-x-3 space-y-0"
                                   >
                                     <FormControl>
                                       <Checkbox
-                                        checked={field.value?.includes(country)}
+                                        checked={field.value?.includes(track.value)}
                                         onCheckedChange={(checked) => {
                                           return checked
-                                            ? field.onChange([...(field.value || []), country])
+                                            ? field.onChange([...(field.value || []), track.value])
                                             : field.onChange(
-                                                field.value?.filter(
-                                                  (value) => value !== country
-                                                )
-                                              );
+                                              field.value?.filter(
+                                                (value) => value !== track.value
+                                              )
+                                            );
                                         }}
                                       />
                                     </FormControl>
-                                    <FormLabel className="font-normal capitalize">
-                                      {country}
+                                    <FormLabel className="font-normal">
+                                      {track.label}
                                     </FormLabel>
                                   </FormItem>
                                 );
                               }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {/* County Filter */}
+                  <FormField
+                    control={form.control}
+                    name="filters.county"
+                    render={() => (
+                      <FormItem>
+                        <div className="mb-4">
+                          <FormLabel className="text-base">Kenya County</FormLabel>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                          {[
+                            "nairobi", "mombasa", "kisumu", "nakuru", "kiambu", "machakos", "kajiado", "nyeri",
+                            "meru", "uasin_gishu", "kilifi", "kakamega", "bungoma", "kisii", "homa_bay", "migori"
+                          ].map((county) => (
+                            <FormField
+                              key={county}
+                              control={form.control}
+                              name="filters.county"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(county)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...(field.value || []), county])
+                                          : field.onChange(field.value?.filter((v) => v !== county));
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal capitalize text-sm">
+                                    {county.replace(/_/g, " ")}
+                                  </FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Sector Filter */}
+                  <FormField
+                    control={form.control}
+                    name="filters.sector"
+                    render={() => (
+                      <FormItem>
+                        <div className="mb-4">
+                          <FormLabel className="text-base">Business Sector</FormLabel>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {[
+                            "agriculture", "manufacturing", "renewable_energy", "water_management",
+                            "waste_management", "forestry", "tourism", "transport", "ict", "trade", "healthcare"
+                          ].map((sector) => (
+                            <FormField
+                              key={sector}
+                              control={form.control}
+                              name="filters.sector"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(sector)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...(field.value || []), sector])
+                                          : field.onChange(field.value?.filter((v) => v !== sector));
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal capitalize text-sm">
+                                    {sector.replace(/_/g, " ")}
+                                  </FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Gender Filter */}
+                  <FormField
+                    control={form.control}
+                    name="filters.gender"
+                    render={() => (
+                      <FormItem>
+                        <div className="mb-4">
+                          <FormLabel className="text-base">Applicant Gender</FormLabel>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: "male", label: "Male" },
+                            { value: "female", label: "Female" },
+                            { value: "other", label: "Other" }
+                          ].map((gender) => (
+                            <FormField
+                              key={gender.value}
+                              control={form.control}
+                              name="filters.gender"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(gender.value)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...(field.value || []), gender.value])
+                                          : field.onChange(field.value?.filter((v) => v !== gender.value));
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="font-normal text-sm">
+                                    {gender.label}
+                                  </FormLabel>
+                                </FormItem>
+                              )}
                             />
                           ))}
                         </div>

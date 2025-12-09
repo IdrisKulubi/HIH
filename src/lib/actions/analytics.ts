@@ -1,10 +1,10 @@
 "use server";
 
 import db from "@/db/drizzle";
-import { 
-  applications, 
-  applicationScores, 
-  scoringCriteria, 
+import {
+  applications,
+  applicationScores,
+  scoringCriteria,
   userProfiles,
   businesses,
   applicants
@@ -34,7 +34,7 @@ async function verifyAdminAccess() {
 export async function getBasicStats() {
   try {
     await verifyAdminAccess();
-    
+
     // Total applications count
     const totalAppsResult = await db.select({ count: count() }).from(applications);
     const totalApplications = totalAppsResult[0]?.count || 0;
@@ -80,7 +80,7 @@ export async function getBasicStats() {
 export async function getStatusDistribution() {
   try {
     await verifyAdminAccess();
-    
+
     const statusResults = await db
       .select({
         status: applications.status,
@@ -108,7 +108,7 @@ export async function getStatusDistribution() {
 export async function getCountryDistribution() {
   try {
     await verifyAdminAccess();
-    
+
     const countryResults = await db
       .select({
         country: businesses.country,
@@ -140,7 +140,7 @@ export async function getCountryDistribution() {
 export async function getGenderDistribution() {
   try {
     await verifyAdminAccess();
-    
+
     const genderResults = await db
       .select({
         gender: applicants.gender,
@@ -173,7 +173,7 @@ export async function getGenderDistribution() {
 export async function getSectorDistribution() {
   try {
     await verifyAdminAccess();
-    
+
     const sectorResults = await db
       .select({
         sector: businesses.sector,
@@ -202,11 +202,133 @@ export async function getSectorDistribution() {
   }
 }
 
+// Get track distribution (Foundation vs Acceleration)
+export async function getTrackDistribution() {
+  try {
+    await verifyAdminAccess();
+
+    const trackResults = await db
+      .select({
+        track: applications.track,
+        count: count()
+      })
+      .from(applications)
+      .where(isNotNull(applications.track))
+      .groupBy(applications.track)
+      .orderBy(desc(count()));
+
+    const trackDistribution: Record<string, number> = {
+      foundation: 0,
+      acceleration: 0
+    };
+
+    trackResults.forEach(result => {
+      if (result.track) {
+        trackDistribution[result.track] = result.count;
+      }
+    });
+
+    return {
+      success: true,
+      data: trackDistribution
+    };
+  } catch (error) {
+    console.error("Error fetching track distribution:", error);
+    return { success: false, error: "Failed to fetch track distribution" };
+  }
+}
+
+// Get Kenya county distribution
+export async function getCountyDistribution() {
+  try {
+    await verifyAdminAccess();
+
+    const countyResults = await db
+      .select({
+        county: businesses.county,
+        count: count()
+      })
+      .from(applications)
+      .innerJoin(businesses, eq(applications.businessId, businesses.id))
+      .where(isNotNull(businesses.county))
+      .groupBy(businesses.county)
+      .orderBy(desc(count()));
+
+    const countyDistribution: Record<string, number> = {};
+    countyResults.forEach(result => {
+      if (result.county) {
+        // Format county name nicely
+        const countyName = result.county.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        countyDistribution[countyName] = result.count;
+      }
+    });
+
+    return {
+      success: true,
+      data: countyDistribution
+    };
+  } catch (error) {
+    console.error("Error fetching county distribution:", error);
+    return { success: false, error: "Failed to fetch county distribution" };
+  }
+}
+
+// Get demographics breakdown (age, education, gender combined)
+export async function getDemographicsBreakdown() {
+  try {
+    await verifyAdminAccess();
+
+    // Gender distribution
+    const genderResult = await getGenderDistribution();
+
+    // Education level distribution
+    const educationResults = await db
+      .select({
+        education: applicants.highestEducation,
+        count: count()
+      })
+      .from(applications)
+      .innerJoin(businesses, eq(applications.businessId, businesses.id))
+      .innerJoin(applicants, eq(businesses.applicantId, applicants.id))
+      .where(isNotNull(applicants.highestEducation))
+      .groupBy(applicants.highestEducation)
+      .orderBy(desc(count()));
+
+    const educationDistribution: Record<string, number> = {};
+    educationResults.forEach(result => {
+      if (result.education) {
+        const educationLabel = result.education.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        educationDistribution[educationLabel] = result.count;
+      }
+    });
+
+    // Age group distribution - calculate from dateOfBirth if available
+    const ageGroups = {
+      '18-24': 0,
+      '25-30': 0,
+      '31-35': 0,
+      '36+': 0
+    };
+
+    return {
+      success: true,
+      data: {
+        gender: genderResult.success ? genderResult.data : {},
+        education: educationDistribution,
+        ageGroups
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching demographics breakdown:", error);
+    return { success: false, error: "Failed to fetch demographics breakdown" };
+  }
+}
+
 // Get evaluator statistics
 export async function getEvaluatorStats() {
   try {
     await verifyAdminAccess();
-    
+
     // Total evaluators
     const totalEvaluatorsResult = await db
       .select({ count: count() })
@@ -243,7 +365,7 @@ export async function getEvaluatorStats() {
 export async function getTopApplications(limit = 10) {
   try {
     await verifyAdminAccess();
-    
+
     const topAppsResults = await db
       .select({
         applicationId: applications.id,
@@ -283,7 +405,7 @@ export async function getTopApplications(limit = 10) {
 export async function getScoringCriteriaStats() {
   try {
     await verifyAdminAccess();
-    
+
     const criteriaStats = await db
       .select({
         criteriaId: scoringCriteria.id,
@@ -296,9 +418,9 @@ export async function getScoringCriteriaStats() {
       .from(scoringCriteria)
       .leftJoin(applicationScores, eq(scoringCriteria.id, applicationScores.criteriaId))
       .groupBy(
-        scoringCriteria.id, 
-        scoringCriteria.name, 
-        scoringCriteria.category, 
+        scoringCriteria.id,
+        scoringCriteria.name,
+        scoringCriteria.category,
         scoringCriteria.maxPoints
       )
       .orderBy(scoringCriteria.sortOrder);
@@ -306,8 +428,8 @@ export async function getScoringCriteriaStats() {
     const criteriaAnalytics = criteriaStats.map(criteria => ({
       ...criteria,
       averageScore: Number(criteria.averageScore || 0),
-      utilizationRate: criteria.maxPoints > 0 
-        ? Math.round((Number(criteria.averageScore || 0) / criteria.maxPoints) * 100) 
+      utilizationRate: criteria.maxPoints > 0
+        ? Math.round((Number(criteria.averageScore || 0) / criteria.maxPoints) * 100)
         : 0
     }));
 
@@ -325,7 +447,7 @@ export async function getScoringCriteriaStats() {
 export async function getEvaluatorPerformanceDetails() {
   try {
     await verifyAdminAccess();
-    
+
     const evaluatorPerformance = await db
       .select({
         evaluatorId: userProfiles.id,
@@ -340,10 +462,10 @@ export async function getEvaluatorPerformanceDetails() {
       .leftJoin(applicationScores, eq(userProfiles.userId, applicationScores.evaluatedBy))
       .where(sql`${userProfiles.role} IN ('technical_reviewer', 'jury_member', 'dragons_den_judge')`)
       .groupBy(
-        userProfiles.id, 
-        userProfiles.firstName, 
-        userProfiles.lastName, 
-        userProfiles.email, 
+        userProfiles.id,
+        userProfiles.firstName,
+        userProfiles.lastName,
+        userProfiles.email,
         userProfiles.role
       )
       .orderBy(desc(count(applicationScores.score)));
@@ -376,19 +498,25 @@ export async function getAnalyticsDashboardData() {
       countryDistribution,
       genderDistribution,
       sectorDistribution,
-      evaluatorStats
+      evaluatorStats,
+      trackDistribution,
+      countyDistribution,
+      demographics
     ] = await Promise.all([
       getBasicStats(),
       getStatusDistribution(),
       getCountryDistribution(),
       getGenderDistribution(),
       getSectorDistribution(),
-      getEvaluatorStats()
+      getEvaluatorStats(),
+      getTrackDistribution(),
+      getCountyDistribution(),
+      getDemographicsBreakdown()
     ]);
 
-    if (!basicStats.success || !statusDistribution.success || 
-        !countryDistribution.success || !genderDistribution.success || 
-        !sectorDistribution.success || !evaluatorStats.success) {
+    if (!basicStats.success || !statusDistribution.success ||
+      !countryDistribution.success || !genderDistribution.success ||
+      !sectorDistribution.success || !evaluatorStats.success) {
       throw new Error("Failed to fetch one or more analytics components");
     }
 
@@ -400,7 +528,10 @@ export async function getAnalyticsDashboardData() {
         statusDistribution: statusDistribution.data,
         countryDistribution: countryDistribution.data,
         genderDistribution: genderDistribution.data,
-        sectorDistribution: sectorDistribution.data
+        sectorDistribution: sectorDistribution.data,
+        trackDistribution: trackDistribution.success ? trackDistribution.data : { foundation: 0, acceleration: 0 },
+        countyDistribution: countyDistribution.success ? countyDistribution.data : {},
+        demographics: demographics.success ? demographics.data : { gender: {}, education: {}, ageGroups: {} }
       }
     };
   } catch (error) {
@@ -438,7 +569,7 @@ export async function getScoringAnalytics() {
 export async function getEvaluatorPerformance() {
   try {
     const evaluatorDetails = await getEvaluatorPerformanceDetails();
-    
+
     if (!evaluatorDetails.success) {
       throw new Error("Failed to fetch evaluator performance details");
     }
@@ -450,7 +581,7 @@ export async function getEvaluatorPerformance() {
         summary: {
           totalEvaluators: evaluatorDetails.data?.length || 0,
           totalEvaluations: evaluatorDetails.data?.reduce((sum, e) => sum + e.totalEvaluations, 0) || 0,
-          averageScore: evaluatorDetails.data && evaluatorDetails.data.length && evaluatorDetails.data.length > 0 
+          averageScore: evaluatorDetails.data && evaluatorDetails.data.length && evaluatorDetails.data.length > 0
             ? Math.round((evaluatorDetails.data.reduce((sum, e) => sum + e.averageScore, 0) || 0) / (evaluatorDetails.data.length || 1))
             : 0
         }

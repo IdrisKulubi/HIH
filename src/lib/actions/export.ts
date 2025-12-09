@@ -1,0 +1,456 @@
+"use server";
+
+import { auth } from "@/auth";
+import db from "@/db/drizzle";
+import { applications, applicants, eligibilityResults } from "@/db/schema";
+import { desc, and, SQL, inArray, gte, lte } from "drizzle-orm";
+import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
+import { stringify } from 'csv-stringify/sync';
+
+// Helper function to format values for export
+const formatExportValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (value instanceof Date) return format(new Date(value), "yyyy-MM-dd HH:mm:ss");
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "string" && value.trim() === "") return "";
+  if (typeof value === "number") return value.toString();
+  return String(value);
+};
+
+// Export data function for bulk exports
+export async function exportData(params: {
+  type: "applications" | "applicants" | "eligibility";
+  format: "csv" | "json" | "xlsx";
+  filters: {
+    status?: string[];
+    country?: string[];
+    track?: string[];
+    county?: string[];
+    sector?: string[];
+    gender?: string[];
+    isEligible?: boolean;
+    submittedAfter?: Date;
+    submittedBefore?: Date;
+  };
+}) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Build query conditions based on filters
+    const conditions: SQL[] = [];
+
+    // Filter by status
+    if (params.filters.status && params.filters.status.length > 0) {
+      conditions.push(
+        inArray(
+          applications.status,
+          params.filters.status as ("draft" | "submitted" | "under_review" | "pending_senior_review" | "approved" | "rejected" | "shortlisted" | "scoring_phase" | "dragons_den" | "finalist")[]
+        )
+      );
+    }
+
+    // Filter by track
+    if (params.filters.track && params.filters.track.length > 0) {
+      conditions.push(
+        inArray(
+          applications.track,
+          params.filters.track as ("foundation" | "acceleration")[]
+        )
+      );
+    }
+
+    // Filter by date range
+    if (params.filters.submittedAfter) {
+      conditions.push(gte(applications.submittedAt, params.filters.submittedAfter));
+    }
+    if (params.filters.submittedBefore) {
+      conditions.push(lte(applications.submittedAt, params.filters.submittedBefore));
+    }
+
+    let data: Record<string, unknown>[] = [];
+    let fileName = "";
+
+    switch (params.type) {
+      case "applications": {
+        // Fetch all applications with related data
+        const applicationsData = await db.query.applications.findMany({
+          where: conditions.length ? and(...conditions) : undefined,
+          orderBy: [desc(applications.createdAt)],
+          with: {
+            business: {
+              with: {
+                applicant: true,
+                funding: true,
+                targetCustomers: true,
+              },
+            },
+            eligibilityResults: {
+              with: {
+                evaluator: {
+                  with: {
+                    userProfile: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Apply post-query filters
+        let filteredApplications = applicationsData;
+
+        // Filter by country
+        if (params.filters.country && params.filters.country.length > 0) {
+          filteredApplications = filteredApplications.filter(app =>
+            params.filters.country!.includes(app.business?.country || "")
+          );
+        }
+
+        // Filter by county
+        if (params.filters.county && params.filters.county.length > 0) {
+          filteredApplications = filteredApplications.filter(app =>
+            params.filters.county!.includes(app.business?.county || "")
+          );
+        }
+
+        // Filter by sector
+        if (params.filters.sector && params.filters.sector.length > 0) {
+          filteredApplications = filteredApplications.filter(app =>
+            params.filters.sector!.includes(app.business?.sector || "")
+          );
+        }
+
+        // Filter by gender
+        if (params.filters.gender && params.filters.gender.length > 0) {
+          filteredApplications = filteredApplications.filter(app =>
+            params.filters.gender!.includes(app.business?.applicant?.gender || "")
+          );
+        }
+
+        // Filter by eligibility
+        if (params.filters.isEligible !== undefined) {
+          filteredApplications = filteredApplications.filter(app => {
+            const hasEligibility = app.eligibilityResults && app.eligibilityResults.length > 0;
+            if (!hasEligibility) return false;
+            return app.eligibilityResults[0].isEligible === params.filters.isEligible;
+          });
+        }
+
+        // Transform data for export
+        data = filteredApplications.map(app => {
+          const eligibility = app.eligibilityResults?.[0];
+          const funding = app.business?.funding?.[0];
+          const targetCustomers = app.business?.targetCustomers?.map(tc => tc.customerSegment).join(", ") || "";
+
+          return {
+            // Application Info
+            "Application ID": app.id,
+            "Track": app.track ? app.track.charAt(0).toUpperCase() + app.track.slice(1) : "N/A",
+            "Status": app.status.replace(/_/g, " ").toUpperCase(),
+            "Submitted At": formatExportValue(app.submittedAt),
+            "Created At": formatExportValue(app.createdAt),
+            "Referral Source": formatExportValue(app.referralSource),
+
+            // Applicant Info
+            "First Name": app.business?.applicant?.firstName || "",
+            "Last Name": app.business?.applicant?.lastName || "",
+            "Email": app.business?.applicant?.email || "",
+            "Phone": app.business?.applicant?.phoneNumber || "",
+            "Gender": app.business?.applicant?.gender || "",
+            "ID/Passport": app.business?.applicant?.idPassportNumber || "",
+
+            // Business Info
+            "Business Name": app.business?.name || "",
+            "Business Start Date": formatExportValue(app.business?.startDate),
+            "Business Country": app.business?.country?.toUpperCase() || "N/A",
+            "Business County": app.business?.county?.replace(/_/g, " ").toUpperCase() || "N/A",
+            "Business City": app.business?.city || "",
+            "Is Registered": formatExportValue(app.business?.isRegistered),
+            "Registered Countries": app.business?.registeredCountries || "",
+            "Sector": app.business?.sector?.replace(/_/g, " ") || "",
+            "Business Description": app.business?.description || "",
+            "Problem Solved": app.business?.problemSolved || "",
+            "Revenue Last 2 Years (USD)": formatExportValue(app.business?.revenueLastTwoYears),
+
+            // Employee Info
+            "Full-time Employees Total": app.business?.fullTimeEmployeesTotal,
+            "Full-time Employees Male": app.business?.fullTimeEmployeesMale,
+            "Full-time Employees Female": app.business?.fullTimeEmployeesFemale,
+            "Part-time Employees Male": app.business?.partTimeEmployeesMale,
+            "Part-time Employees Female": app.business?.partTimeEmployeesFemale,
+
+            // Climate & Product Info
+            "Climate Adaptation Contribution": app.business?.climateAdaptationContribution || "",
+            "Product/Service Description": app.business?.productServiceDescription || "",
+            "Climate Extreme Impact": app.business?.climateExtremeImpact || "",
+            "Unit Price (USD)": formatExportValue(app.business?.unitPrice),
+            "Customer Count (Last 6 Months)": app.business?.customerCountLastSixMonths,
+            "Production Capacity (Last 6 Months)": app.business?.productionCapacityLastSixMonths,
+            "Target Customer Segments": targetCustomers,
+
+            // Challenges & Support
+            "Current Challenges": app.business?.currentChallenges || "",
+            "Support Needed": app.business?.supportNeeded || "",
+            "Additional Information": formatExportValue(app.business?.additionalInformation),
+
+            // Funding Info
+            "Has External Funding": formatExportValue(funding?.hasExternalFunding),
+            "Funding Source": formatExportValue(funding?.fundingSource?.replace(/_/g, " ")),
+            "Funder Name": formatExportValue(funding?.funderName),
+            "Funding Amount (USD)": formatExportValue(funding?.amountUsd),
+            "Funding Date": formatExportValue(funding?.fundingDate),
+            "Funding Instrument": formatExportValue(funding?.fundingInstrument?.replace(/_/g, " ")),
+
+            // Eligibility Info
+            "Is Eligible": formatExportValue(eligibility?.isEligible),
+            "Total Score": formatExportValue(eligibility?.totalScore),
+            "Evaluation Notes": formatExportValue(eligibility?.evaluationNotes),
+            "Evaluated By": formatExportValue(eligibility?.evaluator?.userProfile?.firstName ? `${eligibility.evaluator.userProfile.firstName} ${eligibility.evaluator.userProfile.lastName}` : eligibility?.evaluatedBy),
+            "Evaluated At": formatExportValue(eligibility?.evaluatedAt),
+
+            // Two-Tier Review Info
+            "Reviewer 1 Score": formatExportValue(eligibility?.reviewer1Score),
+            "Reviewer 1 Notes": formatExportValue(eligibility?.reviewer1Notes),
+            "Reviewer 1 At": formatExportValue(eligibility?.reviewer1At),
+            "Reviewer 2 Score": formatExportValue(eligibility?.reviewer2Score),
+            "Reviewer 2 Notes": formatExportValue(eligibility?.reviewer2Notes),
+            "Reviewer 2 At": formatExportValue(eligibility?.reviewer2At),
+            "Reviewer 2 Overrode R1": formatExportValue(eligibility?.reviewer2OverrodeReviewer1),
+            "Is Locked": formatExportValue(eligibility?.isLocked),
+            "Lock Reason": formatExportValue(eligibility?.lockReason),
+          };
+        });
+
+        fileName = `BIRE_applications_export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "applicants": {
+        // Fetch applicants data with associated businesses for filtering
+        const applicantsData = await db.query.applicants.findMany({
+          orderBy: [desc(applicants.createdAt)],
+          with: {
+            businesses: true
+          }
+        });
+
+        // Use 'let' for variable reassignment during filtering
+        let filteredApplicants = applicantsData;
+
+        // Filter by gender
+        if (params.filters.gender && params.filters.gender.length > 0) {
+          filteredApplicants = filteredApplicants.filter(applicant =>
+            params.filters.gender!.includes(applicant.gender)
+          );
+        }
+
+        // Filter by county (via businesses)
+        if (params.filters.county && params.filters.county.length > 0) {
+          filteredApplicants = filteredApplicants.filter(applicant =>
+            applicant.businesses.some(b => params.filters.county!.includes(b.county || ""))
+          );
+        }
+
+        // Filter by sector (via businesses)
+        if (params.filters.sector && params.filters.sector.length > 0) {
+          filteredApplicants = filteredApplicants.filter(applicant =>
+            applicant.businesses.some(b => params.filters.sector!.includes(b.sector || ""))
+          );
+        }
+
+        // Filter by country (via businesses)
+        if (params.filters.country && params.filters.country.length > 0) {
+          filteredApplicants = filteredApplicants.filter(applicant =>
+            applicant.businesses.some(b => params.filters.country!.includes(b.country || ""))
+          );
+        }
+
+        data = filteredApplicants.map(applicant => {
+          // Extract business info for export (since filtering was based on it)
+          const businessNames = applicant.businesses.map(b => b.name).filter(Boolean);
+          const businessCounties = applicant.businesses.map(b => b.county?.toString().replace(/_/g, " ").toUpperCase()).filter(Boolean);
+          const businessSectors = applicant.businesses.map(b => b.sector?.replace(/_/g, " ")).filter(Boolean);
+
+          return {
+            "ID": applicant.id,
+            "User ID": applicant.userId,
+            "First Name": applicant.firstName,
+            "Last Name": applicant.lastName,
+            "Email": applicant.email,
+            "Phone": applicant.phoneNumber,
+            "Gender": applicant.gender,
+            "ID/Passport": applicant.idPassportNumber,
+            "Business Names": formatExportValue(businessNames),
+            "Business Counties": formatExportValue(businessCounties),
+            "Business Sectors": formatExportValue(businessSectors),
+            "Created At": formatExportValue(applicant.createdAt),
+          };
+        });
+
+        fileName = `BIRE_applicants_export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "eligibility": {
+        // Fetch eligibility results with application data
+        const eligibilityData = await db.query.eligibilityResults.findMany({
+          orderBy: [desc(eligibilityResults.createdAt)],
+          with: {
+            application: {
+              with: {
+                business: {
+                  with: {
+                    applicant: true,
+                  },
+                },
+              },
+            },
+            evaluator: {
+              with: {
+                userProfile: true,
+              },
+            },
+          },
+        });
+
+        // Filter by eligibility if specified
+        let filteredEligibility = eligibilityData;
+        if (params.filters.isEligible !== undefined) {
+          filteredEligibility = eligibilityData.filter(result =>
+            result.isEligible === params.filters.isEligible
+          );
+        }
+
+        // Filter by county
+        if (params.filters.county && params.filters.county.length > 0) {
+          filteredEligibility = filteredEligibility.filter(result =>
+            params.filters.county!.includes(result.application?.business?.county || "")
+          );
+        }
+
+        // Filter by sector
+        if (params.filters.sector && params.filters.sector.length > 0) {
+          filteredEligibility = filteredEligibility.filter(result =>
+            params.filters.sector!.includes(result.application?.business?.sector || "")
+          );
+        }
+
+        data = filteredEligibility.map(result => ({
+          "Application ID": result.applicationId,
+          "Track": result.application?.track ? result.application.track.charAt(0).toUpperCase() + result.application.track.slice(1) : "N/A",
+          "Applicant Name": `${result.application?.business?.applicant?.firstName || ""} ${result.application?.business?.applicant?.lastName || ""}`.trim(),
+          "Email": result.application?.business?.applicant?.email || "",
+          "Phone": result.application?.business?.applicant?.phoneNumber || "",
+          "Gender": result.application?.business?.applicant?.gender || "",
+          "ID/Passport": result.application?.business?.applicant?.idPassportNumber || "",
+          "Business Name": result.application?.business?.name || "",
+          "County": result.application?.business?.county?.replace(/_/g, " ").toUpperCase() || "N/A",
+          "City": result.application?.business?.city || "",
+          "Sector": result.application?.business?.sector?.replace(/_/g, " ") || "",
+
+          // Eligibility Status
+          "Is Eligible": formatExportValue(result.isEligible),
+          "Total Score": formatExportValue(result.totalScore),
+          "Evaluated By": formatExportValue(result.evaluator?.userProfile?.firstName ? `${result.evaluator.userProfile.firstName} ${result.evaluator.userProfile.lastName}` : result.evaluatedBy),
+          "Evaluated At": formatExportValue(result.evaluatedAt),
+
+          // Two-Tier Review
+          "Reviewer 1 Score": formatExportValue(result.reviewer1Score),
+          "Reviewer 1 Notes": formatExportValue(result.reviewer1Notes),
+          "Reviewer 1 At": formatExportValue(result.reviewer1At),
+          "Reviewer 2 Score": formatExportValue(result.reviewer2Score),
+          "Reviewer 2 Notes": formatExportValue(result.reviewer2Notes),
+          "Reviewer 2 At": formatExportValue(result.reviewer2At),
+          "Reviewer 2 Overrode R1": formatExportValue(result.reviewer2OverrodeReviewer1),
+          "Is Locked": formatExportValue(result.isLocked),
+          "Lock Reason": formatExportValue(result.lockReason),
+
+          // Application Status
+          "Application Status": result.application?.status?.replace(/_/g, " ").toUpperCase() || "",
+          "Created At": formatExportValue(result.createdAt),
+        }));
+
+        fileName = `BIRE_eligibility_export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      default:
+        return { success: false, error: "Invalid export type" };
+    }
+
+    if (data.length === 0) {
+      return { success: false, error: "No data found matching the specified filters" };
+    }
+
+    // Format data based on requested format
+    let exportDataResult: string;
+    let contentType: string;
+    let fileExtension: string;
+    let isBase64 = false;
+
+    switch (params.format) {
+      case "csv":
+        exportDataResult = stringify(data, {
+          header: true,
+          quoted: true,
+          escape: '"',
+          quote: '"'
+        });
+        contentType = "text/csv";
+        fileExtension = "csv";
+        break;
+
+      case "json":
+        exportDataResult = JSON.stringify(data, null, 2);
+        contentType = "application/json";
+        fileExtension = "json";
+        break;
+
+      case "xlsx": {
+        // Create Excel workbook
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(data);
+
+        // Auto-size columns
+        if (data.length > 0) {
+          const colWidths = Object.keys(data[0]).map(key => ({
+            wch: Math.max(key.length, 15)
+          }));
+          worksheet['!cols'] = colWidths;
+        }
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, params.type.charAt(0).toUpperCase() + params.type.slice(1));
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        // Convert buffer to base64 string
+        exportDataResult = Buffer.from(buffer).toString('base64');
+        contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        fileExtension = "xlsx";
+        isBase64 = true;
+        break;
+      }
+
+      default:
+        return { success: false, error: "Invalid export format" };
+    }
+
+    const finalFileName = `${fileName}.${fileExtension}`;
+
+    return {
+      success: true,
+      data: exportDataResult,
+      fileName: finalFileName,
+      contentType,
+      recordCount: data.length,
+      isBase64
+    };
+  } catch (error) {
+    console.error("Export error:", error);
+    return { success: false, error: "Failed to export data" };
+  }
+}
