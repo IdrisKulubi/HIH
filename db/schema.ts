@@ -473,9 +473,20 @@ export const eligibilityResults = pgTable('eligibility_results', {
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
+// Scoring Configuration (Cohorts/Cycles)
+export const scoringConfigurations = pgTable('scoring_configurations', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(), // e.g., "Cycle 1 - 2024"
+  isActive: boolean('is_active').default(false).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
 // Scoring Criteria Table implementation
 export const scoringCriteria = pgTable('scoring_criteria', {
   id: serial('id').primaryKey(),
+  configId: integer('config_id').references(() => scoringConfigurations.id, { onDelete: 'cascade' }),
   category: text('category').notNull(), // "Commercial Viability", "Business Model", etc.
   criteriaName: text('criteria_name').notNull(), // "Annual Revenue", "Customer Count"
   track: applicationTrackEnum('track').notNull(), // "foundation" or "acceleration"
@@ -489,6 +500,7 @@ export const applicationScores = pgTable('application_scores', {
   id: serial('id').primaryKey(),
   eligibilityResultId: integer('eligibility_result_id').notNull().references(() => eligibilityResults.id, { onDelete: 'cascade' }),
   criteriaId: integer('criteria_id').notNull().references(() => scoringCriteria.id, { onDelete: 'cascade' }),
+  configId: integer('config_id').references(() => scoringConfigurations.id),
   score: decimal('score', { precision: 5, scale: 2 }).notNull(),
   reviewerComment: text('reviewer_comment'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -683,7 +695,16 @@ export const eligibilityResultsRelations = relations(eligibilityResults, ({ one,
   })
 }));
 
-export const scoringCriteriaRelations = relations(scoringCriteria, ({ many }) => ({
+export const scoringCriteriaRelations = relations(scoringCriteria, ({ one, many }) => ({
+  config: one(scoringConfigurations, {
+    fields: [scoringCriteria.configId],
+    references: [scoringConfigurations.id]
+  }),
+  scores: many(applicationScores)
+}));
+
+export const scoringConfigurationRelations = relations(scoringConfigurations, ({ many }) => ({
+  criteria: many(scoringCriteria),
   scores: many(applicationScores)
 }));
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { getApplicationById } from "./actions";
+import { getApplicationById } from "./admin-applications";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 import { format } from 'date-fns';
 
@@ -90,9 +90,9 @@ const createStatusTable = (application: any) => {
                     text: application.status.replace('_', ' ').toUpperCase(),
                     bold: true,
                     size: 20,
-                    color: application.status === 'approved' ? '059669' : 
-                          application.status === 'rejected' ? 'DC2626' : 
-                          application.status === 'under_review' ? 'D97706' : '2563EB'
+                    color: application.status === 'approved' ? '059669' :
+                      application.status === 'rejected' ? 'DC2626' :
+                        application.status === 'under_review' ? 'D97706' : '2563EB'
                   })
                 ]
               })
@@ -188,7 +188,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       return { success: false, error: "Application not found" };
     }
 
-    const application = result.data;
+    const application = result.data as any;
     const applicantName = `${application.applicant.firstName} ${application.applicant.lastName}`;
 
     // Create document sections
@@ -289,19 +289,19 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     }));
     sections.push(...createQuestionAnswer("Climate Adaptation Contribution", formatValue(application.business.climateAdaptationContribution)));
     sections.push(...createQuestionAnswer("Product/Service Description", formatValue(application.business.productServiceDescription)));
-    
+
     // Add text to meet minimum requirements if needed
     if (application.business.productServiceDescription && application.business.productServiceDescription.length < 50) {
       sections.push(...createQuestionAnswer("Text added to meet mini", "Additional product/service details may be required"));
     }
-    
+
     sections.push(...createQuestionAnswer("Climate Extreme Impact", formatValue(application.business.climateExtremeImpact)));
-    
+
     // Add text to meet minimum requirements if needed
     if (application.business.climateExtremeImpact && application.business.climateExtremeImpact.length < 50) {
       sections.push(...createQuestionAnswer("Text", "Additional climate impact details may be required"));
     }
-    
+
     sections.push(...createQuestionAnswer("Unit Price", `$${application.business.unitPrice?.toLocaleString() || '21'}`));
     sections.push(...createQuestionAnswer("Customer Count (Last 6 Months)", formatValue(application.business.customerCountLastSixMonths || '216')));
     sections.push(...createQuestionAnswer("Production Capacity (Last 6 Months)", formatValue(application.business.productionCapacityLastSixMonths || '700 neem trees per month')));
@@ -358,7 +358,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
         ],
         spacing: { before: 400, after: 200 }
       }));
-      
+
       //eslint-disable-next-line @typescript-eslint/no-explicit-any
       application.business.funding.forEach((fund: any, index: number) => {
         if (fund.hasExternalFunding) {
@@ -373,7 +373,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
             ],
             spacing: { before: 300, after: 200 }
           }));
-          
+
           sections.push(...createQuestionAnswer("Has External Funding", formatValue(fund.hasExternalFunding)));
           sections.push(...createQuestionAnswer("Funding Source", formatValue(fund.fundingSource?.replace(/_/g, ' '))));
           sections.push(...createQuestionAnswer("Funder Name", formatValue(fund.funderName)));
@@ -386,7 +386,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
 
     // STEP 3: Climate Adaptation Solution Section
     sections.push(createSectionHeader("Step 3: Climate Adaptation Solution", "🌍"));
-    
+
     // Climate Solution Details
     sections.push(new Paragraph({
       children: [
@@ -399,11 +399,11 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       ],
       spacing: { before: 400, after: 200 }
     }));
-    
+
     sections.push(...createQuestionAnswer("Climate Adaptation Contribution", formatValue(application.business.climateAdaptationContribution)));
     sections.push(...createQuestionAnswer("Product/Service Description", formatValue(application.business.productServiceDescription)));
     sections.push(...createQuestionAnswer("Climate Extreme Impact", formatValue(application.business.climateExtremeImpact)));
-    
+
     // Add text to meet minimum requirements if needed
     if (application.business.climateAdaptationContribution && application.business.climateAdaptationContribution.length < 50) {
       sections.push(...createQuestionAnswer("Text added to meet minimum", "Additional climate adaptation details may be required"));
@@ -432,13 +432,13 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       sections.push(createSectionHeader("Eligibility Assessment", "📊"));
       sections.push(...createQuestionAnswer("Overall Result", application.eligibility.isEligible ? "✅ ELIGIBLE" : "❌ INELIGIBLE"));
       sections.push(...createQuestionAnswer("Total Score", `${application.eligibility.totalScore}/100`));
-      
+
       // Add reviewer information
       if (application.eligibility.evaluator) {
-        const reviewerName = application.eligibility.evaluator.profile 
+        const reviewerName = application.eligibility.evaluator.profile
           ? `${application.eligibility.evaluator.profile.firstName} ${application.eligibility.evaluator.profile.lastName}`
           : application.eligibility.evaluator.name || "Unknown Reviewer";
-        const reviewerRole = application.eligibility.evaluator.profile?.role 
+        const reviewerRole = application.eligibility.evaluator.profile?.role
           ? application.eligibility.evaluator.profile.role.replace(/_/g, ' ').toUpperCase()
           : "REVIEWER";
         sections.push(...createQuestionAnswer("Reviewed By", `${reviewerName} (${reviewerRole})`));
@@ -446,7 +446,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
           sections.push(...createQuestionAnswer("Review Date", formatValue(new Date(application.eligibility.evaluatedAt))));
         }
       }
-      
+
       // Mandatory Criteria
       sections.push(new Paragraph({
         children: [
@@ -459,7 +459,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
         ],
         spacing: { before: 300, after: 200 }
       }));
-      
+
       sections.push(...createQuestionAnswer("Age Eligible (18-35)", application.eligibility.mandatoryCriteria.ageEligible ? "✅ Yes" : "❌ No"));
       sections.push(...createQuestionAnswer("Registration Eligible", application.eligibility.mandatoryCriteria.registrationEligible ? "✅ Yes" : "❌ No"));
       sections.push(...createQuestionAnswer("Revenue Eligible", application.eligibility.mandatoryCriteria.revenueEligible ? "✅ Yes" : "❌ No"));
@@ -478,7 +478,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
         ],
         spacing: { before: 300, after: 200 }
       }));
-      
+
       sections.push(...createQuestionAnswer("Innovation and Climate Adaptation Focus", `${application.eligibility.evaluationScores.innovationScore + application.eligibility.evaluationScores.climateAdaptationScore}/35`));
       sections.push(...createQuestionAnswer("Business Viability", `${application.eligibility.evaluationScores.viabilityScore + application.eligibility.evaluationScores.marketPotentialScore + application.eligibility.evaluationScores.managementCapacityScore}/31`));
       sections.push(...createQuestionAnswer("Sectoral and Strategic Alignment", `${application.eligibility.evaluationScores.jobCreationScore + application.eligibility.evaluationScores.locationBonus + application.eligibility.evaluationScores.genderBonus}/20`));
@@ -551,7 +551,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     // Generate blob
     const blob = await Packer.toBlob(doc);
     const filename = `YouthADAPT-Application-Review-${applicantName.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.docx`;
-    
+
     return {
       success: true,
       data: {
