@@ -255,8 +255,15 @@ export function FoundationApplicationForm() {
             if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
                 age--;
             }
-            if (age < 18 || age > 35) {
-                return "You must be between 18 and 35 years old to be eligible for this program.";
+            // DOB Validation: Must be born in 2006 or earlier, and not in the current year
+            const currentYear = today.getFullYear();
+            const birthYear = dob.getFullYear();
+
+            if (birthYear >= currentYear) {
+                return "Date of birth cannot be in the current year or future. Please correct your date of birth.";
+            }
+            if (birthYear > 2006) {
+                return "You must be born in 2006 or earlier to be eligible. Please correct your date of birth.";
             }
         }
 

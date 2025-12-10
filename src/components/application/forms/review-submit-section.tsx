@@ -29,6 +29,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
     submitFoundationApplication,
@@ -442,7 +443,10 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                             className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
                         />
                         <Label htmlFor="terms" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
-                            I confirm that all information provided is accurate and complete, and I agree to use the grant funds solely for the business purpose stated.
+                            I confirm that all information provided is accurate and complete, and I agree to use the grant funds solely for the business purpose stated. Read our{" "}
+                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark">
+                                Terms & Privacy Policy
+                            </Link>.
                         </Label>
                     </label>
 
@@ -454,7 +458,11 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                             className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
                         />
                         <Label htmlFor="privacy" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
-                            I agree to the BIRE Project Privacy Policy and allow Hand in Hand Eastern Africa to process my data for the purpose of this application.
+                            I agree to the{" "}
+                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark">
+                                BIRE Project Privacy Policy
+                            </Link>{" "}
+                            and allow Hand in Hand Eastern Africa to process my data for the purpose of this application.
                         </Label>
                     </label>
                 </div>

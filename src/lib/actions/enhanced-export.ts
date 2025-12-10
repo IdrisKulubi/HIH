@@ -460,7 +460,7 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
         spacing: { before: 300, after: 200 }
       }));
 
-      sections.push(...createQuestionAnswer("Age Eligible (18-35)", application.eligibility.mandatoryCriteria.ageEligible ? "✅ Yes" : "❌ No"));
+      sections.push(...createQuestionAnswer("Age/Operational Eligible", application.eligibility.mandatoryCriteria.ageEligible ? "✅ Yes" : "❌ No"));
       sections.push(...createQuestionAnswer("Registration Eligible", application.eligibility.mandatoryCriteria.registrationEligible ? "✅ Yes" : "❌ No"));
       sections.push(...createQuestionAnswer("Revenue Eligible", application.eligibility.mandatoryCriteria.revenueEligible ? "✅ Yes" : "❌ No"));
       sections.push(...createQuestionAnswer("Business Plan Eligible", application.eligibility.mandatoryCriteria.businessPlanEligible ? "✅ Yes" : "❌ No"));
