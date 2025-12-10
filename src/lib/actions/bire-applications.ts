@@ -451,8 +451,21 @@ export async function getUserApplication(): Promise<ActionResponse<{
             return errorResponse("User not authenticated");
         }
 
+        let userId = session.user.id;
+        const userEmail = session.user.email;
+
+        // Resolve correct userId based on email if needed (same logic as submission)
+        if (userEmail) {
+            const existingUser = await db.query.users.findFirst({
+                where: eq(users.email, userEmail),
+            });
+            if (existingUser) {
+                userId = existingUser.id;
+            }
+        }
+
         const applicationData = await db.query.applications.findFirst({
-            where: eq(applications.userId, session.user.id),
+            where: eq(applications.userId, userId),
             with: {
                 business: {
                     with: {

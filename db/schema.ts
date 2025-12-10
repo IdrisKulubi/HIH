@@ -709,7 +709,19 @@ export const supportTicketRelations = relations(supportTickets, ({ one, many }) 
     references: [users.id],
     relationName: 'assignedTo'
   }),
-  messages: many(ticketMessages)
+  messages: many(ticketMessages),
+  responses: many(supportResponses)
+}));
+
+export const supportResponseRelations = relations(supportResponses, ({ one }) => ({
+  ticket: one(supportTickets, {
+    fields: [supportResponses.ticketId],
+    references: [supportTickets.id]
+  }),
+  responder: one(users, {
+    fields: [supportResponses.responderId],
+    references: [users.id]
+  })
 }));
 
 export const ticketMessageRelations = relations(ticketMessages, ({ one, many }) => ({

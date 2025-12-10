@@ -5,10 +5,10 @@
 import { z } from "zod";
 import { eq, desc, and, or, like, count as drizzleCount, sql } from "drizzle-orm";
 import db from "../../../db/drizzle";
-import { supportTickets, supportResponses } from "../../../db/schema";
+import { supportTickets, supportResponses, users } from "../../../db/schema";
 import { auth } from "../../../auth";
 import { revalidatePath } from "next/cache";
-import { 
+import {
   createSupportTicketSchema,
   addResponseSchema,
   updateTicketStatusSchema,
@@ -24,7 +24,7 @@ import { SupportTicketResponseEmail } from "../../components/emails/support-tick
 async function generateTicketNumber(): Promise<string> {
   const year = new Date().getFullYear();
   const maxRetries = 10;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     // Get the highest existing ticket number for this year
     const existingTickets = await db
@@ -33,7 +33,7 @@ async function generateTicketNumber(): Promise<string> {
       .where(like(supportTickets.ticketNumber, `TKT-${year}-%`))
       .orderBy(desc(supportTickets.ticketNumber))
       .limit(1);
-    
+
     let nextNumber = 1;
     if (existingTickets.length > 0) {
       const lastTicketNumber = existingTickets[0].ticketNumber;
@@ -42,24 +42,24 @@ async function generateTicketNumber(): Promise<string> {
         nextNumber = parseInt(match[1], 10) + 1;
       }
     }
-    
+
     const ticketNumber = `TKT-${year}-${String(nextNumber).padStart(4, '0')}`;
-    
+
     // Check if this number already exists (double-check for race conditions)
     const existing = await db
       .select({ id: supportTickets.id })
       .from(supportTickets)
       .where(eq(supportTickets.ticketNumber, ticketNumber))
       .limit(1);
-    
+
     if (existing.length === 0) {
       return ticketNumber;
     }
-    
+
     // If we get here, there was a race condition, wait a bit and retry
     await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
   }
-  
+
   // Fallback: use timestamp-based number if all retries failed
   const timestamp = Date.now().toString().slice(-6);
   return `TKT-${year}-${timestamp}`;
@@ -89,11 +89,11 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
     // Generate unique ticket number and create ticket in a retry loop
     let ticket;
     const maxRetries = 3;
-    
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const ticketNumber = await generateTicketNumber();
-        
+
         // Create the support ticket
         [ticket] = await db.insert(supportTickets).values({
           ticketNumber,
@@ -102,14 +102,11 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
           priority: validatedData.priority,
           status: "open",
           subject: validatedData.subject,
-          description: validatedData.description,
-          userEmail,
-          userName,
-          attachmentUrl: validatedData.attachmentUrl,
+          message: validatedData.description, // Map description to message
         }).returning();
-        
+
         break; // Success, exit retry loop
-        
+
       } catch (error: any) {
         // If it's a duplicate key error and we have retries left, try again
         if (error?.code === '23505' && error?.constraint === 'support_tickets_ticket_number_unique' && attempt < maxRetries - 1) {
@@ -121,14 +118,14 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
         throw error;
       }
     }
-    
+
     if (!ticket) {
       throw new Error("Failed to create ticket after multiple attempts");
     }
 
     revalidatePath("/admin/support");
     revalidatePath("/profile");
-    
+
     return {
       success: true,
       message: "Support ticket created successfully!",
@@ -143,7 +140,7 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
 
   } catch (error) {
     console.error("Error creating support ticket:", error);
-    
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -151,7 +148,7 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
         errors: error.flatten().fieldErrors,
       };
     }
-    
+
     return {
       success: false,
       message: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
@@ -199,7 +196,7 @@ export async function getSupportTickets(filters: SupportTicketFilters = {}) {
       conditions.push(
         or(
           like(supportTickets.subject, `%${filters.search}%`),
-          like(supportTickets.description, `%${filters.search}%`),
+          like(supportTickets.message, `%${filters.search}%`),
           like(supportTickets.ticketNumber, `%${filters.search}%`)
         )
       );
@@ -216,16 +213,17 @@ export async function getSupportTickets(filters: SupportTicketFilters = {}) {
         priority: supportTickets.priority,
         status: supportTickets.status,
         subject: supportTickets.subject,
-        description: supportTickets.description,
-        userEmail: supportTickets.userEmail,
-        userName: supportTickets.userName,
-        attachmentUrl: supportTickets.attachmentUrl,
+        description: supportTickets.message, // Map message to description
+        userEmail: users.email,
+        userName: users.name,
+        // attachmentUrl: supportTickets.attachmentUrl, // Removed as it doesn't exist
         assignedTo: supportTickets.assignedTo,
         resolvedAt: supportTickets.resolvedAt,
         createdAt: supportTickets.createdAt,
         updatedAt: supportTickets.updatedAt,
       })
       .from(supportTickets)
+      .leftJoin(users, eq(supportTickets.userId, users.id))
       .where(whereCondition)
       .orderBy(desc(supportTickets.createdAt))
       .limit(limit)
@@ -236,7 +234,7 @@ export async function getSupportTickets(filters: SupportTicketFilters = {}) {
       .select({ count: drizzleCount() })
       .from(supportTickets)
       .where(whereCondition);
-    
+
     const total = totalResult[0]?.count ?? 0;
     const totalPages = Math.ceil(total / limit);
 
@@ -304,7 +302,7 @@ export async function getSupportTicketById(ticketId: number) {
  * Add a response to a support ticket
  */
 export async function addSupportResponse(data: AddResponseData) {
-  
+
   try {
     // Get current user session
     const session = await auth();
@@ -321,10 +319,13 @@ export async function addSupportResponse(data: AddResponseData) {
 
     // Validate input data
     const validatedData = addResponseSchema.parse(data);
-    
+
     // Check if ticket exists
     const ticket = await db.query.supportTickets.findFirst({
-      where: eq(supportTickets.id, validatedData.ticketId)
+      where: eq(supportTickets.id, validatedData.ticketId),
+      with: {
+        user: true,
+      }
     });
 
     if (!ticket) {
@@ -352,11 +353,11 @@ export async function addSupportResponse(data: AddResponseData) {
       attachmentUrl: validatedData.attachmentUrl,
       isInternal: validatedData.isInternal && userRole === "admin",
     }).returning();
-    
+
     // Update ticket status or timestamp
     if (ticket.status === "resolved" && userRole === "user") {
       await db.update(supportTickets)
-        .set({ 
+        .set({
           status: "open",
           updatedAt: new Date()
         })
@@ -369,13 +370,13 @@ export async function addSupportResponse(data: AddResponseData) {
 
     // If admin responds and it's not an internal note, send an email
     if (userRole === 'admin' && !validatedData.isInternal) {
-      if (ticket && ticket.userEmail) {
+      if (ticket && ticket.user && ticket.user.email) {
         try {
           await sendEmail({
-            to: ticket.userEmail,
+            to: ticket.user.email,
             subject: `Re: Your Support Ticket #${ticket.ticketNumber} has a new response`,
             react: SupportTicketResponseEmail({
-              userName: ticket.userName,
+              userName: ticket.user.name || "User",
               ticketNumber: ticket.ticketNumber,
               ticketSubject: ticket.subject,
               responseMessage: validatedData.message,
@@ -394,7 +395,7 @@ export async function addSupportResponse(data: AddResponseData) {
     revalidatePath("/admin/support");
     revalidatePath("/profile");
 
-    
+
     return {
       success: true,
       message: "Response added successfully!",
@@ -407,7 +408,7 @@ export async function addSupportResponse(data: AddResponseData) {
 
   } catch (error) {
     console.error("💥 Error in addSupportResponse:", error);
-    
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -415,7 +416,7 @@ export async function addSupportResponse(data: AddResponseData) {
         errors: error.flatten().fieldErrors,
       };
     }
-    
+
     return {
       success: false,
       message: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
@@ -427,12 +428,12 @@ export async function addSupportResponse(data: AddResponseData) {
  * Update support ticket status (Admin only)
  */
 export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
-  
+
   try {
     // Get current user session
     const session = await auth();
-   
-    
+
+
     if (!session?.user?.id || session.user.role !== "admin") {
       return {
         success: false,
@@ -441,7 +442,7 @@ export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
     }
 
     const userId = session.user.id;
-    
+
     // Validate input data
     const validatedData = updateTicketStatusSchema.parse(data);
 
@@ -450,7 +451,7 @@ export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
       where: eq(supportTickets.id, validatedData.ticketId)
     });
 
-  
+
 
     if (!ticket) {
       return {
@@ -482,11 +483,11 @@ export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
     await db.update(supportTickets)
       .set(updateData)
       .where(eq(supportTickets.id, validatedData.ticketId));
-    
+
 
     revalidatePath("/admin/support");
     revalidatePath("/profile");
-    
+
     return {
       success: true,
       message: "Ticket status updated successfully!",
@@ -495,7 +496,7 @@ export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
   } catch (error) {
     console.error("💥 Error in updateSupportTicketStatus:", error);
     console.error("💥 Error stack:", error instanceof Error ? error.stack : "No stack trace");
-    
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -503,7 +504,7 @@ export async function updateSupportTicketStatus(data: UpdateTicketStatusData) {
         errors: error.flatten().fieldErrors,
       };
     }
-    
+
     return {
       success: false,
       message: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
