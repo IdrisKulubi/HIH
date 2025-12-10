@@ -30,8 +30,8 @@ import {
 } from "@/components/application/schemas/bire-application-schema";
 
 // Helper type aliases to match existing code usage if needed
-type FoundationApplicationData = FoundationApplicationFormData;
-type AccelerationApplicationData = AccelerationApplicationFormData;
+export type FoundationApplicationData = FoundationApplicationFormData;
+export type AccelerationApplicationData = AccelerationApplicationFormData;
 
 // =============================================================================
 // FOUNDATION TRACK SUBMISSION

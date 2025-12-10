@@ -29,6 +29,11 @@ export interface ApplicationListItem {
         sector: string | null;
         county: string | null;
         city: string;
+        country: string; // Added to match frontend Application interface
+        applicant: {      // Added to match frontend Application interface
+            firstName: string;
+            lastName: string;
+        };
     };
     applicant: {
         firstName: string;
@@ -36,10 +41,14 @@ export interface ApplicationListItem {
         email: string;
         gender: string;
     };
-    eligibility: {
+    eligibilityResults: {
+        id: number;
         isEligible: boolean;
         totalScore: number | null;
-    } | null;
+        evaluatedAt: string | null;
+        evaluatedBy: string | null;
+        evaluator?: any;
+    }[];
 }
 
 export interface ApplicationStats {
@@ -58,6 +67,7 @@ export interface DetailedApplication extends ApplicationListItem {
         sectorOther: string | null;
         county: string | null;
         city: string;
+        country: string;
         isRegistered: boolean;
         registrationCertificateUrl: string | null;
         yearsOperational: number | null;
@@ -85,16 +95,22 @@ export interface DetailedApplication extends ApplicationListItem {
         futureSalesGrowth?: string | null;
         futureSalesGrowthReason?: string | null;
         externalFundingDetails?: string | null;
+        applicant: { // Inherited/Overridden for Detail View consistency if needed
+            firstName: string;
+            lastName: string;
+        };
     };
     applicant: {
         id: number;
+        idPassportNumber: string;
         firstName: string;
         lastName: string;
-        idPassportNumber: string;
+        email: string;
         gender: string;
         phoneNumber: string;
-        email: string;
     };
+    // DetailedApplication extends ApplicationListItem so it inherits eligibilityResults
+    // We explicitly add `eligibility` back for Detailed view compatibility
     eligibility: {
         id: number;
         isEligible: boolean;
@@ -154,10 +170,6 @@ export async function getApplicationStats(): Promise<ActionResponse<ApplicationS
     }
 }
 
-// =============================================================================
-// LIST APPLICATIONS (ADMIN)
-// =============================================================================
-
 export async function getApplications(
     filters: ApplicationFilters = {}
 ): Promise<PaginatedResponse<ApplicationListItem>> {
@@ -177,10 +189,18 @@ export async function getApplications(
                 },
                 eligibilityResults: {
                     limit: 1,
+                    with: {
+                        evaluator: {
+                            with: {
+                                userProfile: true
+                            }
+                        }
+                    }
                 },
             },
         });
 
+        // ... (filtering logic unchanged) ...
         // Apply filters
         let filteredData = allApplications;
 
@@ -231,6 +251,11 @@ export async function getApplications(
                 sector: app.business.sector,
                 county: app.business.county,
                 city: app.business.city,
+                country: app.business.country,
+                applicant: {
+                    firstName: app.business.applicant.firstName,
+                    lastName: app.business.applicant.lastName,
+                }
             },
             applicant: {
                 firstName: app.business.applicant.firstName,
@@ -238,12 +263,14 @@ export async function getApplications(
                 email: app.business.applicant.email,
                 gender: app.business.applicant.gender,
             },
-            eligibility: app.eligibilityResults[0]
-                ? {
-                    isEligible: app.eligibilityResults[0].isEligible,
-                    totalScore: app.eligibilityResults[0].totalScore ? Number(app.eligibilityResults[0].totalScore) : null,
-                }
-                : null,
+            eligibilityResults: app.eligibilityResults.map(er => ({
+                id: er.id,
+                isEligible: er.isEligible,
+                totalScore: er.totalScore ? Number(er.totalScore) : null,
+                evaluatedAt: er.evaluatedAt?.toISOString() ?? null,
+                evaluatedBy: er.evaluatedBy,
+                evaluator: er.evaluator // Pass the rich evaluator object
+            }))
         }));
 
         return paginatedResponse(mappedData, {
@@ -301,6 +328,11 @@ export async function getApplicationById(
                 sectorOther: applicationData.business.sectorOther,
                 county: applicationData.business.county,
                 city: applicationData.business.city,
+                country: applicationData.business.country,
+                applicant: {
+                    firstName: applicationData.business.applicant.firstName,
+                    lastName: applicationData.business.applicant.lastName,
+                },
                 isRegistered: applicationData.business.isRegistered,
                 registrationCertificateUrl: applicationData.business.registrationCertificateUrl,
                 yearsOperational: applicationData.business.yearsOperational,
@@ -341,6 +373,13 @@ export async function getApplicationById(
                 phoneNumber: applicationData.business.applicant.phoneNumber,
                 email: applicationData.business.applicant.email,
             },
+            eligibilityResults: applicationData.eligibilityResults.map(er => ({
+                id: er.id,
+                isEligible: er.isEligible,
+                totalScore: er.totalScore ? Number(er.totalScore) : null,
+                evaluatedAt: er.evaluatedAt?.toISOString() ?? null,
+                evaluatedBy: er.evaluatedBy,
+            })),
             eligibility: applicationData.eligibilityResults[0]
                 ? {
                     id: applicationData.eligibilityResults[0].id,

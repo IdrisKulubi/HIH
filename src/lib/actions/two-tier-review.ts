@@ -75,7 +75,7 @@ export async function submitReviewer1Review(input: ReviewInput): Promise<ReviewR
 
         const reviewData = {
             reviewer1Id: session.user.id,
-            reviewer1Score: input.score,
+            reviewer1Score: String(input.score),
             reviewer1Notes: input.notes ?? null,
             reviewer1At: new Date(),
             updatedAt: new Date(),
@@ -95,7 +95,7 @@ export async function submitReviewer1Review(input: ReviewInput): Promise<ReviewR
                 revenueEligible: true,
                 businessPlanEligible: true,
                 impactEligible: true,
-                totalScore: input.score,
+                totalScore: String(input.score),
                 ...reviewData,
             });
         }
@@ -176,19 +176,21 @@ export async function submitReviewer2Review(
         }
 
         // Determine if overriding reviewer 1
+        // Note: existingResult.reviewer1Score is likely a string due to decimal type
+        const r1Score = existingResult.reviewer1Score ? Number(existingResult.reviewer1Score) : null;
         const isOverride = input.overrideReviewer1 ||
-            (existingResult.reviewer1Score !== null && input.score !== existingResult.reviewer1Score);
+            (r1Score !== null && input.score !== r1Score);
 
         // Update eligibility result with senior review
         await db
             .update(eligibilityResults)
             .set({
                 reviewer2Id: session.user.id,
-                reviewer2Score: input.score,
+                reviewer2Score: String(input.score),
                 reviewer2Notes: input.notes ?? null,
                 reviewer2At: new Date(),
                 reviewer2OverrodeReviewer1: isOverride,
-                totalScore: input.score, // Senior reviewer score is final
+                totalScore: String(input.score), // Senior reviewer score is final
                 isEligible: input.finalDecision === "approved",
                 updatedAt: new Date(),
             })
