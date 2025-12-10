@@ -38,7 +38,7 @@ interface EnhancedAnalyticsChartsProps {
     evaluatedApplications: number;
     evaluationRate: number;
     statusDistribution: Record<string, number>;
-    countryDistribution: Record<string, number>;
+    countyDistribution: Record<string, number>;
     genderDistribution: Record<string, number>;
     sectorDistribution: Record<string, number>;
     averageScore?: number;
@@ -99,9 +99,9 @@ export function EnhancedAnalyticsCharts({
     })
   );
 
-  const countryChartData = Object.entries(data.countryDistribution).map(
-    ([country, count], index) => ({
-      name: country.toUpperCase(),
+  const countyChartData = Object.entries(data.countyDistribution || {}).map(
+    ([county, count], index) => ({
+      name: county.toUpperCase(),
       value: count,
       color: COLORS.primary[index % COLORS.primary.length],
       percentage:
@@ -502,19 +502,19 @@ export function EnhancedAnalyticsCharts({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Globe className="h-5 w-5 text-blue-600" />
-                  Country Distribution
+                  County Distribution
                 </CardTitle>
-                <CardDescription>Applications by country</CardDescription>
+                <CardDescription>Applications by county (Kenya)</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={countryChartData}>
+                  <BarChart data={countyChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                     <YAxis />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {countryChartData.map((entry, index) => (
+                      {countyChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Bar>
@@ -536,7 +536,7 @@ export function EnhancedAnalyticsCharts({
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={countryChartData}
+                      data={countyChartData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -545,7 +545,7 @@ export function EnhancedAnalyticsCharts({
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {countryChartData.map((entry, index) => (
+                      {countyChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>

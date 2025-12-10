@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { format } from "date-fns";
-import { useEffect, useState, useCallback, useTransition } from "react";
+import { Suspense, useEffect, useState, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -130,7 +130,7 @@ function StatCard({
   );
 }
 
-export default function ApplicationsPage() {
+function ApplicationsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -641,5 +641,25 @@ export default function ApplicationsPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function ApplicationsPageFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <Spinner className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-gray-500">Loading applications...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ApplicationsPage() {
+  return (
+    <Suspense fallback={<ApplicationsPageFallback />}>
+      <ApplicationsPageContent />
+    </Suspense>
   );
 }

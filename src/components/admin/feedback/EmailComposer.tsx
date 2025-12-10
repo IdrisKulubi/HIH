@@ -55,7 +55,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [recipients, setRecipients] = useState<
-    Array<{ email: string; name: string }>
+    Array<{ userId: string; email: string; name: string }>
   >([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
@@ -146,11 +146,11 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
   // Filter recipients by search query
   const filteredRecipients = recipientSearch
     ? recipients.filter((r) => {
-        const q = recipientSearch.toLowerCase().trim();
-        return (
-          r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
-        );
-      })
+      const q = recipientSearch.toLowerCase().trim();
+      return (
+        r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
+      );
+    })
     : recipients;
 
   return (

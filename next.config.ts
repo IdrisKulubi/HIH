@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ['@neondatabase/serverless'],
   experimental: {
-    serverComponentsExternalPackages: ['@neondatabase/serverless'],
     serverActions: {
       bodySizeLimit: '2mb',
     },

@@ -110,8 +110,6 @@ function generateFoundationSections(formData: FoundationApplicationFormData): Pa
     sections.push(...createQuestionAnswer("Years Operational", formatValue(formData.business?.yearsOperational)));
     sections.push(...createQuestionAnswer("Has Financial Records", formatValue(formData.business?.hasFinancialRecords)));
     sections.push(...createQuestionAnswer("Financial Records", formData.business?.financialRecordsUrl ? "Uploaded" : "Not provided"));
-    sections.push(...createQuestionAnswer("Has Audited Accounts", formatValue(formData.business?.hasAuditedAccounts)));
-    sections.push(...createQuestionAnswer("Audited Accounts", formData.business?.auditedAccountsUrl ? "Uploaded" : "Not provided"));
 
     // Commercial Viability
     sections.push(createSectionHeader("Commercial Viability", "💰"));
@@ -119,9 +117,7 @@ function generateFoundationSections(formData: FoundationApplicationFormData): Pa
     sections.push(...createQuestionAnswer("Customer Count", formatValue(formData.commercialViability?.customerCount)));
     sections.push(...createQuestionAnswer("External Funding", formatValue(formData.commercialViability?.hasExternalFunding)));
     if (formData.commercialViability?.hasExternalFunding) {
-        sections.push(...createQuestionAnswer("Funds Raised", formatCurrency(formData.commercialViability?.fundsRaised)));
-        sections.push(...createQuestionAnswer("Funding Type", formatValue(formData.commercialViability?.fundingType)));
-        sections.push(...createQuestionAnswer("Funding Source", formatValue(formData.commercialViability?.fundingSource)));
+        sections.push(...createQuestionAnswer("External Funding Details", formatValue(formData.commercialViability?.externalFundingDetails)));
     }
 
     // Market Potential
@@ -130,14 +126,16 @@ function generateFoundationSections(formData: FoundationApplicationFormData): Pa
     sections.push(...createQuestionAnswer("Product Differentiation", formatValue(formData.marketPotential?.productDifferentiation)));
     sections.push(...createQuestionAnswer("Threat of Substitutes", formatValue(formData.marketPotential?.threatOfSubstitutes)));
     sections.push(...createQuestionAnswer("Ease of Market Entry", formatValue(formData.marketPotential?.easeOfMarketEntry)));
-    sections.push(...createQuestionAnswer("Competitive Intensity", formatValue(formData.marketPotential?.competitiveIntensity)));
-    sections.push(...createQuestionAnswer("Product Description", formatValue(formData.marketPotential?.productDescription)));
+    sections.push(...createQuestionAnswer("Competitor Overview", formatValue(formData.marketPotential?.competitorOverview)));
 
     // Social Impact
     sections.push(createSectionHeader("Social Impact", "🌱"));
     sections.push(...createQuestionAnswer("Environmental Impact", formatValue(formData.socialImpact?.environmentalImpact)));
-    sections.push(...createQuestionAnswer("Environmental Examples", formatValue(formData.socialImpact?.environmentalExamples)));
-    sections.push(...createQuestionAnswer("Special Groups Employed", formatValue(formData.socialImpact?.specialGroupsEmployed)));
+    sections.push(...createQuestionAnswer("Environmental Impact Description", formatValue(formData.socialImpact?.environmentalImpactDescription)));
+    sections.push(...createQuestionAnswer("Full-time Employees Total", formatValue(formData.socialImpact?.fullTimeEmployeesTotal)));
+    sections.push(...createQuestionAnswer("Full-time Employees Women", formatValue(formData.socialImpact?.fullTimeEmployeesWomen)));
+    sections.push(...createQuestionAnswer("Full-time Employees Youth", formatValue(formData.socialImpact?.fullTimeEmployeesYouth)));
+    sections.push(...createQuestionAnswer("Full-time Employees PWD", formatValue(formData.socialImpact?.fullTimeEmployeesPwd)));
     sections.push(...createQuestionAnswer("Business Compliance", formatValue(formData.socialImpact?.businessCompliance)));
 
     return sections;
@@ -165,39 +163,43 @@ function generateAccelerationSections(formData: AccelerationApplicationFormData)
     sections.push(...createQuestionAnswer("Registration Certificate", formData.business?.registrationCertificateUrl ? "Uploaded" : "Not provided"));
     sections.push(...createQuestionAnswer("Has Financial Records", formatValue(formData.business?.hasFinancialRecords)));
     sections.push(...createQuestionAnswer("Financial Records", formData.business?.financialRecordsUrl ? "Uploaded" : "Not provided"));
-    sections.push(...createQuestionAnswer("Has Audited Accounts", formatValue(formData.business?.hasAuditedAccounts)));
-    sections.push(...createQuestionAnswer("Audited Accounts", formData.business?.auditedAccountsUrl ? "Uploaded" : "Not provided"));
 
     // Revenue Performance
     sections.push(createSectionHeader("Revenue Performance", "💰"));
     sections.push(...createQuestionAnswer("Years Operational", formatValue(formData.revenues?.yearsOperational)));
     sections.push(...createQuestionAnswer("Revenue (Last Year)", formatCurrency(formData.revenues?.revenueLastYear)));
+    sections.push(...createQuestionAnswer("Growth History", formatValue(formData.revenues?.growthHistory)));
     sections.push(...createQuestionAnswer("Future Sales Growth", formatValue(formData.revenues?.futureSalesGrowth)));
-    sections.push(...createQuestionAnswer("Revenue Trend", formatValue(formData.revenues?.revenueTrend)));
+    sections.push(...createQuestionAnswer("Future Sales Growth Reason", formatValue(formData.revenues?.futureSalesGrowthReason)));
     sections.push(...createQuestionAnswer("External Funding", formatValue(formData.revenues?.hasExternalFunding)));
     if (formData.revenues?.hasExternalFunding) {
-        sections.push(...createQuestionAnswer("Funds Raised", formatCurrency(formData.revenues?.fundsRaised)));
-        sections.push(...createQuestionAnswer("Funding Type", formatValue(formData.revenues?.fundingType)));
-        sections.push(...createQuestionAnswer("Funding Source", formatValue(formData.revenues?.fundingSource)));
+        sections.push(...createQuestionAnswer("External Funding Details", formatValue(formData.revenues?.externalFundingDetails)));
     }
+    sections.push(...createQuestionAnswer("Audited Accounts", formData.revenues?.auditedAccountsUrl ? "Uploaded" : "Not provided"));
 
     // Impact Potential
     sections.push(createSectionHeader("Impact Potential", "📊"));
-    sections.push(...createQuestionAnswer("Special Groups Employed", formatValue(formData.impactPotential?.currentSpecialGroupsEmployed)));
+    sections.push(...createQuestionAnswer("Full-time Employees Total", formatValue(formData.impactPotential?.fullTimeEmployeesTotal)));
+    sections.push(...createQuestionAnswer("Full-time Employees Women", formatValue(formData.impactPotential?.fullTimeEmployeesWomen)));
+    sections.push(...createQuestionAnswer("Full-time Employees Youth", formatValue(formData.impactPotential?.fullTimeEmployeesYouth)));
+    sections.push(...createQuestionAnswer("Full-time Employees PWD", formatValue(formData.impactPotential?.fullTimeEmployeesPwd)));
     sections.push(...createQuestionAnswer("Job Creation Potential", formatValue(formData.impactPotential?.jobCreationPotential)));
 
     // Scalability
     sections.push(createSectionHeader("Scalability", "📈"));
     sections.push(...createQuestionAnswer("Market Differentiation", formatValue(formData.scalability?.marketDifferentiation)));
     sections.push(...createQuestionAnswer("Competitive Advantage", formatValue(formData.scalability?.competitiveAdvantage)));
-    sections.push(...createQuestionAnswer("Offering Focus", formatValue(formData.scalability?.offeringFocus)));
+    sections.push(...createQuestionAnswer("Competitive Advantage Source", formatValue(formData.scalability?.competitiveAdvantageSource)));
+    sections.push(...createQuestionAnswer("Technology Integration", formatValue(formData.scalability?.technologyIntegration)));
+    sections.push(...createQuestionAnswer("Sales Marketing Integration", formatValue(formData.scalability?.salesMarketingIntegration)));
 
     // Social & Environmental Impact
     sections.push(createSectionHeader("Social & Environmental Impact", "🌱"));
-    sections.push(...createQuestionAnswer("Household Impact", formatValue(formData.socialImpact?.socialImpactHousehold)));
+    sections.push(...createQuestionAnswer("Social Impact Contribution", formatValue(formData.socialImpact?.socialImpactContribution)));
     sections.push(...createQuestionAnswer("Supplier Involvement", formatValue(formData.socialImpact?.supplierInvolvement)));
+    sections.push(...createQuestionAnswer("Supplier Support Description", formatValue(formData.socialImpact?.supplierSupportDescription)));
     sections.push(...createQuestionAnswer("Environmental Impact", formatValue(formData.socialImpact?.environmentalImpact)));
-    sections.push(...createQuestionAnswer("Environmental Examples", formatValue(formData.socialImpact?.environmentalExamples)));
+    sections.push(...createQuestionAnswer("Environmental Impact Description", formatValue(formData.socialImpact?.environmentalImpactDescription)));
 
     // Business Model
     sections.push(createSectionHeader("Business Model", "💡"));

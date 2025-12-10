@@ -2,13 +2,13 @@
 
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
-import {  userProfiles, applications } from "@/db/schema";
+import { userProfiles, applications } from "@/db/schema";
 import { eq, and, like, or, desc, count } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 // Types for user management
-export type UserRole = 'applicant' | 'admin' | 'technical_reviewer' | 'jury_member' | 'dragons_den_judge';
+export type UserRole = 'applicant' | 'admin' | 'technical_reviewer';
 
 export interface CreateUserProfileData {
   firstName: string;
@@ -109,9 +109,9 @@ export async function createUserProfile(data: CreateUserProfileData) {
     return { success: true, data: profile };
   } catch (error) {
     console.error("Error creating user profile:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to create profile" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create profile"
     };
   }
 }
@@ -163,9 +163,9 @@ export async function updateUserProfile(data: UpdateUserProfileData) {
     return { success: true, data: updatedProfile };
   } catch (error) {
     console.error("Error updating user profile:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to update profile" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update profile"
     };
   }
 }
@@ -190,9 +190,9 @@ export async function completeUserProfile() {
     return { success: true, data: updatedProfile };
   } catch (error) {
     console.error("Error completing user profile:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to complete profile" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to complete profile"
     };
   }
 }
@@ -214,9 +214,9 @@ export async function updateUserRole(userId: string, role: UserRole) {
     return { success: true, data: updatedProfile };
   } catch (error) {
     console.error("Error updating user role:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to update user role" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update user role"
     };
   }
 }
@@ -226,7 +226,7 @@ export async function getAllUsers(page: number = 1, limit: number = 50) {
     await requireRole(['admin']);
 
     const offset = (page - 1) * limit;
-    
+
     const usersList = await db.query.userProfiles.findMany({
       limit,
       offset,
@@ -235,8 +235,8 @@ export async function getAllUsers(page: number = 1, limit: number = 50) {
 
     const [{ count: totalUsers }] = await db.select({ count: count() }).from(userProfiles);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         users: usersList,
         total: totalUsers,
@@ -247,9 +247,9 @@ export async function getAllUsers(page: number = 1, limit: number = 50) {
     };
   } catch (error) {
     console.error("Error getting all users:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to get users" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to get users"
     };
   }
 }
@@ -264,7 +264,7 @@ export async function searchUsers(query: string, role?: UserRole) {
       like(userProfiles.lastName, `%${query}%`)
     );
 
-    const whereCondition = role 
+    const whereCondition = role
       ? and(searchConditions, eq(userProfiles.role, role))
       : searchConditions;
 
@@ -276,9 +276,9 @@ export async function searchUsers(query: string, role?: UserRole) {
     return { success: true, data: searchResults };
   } catch (error) {
     console.error("Error searching users:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to search users" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to search users"
     };
   }
 }
@@ -355,7 +355,7 @@ export async function handleOAuthCallback(userData: {
   try {
     // Check if user profile exists
     let profile = await getUserProfile(userData.id);
-    
+
     if (!profile && userData.email && userData.name) {
       // Extract first and last name from the full name
       const nameParts = userData.name.split(' ');
@@ -429,9 +429,9 @@ export async function deleteUserAccount() {
     return { success: true };
   } catch (error) {
     console.error("Error deleting user account:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to delete account" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to delete account"
     };
   }
 }

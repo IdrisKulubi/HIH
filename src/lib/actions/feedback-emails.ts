@@ -19,7 +19,7 @@ interface CreateCampaignData {
   feedbackFormUrl: string;
   linkDisplayText?: string;
   batchSize?: number;
-  recipients: Array<{ email: string; name: string }>;
+  recipients: Array<{ userId: string; email: string; name: string }>;
 }
 
 // Create a new feedback campaign
@@ -57,6 +57,7 @@ export async function createFeedbackCampaign(data: CreateCampaignData) {
     // Create email records for recipients
     const emailRecords = data.recipients.map((recipient, index) => ({
       campaignId: campaign.id,
+      recipientId: recipient.userId,
       recipientEmail: recipient.email,
       recipientName: recipient.name,
       batchNumber: Math.floor(index / (data.batchSize || 5)) + 1,
@@ -175,11 +176,11 @@ export async function sendCampaignBatch(
 
         await sendEmail({
           to: email.recipientEmail,
-          subject: campaign.subject,
+          subject: campaign.subject || "Feedback Request",
           react: FeedbackRequestEmail({
             recipientName: email.recipientName,
-            emailBody: campaign.emailBody,
-            feedbackFormUrl: campaign.feedbackFormUrl,
+            emailBody: campaign.emailBody || "",
+            feedbackFormUrl: campaign.feedbackFormUrl || "",
             linkDisplayText: campaign.linkDisplayText || undefined,
           }),
         });
@@ -225,7 +226,7 @@ export async function sendCampaignBatch(
     if (
       updated &&
       (updated.sentCount ?? 0) + (updated.failedCount ?? 0) >=
-        (updated.totalRecipients ?? 0)
+      (updated.totalRecipients ?? 0)
     ) {
       await db
         .update(feedbackCampaigns)
@@ -308,11 +309,11 @@ export async function retryFailedEmails(
 
         await sendEmail({
           to: email.recipientEmail,
-          subject: campaign.subject,
+          subject: campaign.subject || "Feedback Request",
           react: FeedbackRequestEmail({
             recipientName: email.recipientName,
-            emailBody: campaign.emailBody,
-            feedbackFormUrl: campaign.feedbackFormUrl,
+            emailBody: campaign.emailBody || "",
+            feedbackFormUrl: campaign.feedbackFormUrl || "",
             linkDisplayText: campaign.linkDisplayText || undefined,
           }),
         });
@@ -378,6 +379,7 @@ export async function getApplicantsForFeedback() {
     });
 
     const recipients = allApplicants.map((applicant) => ({
+      userId: applicant.userId,
       email: applicant.email,
       name: `${applicant.firstName} ${applicant.lastName}`,
     }));

@@ -29,6 +29,16 @@ import {
   UserCheck,
 } from "lucide-react";
 
+// Define type locally since it's inferred in actions
+interface Evaluator {
+  evaluatorId: string;
+  name: string;
+  email: string;
+  role: string;
+  totalEvaluations: number;
+  averageScore: number;
+}
+
 // Loading component
 function AnalyticsLoading() {
   return (
@@ -185,7 +195,7 @@ async function AnalyticsDashboard() {
                     dashboardData.evaluatedApplications || 0,
                   evaluationRate: dashboardData.evaluationRate || 0,
                   statusDistribution: dashboardData.statusDistribution || {},
-                  countryDistribution: dashboardData.countryDistribution || {},
+                  countyDistribution: dashboardData.countyDistribution || {},
                   genderDistribution: dashboardData.genderDistribution || {},
                   sectorDistribution: dashboardData.sectorDistribution || {},
                   averageScore: dashboardData.averageScore || 0,
@@ -343,8 +353,10 @@ async function AnalyticsDashboard() {
                       Evaluators by number of evaluations completed
                     </CardDescription>
                   </CardHeader>
+
+
                   <CardContent className="space-y-3">
-                    {evaluatorData.evaluators
+                    {(evaluatorData.evaluators as Evaluator[])
                       .filter((evaluator) => evaluator.totalEvaluations > 0)
                       .slice(0, 5)
                       .map((evaluator, index) => (

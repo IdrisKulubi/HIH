@@ -166,37 +166,31 @@ export async function exportData(params: {
 
             // Business Info
             "Business Name": app.business?.name || "",
-            "Business Start Date": formatExportValue(app.business?.startDate),
+            "Business Years Operational": app.business?.yearsOperational || "N/A",
             "Business Country": app.business?.country?.toUpperCase() || "N/A",
             "Business County": app.business?.county?.replace(/_/g, " ").toUpperCase() || "N/A",
             "Business City": app.business?.city || "",
             "Is Registered": formatExportValue(app.business?.isRegistered),
-            "Registered Countries": app.business?.registeredCountries || "",
+            "Registration Type": app.business?.registrationType?.replace(/_/g, " ") || "",
             "Sector": app.business?.sector?.replace(/_/g, " ") || "",
             "Business Description": app.business?.description || "",
             "Problem Solved": app.business?.problemSolved || "",
-            "Revenue Last 2 Years (USD)": formatExportValue(app.business?.revenueLastTwoYears),
+            "Revenue Last Year (USD)": formatExportValue(app.business?.revenueLastYear),
 
             // Employee Info
             "Full-time Employees Total": app.business?.fullTimeEmployeesTotal,
-            "Full-time Employees Male": app.business?.fullTimeEmployeesMale,
-            "Full-time Employees Female": app.business?.fullTimeEmployeesFemale,
-            "Part-time Employees Male": app.business?.partTimeEmployeesMale,
-            "Part-time Employees Female": app.business?.partTimeEmployeesFemale,
+            "Full-time Employees Women": app.business?.fullTimeEmployeesWomen,
+            "Full-time Employees Youth": app.business?.fullTimeEmployeesYouth,
+            "Full-time Employees PWD": app.business?.fullTimeEmployeesPwd,
 
             // Climate & Product Info
-            "Climate Adaptation Contribution": app.business?.climateAdaptationContribution || "",
-            "Product/Service Description": app.business?.productServiceDescription || "",
-            "Climate Extreme Impact": app.business?.climateExtremeImpact || "",
-            "Unit Price (USD)": formatExportValue(app.business?.unitPrice),
-            "Customer Count (Last 6 Months)": app.business?.customerCountLastSixMonths,
-            "Production Capacity (Last 6 Months)": app.business?.productionCapacityLastSixMonths,
+            "Environmental Impact": app.business?.environmentalImpact || "",
+            "Environmental Impact Description": app.business?.environmentalImpactDescription || "",
             "Target Customer Segments": targetCustomers,
 
-            // Challenges & Support
-            "Current Challenges": app.business?.currentChallenges || "",
-            "Support Needed": app.business?.supportNeeded || "",
-            "Additional Information": formatExportValue(app.business?.additionalInformation),
+            // Market Info
+            "Market Differentiation": app.business?.marketDifferentiation || "",
+            "Competitive Advantage": app.business?.competitiveAdvantage || "",
 
             // Funding Info
             "Has External Funding": formatExportValue(funding?.hasExternalFunding),

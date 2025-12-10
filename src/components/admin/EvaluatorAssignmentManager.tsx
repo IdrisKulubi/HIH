@@ -50,26 +50,12 @@ const roleConfig = {
     color: "bg-blue-100 text-blue-800",
     icon: Gear,
     validStatuses: ['scoring_phase']
-  },
-  jury_member: {
-    label: "Jury Members",
-    description: "Assess business viability and impact",
-    color: "bg-purple-100 text-purple-800",
-    icon: Medal,
-    validStatuses: ['scoring_phase']
-  },
-  dragons_den_judge: {
-    label: "Dragon's Den Judges",
-    description: "Final evaluation and investment decisions",
-    color: "bg-orange-100 text-orange-800",
-    icon: Target,
-    validStatuses: ['dragons_den']
   }
 };
 
 export function EvaluatorAssignmentManager({ applications }: EvaluatorAssignmentManagerProps) {
   const [selectedApplications, setSelectedApplications] = useState<number[]>([]);
-  const [selectedRole, setSelectedRole] = useState<'technical_reviewer' | 'jury_member' | 'dragons_den_judge'>('technical_reviewer');
+  const [selectedRole, setSelectedRole] = useState<'technical_reviewer'>('technical_reviewer');
   const [evaluatorsPerApplication, setEvaluatorsPerApplication] = useState(2);
   const [isPending, startTransition] = useTransition();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -309,8 +295,8 @@ export function EvaluatorAssignmentManager({ applications }: EvaluatorAssignment
                   <div
                     key={application.id}
                     className={`flex items-center justify-between p-4 rounded-xl border transition-all ${selectedApplications.includes(application.id)
-                        ? "bg-blue-50/40 border-blue-200"
-                        : "bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50/50"
+                      ? "bg-blue-50/40 border-blue-200"
+                      : "bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50/50"
                       }`}
                   >
                     <div className="flex items-center gap-4 w-full">
