@@ -16,8 +16,7 @@ export function Footer() {
             <h4 className="text-white font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2 text-sm">
               <li><Link href="/" className="hover:text-brand-blue transition-colors">Home</Link></li>
-              <li><Link href="/apply/foundation" className="hover:text-brand-blue transition-colors">Foundation Track</Link></li>
-              <li><Link href="/apply/acceleration" className="hover:text-brand-blue transition-colors">Acceleration Track</Link></li>
+             
               <li><Link href="/#faq" className="hover:text-brand-blue transition-colors">FAQs</Link></li>
             </ul>
           </div>
@@ -25,7 +24,6 @@ export function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm">
-              <li>P.O. Box 8562-00100</li>
               <li>Nairobi, Kenya</li>
               <li>
                 <Link href="mailto:support@bire.org" className="hover:text-brand-blue transition-colors">support@bire.org</Link>
@@ -35,10 +33,9 @@ export function Footer() {
         </div>
 
         <div className="pt-8 border-t border-white/10 text-center text-sm text-slate-500 flex flex-col md:flex-row justify-between items-center">
-          <p>© 2025 Hand in Hand Eastern Africa. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Hand in Hand Eastern Africa. All rights reserved.</p>
           <div className="flex gap-4 mt-4 md:mt-0">
-            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/terms-and-privacy" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>
