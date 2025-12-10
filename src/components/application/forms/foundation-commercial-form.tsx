@@ -35,6 +35,10 @@ interface FoundationCommercialViabilityFormProps {
     form: UseFormReturn<any>;
 }
 
+// ... (imports)
+
+// ... (interface)
+
 export function FoundationCommercialViabilityForm({ form }: FoundationCommercialViabilityFormProps) {
     const hasExternalFunding = form.watch("commercialViability.hasExternalFunding");
     const digitizationLevel = form.watch("commercialViability.digitizationLevel");
@@ -49,8 +53,8 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                 <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendUpIcon className="w-8 h-8 text-emerald-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Commercial Viability</h2>
-                <p className="text-slate-500 mt-2">Section C: Proof of Sales & Customer Base</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION C: COMMERCIAL VIABILITY</h2>
+                <p className="text-slate-500 mt-2">Proof of Sales, Customer Base, Fundraising, Digitization</p>
             </div>
 
             {/* Revenue Last Year */}
@@ -61,8 +65,8 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <CurrencyDollarIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Revenue (Last Financial Year)</CardTitle>
-                            <CardDescription>Total annual sales from the past year</CardDescription>
+                            <CardTitle className="text-lg">C1. Proof of Sales — Revenue Level</CardTitle>
+                            <CardDescription>What was your total revenue for the last financial year?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -86,6 +90,9 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         />
                                     </div>
                                 </FormControl>
+                                <FormDescription>
+                                    Scoring Guide: Above 2M, 1M-2M, 500k-1M
+                                </FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -101,8 +108,8 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <UsersIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Customer Base</CardTitle>
-                            <CardDescription>Who are your customers?</CardDescription>
+                            <CardTitle className="text-lg">C2. Customer Base</CardTitle>
+                            <CardDescription>How many customers did you serve in the past 12 months?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -112,17 +119,20 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                         name="commercialViability.customerCount"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Number of Customers (Last 12 Months)</FormLabel>
+                                <FormLabel className="text-slate-700">Number of Customers</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
                                         type="number"
                                         min="0"
-                                        placeholder="Approximately how many customers?"
+                                        placeholder="Enter number of customers"
                                         className="h-12 rounded-xl"
                                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                     />
                                 </FormControl>
+                                <FormDescription>
+                                    Scoring Guide: Above 401, 200-400, 1-200
+                                </FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -133,8 +143,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                         name="commercialViability.keyCustomerSegments"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Key Customer Segments</FormLabel>
-                                <FormDescription>Describe your main types of customers</FormDescription>
+                                <FormLabel className="text-slate-700">Describe your key customer segments.</FormLabel>
                                 <FormControl>
                                     <Textarea
                                         {...field}
@@ -157,8 +166,8 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <HandCoinsIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">External Fundraising</CardTitle>
-                            <CardDescription>Access to financial services</CardDescription>
+                            <CardTitle className="text-lg">C3. External Fundraising/Access to Financial Services</CardTitle>
+                            <CardDescription>Has your business received external funding (loans, grants, equity financing etc)?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -167,22 +176,32 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                         control={form.control}
                         name="commercialViability.hasExternalFunding"
                         render={({ field }) => (
-                            <FormItem className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-                                <div className="space-y-0.5">
-                                    <FormLabel className="text-slate-700 font-medium">
-                                        Has your business received external funding?
-                                    </FormLabel>
-                                    <FormDescription className="text-slate-500 text-sm">
-                                        Loans, grants, or equity financing
-                                    </FormDescription>
-                                </div>
+                            <FormItem className="space-y-3">
                                 <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                        className="data-[state=checked]:bg-brand-blue"
-                                    />
+                                    <RadioGroup
+                                        onValueChange={(val) => field.onChange(val === "true")}
+                                        defaultValue={field.value !== undefined ? String(field.value) : undefined}
+                                        className="flex flex-col space-y-1"
+                                    >
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                                <RadioGroupItem value="true" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                Yes
+                                            </FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                                <RadioGroupItem value="false" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                No (1 mark)
+                                            </FormLabel>
+                                        </FormItem>
+                                    </RadioGroup>
                                 </FormControl>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />
@@ -197,11 +216,14 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                 name="commercialViability.externalFundingDetails"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-slate-700">Funding Details</FormLabel>
+                                        <FormLabel className="text-slate-700">If yes, list funders/amounts and purpose.</FormLabel>
+                                        <FormDescription>
+                                            This also includes in kind support such as assistance to develop business plans, Capacity building, please specify if this is the case.
+                                        </FormDescription>
                                         <FormControl>
                                             <Textarea
                                                 {...field}
-                                                placeholder="List funders/amounts and purpose (including in-kind support)..."
+                                                placeholder="Enter details..."
                                                 className="min-h-[100px] rounded-xl"
                                             />
                                         </FormControl>
@@ -222,8 +244,8 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <DevicesIcon className="w-5 h-5 text-indigo-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Digitization</CardTitle>
-                            <CardDescription>Use of digital tools and platforms</CardDescription>
+                            <CardTitle className="text-lg">C4. DIGITIZATION</CardTitle>
+                            <CardDescription>Does the business use digital tools and platforms (e.g., social media, e-commerce) to access information and market its products or services?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -233,10 +255,6 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                         name="commercialViability.digitizationLevel"
                         render={({ field }) => (
                             <FormItem className="space-y-3">
-                                <FormLabel>Does the business use digital tools/platforms?</FormLabel>
-                                <FormDescription>
-                                    e.g., social media, e-commerce, digital payments to access info/markets
-                                </FormDescription>
                                 <FormControl>
                                     <RadioGroup
                                         onValueChange={(val) => field.onChange(val === "true")}
@@ -256,7 +274,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                                 <RadioGroupItem value="false" />
                                             </FormControl>
                                             <FormLabel className="font-normal">
-                                                No
+                                                No (1 mark)
                                             </FormLabel>
                                         </FormItem>
                                     </RadioGroup>
@@ -280,7 +298,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         <FormControl>
                                             <Textarea
                                                 {...field}
-                                                placeholder="Explain why you are not using digital tools..."
+                                                placeholder="Explain why..."
                                                 className="min-h-[80px] rounded-xl"
                                             />
                                         </FormControl>
@@ -296,7 +314,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
     );
 }
 
-// === BUSINESS MODEL FORM (10 marks) ===
+// === BUSINESS MODEL FORM ===
 
 interface FoundationBusinessModelFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -314,15 +332,15 @@ export function FoundationBusinessModelForm({ form }: FoundationBusinessModelFor
                 <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendUpIcon className="w-8 h-8 text-indigo-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Business Model</h2>
-                <p className="text-slate-500 mt-2">Section B: Business Model Maturity</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION B: BUSINESS MODEL</h2>
+                <p className="text-slate-500 mt-2">B1. Business Model Maturity</p>
             </div>
 
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Business Model Description</CardTitle>
+                    <CardTitle className="text-lg">B1. Business Model Maturity</CardTitle>
                     <CardDescription>
-                        How innovative is your business model? (How the business makes money)
+                        Describe your business model. (How does the business make money.)
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -331,11 +349,11 @@ export function FoundationBusinessModelForm({ form }: FoundationBusinessModelFor
                         name="businessModel.businessModelInnovation"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Innovation Level</FormLabel>
+                                <FormLabel className="text-slate-700">Select description</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select description" />
+                                            <SelectValue placeholder="Select business model type" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>

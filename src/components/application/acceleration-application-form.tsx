@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type DefaultValues } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -134,32 +134,36 @@ export function AccelerationApplicationForm() {
     const [disqualifiedReason, setDisqualifiedReason] = useState<string | null>(null);
 
     const form = useForm<AccelerationApplicationFormData>({
-        resolver: zodResolver(accelerationApplicationSchema),
+        resolver: zodResolver(accelerationApplicationSchema) as any,
         defaultValues: {
-            applicant: defaultApplicant as AccelerationApplicationFormData["applicant"],
+            applicant: defaultApplicant,
             business: defaultBusinessEligibility as AccelerationApplicationFormData["business"],
             revenues: {
                 revenueLastYear: 0,
                 yearsOperational: 0,
+                growthHistory: "", // Added
+                averageAnnualRevenueGrowth: undefined, // Added
                 futureSalesGrowth: undefined,
                 hasExternalFunding: false,
-                fundingDetails: "",
+                externalFundingDetails: "",
             },
             impactPotential: {
                 fullTimeEmployeesTotal: 0,
                 jobCreationPotential: undefined,
+                projectedInclusion: undefined, // Added
             },
             scalability: {
+                scalabilityPlan: undefined, // Added
+                marketScalePotential: undefined, // Added
                 marketDifferentiation: undefined,
                 competitiveAdvantage: undefined,
-                offeringFocus: undefined,
                 salesMarketingIntegration: undefined,
             },
             socialImpact: {
-                socialImpactHousehold: undefined,
+                socialImpactContribution: undefined, // Added - Note: Schema says socialImpactContribution, Component had socialImpactHousehold?
                 supplierInvolvement: undefined,
                 environmentalImpact: undefined,
-                environmentalExamples: "",
+                environmentalImpactDescription: "", // Schema says default optional
             },
             businessModel: {
                 businessModelUniqueness: undefined,
@@ -173,7 +177,7 @@ export function AccelerationApplicationForm() {
                 declarationDate: new Date(),
             },
             documents: {},
-        },
+        } as DefaultValues<AccelerationApplicationFormData>,
         mode: "onChange",
     });
 

@@ -69,7 +69,6 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
     const [isUploadingRecords, setIsUploadingRecords] = useState(false);
     const [isUploadingAudit, setIsUploadingAudit] = useState(false);
 
-   
     const selectedSector = form.watch("business.sector");
 
     const inputClass = (fieldName: string) =>
@@ -92,8 +91,8 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                 <div className="w-16 h-16 bg-brand-blue/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <BuildingsIcon className="w-8 h-8 text-brand-blue" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Business Profile</h2>
-                <p className="text-slate-500 mt-2">Tell us about your business</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION 1 — Business Profile</h2>
+                <p className="text-slate-500 mt-2">Registration, legality, and operational details</p>
             </div>
 
             {/* Business Name */}
@@ -120,83 +119,65 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                 )}
             />
 
-            {/* Registration Status - Always required since eligibility screening confirmed this */}
-            <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
-                    <CheckCircleIcon className="w-6 h-6 text-green-600" weight="fill" />
-                    <div>
-                        <span className="text-green-700 font-medium">Business is registered in Kenya</span>
-                        <p className="text-green-600 text-sm">Confirmed during eligibility screening</p>
-                    </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-200">
-                    <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
-                        <FileTextIcon className="w-4 h-4 text-brand-blue" />
-                        Registration Certificate <span className="text-red-500">*</span>
-                    </FormLabel>
-
-                    {form.watch("business.registrationCertificateUrl") ? (
-                        <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
-                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
-                            <div className="flex-1 min-w-0">
-                                <span className="text-green-700 font-medium block">Certificate uploaded</span>
-                                <a
-                                    href={form.watch("business.registrationCertificateUrl")}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-green-600 text-sm hover:underline truncate block"
-                                >
-                                    View document ↗
-                                </a>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    form.setValue("business.registrationCertificateUrl", "");
-                                    toast.info("Certificate removed. You can upload a new one.");
-                                }}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity100\0 group-hover:opacity-100"
-                                title="Remove document"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    ) : (
-                        <UploadButton
-                            endpoint="registrationCertificateUploader"
-                            onClientUploadComplete={(res) => {
-                                if (res?.[0]) {
-                                    form.setValue("business.registrationCertificateUrl", res[0].url);
-                                    toast.success("Certificate uploaded successfully!");
-                                }
-                                setIsUploadingCert(false);
-                            }}
-                            onUploadError={(error) => {
-                                toast.error(`Upload failed: ${error.message}`);
-                                setIsUploadingCert(false);
-                            }}
-                            onUploadBegin={() => setIsUploadingCert(true)}
-                            appearance={{
-                                button: cn(
-                                    "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
-                                    isUploadingCert && "opacity-50 cursor-not-allowed"
-                                ),
-                                allowedContent: "text-slate-500 text-sm",
-                            }}
-                        />
-                    )}
-                </div>
-            </div>
-
-            {/* Sector */}
+            {/* Location & Sector */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                    control={form.control}
+                    name="business.county"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium flex items-center gap-2">
+                                <MapPinIcon className="w-4 h-4 text-brand-blue" />
+                                County of Business Operation:
+                            </FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger className={inputClass("county")}>
+                                        <SelectValue placeholder="Select county" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent className="max-h-[300px]">
+                                    {KENYA_COUNTIES.map((county) => (
+                                        <SelectItem key={county} value={county}>
+                                            {formatCountyName(county)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="business.city"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium flex items-center gap-2">
+                                <MapPinIcon className="w-4 h-4 text-brand-blue" />
+                                Town / City:
+                            </FormLabel>
+                            <FormControl>
+                                <Input
+                                    {...field}
+                                    placeholder="e.g. Nairobi, Mombasa, Kisumu"
+                                    className={inputClass("city")}
+                                    onFocus={() => setFocusedField("city")}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
                 <FormField
                     control={form.control}
                     name="business.sector"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">Sector / Value Chain</FormLabel>
+                            <FormLabel className="text-slate-700 font-medium">Sector/Valuechain:</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger className={inputClass("sector")}>
@@ -237,64 +218,13 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                 )}
             </div>
 
-            {/* Location */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                    control={form.control}
-                    name="business.county"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700 font-medium flex items-center gap-2">
-                                <MapPinIcon className="w-4 h-4 text-brand-blue" />
-                                County
-                            </FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger className={inputClass("county")}>
-                                        <SelectValue placeholder="Select county" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent className="max-h-[300px]">
-                                    {KENYA_COUNTIES.map((county) => (
-                                        <SelectItem key={county} value={county}>
-                                            {formatCountyName(county)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-
-                <FormField
-                    control={form.control}
-                    name="business.city"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700 font-medium">City / Town</FormLabel>
-                            <FormControl>
-                                <Input
-                                    {...field}
-                                    placeholder="Enter city or town"
-                                    className={inputClass("city")}
-                                    onFocus={() => setFocusedField("city")}
-                                    onBlur={() => setFocusedField(null)}
-                                />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </div>
-
             {/* Description */}
             <FormField
                 control={form.control}
                 name="business.description"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-slate-700 font-medium">Brief Business Description</FormLabel>
+                        <FormLabel className="text-slate-700 font-medium">Briefly describe your business:</FormLabel>
                         <FormControl>
                             <Textarea
                                 {...field}
@@ -318,7 +248,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                 name="business.problemSolved"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="text-slate-700 font-medium">Customer Problem Solved</FormLabel>
+                        <FormLabel className="text-slate-700 font-medium">Describe the customer problem you solve:</FormLabel>
                         <FormControl>
                             <Textarea
                                 {...field}
@@ -336,58 +266,155 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                 )}
             />
 
-            {/* Years Operational */}
-            <FormField
-                control={form.control}
-                name="business.yearsOperational"
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="text-slate-700 font-medium flex items-center gap-2">
-                            <CalendarIcon className="w-4 h-4 text-brand-blue" />
-                            Years of Operation
-                        </FormLabel>
-                        <FormControl>
-                            <Input
-                                {...field}
-                                type="number"
-                                min="1"
-                                placeholder="How many years has your business been operational?"
-                                className={inputClass("yearsOperational")}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                            />
-                        </FormControl>
-                        <FormDescription className="text-slate-500 text-sm">
-                            Business must be operational for at least 1 year
-                        </FormDescription>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
-
-            {/* Financial Records - Always show since eligibility screening confirmed this */}
+            {/* Section 1: Business Registration */}
             <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                <h3 className="text-lg font-semibold text-slate-900">SECTION 1 — Business Registration & Legality</h3>
+
+                {/* Registered in Kenya */}
+                <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200">
                     <CheckCircleIcon className="w-6 h-6 text-green-600" weight="fill" />
                     <div>
-                        <span className="text-green-700 font-medium">Financial records available</span>
-                        <p className="text-green-600 text-sm">Books, bank statements, or M-Pesa statements</p>
+                        <span className="text-slate-900 font-medium">Is your business registered in Kenya?</span>
+                        <p className="text-green-600 font-semibold">Yes</p>
                     </div>
                 </div>
+
+                {/* Registration Type */}
+                <FormField
+                    control={form.control}
+                    name="business.registrationType"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">What is your legal registration type?</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger className={inputClass("registrationType")}>
+                                        <SelectValue placeholder="Select registration type" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="limited_company">Limited Company</SelectItem>
+                                    <SelectItem value="partnership">Partnership</SelectItem>
+                                    <SelectItem value="cooperative">Cooperative</SelectItem>
+                                    <SelectItem value="self_help_group_cbo">Self-Help Group / CBO</SelectItem>
+                                    <SelectItem value="sole_proprietorship">Sole Proprietorship</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
                 <div className="pt-4 border-t border-slate-200">
                     <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
                         <UploadIcon className="w-4 h-4 text-brand-blue" />
-                        Upload Financial Records <span className="text-red-500">*</span>
+                        Upload your registration certificate <span className="text-red-500">*</span>
+                    </FormLabel>
+                    <FormDescription className="mb-3 text-xs text-slate-500">(Mandatory for both tracks)</FormDescription>
+
+                    {form.watch("business.registrationCertificateUrl") ? (
+                        <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                            <div className="flex-1 min-w-0">
+                                <span className="text-green-700 font-medium block">Certificate uploaded</span>
+                                <a
+                                    href={form.watch("business.registrationCertificateUrl")}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-green-600 text-sm hover:underline truncate block"
+                                >
+                                    View document ↗
+                                </a>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    form.setValue("business.registrationCertificateUrl", "");
+                                    toast.info("Certificate removed. You can upload a new one.");
+                                }}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                title="Remove document"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    ) : (
+                        <UploadButton
+                            endpoint="registrationCertificateUploader"
+                            onClientUploadComplete={(res) => {
+                                if (res?.[0]) {
+                                    form.setValue("business.registrationCertificateUrl", res[0].url);
+                                    toast.success("Certificate uploaded successfully!");
+                                }
+                                setIsUploadingCert(false);
+                            }}
+                            onUploadError={(error) => {
+                                toast.error(`Upload failed: ${error.message}`);
+                                setIsUploadingCert(false);
+                            }}
+                            onUploadBegin={() => setIsUploadingCert(true)}
+                            appearance={{
+                                button: cn(
+                                    "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                    isUploadingCert && "opacity-50 cursor-not-allowed"
+                                ),
+                                allowedContent: "text-slate-500 text-sm",
+                            }}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Section 2: Years of Operation */}
+            <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-slate-900 border-b pb-2">SECTION 2 — Years of Operation</h3>
+                <FormField
+                    control={form.control}
+                    name="business.yearsOperational"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">
+                                How long has your business been operational?
+                            </FormLabel>
+                            <Select
+                                onValueChange={(val) => field.onChange(parseInt(val))}
+                                defaultValue={field.value?.toString()}
+                            >
+                                <FormControl>
+                                    <SelectTrigger className={inputClass("yearsOperational")}>
+                                        <SelectValue placeholder="Select years operational" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="0">Less than 1 year</SelectItem>
+                                    <SelectItem value="1">1–2 years</SelectItem>
+                                    <SelectItem value="3">More than 2 years</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+
+            {/* Section 3: Financial Records */}
+            <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
+                <h3 className="text-lg font-semibold text-slate-900">SECTION 3 — Books of Accounts (Financial Records)</h3>
+
+                {/* Financial Records */}
+                <div className="pt-2">
+                    <FormLabel className="text-slate-700 font-medium flex flex-col gap-1 mb-3">
+                        <span>Do you have at least 1 year (latest 12 months) of books of accounts/ bank statements or Mpesa statements? (not necessarily audited) <span className="text-red-500">*</span></span>
                     </FormLabel>
 
                     {form.watch("business.financialRecordsUrl") ? (
                         <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
                             <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
                             <div className="flex-1 min-w-0">
-                                <span className="text-green-700 font-medium block">Financial records uploaded</span>
-                                <a 
-                                    href={form.watch("business.financialRecordsUrl")} 
-                                    target="_blank" 
+                                <span className="text-green-700 font-medium block">Detailed records uploaded</span>
+                                <a
+                                    href={form.watch("business.financialRecordsUrl")}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-green-600 text-sm hover:underline truncate block"
                                 >
@@ -398,7 +425,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                                 type="button"
                                 onClick={() => {
                                     form.setValue("business.financialRecordsUrl", "");
-                                    toast.info("Financial records removed. You can upload new ones.");
+                                    toast.info("Records removed.");
                                 }}
                                 className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
                                 title="Remove document"
@@ -430,22 +457,11 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                         />
                     )}
                 </div>
-            </div>
 
-            {/* Audited Accounts - For Acceleration Track (always show since eligibility confirmed) */}
-            <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
-                    <FileTextIcon className="w-6 h-6 text-amber-600" />
-                    <div>
-                        <span className="text-amber-700 font-medium">Audited Financial Statements</span>
-                        <p className="text-amber-600 text-sm">Required for Acceleration Track eligibility</p>
-                    </div>
-                </div>
-
+                {/* Audited Accounts */}
                 <div className="pt-4 border-t border-slate-200">
-                    <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
-                        <UploadIcon className="w-4 h-4 text-brand-blue" />
-                        Upload Audited Statements <span className="text-red-500">*</span>
+                    <FormLabel className="text-slate-700 font-medium flex flex-col gap-1 mb-3">
+                        <span>Do you have 1 year of audited financial statements?</span>
                     </FormLabel>
 
                     {form.watch("business.auditedAccountsUrl") ? (
@@ -453,9 +469,9 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                             <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
                             <div className="flex-1 min-w-0">
                                 <span className="text-green-700 font-medium block">Audited statements uploaded</span>
-                                <a 
-                                    href={form.watch("business.auditedAccountsUrl")} 
-                                    target="_blank" 
+                                <a
+                                    href={form.watch("business.auditedAccountsUrl")}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-green-600 text-sm hover:underline truncate block"
                                 >
@@ -466,7 +482,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                                 type="button"
                                 onClick={() => {
                                     form.setValue("business.auditedAccountsUrl", "");
-                                    toast.info("Audited statements removed. You can upload new ones.");
+                                    toast.info("Audited statements removed.");
                                 }}
                                 className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
                                 title="Remove document"

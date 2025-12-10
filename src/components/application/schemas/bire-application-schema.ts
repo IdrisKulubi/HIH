@@ -1,4 +1,4 @@
-"use client";
+
 
 import { z } from "zod";
 
@@ -7,8 +7,13 @@ export const applicantSchema = z.object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     idPassportNumber: z.string().min(5, "ID/Passport number is required"),
+    dob: z.coerce.date({ required_error: "Date of birth is required" }),
     gender: z.enum(["male", "female", "other"], { required_error: "Please select your gender" }),
     phoneNumber: z.string().min(10, "Phone number must be at least 10 digits"),
+    alternatePhoneNumber: z.string().min(10, "Alternate phone number must be at least 10 digits"),
+    shareholdersWomen: z.number().min(0, "Number of women shareholders is required"),
+    shareholdersYouth: z.number().min(0, "Number of youth shareholders is required"),
+    shareholdersPwd: z.number().min(0, "Number of PWD shareholders is required"),
     email: z.string().email("Please enter a valid email address"),
 });
 
@@ -52,6 +57,7 @@ export const businessEligibilitySchema = z.object({
     problemSolved: z.string().min(50, "Please describe the problem your business solves"),
     country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
+    city: z.string().min(1, "Please enter your town or city"),
 });
 
 // === FOUNDATION TRACK SCHEMA ===
@@ -120,6 +126,7 @@ export const accelerationRevenuesSchema = z.object({
     auditedAccountsUrl: z.string().min(1, "Management or audited accounts are mandatory"),
     yearsOperational: z.number().min(2, "Must be operational for at least 2 years"),
     growthHistory: z.string().min(20, "Provide a brief history of growth"),
+    averageAnnualRevenueGrowth: z.string().optional(), // Added for scoring: >20%, 10-20%, <10%
     futureSalesGrowth: z.enum(["high", "moderate", "low"], {
         required_error: "Rate your projected sales growth",
     }),
@@ -139,10 +146,14 @@ export const accelerationImpactPotentialSchema = z.object({
     jobCreationPotential: z.enum(["high", "moderate", "low"], {
         required_error: "Rate potential to create new jobs",
     }),
+    projectedInclusion: z.string().optional(), // Added for scoring: >50% women/youth/pwd for new jobs
 });
 
 // Scalability (20 marks)
 export const accelerationScalabilitySchema = z.object({
+    scalabilityPlan: z.string().optional(), // Added for scoring: Clear plan, some idea, no plan
+    marketScalePotential: z.string().optional(), // Added for scoring: Large, Stable, Small
+
     marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"], {
         required_error: "How differentiated is your product?",
     }),
@@ -240,11 +251,33 @@ export type FoundationApplicationFormData = z.infer<typeof foundationApplication
 export type AccelerationApplicationFormData = z.infer<typeof accelerationApplicationSchema>;
 
 // Default values (helpers)
-export const defaultApplicant: Partial<ApplicantFormData> = {
+// Using full type (not Partial) to satisfy react-hook-form Resolver strict typing
+export const defaultApplicant: ApplicantFormData = {
     firstName: "",
     lastName: "",
     idPassportNumber: "",
-    // gender undefined
+    dob: new Date(), // Will be overwritten by user
+    gender: "male", // Default, user must select
     phoneNumber: "",
+    alternatePhoneNumber: "",
     email: "",
+    shareholdersWomen: 0,
+    shareholdersYouth: 0,
+    shareholdersPwd: 0,
+};
+
+export const defaultBusinessEligibility: Partial<BusinessEligibilityFormData> = {
+    name: "",
+    isRegistered: false, // Default to false, let user select
+    registrationType: undefined,
+    registrationCertificateUrl: "",
+    sector: undefined,
+    country: "kenya",
+    county: "",
+    city: "", // Added
+    yearsOperational: 0,
+    hasFinancialRecords: false,
+    financialRecordsUrl: "",
+    description: "",
+    problemSolved: "",
 };

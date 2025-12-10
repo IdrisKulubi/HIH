@@ -32,6 +32,10 @@ interface FoundationMarketPotentialFormProps {
     form: UseFormReturn<any>;
 }
 
+// ... (imports)
+
+// ... (interface)
+
 export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentialFormProps) {
     return (
         <motion.div
@@ -43,8 +47,8 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TargetIcon className="w-8 h-8 text-orange-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Market Potential</h2>
-                <p className="text-slate-500 mt-2">Section D: Market Analysis</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION D: MARKET POTENTIAL</h2>
+                <p className="text-slate-500 mt-2">D1 - D4: Pricing, Differentiation, Substitutes, Entry Barriers</p>
             </div>
 
             {/* Relative Pricing */}
@@ -55,8 +59,8 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <ScalesIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Relative Pricing</CardTitle>
-                            <CardDescription>How does your pricing compare to competitors?</CardDescription>
+                            <CardTitle className="text-lg">D1. Relative Pricing</CardTitle>
+                            <CardDescription>How is your product/service priced vs. competitors?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -74,11 +78,14 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="lower">Lower than competitors</SelectItem>
-                                        <SelectItem value="equal">Equal to competitors</SelectItem>
+                                        <SelectItem value="lower">Lower than competitors (Competitive Strategy)</SelectItem>
+                                        <SelectItem value="equal">Equal to competitors (Competitive Strategy)</SelectItem>
                                         <SelectItem value="higher">Higher than competitors</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                <FormDescription>
+                                    Scoring Guide: Competitive (Lower/Equal), Higher
+                                </FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -112,8 +119,8 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <SparkleIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Product Differentiation</CardTitle>
-                            <CardDescription>How unique is your product or service?</CardDescription>
+                            <CardTitle className="text-lg">D2. Product Differentiation</CardTitle>
+                            <CardDescription>How unique is your product or service compared to what is currently available?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -133,7 +140,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                     <SelectContent>
                                         <SelectItem value="new">New / Very Unique</SelectItem>
                                         <SelectItem value="relatively_new">Relatively New</SelectItem>
-                                        <SelectItem value="similar">Similar to existing solutions</SelectItem>
+                                        <SelectItem value="similar">Existing / Similar to others</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -169,8 +176,8 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <ShieldCheckIcon className="w-5 h-5 text-red-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Threat of Substitutes</CardTitle>
-                            <CardDescription>How crowded is your market space?</CardDescription>
+                            <CardTitle className="text-lg">D3. Threat of Substitutes</CardTitle>
+                            <CardDescription>Are there other products/services that can easily replace yours?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -184,13 +191,13 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select competition level" />
+                                            <SelectValue placeholder="Select threat level" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="low">Low</SelectItem>
-                                        <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="high">High</SelectItem>
+                                        <SelectItem value="low">Low (No direct substitute)</SelectItem>
+                                        <SelectItem value="moderate">Moderate substitute available</SelectItem>
+                                        <SelectItem value="high">High (Many substitutes)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -226,8 +233,8 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <TargetIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Ease of Market Entry</CardTitle>
-                            <CardDescription>How easy is it for other businesses to enter your market?</CardDescription>
+                            <CardTitle className="text-lg">D4. Ease of Market Entry</CardTitle>
+                            <CardDescription>How easy is it for new competitors to start a similar business?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -245,9 +252,9 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="low">Low (Difficult to enter/copy)</SelectItem>
+                                        <SelectItem value="low">Low (Difficult to copy)</SelectItem>
                                         <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="high">High (Easy to enter)</SelectItem>
+                                        <SelectItem value="high">High (Easy to start)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />

@@ -22,133 +22,16 @@ import { ActionResponse, errorResponse, successResponse } from "./types";
 // (Mirroring src/components/application/schemas/bire-application-schema.ts)
 // =============================================================================
 
-// Base Schemas
-const applicantSchema = z.object({
-    firstName: z.string().min(2).max(100),
-    lastName: z.string().min(2).max(100),
-    idPassportNumber: z.string().min(5),
-    gender: z.enum(["male", "female", "other"]),
-    phoneNumber: z.string().min(10).max(20),
-    email: z.string().email().max(100),
-});
+import {
+    foundationApplicationSchema,
+    accelerationApplicationSchema,
+    type FoundationApplicationFormData,
+    type AccelerationApplicationFormData, // Note: exported type names might differ slightly, checking definitions
+} from "@/components/application/schemas/bire-application-schema";
 
-const businessEligibilitySchema = z.object({
-    name: z.string().min(2),
-    isRegistered: z.boolean(),
-    registrationType: z.enum(["limited_company", "partnership", "cooperative", "self_help_group_cbo", "sole_proprietorship", "other"]),
-    registrationCertificateUrl: z.string().url().optional().nullable(),
-    sector: z.string(),
-    sectorOther: z.string().optional(),
-    description: z.string().min(50),
-    problemSolved: z.string().min(50),
-    country: z.literal("kenya"),
-    county: z.string(),
-    city: z.string().min(2).max(100),
-    yearsOperational: z.number().min(0),
-    hasFinancialRecords: z.boolean(),
-    financialRecordsUrl: z.string().url().optional().nullable(),
-    hasAuditedAccounts: z.boolean(),
-    auditedAccountsUrl: z.string().url().optional().nullable(),
-});
-
-const documentsSchema = z.object({
-    registrationCertificateUrl: z.string().optional(),
-    financialRecordsUrl: z.string().optional(),
-    auditedAccountsUrl: z.string().optional(),
-    salesEvidenceUrl: z.string().optional(),
-    photosUrl: z.string().optional(),
-    taxComplianceUrl: z.string().optional(),
-    otherFilesUrl: z.string().optional(),
-}).optional();
-
-// Foundation Track Schema
-const foundationApplicationSchema = z.object({
-    applicant: applicantSchema,
-    business: businessEligibilitySchema,
-    commercialViability: z.object({
-        revenueLastYear: z.number().min(0),
-        customerCount: z.number().min(0),
-        keyCustomerSegments: z.string().min(10),
-        hasExternalFunding: z.boolean(),
-        externalFundingDetails: z.string().optional(),
-        digitizationLevel: z.boolean(),
-        digitizationReason: z.string().optional(),
-    }),
-    businessModel: z.object({
-        businessModelInnovation: z.enum(["innovative_concept", "relatively_innovative", "existing"]),
-    }),
-    marketPotential: z.object({
-        relativePricing: z.enum(["lower", "equal", "higher"]),
-        relativePricingReason: z.string().min(10).optional(),
-        productDifferentiation: z.enum(["new", "relatively_new", "similar"]),
-        productDifferentiationDescription: z.string().min(10).optional(),
-        threatOfSubstitutes: z.enum(["low", "moderate", "high"]),
-        competitorOverview: z.string().min(10).optional(),
-        easeOfMarketEntry: z.enum(["low", "moderate", "high"]),
-    }),
-    socialImpact: z.object({
-        environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"]),
-        environmentalImpactDescription: z.string().optional(),
-        fullTimeEmployeesTotal: z.number().min(0),
-        fullTimeEmployeesWomen: z.number().default(0),
-        fullTimeEmployeesYouth: z.number().default(0),
-        fullTimeEmployeesPwd: z.number().default(0),
-        businessCompliance: z.enum(["fully_compliant", "partially_compliant", "not_clear"]),
-        complianceDocumentsUrl: z.string().optional(),
-    }),
-    documents: documentsSchema,
-});
-
-// Acceleration Track Schema
-const accelerationApplicationSchema = z.object({
-    applicant: applicantSchema,
-    business: businessEligibilitySchema,
-    revenues: z.object({
-        revenueLastYear: z.number().min(0),
-        yearsOperational: z.number().min(0),
-        growthHistory: z.string().min(20),
-        futureSalesGrowth: z.enum(["high", "moderate", "low"]),
-        futureSalesGrowthReason: z.string().min(20),
-        hasExternalFunding: z.boolean(),
-        externalFundingDetails: z.string().optional(), // renamed from fundingDetails to match schema
-        auditedAccountsUrl: z.string().optional(),
-    }),
-    impactPotential: z.object({
-        fullTimeEmployeesTotal: z.number().min(1),
-        fullTimeEmployeesWomen: z.number().default(0),
-        fullTimeEmployeesYouth: z.number().default(0),
-        fullTimeEmployeesPwd: z.number().default(0),
-        jobCreationPotential: z.enum(["high", "moderate", "low"]),
-    }),
-    scalability: z.object({
-        marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"]),
-        marketDifferentiationDescription: z.string().optional(),
-        competitiveAdvantage: z.enum(["high", "moderate", "low"]),
-        competitiveAdvantageSource: z.string().optional(),
-        technologyIntegration: z.enum(["high", "moderate", "low"]),
-        salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"]),
-        salesMarketingApproach: z.string().optional(),
-        offeringFocus: z.enum(["outcome_focused", "solution_focused", "feature_focused"]).optional(),
-    }),
-    socialImpact: z.object({
-        socialImpactContribution: z.enum(["high", "moderate", "none"]),
-        supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"]),
-        supplierSupportDescription: z.string().optional(),
-        environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"]),
-        environmentalImpactDescription: z.string().optional(),
-    }),
-    businessModel: z.object({
-        businessModelUniqueness: z.enum(["high", "moderate", "low"]),
-        businessModelUniquenessDescription: z.string().optional(),
-        customerValueProposition: z.enum(["high", "moderate", "low"]),
-        competitiveAdvantageStrength: z.enum(["high", "moderate", "low"]),
-        competitiveAdvantageBarriers: z.string().optional(),
-    }),
-    documents: documentsSchema,
-});
-
-export type FoundationApplicationData = z.infer<typeof foundationApplicationSchema>;
-export type AccelerationApplicationData = z.infer<typeof accelerationApplicationSchema>;
+// Helper type aliases to match existing code usage if needed
+type FoundationApplicationData = FoundationApplicationFormData;
+type AccelerationApplicationData = AccelerationApplicationFormData;
 
 // =============================================================================
 // FOUNDATION TRACK SUBMISSION
@@ -169,7 +52,7 @@ export async function submitFoundationApplication(
             return errorResponse("You must be logged in to submit an application.");
         }
 
-        const userId = session.user.id;
+        let userId = session.user.id;
         const userEmail = session.user.email;
         const userName = session.user.name;
 
@@ -189,6 +72,20 @@ export async function submitFoundationApplication(
             let user = await tx.query.users.findFirst({
                 where: eq(users.id, userId),
             });
+
+            // If not found by ID, check by email to avoid duplicates
+            if (!user && userEmail) {
+                user = await tx.query.users.findFirst({
+                    where: eq(users.email, userEmail),
+                });
+
+                // If found by email, we must use THIS user's ID for consistency
+                if (user) {
+                    // Update the local userId variable to match the existing record
+                    // This ensures all downstream tables (applicants, etc) link to the correct existing user
+                    userId = user.id;
+                }
+            }
 
             if (!user) {
                 [user] = await tx.insert(users).values({
@@ -223,6 +120,7 @@ export async function submitFoundationApplication(
                 firstName: validatedData.applicant.firstName,
                 lastName: validatedData.applicant.lastName,
                 idPassportNumber: validatedData.applicant.idPassportNumber,
+                dob: validatedData.applicant.dob,
                 gender: validatedData.applicant.gender,
                 phoneNumber: validatedData.applicant.phoneNumber,
                 email: validatedData.applicant.email,
@@ -243,8 +141,8 @@ export async function submitFoundationApplication(
                 yearsOperational: validatedData.business.yearsOperational,
                 hasFinancialRecords: validatedData.business.hasFinancialRecords,
                 financialRecordsUrl: validatedData.business.financialRecordsUrl,
-                hasAuditedAccounts: validatedData.business.hasAuditedAccounts,
-                auditedAccountsUrl: validatedData.business.auditedAccountsUrl,
+                hasAuditedAccounts: !!validatedData.documents?.auditedAccountsUrl,
+                auditedAccountsUrl: validatedData.documents?.auditedAccountsUrl,
 
                 // Commercial Viability
                 revenueLastYear: String(validatedData.commercialViability.revenueLastYear),
@@ -308,7 +206,7 @@ export async function submitFoundationApplication(
             {
                 applicationId: result.applicationId,
                 track: "foundation",
-                eligibilityScore: eligibilityResponse.success ? (eligibilityResponse.data?.eligibilityResult.totalScore ?? undefined) : undefined,
+                eligibilityScore: eligibilityResponse.success ? (eligibilityResponse.data?.eligibilityResult.totalScore ? Number(eligibilityResponse.data.eligibilityResult.totalScore) : undefined) : undefined,
             },
             "Application submitted successfully!"
         );
@@ -338,7 +236,7 @@ export async function submitAccelerationApplication(
             return errorResponse("You must be logged in to submit an application.");
         }
 
-        const userId = session.user.id;
+        let userId = session.user.id;
         const userEmail = session.user.email;
         const userName = session.user.name;
 
@@ -356,6 +254,18 @@ export async function submitAccelerationApplication(
             let user = await tx.query.users.findFirst({
                 where: eq(users.id, userId),
             });
+
+            // If not found by ID, check by email to avoid duplicates
+            if (!user && userEmail) {
+                user = await tx.query.users.findFirst({
+                    where: eq(users.email, userEmail),
+                });
+
+                // If found by email, we must use THIS user's ID for consistency
+                if (user) {
+                    userId = user.id;
+                }
+            }
 
             if (!user) {
                 [user] = await tx.insert(users).values({
@@ -390,6 +300,7 @@ export async function submitAccelerationApplication(
                 firstName: validatedData.applicant.firstName,
                 lastName: validatedData.applicant.lastName,
                 idPassportNumber: validatedData.applicant.idPassportNumber,
+                dob: validatedData.applicant.dob,
                 gender: validatedData.applicant.gender,
                 phoneNumber: validatedData.applicant.phoneNumber,
                 email: validatedData.applicant.email,
@@ -410,12 +321,13 @@ export async function submitAccelerationApplication(
                 yearsOperational: validatedData.revenues.yearsOperational, // Acceleration maps yearsOperational from revenues section
                 hasFinancialRecords: validatedData.business.hasFinancialRecords,
                 financialRecordsUrl: validatedData.business.financialRecordsUrl,
-                hasAuditedAccounts: validatedData.business.hasAuditedAccounts,
-                auditedAccountsUrl: validatedData.business.auditedAccountsUrl,
+                hasAuditedAccounts: !!validatedData.revenues.auditedAccountsUrl,
+                auditedAccountsUrl: validatedData.revenues.auditedAccountsUrl,
 
                 // Revenues
                 revenueLastYear: String(validatedData.revenues.revenueLastYear),
                 growthHistory: validatedData.revenues.growthHistory,
+                averageAnnualRevenueGrowth: validatedData.revenues.averageAnnualRevenueGrowth,
                 hasExternalFunding: validatedData.revenues.hasExternalFunding,
                 externalFundingDetails: validatedData.revenues.externalFundingDetails,
                 futureSalesGrowth: validatedData.revenues.futureSalesGrowth,
@@ -427,8 +339,11 @@ export async function submitAccelerationApplication(
                 fullTimeEmployeesYouth: validatedData.impactPotential.fullTimeEmployeesYouth,
                 fullTimeEmployeesPwd: validatedData.impactPotential.fullTimeEmployeesPwd,
                 jobCreationPotential: validatedData.impactPotential.jobCreationPotential,
+                projectedInclusion: validatedData.impactPotential.projectedInclusion,
 
                 // Scalability
+                scalabilityPlan: validatedData.scalability.scalabilityPlan,
+                marketScalePotential: validatedData.scalability.marketScalePotential,
                 marketDifferentiation: validatedData.scalability.marketDifferentiation,
                 competitiveAdvantage: validatedData.scalability.competitiveAdvantage,
                 competitiveAdvantageSource: validatedData.scalability.competitiveAdvantageSource,
@@ -486,7 +401,7 @@ export async function submitAccelerationApplication(
             {
                 applicationId: result.applicationId,
                 track: "acceleration",
-                eligibilityScore: eligibilityResponse.success ? (eligibilityResponse.data?.eligibilityResult.totalScore ?? undefined) : undefined,
+                eligibilityScore: eligibilityResponse.success ? (eligibilityResponse.data?.eligibilityResult.totalScore ? Number(eligibilityResponse.data.eligibilityResult.totalScore) : undefined) : undefined,
             },
             "Application submitted successfully!"
         );

@@ -34,6 +34,10 @@ interface AccelerationSocialImpactFormProps {
     form: UseFormReturn<any>;
 }
 
+// ... (imports)
+
+// ... (interface)
+
 export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactFormProps) {
     return (
         <motion.div
@@ -45,11 +49,11 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                 <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <HeartIcon className="w-8 h-8 text-rose-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Social & Environmental Impact</h2>
-                <p className="text-slate-500 mt-2">Section E: Creating Sustainable Change</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL IMPACT</h2>
+                <p className="text-slate-500 mt-2">E1 - E2: Creating Sustainable Change</p>
             </div>
 
-            {/* Social Impact - Contribution */}
+            {/* E1. Social Contribution */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
@@ -57,7 +61,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                             <HeartIcon className="w-5 h-5 text-rose-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Social Contribution</CardTitle>
+                            <CardTitle className="text-lg">E1. Social Contribution</CardTitle>
                             <CardDescription>Contribution to household income and suppliers</CardDescription>
                         </div>
                     </div>
@@ -78,7 +82,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                     <SelectContent>
                                         <SelectItem value="high">High (Significant income improvement)</SelectItem>
                                         <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="low">Low / None</SelectItem>
+                                        <SelectItem value="none">Low / None</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -88,7 +92,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                 </CardContent>
             </Card>
 
-            {/* Environmental Impact */}
+            {/* E2. Environmental Impact */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
@@ -96,7 +100,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                             <LeafIcon className="w-5 h-5 text-green-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Environmental Impact</CardTitle>
+                            <CardTitle className="text-lg">E2. Environmental Impact</CardTitle>
                             <CardDescription>Environmental conservation practices</CardDescription>
                         </div>
                     </div>
@@ -115,9 +119,9 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="high">High (Clear environmental benefits)</SelectItem>
-                                        <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="low">Low / None</SelectItem>
+                                        <SelectItem value="clearly_defined">High (Positive impact)</SelectItem>
+                                        <SelectItem value="minimal">Moderate</SelectItem>
+                                        <SelectItem value="not_defined">Low / None</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -164,11 +168,11 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                 <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <LightbulbIcon className="w-8 h-8 text-amber-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Business Model</h2>
-                <p className="text-slate-500 mt-2">Section F: Innovation & Value Proposition</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION F: BUSINESS MODEL</h2>
+                <p className="text-slate-500 mt-2">F1 - F2: Innovation & Value Proposition</p>
             </div>
 
-            {/* Business Model Uniqueness */}
+            {/* F1. Business Model Innovation */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
@@ -176,8 +180,8 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                             <LightbulbIcon className="w-5 h-5 text-amber-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Model Innovation</CardTitle>
-                            <CardDescription>Uniqueness of your business model</CardDescription>
+                            <CardTitle className="text-lg">F1. Model Innovation</CardTitle>
+                            <CardDescription>How innovative is your business model?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -195,9 +199,9 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="high">High (Truly unique)</SelectItem>
-                                        <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="low">Low (Common model)</SelectItem>
+                                        <SelectItem value="high">Disruptive / New</SelectItem>
+                                        <SelectItem value="moderate">Incremental Innovation</SelectItem>
+                                        <SelectItem value="low">Standard / Imitative</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -224,7 +228,7 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                 </CardContent>
             </Card>
 
-            {/* Customer Value Proposition */}
+            {/* F2. Value Proposition */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
@@ -232,8 +236,8 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                             <StarIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Value Proposition</CardTitle>
-                            <CardDescription>Why customers buy from you</CardDescription>
+                            <CardTitle className="text-lg">F2. Value Proposition</CardTitle>
+                            <CardDescription>How strong is your customer value proposition?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -251,45 +255,11 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="high">High (Strong value)</SelectItem>
-                                        <SelectItem value="moderate">Moderate</SelectItem>
-                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="high">Strong (Must have)</SelectItem>
+                                        <SelectItem value="moderate">Moderate (Nice to have)</SelectItem>
+                                        <SelectItem value="low">Weak</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </CardContent>
-            </Card>
-
-            {/* Supplier Support */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <TruckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
-                        </div>
-                        <div>
-                            <CardTitle className="text-lg">Supplier Engagement</CardTitle>
-                            <CardDescription>How you support and work with your suppliers</CardDescription>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <FormField
-                        control={form.control}
-                        name="businessModel.supplierSupportDescription"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-slate-700">Supplier Support Description</FormLabel>
-                                <FormControl>
-                                    <Textarea
-                                        {...field}
-                                        placeholder="Describe how you support your suppliers (e.g. training, fair payments)..."
-                                        className="min-h-[80px] rounded-xl"
-                                    />
-                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}

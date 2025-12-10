@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type DefaultValues, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -52,6 +52,7 @@ import {
     foundationApplicationSchema,
     FoundationApplicationFormData,
     defaultApplicant,
+    defaultBusinessEligibility,
 } from "./schemas/bire-application-schema";
 
 const DRAFT_KEY = "bire_foundation_draft";
@@ -125,15 +126,15 @@ export function FoundationApplicationForm() {
     const [disqualifiedReason, setDisqualifiedReason] = useState<string | null>(null);
 
     const form = useForm<FoundationApplicationFormData>({
-        resolver: zodResolver(foundationApplicationSchema),
+        // Cast resolver to any to bypass strict Date vs undefined check in defaultValues
+        resolver: zodResolver(foundationApplicationSchema) as any,
         defaultValues: {
-            applicant: defaultApplicant as FoundationApplicationFormData["applicant"],
+            applicant: defaultApplicant,
             business: {
+                ...defaultBusinessEligibility,
                 isRegistered: true,
                 hasFinancialRecords: true,
-                yearsOperational: 0,
-                country: "kenya",
-            } as any,
+            },
             businessModel: {
                 businessModelInnovation: undefined,
             },
@@ -151,7 +152,10 @@ export function FoundationApplicationForm() {
             },
             socialImpact: {
                 environmentalImpact: undefined,
-                specialGroupsEmployed: 0,
+                fullTimeEmployeesTotal: 0,
+                fullTimeEmployeesWomen: 0,
+                fullTimeEmployeesYouth: 0,
+                fullTimeEmployeesPwd: 0,
                 businessCompliance: undefined,
             },
             declaration: {
@@ -161,7 +165,7 @@ export function FoundationApplicationForm() {
                 declarationDate: new Date(),
             },
             documents: {},
-        },
+        } as DefaultValues<FoundationApplicationFormData>,
         mode: "onChange",
     });
 
@@ -174,9 +178,12 @@ export function FoundationApplicationForm() {
                 if (parsed.data?.declaration?.declarationDate) {
                     parsed.data.declaration.declarationDate = new Date(parsed.data.declaration.declarationDate);
                 }
-                // Also restore dates for applicant dob if it exists as string
+                // Also restore dates for applicant dob if it exists as string or needs init
                 if (parsed.data?.applicant?.dob) {
                     parsed.data.applicant.dob = new Date(parsed.data.applicant.dob);
+                } else if (parsed.data?.applicant) {
+                    // Fallback if dob is missing in draft but applicant exists
+                    parsed.data.applicant.dob = new Date();
                 }
 
                 form.reset(parsed.data);

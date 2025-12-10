@@ -28,11 +28,16 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface AccelerationRevenuesFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
 }
+
+// ... (imports)
+
+// ... (interface)
 
 export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps) {
     const hasExternalFunding = form.watch("revenues.hasExternalFunding");
@@ -47,8 +52,8 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                 <div className="w-16 h-16 bg-brand-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendUpIcon className="w-8 h-8 text-brand-orange" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Revenue & Growth</h2>
-                <p className="text-slate-500 mt-2">Section B: Financial Performance & Growth Strategy</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION B: REVENUE & GROWTH </h2>
+                <p className="text-slate-500 mt-2">B1 - B4: Financial Performance & Growth Strategy</p>
             </div>
 
             {/* Revenue Last Year */}
@@ -59,8 +64,8 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                             <CurrencyDollarIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Annual Revenue</CardTitle>
-                            <CardDescription>Total revenue for last financial year</CardDescription>
+                            <CardTitle className="text-lg">B1. Annual Revenue</CardTitle>
+                            <CardDescription>What was your total revenue for the last financial year?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -85,7 +90,7 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                                     </div>
                                 </FormControl>
                                 <FormDescription className="text-xs text-slate-500">
-                                    Must be above KES 3,000,000 to qualify for Acceleration Track.
+                                    Scoring Guide: &gt;5M, 3M-5M, &lt;3M. Minimum requirement: KES 3M.
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>
@@ -103,8 +108,8 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                             <ChartLineUpIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Growth History</CardTitle>
-                            <CardDescription>Tell us about your business growth journey</CardDescription>
+                            <CardTitle className="text-lg">B2. Revenue Growth</CardTitle>
+                            <CardDescription>What is your average annual revenue growth rate over the last 3 years?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -132,10 +137,33 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
 
                     <FormField
                         control={form.control}
+                        name="revenues.averageAnnualRevenueGrowth"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Average Annual Growth Rate</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select growth rate" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="above_20">&gt; 20%</SelectItem>
+                                        <SelectItem value="10_20">10% - 20%</SelectItem>
+                                        <SelectItem value="below_10">&lt; 10%</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    <FormField
+                        control={form.control}
                         name="revenues.growthHistory"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Growth Description</FormLabel>
+                                <FormLabel className="text-slate-700">Transformation / Growth Description</FormLabel>
                                 <FormControl>
                                     <Textarea
                                         {...field}
@@ -159,8 +187,8 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                             <TrendUpIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Projected Sales Growth</CardTitle>
-                            <CardDescription>Expected sales growth in next 6-12 months</CardDescription>
+                            <CardTitle className="text-lg">B3. Future Sales Growth</CardTitle>
+                            <CardDescription>What is your projected sales growth for the next 12 months?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -170,17 +198,17 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                         name="revenues.futureSalesGrowth"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Growth Potential</FormLabel>
+                                <FormLabel className="text-slate-700">Projected Growth</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select growth potential" />
+                                            <SelectValue placeholder="Select projected growth" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="high">High Growth Potential</SelectItem>
-                                        <SelectItem value="moderate">Moderate Growth</SelectItem>
-                                        <SelectItem value="low">Low Growth</SelectItem>
+                                        <SelectItem value="high">High (&gt;20%)</SelectItem>
+                                        <SelectItem value="moderate">Moderate (10-20%)</SelectItem>
+                                        <SelectItem value="low">Low (&lt;10%)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -216,8 +244,8 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                             <HandCoinsIcon className="w-5 h-5 text-amber-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">External Fundraising</CardTitle>
-                            <CardDescription>Access to capital</CardDescription>
+                            <CardTitle className="text-lg">B4. External Fundraising</CardTitle>
+                            <CardDescription>Have you raised external capital?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -226,22 +254,32 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                         control={form.control}
                         name="revenues.hasExternalFunding"
                         render={({ field }) => (
-                            <FormItem className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-                                <div className="space-y-0.5">
-                                    <FormLabel className="text-slate-700 font-medium">
-                                        Received external funding?
-                                    </FormLabel>
-                                    <FormDescription className="text-slate-500 text-sm">
-                                        Loans, grants, or investments
-                                    </FormDescription>
-                                </div>
+                            <FormItem className="space-y-3">
                                 <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                        className="data-[state=checked]:bg-brand-orange"
-                                    />
+                                    <RadioGroup
+                                        onValueChange={(val) => field.onChange(val === "true")}
+                                        defaultValue={field.value !== undefined ? String(field.value) : undefined}
+                                        className="flex flex-col space-y-1"
+                                    >
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                                <RadioGroupItem value="true" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                Yes
+                                            </FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                                <RadioGroupItem value="false" />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">
+                                                No
+                                            </FormLabel>
+                                        </FormItem>
+                                    </RadioGroup>
                                 </FormControl>
+                                <FormMessage />
                             </FormItem>
                         )}
                     />

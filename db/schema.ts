@@ -298,6 +298,7 @@ export const applicants = pgTable('applicants', {
   lastName: varchar('last_name', { length: 100 }).notNull(),
   idPassportNumber: varchar('id_passport_number', { length: 50 }).notNull(),
   gender: genderEnum('gender').notNull(),
+  dob: date('dob', { mode: "date" }).notNull(), // Added for age eligibility check
   phoneNumber: varchar('phone_number', { length: 20 }).notNull(),
   email: varchar('email', { length: 100 }).notNull(),
 
@@ -361,6 +362,7 @@ export const businesses = pgTable('businesses', {
   // revenueLastYear reused
   // yearsOperational reused
   growthHistory: text('growth_history'),
+  averageAnnualRevenueGrowth: text('average_annual_revenue_growth'), // Added for scoring
   futureSalesGrowth: text('future_sales_growth'),
   futureSalesGrowthReason: text('future_sales_growth_reason'), // Explain the basis
   // hasExternalFunding reused
@@ -369,8 +371,11 @@ export const businesses = pgTable('businesses', {
   // === ACCELERATION TRACK: IMPACT POTENTIAL (20 marks) ===
   // fullTimeEmployees breakdowns reused for "Current Job Creation"
   jobCreationPotential: text('job_creation_potential'), // High, Moderate, Low
+  projectedInclusion: text('projected_inclusion'), // Added for scoring (>50% women/youth/pwd)
 
   // === ACCELERATION TRACK: SCALABILITY (20 marks) ===
+  scalabilityPlan: text('scalability_plan'), // Added for scoring
+  marketScalePotential: text('market_scale_potential'), // Added for scoring
   marketDifferentiation: text('market_differentiation'), // Truly unique, Provably better, Undifferentiated
   competitiveAdvantage: text('competitive_advantage'), // High, Moderate, Low
   competitiveAdvantageSource: text('competitive_advantage_source'), // Describe sources

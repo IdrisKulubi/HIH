@@ -31,6 +31,10 @@ interface FoundationSocialImpactFormProps {
     form: UseFormReturn<any>;
 }
 
+// ... (imports)
+
+// ... (interface)
+
 export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormProps) {
     return (
         <motion.div
@@ -42,8 +46,8 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                 <div className="w-16 h-16 bg-brand-green/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <LeafIcon className="w-8 h-8 text-brand-green" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">Social Impact</h2>
-                <p className="text-slate-500 mt-2">Section E: Environmental & Social Responsibility</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL IMPACT</h2>
+                <p className="text-slate-500 mt-2">D1 - D3: Environment, Inclusion, Compliance</p>
             </div>
 
             {/* Environmental Impact */}
@@ -54,7 +58,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <LeafIcon className="w-5 h-5 text-green-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Environmental Impact</CardTitle>
+                            <CardTitle className="text-lg">E1. Environmental Conservation</CardTitle>
                             <CardDescription>To what level does your business conserve the environment?</CardDescription>
                         </div>
                     </div>
@@ -65,7 +69,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                         name="socialImpact.environmentalImpact"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Environmental Conservation</FormLabel>
+                                <FormLabel className="text-slate-700">Conservation Level</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
@@ -73,7 +77,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="clearly_defined">Clearly Defined (recycling, solar, etc.)</SelectItem>
+                                        <SelectItem value="clearly_defined">Clearly Defined (recycling, solar, waste management etc.)</SelectItem>
                                         <SelectItem value="minimal">Minimal</SelectItem>
                                         <SelectItem value="not_defined">Not Defined</SelectItem>
                                     </SelectContent>
@@ -114,8 +118,8 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <UsersThreeIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Inclusion of Special Groups</CardTitle>
-                            <CardDescription>How many women,youth ,and  PWD employees do you currently employ?</CardDescription>
+                            <CardTitle className="text-lg">E2. Inclusion of Special Groups</CardTitle>
+                            <CardDescription>How many women, youth and PWD employees do you currently employ?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -136,6 +140,9 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                             onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                         />
                                     </FormControl>
+                                    <FormDescription>
+                                        Scoring Guide: &gt;10, 6-9, 1-5
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -143,7 +150,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                     </div>
 
                     <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-slate-900">Breakdown (Women, Youth, PWD)</h4>
+                        <h4 className="text-sm font-medium text-slate-900">Provide a breakdown (Women, Youth, PWD)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <FormField
                                 control={form.control}
@@ -215,8 +222,8 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <ShieldCheckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">Business Compliance</CardTitle>
-                            <CardDescription>Your regulatory and legal compliance status</CardDescription>
+                            <CardTitle className="text-lg">E3. Business Compliance</CardTitle>
+                            <CardDescription>What is your regulatory and legal compliance status?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
