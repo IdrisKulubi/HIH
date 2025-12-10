@@ -5,9 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { checkReviewAccess, getApplicationsForReview, exportApplicationsToExcel } from "@/lib/actions/review.actions";
 import PasscodeEntry from "@/components/review/PasscodeEntry";
-import { 
-  FileText, 
-  Download, 
+import {
+  FileText,
+  Download,
   Users,
   CheckCircle,
   Clock,
@@ -32,7 +32,7 @@ async function DownloadButton() {
 
   return (
     <form action={downloadExcel}>
-      <Button 
+      <Button
         type="submit"
         variant="outline"
         className="border-green-200 hover:bg-green-50 hover:border-green-300"
@@ -53,14 +53,14 @@ export default async function ReviewDashboard() {
 
   // Check if user has review access
   const accessResult = await checkReviewAccess();
-  
+
   if (!accessResult.hasAccess) {
     return <PasscodeEntry />;
   }
 
   // Fetch applications for review
   const applicationsResult = await getApplicationsForReview();
-  
+
   if (!applicationsResult.success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -74,8 +74,17 @@ export default async function ReviewDashboard() {
     );
   }
 
-  const applications = applicationsResult.data || [];
-  
+  // Transform data to match component expectations
+  const rawApplications = applicationsResult.data || [];
+  const applications = rawApplications.map(app => ({
+    ...app,
+    eligibilityResults: app.eligibilityResults.map(result => ({
+      ...result,
+      totalScore: result.totalScore ? Number(result.totalScore) : null,
+      evaluatedAt: result.evaluatedAt ? new Date(result.evaluatedAt) : null,
+    }))
+  }));
+
   // Calculate statistics
   const stats = {
     total: applications.length,
@@ -113,7 +122,7 @@ export default async function ReviewDashboard() {
             }>
               <DownloadButton />
             </Suspense>
-            <Button 
+            <Button
               variant="outline"
               className="border-blue-200 hover:bg-blue-50 hover:border-blue-300"
               asChild
@@ -155,7 +164,7 @@ export default async function ReviewDashboard() {
             </CardContent>
           </Card>
 
-         
+
 
           <Card className="border-0 shadow-lg bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

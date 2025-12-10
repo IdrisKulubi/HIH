@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Settings, 
-  Play, 
-  Eye, 
-  
+import {
+  Settings,
+  Play,
+  Eye,
+
   Clock,
   BarChart3,
   Target,
@@ -65,16 +65,15 @@ export function ScoringConfigCard({ config, isActive }: ScoringConfigCardProps) 
   const categoryTotals = Object.entries(categorizedCriteria).map(([category, criteria]: [string, any]) => ({
     category,
     //eslint-disable-next-line @typescript-eslint/no-explicit-any
-    totalPoints: criteria.reduce((sum: number, c: any) => sum + c.maxPoints, 0),
+    totalPoints: criteria.reduce((sum: number, c: any) => sum + c.weight, 0),
     criteriaCount: criteria.length
   }));
 
   return (
-    <Card className={`transition-all duration-200 hover:shadow-lg ${
-      isActive 
-        ? 'border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50' 
-        : 'border hover:border-blue-200'
-    }`}>
+    <Card className={`transition-all duration-200 hover:shadow-lg ${isActive
+      ? 'border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50'
+      : 'border hover:border-blue-200'
+      }`}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="space-y-1">
@@ -91,9 +90,9 @@ export function ScoringConfigCard({ config, isActive }: ScoringConfigCardProps) 
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
+            {/* <Badge variant="outline" className="text-xs">
               v{config.version}
-            </Badge>
+            </Badge> */}
           </div>
         </div>
       </CardHeader>
@@ -104,12 +103,12 @@ export function ScoringConfigCard({ config, isActive }: ScoringConfigCardProps) 
           <div className="flex items-center gap-2 text-sm">
             <Target className="h-4 w-4 text-blue-500" />
             <span className="text-gray-600">Pass:</span>
-            <span className="font-medium">{config.passThreshold}%</span>
+            <span className="font-medium">60%</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <BarChart3 className="h-4 w-4 text-purple-500" />
             <span className="text-gray-600">Max:</span>
-            <span className="font-medium">{config.totalMaxScore}</span>
+            <span className="font-medium">100</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Settings className="h-4 w-4 text-orange-500" />
@@ -151,7 +150,8 @@ export function ScoringConfigCard({ config, isActive }: ScoringConfigCardProps) 
         <div className="space-y-2 text-xs text-gray-500">
           <div className="flex items-center gap-2">
             <User className="h-3 w-3" />
-            <span>Created by {config.creator?.name || 'Unknown'}</span>
+            {/* <span>Created by {config.creator?.name || 'Unknown'}</span> */}
+            <span>System Configuration</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-3 w-3" />
@@ -176,7 +176,7 @@ export function ScoringConfigCard({ config, isActive }: ScoringConfigCardProps) 
             <Eye className="h-4 w-4 mr-1" />
             {showCriteria ? 'Hide' : 'View'} Criteria
           </Button>
-          
+
           {!isActive && (
             <Button
               size="sm"

@@ -38,12 +38,12 @@ import { Progress } from "@/components/ui/progress";
 interface Campaign {
   id: number;
   name: string;
-  subject: string;
+  subject: string | null;
   status: string;
   totalRecipients: number | null;
   sentCount: number | null;
   failedCount: number | null;
-  batchSize: number;
+  batchSize: number | null;
   createdAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -180,9 +180,10 @@ export function CampaignsList() {
           const failedCount = campaign.failedCount ?? 0;
           const progress =
             totalRecipients > 0 ? (sentCount / totalRecipients) * 100 : 0;
+          const batchSize = campaign.batchSize || 50;
           const nextBatchNumber =
-            Math.floor(sentCount / campaign.batchSize) + 1;
-          const totalBatches = Math.ceil(totalRecipients / campaign.batchSize);
+            Math.floor(sentCount / batchSize) + 1;
+          const totalBatches = Math.ceil(totalRecipients / batchSize);
           const canSendNext =
             sentCount < totalRecipients && campaign.status !== "completed";
 
@@ -280,7 +281,7 @@ export function CampaignsList() {
                       onClick={() =>
                         handleSendNextBatch(
                           campaign.id,
-                          campaign.batchSize,
+                          batchSize,
                           campaign.sentCount
                         )
                       }
@@ -297,7 +298,7 @@ export function CampaignsList() {
                           <Play className="h-4 w-4 mr-2" />
                           Send Batch {nextBatchNumber} (
                           {Math.min(
-                            campaign.batchSize,
+                            batchSize,
                             totalRecipients - sentCount
                           )}{" "}
                           emails)

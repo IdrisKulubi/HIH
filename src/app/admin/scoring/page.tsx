@@ -3,14 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Settings, 
-  Plus, 
+import {
+  Settings,
+  Plus,
 
-  CheckCircle, 
+  CheckCircle,
   BarChart3,
   Target,
- 
+
   Zap,
   RefreshCw
 } from "lucide-react";
@@ -23,7 +23,7 @@ import { InitializeDefaultConfigButton } from "@/components/admin/scoring/Initia
 async function ScoringConfigsSection() {
   const configsResult = await getScoringConfigurations();
   const activeConfigResult = await getActiveScoringConfiguration();
-  
+
   const configs = configsResult.success ? configsResult.data : [];
   const activeConfig = activeConfigResult.success ? activeConfigResult.data : null;
 
@@ -60,7 +60,7 @@ async function ScoringConfigsSection() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-700">Pass Threshold</p>
-                <p className="text-2xl font-bold text-purple-900">{activeConfig?.passThreshold || 60}%</p>
+                <p className="text-2xl font-bold text-purple-900">60%</p>
               </div>
               <Target className="h-8 w-8 text-purple-600" />
             </div>
@@ -72,7 +72,7 @@ async function ScoringConfigsSection() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-amber-700">Max Score</p>
-                <p className="text-2xl font-bold text-amber-900">{activeConfig?.totalMaxScore || 100}</p>
+                <p className="text-2xl font-bold text-amber-900">100</p>
               </div>
               <BarChart3 className="h-8 w-8 text-amber-600" />
             </div>
@@ -127,13 +127,13 @@ async function ScoringConfigsSection() {
               <h3 className="font-semibold text-green-900">{activeConfig.name}</h3>
               <p className="text-sm text-green-700">{activeConfig.description}</p>
               <div className="flex gap-4 text-sm text-green-600">
-                <span>Version: {activeConfig.version}</span>
-                <span>•</span>
+                {/* <span>Version: {activeConfig.version}</span> */}
+                {/* <span>•</span> */}
                 <span>Criteria: {activeConfig.criteria.length}</span>
-                <span>•</span>
-                <span>Max Score: {activeConfig.totalMaxScore}</span>
-                <span>•</span>
-                <span>Pass: {activeConfig.passThreshold}%</span>
+                {/* <span>•</span> */}
+                {/* <span>Max Score: {activeConfig.totalMaxScore}</span> */}
+                {/* <span>•</span> */}
+                {/* <span>Pass: {activeConfig.passThreshold}%</span> */}
               </div>
             </div>
           </CardContent>
@@ -171,9 +171,9 @@ async function ScoringConfigsSection() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {configs?.map((config) => (
-              <ScoringConfigCard 
-                key={config.id} 
-                config={config} 
+              <ScoringConfigCard
+                key={config.id}
+                config={config}
                 isActive={config.id === activeConfig?.id}
               />
             ))}

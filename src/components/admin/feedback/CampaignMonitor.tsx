@@ -82,9 +82,17 @@ export function CampaignMonitor() {
       );
       const result = await getFeedbackCampaigns();
       if (result.success && result.campaigns) {
-        setCampaigns(result.campaigns);
-        if (result.campaigns.length > 0) {
-          setSelectedCampaignId(result.campaigns[0].id.toString());
+        // Transform the data to match CampaignSummary
+        const mappedCampaigns: CampaignSummary[] = result.campaigns.map((c) => ({
+          id: c.id,
+          name: c.name,
+          sentCount: c.sentCount ?? 0,
+          totalRecipients: c.totalRecipients ?? 0,
+        }));
+
+        setCampaigns(mappedCampaigns);
+        if (mappedCampaigns.length > 0) {
+          setSelectedCampaignId(mappedCampaigns[0].id.toString());
         }
       }
     }
@@ -380,9 +388,9 @@ export function CampaignMonitor() {
                             ? format(new Date(email.sentAt), "MMM d, h:mm a")
                             : email.failedAt
                               ? format(
-                                  new Date(email.failedAt),
-                                  "MMM d, h:mm a"
-                                )
+                                new Date(email.failedAt),
+                                "MMM d, h:mm a"
+                              )
                               : "-"}
                         </TableCell>
                         <TableCell>

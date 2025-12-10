@@ -598,11 +598,21 @@ export const ticketAttachments = pgTable('ticket_attachments', {
 
 export const feedbackCampaigns = pgTable('feedback_campaigns', {
   id: serial('id').primaryKey(),
-  title: varchar('title', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }),
+  emailBody: text('email_body'),
+  feedbackFormUrl: varchar('feedback_form_url', { length: 500 }),
+  linkDisplayText: varchar('link_display_text', { length: 255 }),
   description: text('description'),
-  targetRole: userRoleEnum('target_role'), // e.g. send to all 'applicant'
+  targetRole: userRoleEnum('target_role'),
   status: feedbackCampaignStatusEnum('status').default('draft').notNull(),
-  scheduledAt: timestamp('scheduled_at'), // If scheduled for future
+  batchSize: integer('batch_size').default(50),
+  totalRecipients: integer('total_recipients').default(0),
+  sentCount: integer('sent_count').default(0),
+  failedCount: integer('failed_count').default(0),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  scheduledAt: timestamp('scheduled_at'),
   sentAt: timestamp('sent_at'),
   createdBy: text('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -613,8 +623,13 @@ export const feedbackEmails = pgTable('feedback_emails', {
   id: serial('id').primaryKey(),
   campaignId: integer('campaign_id').notNull().references(() => feedbackCampaigns.id, { onDelete: 'cascade' }),
   recipientId: text('recipient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+  recipientName: varchar('recipient_name', { length: 255 }).notNull(),
+  batchNumber: integer('batch_number').default(1).notNull(),
   status: feedbackEmailStatusEnum('status').default('pending').notNull(),
   sentAt: timestamp('sent_at'),
+  failedAt: timestamp('failed_at'),
+  retryCount: integer('retry_count').default(0),
   openedAt: timestamp('opened_at'), // Tracking (optional)
   clickedAt: timestamp('clicked_at'),
   errorMessage: text('error_message'), // If skipped or bounced

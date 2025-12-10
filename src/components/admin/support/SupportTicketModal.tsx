@@ -157,7 +157,7 @@ export function SupportTicketModal({ ticketId, isOpen, onClose, onUpdate }: Supp
         statusForm.reset({
           status: result.data?.status as "open" | "in_progress" | "waiting_for_user" | "resolved" | "closed" || "open",
           assignedTo: result.data?.assignedTo || "",
-          resolutionNotes: result.data?.resolutionNotes || ""
+          resolutionNotes: result.data?.resolution || ""
         });
       } else {
         toast.error("Failed to load ticket");

@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { getApplicationById, saveEvaluation } from "@/lib/actions";
+import { getApplicationById, saveEvaluation, type DetailedApplication } from "@/lib/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, XCircle, Loader2, Lightbulb, DollarSign, Target, Building2 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,92 +20,9 @@ import { ScoringModal } from "@/components/evaluation/ScoringModal";
 import { SectionCard } from "@/components/evaluation/SectionCard";
 import { SCORING_SECTIONS, PASS_THRESHOLD, TOTAL_MAX_SCORE, EvaluationScores } from "@/types/evaluation";
 
-interface EvaluationApplicationData {
-  id: number;
-  status: string;
-  submittedAt: string | null;
-  business: {
-    id: number;
-    name: string;
-    country: string;
-    countryOther?: string | null;
-    city: string;
-    startDate: string;
-    isRegistered: boolean;
-    registrationCertificateUrl?: string | null;
-    registeredCountries: string;
-    description: string;
-    problemSolved: string;
-    revenueLastTwoYears: string;
-    employees: {
-      fullTimeTotal: number;
-      fullTimeMale: number;
-      fullTimeFemale: number;
-      partTimeMale: number;
-      partTimeFemale: number;
-    };
-    climateAdaptationContribution: string;
-    productServiceDescription: string;
-    climateExtremeImpact: string;
-    unitPrice: string;
-    customerCountLastSixMonths: number;
-    productionCapacityLastSixMonths: string;
-    currentChallenges: string;
-    supportNeeded: string;
-    additionalInformation?: string | null;
-    funding?: Array<{
-      fundingSource?: string | null;
-      fundingSourceOther?: string | null;
-      amountUsd?: string | null;
-      fundingDate?: string | null;
-      fundingInstrument?: string | null;
-    }>;
-    targetCustomers?: string[];
-  };
-  applicant: {
-    id: number;
-    userId: string;
-    firstName: string;
-    lastName: string;
-    gender: string;
-    dateOfBirth: string;
-    citizenship: string;
-    citizenshipOther?: string | null;
-    countryOfResidence: string;
-    residenceOther?: string | null;
-    phoneNumber: string;
-    email: string;
-    highestEducation: string;
-  };
-  eligibility: {
-    id: number;
-    isEligible: boolean;
-    totalScore: number;
-    mandatoryCriteria: {
-      ageEligible: boolean;
-      registrationEligible: boolean;
-      revenueEligible: boolean;
-      businessPlanEligible: boolean;
-      impactEligible: boolean;
-    };
-    evaluationScores: {
-      marketPotentialScore: number;
-      innovationScore: number;
-      climateAdaptationScore: number;
-      jobCreationScore: number;
-      viabilityScore: number;
-      managementCapacityScore: number;
-      locationBonus: number;
-      genderBonus: number;
-    };
-    evaluationNotes: string | null;
-    evaluatedAt: string | null;
-  } | null;
-}
-
 export default function EvaluateApplicationPage({ params }: { params: Promise<{ id: string }> }) {
   const [applicationId, setApplicationId] = useState<number | null>(null);
-  const [application, setApplication] = useState<EvaluationApplicationData | null>(null);
+  const [application, setApplication] = useState<DetailedApplication | null>(null);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -352,7 +269,8 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
           applicationId,
           ...formState,
           totalScore,
-          evaluationNotes: formState.evaluationNotes || null,
+          isEligible: totalScore >= PASS_THRESHOLD,
+          evaluationNotes: formState.evaluationNotes || undefined,
         });
 
         if (result.success) {

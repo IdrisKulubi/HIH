@@ -400,14 +400,14 @@ export async function getReviewStatus(applicationId: number) {
                 reviewer1: eligibility?.reviewer1Id ? {
                     id: eligibility.reviewer1Id,
                     name: reviewer1Name,
-                    score: eligibility.reviewer1Score,
+                    score: eligibility.reviewer1Score ? Number(eligibility.reviewer1Score) : null,
                     notes: eligibility.reviewer1Notes,
                     reviewedAt: eligibility.reviewer1At?.toISOString(),
                 } : null,
                 reviewer2: eligibility?.reviewer2Id ? {
                     id: eligibility.reviewer2Id,
                     name: reviewer2Name,
-                    score: eligibility.reviewer2Score,
+                    score: eligibility.reviewer2Score ? Number(eligibility.reviewer2Score) : null,
                     notes: eligibility.reviewer2Notes,
                     reviewedAt: eligibility.reviewer2At?.toISOString(),
                     overrodeReviewer1: eligibility.reviewer2OverrodeReviewer1,
@@ -416,7 +416,7 @@ export async function getReviewStatus(applicationId: number) {
                 lockedBy: lockedByName,
                 lockedAt: eligibility?.lockedAt?.toISOString(),
                 lockReason: eligibility?.lockReason,
-                finalScore: eligibility?.totalScore,
+                finalScore: eligibility?.totalScore ? Number(eligibility.totalScore) : null,
                 isEligible: eligibility?.isEligible,
             },
         };

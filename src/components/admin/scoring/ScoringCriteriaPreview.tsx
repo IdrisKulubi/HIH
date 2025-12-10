@@ -60,8 +60,8 @@ export function ScoringCriteriaPreview({ criteria }: ScoringCriteriaPreviewProps
         {/*eslint-disable-next-line @typescript-eslint/no-explicit-any*/}
         {Object.entries(categorizedCriteria).map(([category, categoryCriteria]: [string, any], categoryIndex) => {
           //eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const categoryTotal = categoryCriteria.reduce((sum: number, c: any) => sum + c.maxPoints, 0);
-          
+          const categoryTotal = categoryCriteria.reduce((sum: number, c: any) => sum + c.weight, 0);
+
           return (
             <Card key={category} className={`border ${getCategoryColor(categoryIndex)}`}>
               <CardHeader className="pb-3">
@@ -97,18 +97,14 @@ export function ScoringCriteriaPreview({ criteria }: ScoringCriteriaPreviewProps
                           <Target className="h-4 w-4 text-gray-500 flex-shrink-0" />
                           <div className="space-y-1">
                             <div className="font-medium text-sm text-gray-900">
-                              {criteria.name}
+                              {criteria.criteriaName}
                             </div>
-                            {criteria.description && (
-                              <div className="text-xs text-gray-500 max-w-md truncate">
-                                {criteria.description}
-                              </div>
-                            )}
+                            {/* Description removed as not in schema */}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">
-                            {criteria.maxPoints} pts
+                            {criteria.weight} pts
                           </Badge>
                           {isExpanded ? (
                             <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -126,24 +122,18 @@ export function ScoringCriteriaPreview({ criteria }: ScoringCriteriaPreviewProps
                             <div className="grid grid-cols-2 gap-4 text-xs">
                               <div>
                                 <span className="font-medium text-gray-700">Max Points:</span>
-                                <span className="ml-2 text-gray-900">{criteria.maxPoints}</span>
+                                <span className="ml-2 text-gray-900">{criteria.weight}</span>
                               </div>
                               <div>
                                 <span className="font-medium text-gray-700">Type:</span>
                                 <span className="ml-2 text-gray-900 capitalize">
-                                  {criteria.evaluationType || 'manual'}
+                                  Manual
                                 </span>
                               </div>
-                              {criteria.weightage && (
-                                <div>
-                                  <span className="font-medium text-gray-700">Weightage:</span>
-                                  <span className="ml-2 text-gray-900">{criteria.weightage}%</span>
-                                </div>
-                              )}
                               <div>
                                 <span className="font-medium text-gray-700">Required:</span>
                                 <span className="ml-2 text-gray-900">
-                                  {criteria.isRequired ? 'Yes' : 'No'}
+                                  Yes
                                 </span>
                               </div>
                             </div>
@@ -155,8 +145,8 @@ export function ScoringCriteriaPreview({ criteria }: ScoringCriteriaPreviewProps
                                 <div className="space-y-1">
                                   {/*eslint-disable-next-line @typescript-eslint/no-explicit-any*/}
                                   {scoringLevels.map((level: any, index: number) => (
-                                    <div 
-                                      key={index} 
+                                    <div
+                                      key={index}
                                       className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
                                     >
                                       <div className="flex items-center gap-2">
