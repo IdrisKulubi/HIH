@@ -178,114 +178,120 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
             const existingTotal = result.data.eligibility.totalScore || 0;
             const eligScores = result.data.eligibility.evaluationScores;
 
-            // First, map the old fields to their equivalent new fields
-            const baseScores = {
-              // Map old scores to closest matching new fields
-              climateAdaptationBenefits: eligScores.climateAdaptationScore || 0,
-              innovativeness: eligScores.innovationScore || 0,
-              socioeconomicGenderImpact: eligScores.jobCreationScore || 0,
-              entrepreneurshipManagement: eligScores.managementCapacityScore || 0,
-              marketPotentialDemand: eligScores.marketPotentialScore || 0,
-              financialManagement: eligScores.viabilityScore || 0,
-              foodSecurityRelevance: eligScores.locationBonus || 0,
-              genderInclusionManagement: eligScores.genderBonus || 0,
-            };
-
-            // Calculate the sum of mapped scores
-            const mappedTotal = Object.values(baseScores).reduce((sum, score) => sum + score, 0);
-
-            // Calculate remaining points to distribute
-            let remainingPoints = existingTotal - mappedTotal;
-
-            // Initialize new fields with smart defaults based on remaining points
-            const newFieldDefaults: { [key: string]: number } = {
-              scalabilityReplicability: 0,
-              environmentalImpact: 0,
-              timeFrameFeasibility: 0,
-              gcaAlignment: 0,
-              humanResourcesInfrastructure: 0,
-              technicalExpertise: 0,
-              experienceTrackRecord: 0,
-              governanceManagement: 0,
-              riskManagementStrategy: 0,
-              partnershipsCollaborations: 0,
-            };
-
-            // Distribute remaining points intelligently across new fields
-            if (remainingPoints > 0) {
-              // Define max points for each new field
-              const fieldMaxPoints: { [key: string]: number } = {
-                scalabilityReplicability: 5,
-                environmentalImpact: 5,
-                timeFrameFeasibility: 5,
-                gcaAlignment: 5,
-                humanResourcesInfrastructure: 2,
-                technicalExpertise: 2,
-                experienceTrackRecord: 2,
-                governanceManagement: 2,
-                riskManagementStrategy: 2,
-                partnershipsCollaborations: 2,
+            // Safety check - if no evaluation scores yet, use defaults
+            if (!eligScores) {
+              // No existing scores, keep default form state
+              console.log("No existing evaluationScores found, using defaults.");
+            } else {
+              // First, map the old fields to their equivalent new fields
+              const baseScores = {
+                // Map old scores to closest matching new fields
+                climateAdaptationBenefits: eligScores.climateAdaptationScore || 0,
+                innovativeness: eligScores.innovationScore || 0,
+                socioeconomicGenderImpact: eligScores.jobCreationScore || 0,
+                entrepreneurshipManagement: eligScores.managementCapacityScore || 0,
+                marketPotentialDemand: eligScores.marketPotentialScore || 0,
+                financialManagement: eligScores.viabilityScore || 0,
+                foodSecurityRelevance: eligScores.locationBonus || 0,
+                genderInclusionManagement: eligScores.genderBonus || 0,
               };
 
-              // Distribute points proportionally up to max for each field
-              const totalMaxNewPoints = Object.values(fieldMaxPoints).reduce((sum, max) => sum + max, 0);
+              // Calculate the sum of mapped scores
+              const mappedTotal = Object.values(baseScores).reduce((sum, score) => sum + score, 0);
 
-              for (const [field, maxPoints] of Object.entries(fieldMaxPoints)) {
-                if (remainingPoints <= 0) break;
+              // Calculate remaining points to distribute
+              let remainingPoints = existingTotal - mappedTotal;
 
-                // Calculate proportional share, but cap at field's max and remaining points
-                const proportionalPoints = Math.floor((remainingPoints * maxPoints) / totalMaxNewPoints);
-                const assignedPoints = Math.min(proportionalPoints, maxPoints, remainingPoints);
+              // Initialize new fields with smart defaults based on remaining points
+              const newFieldDefaults: { [key: string]: number } = {
+                scalabilityReplicability: 0,
+                environmentalImpact: 0,
+                timeFrameFeasibility: 0,
+                gcaAlignment: 0,
+                humanResourcesInfrastructure: 0,
+                technicalExpertise: 0,
+                experienceTrackRecord: 0,
+                governanceManagement: 0,
+                riskManagementStrategy: 0,
+                partnershipsCollaborations: 0,
+              };
 
-                newFieldDefaults[field] = assignedPoints;
-                remainingPoints -= assignedPoints;
-              }
+              // Distribute remaining points intelligently across new fields
+              if (remainingPoints > 0) {
+                // Define max points for each new field
+                const fieldMaxPoints: { [key: string]: number } = {
+                  scalabilityReplicability: 5,
+                  environmentalImpact: 5,
+                  timeFrameFeasibility: 5,
+                  gcaAlignment: 5,
+                  humanResourcesInfrastructure: 2,
+                  technicalExpertise: 2,
+                  experienceTrackRecord: 2,
+                  governanceManagement: 2,
+                  riskManagementStrategy: 2,
+                  partnershipsCollaborations: 2,
+                };
 
-              // If there are still remaining points, distribute them one by one
-              while (remainingPoints > 0) {
-                let distributed = false;
+                // Distribute points proportionally up to max for each field
+                const totalMaxNewPoints = Object.values(fieldMaxPoints).reduce((sum, max) => sum + max, 0);
+
                 for (const [field, maxPoints] of Object.entries(fieldMaxPoints)) {
-                  if (newFieldDefaults[field] < maxPoints && remainingPoints > 0) {
-                    newFieldDefaults[field]++;
-                    remainingPoints--;
-                    distributed = true;
-                  }
+                  if (remainingPoints <= 0) break;
+
+                  // Calculate proportional share, but cap at field's max and remaining points
+                  const proportionalPoints = Math.floor((remainingPoints * maxPoints) / totalMaxNewPoints);
+                  const assignedPoints = Math.min(proportionalPoints, maxPoints, remainingPoints);
+
+                  newFieldDefaults[field] = assignedPoints;
+                  remainingPoints -= assignedPoints;
                 }
-                if (!distributed) break; // Can't distribute more points
+
+                // If there are still remaining points, distribute them one by one
+                while (remainingPoints > 0) {
+                  let distributed = false;
+                  for (const [field, maxPoints] of Object.entries(fieldMaxPoints)) {
+                    if (newFieldDefaults[field] < maxPoints && remainingPoints > 0) {
+                      newFieldDefaults[field]++;
+                      remainingPoints--;
+                      distributed = true;
+                    }
+                  }
+                  if (!distributed) break; // Can't distribute more points
+                }
               }
+
+              // Set the form state with properly distributed scores
+              setFormState({
+                // Innovation and Climate Adaptation Focus
+                climateAdaptationBenefits: baseScores.climateAdaptationBenefits,
+                innovativeness: baseScores.innovativeness,
+                scalabilityReplicability: newFieldDefaults.scalabilityReplicability,
+                environmentalImpact: newFieldDefaults.environmentalImpact,
+                socioeconomicGenderImpact: baseScores.socioeconomicGenderImpact,
+
+                // Business Viability
+                entrepreneurshipManagement: baseScores.entrepreneurshipManagement,
+                marketPotentialDemand: baseScores.marketPotentialDemand,
+                financialManagement: baseScores.financialManagement,
+                timeFrameFeasibility: newFieldDefaults.timeFrameFeasibility,
+
+                // Sectoral and Strategic Alignment
+                foodSecurityRelevance: baseScores.foodSecurityRelevance,
+                gcaAlignment: newFieldDefaults.gcaAlignment,
+
+                // Organizational Capacity and Partnerships
+                humanResourcesInfrastructure: newFieldDefaults.humanResourcesInfrastructure,
+                technicalExpertise: newFieldDefaults.technicalExpertise,
+                experienceTrackRecord: newFieldDefaults.experienceTrackRecord,
+                governanceManagement: newFieldDefaults.governanceManagement,
+                genderInclusionManagement: baseScores.genderInclusionManagement,
+                riskManagementStrategy: newFieldDefaults.riskManagementStrategy,
+                partnershipsCollaborations: newFieldDefaults.partnershipsCollaborations,
+
+                // Notes
+                evaluationNotes: result.data.eligibility.evaluationNotes || "",
+              });
             }
-
-            // Set the form state with properly distributed scores
-            setFormState({
-              // Innovation and Climate Adaptation Focus
-              climateAdaptationBenefits: baseScores.climateAdaptationBenefits,
-              innovativeness: baseScores.innovativeness,
-              scalabilityReplicability: newFieldDefaults.scalabilityReplicability,
-              environmentalImpact: newFieldDefaults.environmentalImpact,
-              socioeconomicGenderImpact: baseScores.socioeconomicGenderImpact,
-
-              // Business Viability
-              entrepreneurshipManagement: baseScores.entrepreneurshipManagement,
-              marketPotentialDemand: baseScores.marketPotentialDemand,
-              financialManagement: baseScores.financialManagement,
-              timeFrameFeasibility: newFieldDefaults.timeFrameFeasibility,
-
-              // Sectoral and Strategic Alignment
-              foodSecurityRelevance: baseScores.foodSecurityRelevance,
-              gcaAlignment: newFieldDefaults.gcaAlignment,
-
-              // Organizational Capacity and Partnerships
-              humanResourcesInfrastructure: newFieldDefaults.humanResourcesInfrastructure,
-              technicalExpertise: newFieldDefaults.technicalExpertise,
-              experienceTrackRecord: newFieldDefaults.experienceTrackRecord,
-              governanceManagement: newFieldDefaults.governanceManagement,
-              genderInclusionManagement: baseScores.genderInclusionManagement,
-              riskManagementStrategy: newFieldDefaults.riskManagementStrategy,
-              partnershipsCollaborations: newFieldDefaults.partnershipsCollaborations,
-
-              // Notes
-              evaluationNotes: result.data.eligibility.evaluationNotes || "",
-            });
           }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -399,7 +405,7 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
     );
   }
 
-  const mandatoryEligible = application.eligibility ? (
+  const mandatoryEligible = application.eligibility?.mandatoryCriteria ? (
     application.eligibility.mandatoryCriteria.ageEligible &&
     application.eligibility.mandatoryCriteria.registrationEligible &&
     application.eligibility.mandatoryCriteria.revenueEligible &&
@@ -495,8 +501,8 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
                 <div className="text-center space-y-4">
                   <p className="text-4xl font-bold">{totalScore} / {TOTAL_MAX_SCORE}</p>
                   <div className={`p-3 rounded-md text-center font-medium text-sm ${totalScore >= PASS_THRESHOLD
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
                     }`}>
                     {totalScore >= PASS_THRESHOLD ? "PASS" : "FAIL"}
                     <span className="text-xs block mt-1">
@@ -520,7 +526,7 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
                 <CardDescription>Based on initial automatic check.</CardDescription>
               </CardHeader>
               <CardContent>
-                {application.eligibility ? (
+                {application.eligibility?.mandatoryCriteria ? (
                   <ul className="space-y-2 text-sm">
                     <li className="flex justify-between items-center">
                       <span>Age (18-35)</span>
@@ -554,7 +560,7 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
                     </li>
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground text-sm text-center py-4">Initial eligibility data not found.</p>
+                  <p className="text-muted-foreground text-sm text-center py-4">Eligibility criteria not available for this application type.</p>
                 )}
                 <div className={`mt-4 p-3 rounded-md text-center font-medium text-sm ${mandatoryEligible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                   Mandatory Criteria: {mandatoryEligible ? "PASSED" : "FAILED"}

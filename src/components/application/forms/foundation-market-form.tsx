@@ -71,7 +71,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="text-slate-700">Your Pricing Strategy</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
                                             <SelectValue placeholder="Select pricing comparison" />
@@ -131,7 +131,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="text-slate-700">Uniqueness Level</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
                                             <SelectValue placeholder="Select differentiation level" />
@@ -188,7 +188,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="text-slate-700">Competition Intensity</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
                                             <SelectValue placeholder="Select threat level" />
@@ -245,7 +245,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel className="text-slate-700">Entry Barrier</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
                                             <SelectValue placeholder="Select ease of entry" />

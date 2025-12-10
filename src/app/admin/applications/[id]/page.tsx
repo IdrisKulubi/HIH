@@ -362,6 +362,9 @@ export default function ApplicationDetail({
     }
 
     const s = elig.evaluationScores;
+    if (!s) {
+      return { innovation: 0, viability: 0, alignment: 0, org: 0 };
+    }
 
     // Base mapping (legacy -> new fields)
     const base = {
@@ -481,7 +484,7 @@ export default function ApplicationDetail({
                   variant="outline"
                   className={`${getStatusColor(application.status)} font-medium px-2.5 py-0.5 rounded-full text-xs`}
                 >
-                  {application.status.replace("_", " ").toUpperCase()}
+                  {application.status?.replace("_", " ").toUpperCase() || "UNKNOWN"}
                 </Badge>
               </div>
               <p className="text-gray-500 text-lg mt-1 font-medium">
@@ -585,7 +588,7 @@ export default function ApplicationDetail({
             <Tabs defaultValue="summary" className="w-full">
               <div className="border-b border-gray-200 mb-6">
                 <TabsList className="h-auto w-full justify-start bg-transparent p-0 gap-6 overflow-x-auto">
-                  {["summary", "personal", "business", "adaptation", "financial", "documents"].map((tab) => (
+                  {["summary", "personal", "business", "financial", "documents"].map((tab) => (
                     <TabsTrigger
                       key={tab}
                       value={tab}
@@ -644,7 +647,7 @@ export default function ApplicationDetail({
                         <div>
                           <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
                           <p className="font-medium text-gray-900 capitalize">
-                            {application.status.replace("_", " ")}
+                            {application.status?.replace("_", " ") || "Unknown"}
                           </p>
                         </div>
                       </div>
@@ -724,10 +727,10 @@ export default function ApplicationDetail({
                           Highest Education
                         </h3>
                         <p className="font-medium text-gray-900 capitalize">
-                          {application.applicant.highestEducation.replace(
+                          {application.applicant.highestEducation?.replace(
                             /_/g,
                             " "
-                          )}
+                          ) || "N/A"}
                         </p>
                       </div>
                     </div>
@@ -798,106 +801,37 @@ export default function ApplicationDetail({
                         </h3>
                         <p className="font-medium text-gray-900">{application.business.registeredCountries}</p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Revenue (Last 2 Years)
-                        </h3>
-                        <p className="font-medium text-gray-900">
-                          $
-                          {application.business.revenueLastTwoYears?.toLocaleString() ??
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Target Customers
-                        </h3>
-                        <p className="font-medium text-gray-900">
-                          {application.business.targetCustomers
-                            .join(", ")
-                            .replace(/_/g, " ") || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Unit Price</h3>
-                        <p className="font-medium text-gray-900">
-                          $
-                          {application.business.unitPrice?.toLocaleString() ??
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Customers (Last 6 Mo)
-                        </h3>
-                        <p className="font-medium text-gray-900">
-                          {application.business.customerCountLastSixMonths ??
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Production Capacity (Last 6 Mo)
-                        </h3>
-                        <p className="font-medium text-gray-900">
-                          {application.business
-                            .productionCapacityLastSixMonths || "N/A"}
-                        </p>
-                      </div>
                     </div>
                     <div className="mt-8 border-t border-gray-100 pt-6">
                       <h3 className="text-base font-semibold text-gray-900 mb-4">Employees</h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Total Full-Time</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeTotal}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.fullTimeTotal ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Male</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeMale}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.fullTimeMale ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Female</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeFemale}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.fullTimeFemale ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Youth</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeYouth}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.fullTimeYouth ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time PWD</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.fullTimePwd}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.fullTimePwd ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Male</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.partTimeMale}</p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.partTimeMale ?? "N/A"}</p>
                         </div>
                         <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Female</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees.partTimeFemale}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-8 border-t border-gray-100 pt-6">
-                      <h3 className="text-base font-semibold text-gray-900 mb-4">
-                        Challenges & Support Needed
-                      </h3>
-                      <div className="space-y-6">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">
-                            Current Challenges
-                          </h4>
-                          <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                            {application.business.currentChallenges || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">
-                            Support Needed
-                          </h4>
-                          <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                            {application.business.supportNeeded || "N/A"}
-                          </p>
+                          <p className="font-medium text-gray-900">{application.business.employees?.partTimeFemale ?? "N/A"}</p>
                         </div>
                       </div>
                     </div>
@@ -958,43 +892,6 @@ export default function ApplicationDetail({
                 </div>
               </TabsContent>
 
-              <TabsContent value="adaptation" className="mt-0">
-                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                  <div className="mb-8">
-                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Climate Adaptation Solution</h2>
-                  </div>
-                  <div>
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Contribution to Climate Adaptation
-                        </h3>
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                          {application.business.climateAdaptationContribution ||
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Product/Service Description
-                        </h3>
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                          {application.business.productServiceDescription ||
-                            "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Impact of Climate Extremes
-                        </h3>
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                          {application.business.climateExtremeImpact || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
 
               <TabsContent value="financial" className="mt-0">
                 <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -1088,16 +985,6 @@ export default function ApplicationDetail({
                         No external funding information provided.
                       </p>
                     )}
-                    <div className="mt-8 border-t border-gray-100 pt-6">
-                      <h3 className="text-base font-semibold text-gray-900 mb-2">
-                        Revenue (Last 2 Years)
-                      </h3>
-                      <p className="font-medium text-gray-900 text-lg">
-                        $
-                        {application.business.revenueLastTwoYears?.toLocaleString() ??
-                          "N/A"}
-                      </p>
-                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -1130,14 +1017,7 @@ export default function ApplicationDetail({
                             icon: "📊",
                             color: "blue"
                           },
-                          {
-                            //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            url: (application.business as any).cr12Url,
-                            name: "CR12 Certificate",
-                            type: "Legal Document",
-                            icon: "📋",
-                            color: "purple"
-                          },
+
                           {
                             //eslint-disable-next-line @typescript-eslint/no-explicit-any
                             url: (application.business as any).auditedAccountsUrl,
@@ -1154,38 +1034,10 @@ export default function ApplicationDetail({
                             icon: "🏛️",
                             color: "indigo"
                           },
-                          {
-                            //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            url: (application.business as any).businessPlanUrl,
-                            name: "Business Plan",
-                            type: "Strategic Document",
-                            icon: "📈",
-                            color: "pink"
-                          },
-                          {
-                            //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            url: (application.business as any).financialStatementsUrl,
-                            name: "Financial Statements",
-                            type: "Financial Document",
-                            icon: "💵",
-                            color: "green"
-                          },
-                          {
-                            //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            url: (application.business as any).pitchDeckUrl,
-                            name: "Pitch Deck",
-                            type: "Presentation",
-                            icon: "🎯",
-                            color: "orange"
-                          },
-                          {
-                            //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            url: (application.business as any).additionalDocumentsUrl,
-                            name: "Additional Documents",
-                            type: "Supporting Documents",
-                            icon: "📁",
-                            color: "gray"
-                          }
+
+
+
+
                         ];
 
                         const uploadedDocs = documents.filter(doc => doc.url);
@@ -1367,7 +1219,7 @@ export default function ApplicationDetail({
                       <ul className="space-y-2">
                         <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
                           <span className="text-sm text-gray-700">Age (18-35)</span>
-                          {application.eligibility.mandatoryCriteria.ageEligible ? (
+                          {application.eligibility?.mandatoryCriteria?.ageEligible ? (
                             <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" weight="fill" />
@@ -1375,7 +1227,7 @@ export default function ApplicationDetail({
                         </li>
                         <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
                           <span className="text-sm text-gray-700">Business Registration</span>
-                          {application.eligibility.mandatoryCriteria.registrationEligible ? (
+                          {application.eligibility?.mandatoryCriteria?.registrationEligible ? (
                             <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" weight="fill" />
@@ -1383,7 +1235,7 @@ export default function ApplicationDetail({
                         </li>
                         <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
                           <span className="text-sm text-gray-700">Revenue Generation</span>
-                          {application.eligibility.mandatoryCriteria.revenueEligible ? (
+                          {application.eligibility?.mandatoryCriteria?.revenueEligible ? (
                             <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" weight="fill" />
@@ -1391,7 +1243,7 @@ export default function ApplicationDetail({
                         </li>
                         <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
                           <span className="text-sm text-gray-700">Business Plan</span>
-                          {application.eligibility.mandatoryCriteria.businessPlanEligible ? (
+                          {application.eligibility?.mandatoryCriteria?.businessPlanEligible ? (
                             <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" weight="fill" />
@@ -1399,7 +1251,7 @@ export default function ApplicationDetail({
                         </li>
                         <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
                           <span className="text-sm text-gray-700">Climate Impact</span>
-                          {application.eligibility.mandatoryCriteria.impactEligible ? (
+                          {application.eligibility?.mandatoryCriteria?.impactEligible ? (
                             <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" weight="fill" />
@@ -1502,6 +1354,5 @@ export default function ApplicationDetail({
         </div>
       </div>
     </div>
-
   );
 }

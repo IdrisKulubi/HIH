@@ -124,6 +124,18 @@ export async function submitFoundationApplication(
                 gender: validatedData.applicant.gender,
                 phoneNumber: validatedData.applicant.phoneNumber,
                 email: validatedData.applicant.email,
+            }).onConflictDoUpdate({
+                target: applicants.userId,
+                set: {
+                    firstName: validatedData.applicant.firstName,
+                    lastName: validatedData.applicant.lastName,
+                    idPassportNumber: validatedData.applicant.idPassportNumber,
+                    dob: validatedData.applicant.dob,
+                    gender: validatedData.applicant.gender,
+                    phoneNumber: validatedData.applicant.phoneNumber,
+                    email: validatedData.applicant.email,
+                    updatedAt: new Date(),
+                },
             }).returning();
 
             const [business] = await tx.insert(businesses).values({
@@ -304,6 +316,18 @@ export async function submitAccelerationApplication(
                 gender: validatedData.applicant.gender,
                 phoneNumber: validatedData.applicant.phoneNumber,
                 email: validatedData.applicant.email,
+            }).onConflictDoUpdate({
+                target: applicants.userId,
+                set: {
+                    firstName: validatedData.applicant.firstName,
+                    lastName: validatedData.applicant.lastName,
+                    idPassportNumber: validatedData.applicant.idPassportNumber,
+                    dob: validatedData.applicant.dob,
+                    gender: validatedData.applicant.gender,
+                    phoneNumber: validatedData.applicant.phoneNumber,
+                    email: validatedData.applicant.email,
+                    updatedAt: new Date(),
+                },
             }).returning();
 
             const [business] = await tx.insert(businesses).values({

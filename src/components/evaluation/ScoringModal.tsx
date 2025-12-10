@@ -55,7 +55,7 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Additional Information", value: business.additionalInformation || "Not provided" }
           ]
         };
-      
+
       case 'marketPotentialDemand':
         return {
           title: "Market & Customer Information",
@@ -68,7 +68,7 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Production Capacity", value: business.productionCapacityLastSixMonths }
           ]
         };
-      
+
       case 'financialManagement':
         return {
           title: "Financial Information",
@@ -81,20 +81,20 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Funding History", value: business.funding?.length ? `${business.funding.length} funding round(s)` : "No external funding" }
           ]
         };
-      
+
       case 'entrepreneurshipManagement':
         return {
           title: "Management & Leadership Information",
           data: [
-            { label: "Founder", value: `${applicant.firstName} ${applicant.lastName}` },
-            { label: "Education Level", value: applicant.highestEducation.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) },
-            { label: "Age", value: `${new Date().getFullYear() - new Date(applicant.dateOfBirth).getFullYear()} years` },
-            { label: "Business Experience", value: `${Math.floor((new Date().getTime() - new Date(business.startDate).getTime()) / (1000 * 60 * 60 * 24 * 365))} years running this business` },
-            { label: "Team Size", value: `${business.employees.fullTimeTotal} full-time employees` },
-            { label: "Business Vision", value: business.description }
+            { label: "Founder", value: `${applicant?.firstName || 'N/A'} ${applicant?.lastName || ''}` },
+            { label: "Education Level", value: applicant?.highestEducation?.replace(/_/g, ' ')?.replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'N/A' },
+            { label: "Age", value: applicant?.dateOfBirth ? `${new Date().getFullYear() - new Date(applicant.dateOfBirth).getFullYear()} years` : 'N/A' },
+            { label: "Business Experience", value: business?.startDate ? `${Math.floor((new Date().getTime() - new Date(business.startDate).getTime()) / (1000 * 60 * 60 * 24 * 365))} years running this business` : 'N/A' },
+            { label: "Team Size", value: business?.employees?.fullTimeTotal ? `${business.employees.fullTimeTotal} full-time employees` : 'N/A' },
+            { label: "Business Vision", value: business?.description || 'N/A' }
           ]
         };
-      
+
       case 'climateAdaptationBenefits':
         return {
           title: "Climate Adaptation Information",
@@ -105,7 +105,7 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Problem Solved", value: business.problemSolved }
           ]
         };
-      
+
       case 'innovativeness':
         return {
           title: "Innovation Information",
@@ -116,16 +116,16 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Business Age", value: `Started ${new Date(business.startDate).toLocaleDateString()}` }
           ]
         };
-      
+
       default:
         return {
           title: "General Business Information",
           data: [
-            { label: "Business Name", value: business.name },
-            { label: "Description", value: business.description },
-            { label: "Location", value: `${business.city}, ${business.country}` },
-            { label: "Current Challenges", value: business.currentChallenges },
-            { label: "Support Needed", value: business.supportNeeded }
+            { label: "Business Name", value: business?.name || 'N/A' },
+            { label: "Description", value: business?.description || 'N/A' },
+            { label: "Location", value: `${business?.city || 'N/A'}, ${business?.country || 'N/A'}` },
+            { label: "Current Challenges", value: business?.currentChallenges || 'N/A' },
+            { label: "Support Needed", value: business?.supportNeeded || 'N/A' }
           ]
         };
     }
@@ -178,7 +178,7 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             </CardContent>
           </Card>
         )}
-        
+
         <RadioGroup
           value={currentScore.toString()}
           onValueChange={(value) => onScoreChange(parseInt(value))}
@@ -279,7 +279,7 @@ export function ScoringModal({
             <TabsTrigger value="scoring">Scoring</TabsTrigger>
             <TabsTrigger value="overview">Application Overview</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="scoring" className="py-6 space-y-6">
             {section.criteria.map((criterion) => (
               <CriterionScorer
@@ -291,7 +291,7 @@ export function ScoringModal({
               />
             ))}
           </TabsContent>
-          
+
           <TabsContent value="overview" className="py-6">
             {applicationData && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -308,20 +308,20 @@ export function ScoringModal({
                     <div><strong>Employees:</strong> {applicationData.business.employees.fullTimeTotal} full-time</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Founder Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div><strong>Name:</strong> {applicationData.applicant.firstName} {applicationData.applicant.lastName}</div>
-                    <div><strong>Education:</strong> {applicationData.applicant.highestEducation.replace(/_/g, ' ')}</div>
-                    <div><strong>Age:</strong> {new Date().getFullYear() - new Date(applicationData.applicant.dateOfBirth).getFullYear()} years</div>
-                    <div><strong>Citizenship:</strong> {applicationData.applicant.citizenship}</div>
-                    <div><strong>Residence:</strong> {applicationData.applicant.countryOfResidence}</div>
+                    <div><strong>Name:</strong> {applicationData.applicant?.firstName || 'N/A'} {applicationData.applicant?.lastName || ''}</div>
+                    <div><strong>Education:</strong> {applicationData.applicant?.highestEducation?.replace(/_/g, ' ') || 'N/A'}</div>
+                    <div><strong>Age:</strong> {applicationData.applicant?.dateOfBirth ? `${new Date().getFullYear() - new Date(applicationData.applicant.dateOfBirth).getFullYear()} years` : 'N/A'}</div>
+                    <div><strong>Citizenship:</strong> {applicationData.applicant?.citizenship || 'N/A'}</div>
+                    <div><strong>Residence:</strong> {applicationData.applicant?.countryOfResidence || 'N/A'}</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card className="md:col-span-2">
                   <CardHeader>
                     <CardTitle className="text-lg">Business Description</CardTitle>
@@ -343,8 +343,8 @@ export function ScoringModal({
               <Circle className="h-5 w-5 text-muted-foreground" />
             )}
             <span className="text-sm text-muted-foreground">
-              {completedCriteria === section.criteria.length 
-                ? "All criteria scored" 
+              {completedCriteria === section.criteria.length
+                ? "All criteria scored"
                 : `${section.criteria.length - completedCriteria} criteria remaining`
               }
             </span>

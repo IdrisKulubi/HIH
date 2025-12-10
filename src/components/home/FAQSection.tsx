@@ -134,7 +134,7 @@ export function FAQSection() {
         </div>
 
         {/* Bottom CTA */}
-        <ScrollReveal delay={0.5}>
+        {/* <ScrollReveal delay={0.5}>
           <div className="text-center mt-16">
             <p className="text-slate-600 mb-8 max-w-2xl mx-auto">
               Still have questions? Our team is here to help you navigate the application process.
@@ -164,7 +164,7 @@ export function FAQSection() {
               </motion.a>
             </div>
           </div>
-        </ScrollReveal>
+        </ScrollReveal> */}
       </div>
 
       {/* Support Modal */}

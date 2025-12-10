@@ -146,8 +146,11 @@ export function FoundationApplicationForm() {
             },
             marketPotential: {
                 relativePricing: undefined,
+                relativePricingReason: "",
                 productDifferentiation: undefined,
+                productDifferentiationDescription: "",
                 threatOfSubstitutes: undefined,
+                competitorOverview: "",
                 easeOfMarketEntry: undefined,
             },
             socialImpact: {
