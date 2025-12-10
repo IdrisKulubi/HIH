@@ -12,26 +12,27 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { 
-  updateApplicationStatus, 
-  bulkUpdateApplicationStatus, 
-  shortlistApplications, 
+import {
+  updateApplicationStatus,
+  bulkUpdateApplicationStatus,
+  shortlistApplications,
   moveToScoringPhase,
-  type ApplicationStatus 
+  type ApplicationStatus
 } from "@/lib/actions/application-status";
-import { 
-  CheckCircle, 
-  Clock, 
-  Users, 
-  Trophy, 
-  Star, 
-  X, 
+import {
+  CheckCircle,
+  Clock,
+  Users,
+  Trophy,
+  Star,
+  XCircle,
   ArrowRight,
-  LoaderCircle,
+  Spinner,
   FileText,
   Target,
-  Search
-} from "lucide-react";
+  MagnifyingGlass,
+  Funnel
+} from "@phosphor-icons/react";
 
 interface Application {
   id: number;
@@ -54,13 +55,13 @@ interface ApplicationStatusManagerProps {
 const statusConfig = {
   draft: { label: "Draft", color: "bg-gray-100 text-gray-800", icon: FileText },
   submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800", icon: CheckCircle },
-  under_review: { label: "Under Review", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  under_review: { label: "Under Review", color: "bg-amber-100 text-amber-800", icon: Clock },
   shortlisted: { label: "Shortlisted", color: "bg-green-100 text-green-800", icon: Star },
   scoring_phase: { label: "Scoring Phase", color: "bg-purple-100 text-purple-800", icon: Target },
   dragons_den: { label: "Dragon's Den", color: "bg-orange-100 text-orange-800", icon: Trophy },
   finalist: { label: "Finalist", color: "bg-emerald-100 text-emerald-800", icon: Trophy },
   approved: { label: "Approved", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-800", icon: X }
+  rejected: { label: "Rejected", color: "bg-red-100 text-red-800", icon: XCircle }
 };
 
 export function ApplicationStatusManager({ applications }: ApplicationStatusManagerProps) {
@@ -191,8 +192,8 @@ export function ApplicationStatusManager({ applications }: ApplicationStatusMana
     const config = statusConfig[status];
     const Icon = config.icon;
     return (
-      <Badge className={`${config.color} border-0`}>
-        <Icon className="h-3 w-3 mr-1" />
+      <Badge className={`${config.color} border-0 px-2 py-0.5 rounded-full font-normal`}>
+        <Icon className="h-3.5 w-3.5 mr-1.5" />
         {config.label}
       </Badge>
     );
@@ -202,20 +203,21 @@ export function ApplicationStatusManager({ applications }: ApplicationStatusMana
     <div className="space-y-6">
       {/* Bulk Actions */}
       {selectedApplications.length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg text-blue-900">
+        <Card className="border-0 shadow-md bg-white rounded-xl ring-1 ring-black/5">
+          <CardHeader className="pb-3 border-b border-gray-100">
+            <CardTitle className="text-lg text-gray-900 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-blue-600" weight="fill" />
               Bulk Actions ({selectedApplications.length} selected)
             </CardTitle>
-            <CardDescription className="text-blue-700">
+            <CardDescription className="text-gray-500">
               Perform actions on multiple applications at once
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <div className="flex flex-wrap gap-3">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                  <Button variant="outline" className="border-gray-200 text-gray-700 hover:bg-gray-50">
                     <ArrowRight className="h-4 w-4 mr-2" />
                     Change Status
                   </Button>
@@ -262,37 +264,37 @@ export function ApplicationStatusManager({ applications }: ApplicationStatusMana
                       Cancel
                     </Button>
                     <Button onClick={handleBulkStatusUpdate} disabled={isPending || !bulkStatus}>
-                      {isPending && <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />}
+                      {isPending && <Spinner className="h-4 w-4 mr-2 animate-spin" />}
                       Update Status
                     </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
 
-              <Button 
+              <Button
                 onClick={handleShortlistSelected}
                 disabled={isPending}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 text-white border-0"
               >
-                {isPending && <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />}
-                <Star className="h-4 w-4 mr-2" />
+                {isPending && <Spinner className="h-4 w-4 mr-2 animate-spin" />}
+                <Star className="h-4 w-4 mr-2" weight="fill" />
                 Shortlist Selected
               </Button>
 
-              <Button 
+              <Button
                 onClick={handleMoveToScoring}
                 disabled={isPending}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="bg-purple-600 hover:bg-purple-700 text-white border-0"
               >
-                {isPending && <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />}
-                <Target className="h-4 w-4 mr-2" />
+                {isPending && <Spinner className="h-4 w-4 mr-2 animate-spin" />}
+                <Target className="h-4 w-4 mr-2" weight="fill" />
                 Move to Scoring
               </Button>
 
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setSelectedApplications([])}
-                className="border-gray-300"
+                className="border-gray-200 text-gray-500 hover:text-gray-900"
               >
                 Clear Selection
               </Button>
@@ -302,105 +304,105 @@ export function ApplicationStatusManager({ applications }: ApplicationStatusMana
       )}
 
       {/* Applications List */}
-      <Card>
-        <CardHeader>
+      <Card className="border-0 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] bg-white rounded-xl">
+        <CardHeader className="border-b border-gray-100/50 pb-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <CardTitle>
-                Applications ({filteredApplications.length}
-                {applications.length !== filteredApplications.length && (
-                  <span className="text-gray-500"> / {applications.length}</span>
-                )})
+              <CardTitle className="flex items-center gap-2">
+                Applications
+                <span className="text-gray-400 font-normal text-sm ml-1">
+                  ({filteredApplications.length}
+                  {applications.length !== filteredApplications.length && (
+                    <span> / {applications.length}</span>
+                  )})
+                </span>
               </CardTitle>
               <CardDescription>
                 Manage application statuses and progression
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
               <Checkbox
                 checked={
                   filteredApplications.length > 0 &&
                   filteredApplications.every(app => selectedApplications.includes(app.id))
                 }
                 onCheckedChange={handleSelectAll}
+                className="data-[state=checked]:bg-blue-600 border-gray-300"
               />
-              <Label className="text-sm text-gray-600">Select All</Label>
+              <Label className="text-xs font-medium text-gray-600 cursor-pointer">Select All</Label>
             </div>
           </div>
           <div className="mt-4">
-            <label className="text-sm font-medium mb-2 block text-gray-700">
-              Search applications
-            </label>
-            <div className="flex gap-2">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by business, applicant name, email, or ID"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              {query && (
-                <Button variant="outline" onClick={() => setQuery("")}>
-                  Clear
-                </Button>
-              )}
+            <div className="relative w-full max-w-md">
+              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by business, applicant name, email, or ID"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-9 h-10 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
+              />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="p-0">
+          <div className="divide-y divide-gray-100">
             {applications.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-12 text-gray-500">
                 <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No applications found</p>
               </div>
             ) : filteredApplications.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <div className="text-center py-12 text-gray-500">
+                <Funnel className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No applications match your search</p>
               </div>
             ) : (
               filteredApplications.map((application) => (
                 <div
                   key={application.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  className={`flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors ${selectedApplications.includes(application.id) ? "bg-blue-50/30" : ""
+                    }`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-1">
                     <Checkbox
                       checked={selectedApplications.includes(application.id)}
                       onCheckedChange={(checked) => handleSelectApplication(application.id, checked as boolean)}
+                      className="mt-1 data-[state=checked]:bg-blue-600 border-gray-300"
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-medium text-gray-900">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
+                        <h3 className="font-semibold text-gray-900 truncate">
                           {application.business.name}
                         </h3>
                         {getStatusBadge(application.status)}
                       </div>
-                      <p className="text-sm text-gray-600">
-                        {application.business.applicant.firstName} {application.business.applicant.lastName} • {application.business.applicant.email}
-                      </p>
-                      <p className="text-xs text-gray-500">
+                      <div className="flex items-center text-sm text-gray-500 gap-2 truncate">
+                        <span className="font-medium text-gray-700">
+                          {application.business.applicant.firstName} {application.business.applicant.lastName}
+                        </span>
+                        <span className="text-gray-300">•</span>
+                        <span className="truncate">{application.business.applicant.email}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">
                         Submitted: {new Date(application.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-4">
                     <Select
                       value={application.status}
                       onValueChange={(value) => handleSingleStatusUpdate(application.id, value as ApplicationStatus)}
                       disabled={isPending}
                     >
-                      <SelectTrigger className="w-40">
+                      <SelectTrigger className="w-[180px] h-9 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {Object.entries(statusConfig).map(([status, config]) => (
                           <SelectItem key={status} value={status}>
                             <div className="flex items-center gap-2">
-                              <config.icon className="h-4 w-4" />
+                              <config.icon className="h-3.5 w-3.5" />
                               {config.label}
                             </div>
                           </SelectItem>
@@ -416,4 +418,4 @@ export function ApplicationStatusManager({ applications }: ApplicationStatusMana
       </Card>
     </div>
   );
-} 
+}

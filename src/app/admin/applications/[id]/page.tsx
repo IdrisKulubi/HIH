@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -24,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { getApplicationById } from "@/lib/actions";
-import { downloadApplicationDOCX } from "@/lib/actions/export";
+import { downloadEnhancedApplicationDOCX } from "@/lib/actions/enhanced-export";
 import { updateApplicationStatus } from "@/lib/actions/application-status";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -33,11 +26,12 @@ import {
   ArrowLeft,
   CheckCircle,
   XCircle,
-  AlertTriangle,
+  Warning,
   FileText,
-  Download,
-  ExternalLink,
-} from "lucide-react";
+  DownloadSimple,
+  ArrowSquareOut,
+  Spinner,
+} from "@phosphor-icons/react";
 import { TwoTierReviewPanel } from "@/components/admin/TwoTierReviewPanel";
 
 export default function ApplicationDetail({
@@ -203,13 +197,13 @@ export default function ApplicationDetail({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="container mx-auto py-8 text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-6"></div>
-          <h1 className="text-2xl font-bold text-gray-700 mb-2">
+      <div className="min-h-screen bg-[#F9FAFB]">
+        <div className="container mx-auto py-8 text-center flex flex-col items-center justify-center h-[50vh]">
+          <Spinner className="animate-spin text-blue-600 mb-4 h-8 w-8" />
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">
             Loading Application...
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-500">
             Please wait while we fetch the application details.
           </p>
         </div>
@@ -219,20 +213,20 @@ export default function ApplicationDetail({
 
   if (error || !application) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="container mx-auto py-8 text-center">
-          <div className="bg-gradient-to-br from-red-100 to-red-200 rounded-full p-6 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-            <AlertTriangle className="h-10 w-10 text-red-600" />
+      <div className="min-h-screen bg-[#F9FAFB]">
+        <div className="container mx-auto py-8 text-center flex flex-col items-center justify-center h-[50vh]">
+          <div className="bg-red-50 rounded-full p-4 mb-4">
+            <Warning className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-red-600 mb-2">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">
             Error Fetching Application
           </h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-500 mb-6">
             {error || "An unexpected error occurred."}
           </p>
           <Button
             asChild
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            variant="outline"
           >
             <Link href="/admin/applications">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -251,15 +245,15 @@ export default function ApplicationDetail({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "submitted":
-        return "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-300";
+        return "bg-blue-50 text-blue-700 border-blue-200";
       case "under_review":
-        return "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300";
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "approved":
-        return "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border border-green-300";
+        return "bg-green-50 text-green-700 border-green-200";
       case "rejected":
-        return "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300";
+        return "bg-red-50 text-red-700 border-red-200";
       default:
-        return "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border border-gray-300";
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
@@ -267,7 +261,7 @@ export default function ApplicationDetail({
     if (!applicationId) return;
 
     try {
-      const result = await downloadApplicationDOCX(applicationId);
+      const result = await downloadEnhancedApplicationDOCX(applicationId);
       if (result.success && result.data) {
         // Create download link from blob
         const url = URL.createObjectURL(result.data.blob);
@@ -466,55 +460,56 @@ export default function ApplicationDetail({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="container mx-auto py-8 space-y-8">
+    <div className="min-h-screen bg-[#F9FAFB] font-sans">
+      <div className="container mx-auto py-8 space-y-8 max-w-7xl">
         {/* Header */}
-        <div className="flex justify-between items-start">
-          <div className="space-y-2">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="space-y-3">
             <Link
               href="/admin/applications"
-              className="inline-flex items-center text-sm text-gray-600 hover:text-blue-600 transition-colors duration-200 mb-2"
+              className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back to Applications
             </Link>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Application #{application.id}
-              </h1>
-              <p className="text-gray-600 text-lg mt-1">
-                {application.business.name} - {application.applicant.firstName}{" "}
-                {application.applicant.lastName}
-              </p>
-              <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+                  Application #{application.id}
+                </h1>
                 <Badge
-                  className={`${getStatusColor(application.status)} font-medium px-3 py-1`}
+                  variant="outline"
+                  className={`${getStatusColor(application.status)} font-medium px-2.5 py-0.5 rounded-full text-xs`}
                 >
                   {application.status.replace("_", " ").toUpperCase()}
                 </Badge>
-                <span className="text-sm text-gray-500">
-                  Submitted: {formattedSubmittedAt}
-                </span>
               </div>
+              <p className="text-gray-500 text-lg mt-1 font-medium">
+                {application.business.name} • {application.applicant.firstName}{" "}
+                {application.applicant.lastName}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                Submitted on {formattedSubmittedAt}
+              </p>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              className=" text-blue-600 hover:bg-blue-400 hover:border-blue-300"
+              className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-sm"
               onClick={handleDownloadApplication}
               disabled={updating}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Download Application
+              <DownloadSimple className="h-4 w-4 mr-2" />
+              Download
             </Button>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                  className="bg-white border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 shadow-sm"
                   disabled={updating}
                 >
                   <XCircle className="h-4 w-4 mr-2" />
@@ -537,7 +532,7 @@ export default function ApplicationDetail({
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-red-600 hover:bg-red-700"
+                    className="bg-red-600 hover:bg-red-700 text-white"
                     onClick={handleRejectApplication}
                     disabled={updating}
                   >
@@ -550,7 +545,7 @@ export default function ApplicationDetail({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border-0"
                   disabled={updating}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
@@ -560,7 +555,7 @@ export default function ApplicationDetail({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
                     Confirm Approval
                   </AlertDialogTitle>
                   <AlertDialogDescription>
@@ -573,7 +568,7 @@ export default function ApplicationDetail({
                     Cancel
                   </AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={handleApproveApplication}
                     disabled={updating}
                   >
@@ -587,155 +582,148 @@ export default function ApplicationDetail({
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <Tabs defaultValue="summary">
-              <TabsList className="w-full">
-                <TabsTrigger value="summary" className="flex-1">
-                  Summary
-                </TabsTrigger>
-                <TabsTrigger value="personal" className="flex-1">
-                  Personal Info
-                </TabsTrigger>
-                <TabsTrigger value="business" className="flex-1">
-                  Business
-                </TabsTrigger>
-                <TabsTrigger value="adaptation" className="flex-1">
-                  Climate Adaptation
-                </TabsTrigger>
-                <TabsTrigger value="financial" className="flex-1">
-                  Financial
-                </TabsTrigger>
-                <TabsTrigger value="documents" className="flex-1">
-                  Documents
-                </TabsTrigger>
-              </TabsList>
+            <Tabs defaultValue="summary" className="w-full">
+              <div className="border-b border-gray-200 mb-6">
+                <TabsList className="h-auto w-full justify-start bg-transparent p-0 gap-6 overflow-x-auto">
+                  {["summary", "personal", "business", "adaptation", "financial", "documents"].map((tab) => (
+                    <TabsTrigger
+                      key={tab}
+                      value={tab}
+                      className="rounded-none border-b-2 border-transparent bg-transparent px-0 py-3 font-medium text-gray-500 hover:text-gray-700 data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 data-[state=active]:shadow-none transition-all"
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
 
-              <TabsContent value="summary" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Application Summary</CardTitle>
-                    <CardDescription>
+              <TabsContent value="summary" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-900">Application Summary</h2>
+                    <p className="mt-1 text-sm text-gray-500">
                       Overview of the application
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    </p>
+                  </div>
+                  <div>
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                          <h3 className="text-sm font-medium mb-1">
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">
                             Business Name
                           </h3>
-                          <p>{application.business.name}</p>
+                          <p className="font-medium text-gray-900">{application.business.name}</p>
                         </div>
                         <div>
-                          <h3 className="text-sm font-medium mb-1">Location</h3>
-                          <p>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Location</h3>
+                          <p className="font-medium text-gray-900">
                             {application.business.city},{" "}
                             {application.business.country?.toUpperCase() ??
                               "N/A"}
                           </p>
                         </div>
                         <div>
-                          <h3 className="text-sm font-medium mb-1">
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">
                             Applicant
                           </h3>
-                          <p>
+                          <p className="font-medium text-gray-900">
                             {application.applicant.firstName}{" "}
                             {application.applicant.lastName}
                           </p>
                         </div>
                         <div>
-                          <h3 className="text-sm font-medium mb-1">Contact</h3>
-                          <p>{application.applicant.email}</p>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Contact</h3>
+                          <p className="font-medium text-gray-900">{application.applicant.email}</p>
                         </div>
                         <div>
-                          <h3 className="text-sm font-medium mb-1">
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">
                             Submitted
                           </h3>
-                          <p>{formattedSubmittedAt}</p>
+                          <p className="font-medium text-gray-900">{formattedSubmittedAt}</p>
                         </div>
                         <div>
-                          <h3 className="text-sm font-medium mb-1">Status</h3>
-                          <p className="capitalize">
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
+                          <p className="font-medium text-gray-900 capitalize">
                             {application.status.replace("_", " ")}
                           </p>
                         </div>
                       </div>
 
-                      <div className="border-t pt-4 mt-4">
-                        <h3 className="text-lg font-semibold mb-2">
+                      <div className="border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-2">
                           Business Description
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.description ||
                             "No description provided."}
                         </p>
                       </div>
-                      <div className="border-t pt-4 mt-4">
-                        <h3 className="text-lg font-semibold mb-2">
+                      <div className="border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-2">
                           Problem Solved
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.problemSolved ||
                             "Not specified."}
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
-              <TabsContent value="personal" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Personal Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="personal" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Personal Information</h2>
+                  </div>
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <h3 className="text-sm font-medium">First Name</h3>
-                        <p>{application.applicant.firstName}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">First Name</h3>
+                        <p className="font-medium text-gray-900">{application.applicant.firstName}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Last Name</h3>
-                        <p>{application.applicant.lastName}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Last Name</h3>
+                        <p className="font-medium text-gray-900">{application.applicant.lastName}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Email</h3>
-                        <p>{application.applicant.email}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Email</h3>
+                        <p className="font-medium text-gray-900">{application.applicant.email}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Phone</h3>
-                        <p>{application.applicant.phoneNumber}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Phone</h3>
+                        <p className="font-medium text-gray-900">{application.applicant.phoneNumber}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Gender</h3>
-                        <p className="capitalize">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Gender</h3>
+                        <p className="font-medium text-gray-900 capitalize">
                           {application.applicant.gender}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Date of Birth</h3>
-                        <p>{application.applicant.dateOfBirth}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Date of Birth</h3>
+                        <p className="font-medium text-gray-900">{application.applicant.dateOfBirth}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Citizenship</h3>
-                        <p className="capitalize">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Citizenship</h3>
+                        <p className="font-medium text-gray-900 capitalize">
                           {application.applicant.citizenship}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Country of Residence
                         </h3>
-                        <p className="capitalize">
+                        <p className="font-medium text-gray-900 capitalize">
                           {application.applicant.countryOfResidence}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Highest Education
                         </h3>
-                        <p className="capitalize">
+                        <p className="font-medium text-gray-900 capitalize">
                           {application.applicant.highestEducation.replace(
                             /_/g,
                             " "
@@ -743,41 +731,41 @@ export default function ApplicationDetail({
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
-              <TabsContent value="business" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Business Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              <TabsContent value="business" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Business Information</h2>
+                  </div>
+                  <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <h3 className="text-sm text-black font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Business Name
                         </h3>
-                        <p>{application.business.name}</p>
+                        <p className="font-medium text-gray-900">{application.business.name}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm text-black font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Start Date
                         </h3>
-                        <p>{application.business.startDate}</p>
+                        <p className="font-medium text-gray-900">{application.business.startDate}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm text-black font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Registered?
                         </h3>
-                        <p>
+                        <p className="font-medium text-gray-900">
                           {application.business.isRegistered ? "Yes" : "No"}
                         </p>
                       </div>
                       {application.business.isRegistered &&
                         application.business.registrationCertificateUrl && (
                           <div>
-                            <h3 className="text-sm font-medium">
+                            <h3 className="text-sm font-medium text-gray-500 mb-1">
                               Registration Certificate
                             </h3>
                             <Link
@@ -786,156 +774,156 @@ export default function ApplicationDetail({
                               }
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
+                              className="text-blue-600 hover:underline font-medium"
                             >
                               View Certificate
                             </Link>
                           </div>
                         )}
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Country of Operation
                         </h3>
-                        <p className="capitalize">
+                        <p className="font-medium text-gray-900 capitalize">
                           {application.business.country}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">City</h3>
-                        <p>{application.business.city}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">City</h3>
+                        <p className="font-medium text-gray-900">{application.business.city}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Registered Countries (Other)
                         </h3>
-                        <p>{application.business.registeredCountries}</p>
+                        <p className="font-medium text-gray-900">{application.business.registeredCountries}</p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Revenue (Last 2 Years)
                         </h3>
-                        <p>
+                        <p className="font-medium text-gray-900">
                           $
                           {application.business.revenueLastTwoYears?.toLocaleString() ??
                             "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Target Customers
                         </h3>
-                        <p>
+                        <p className="font-medium text-gray-900">
                           {application.business.targetCustomers
                             .join(", ")
                             .replace(/_/g, " ") || "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">Unit Price</h3>
-                        <p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Unit Price</h3>
+                        <p className="font-medium text-gray-900">
                           $
                           {application.business.unitPrice?.toLocaleString() ??
                             "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Customers (Last 6 Mo)
                         </h3>
-                        <p>
+                        <p className="font-medium text-gray-900">
                           {application.business.customerCountLastSixMonths ??
                             "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Production Capacity (Last 6 Mo)
                         </h3>
-                        <p>
+                        <p className="font-medium text-gray-900">
                           {application.business
                             .productionCapacityLastSixMonths || "N/A"}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-6 border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-2">Employees</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    <div className="mt-8 border-t border-gray-100 pt-6">
+                      <h3 className="text-base font-semibold text-gray-900 mb-4">Employees</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         <div>
-                          <h4 className="font-medium">Total Full-Time</h4>
-                          <p>{application.business.employees.fullTimeTotal}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Total Full-Time</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeTotal}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Full-Time Male</h4>
-                          <p>{application.business.employees.fullTimeMale}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Male</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeMale}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Full-Time Female</h4>
-                          <p>{application.business.employees.fullTimeFemale}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Female</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeFemale}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Full-Time Youth</h4>
-                          <p>{application.business.employees.fullTimeYouth}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time Youth</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.fullTimeYouth}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Full-Time PWD</h4>
-                          <p>{application.business.employees.fullTimePwd}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time PWD</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.fullTimePwd}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Part-Time Male</h4>
-                          <p>{application.business.employees.partTimeMale}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Male</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.partTimeMale}</p>
                         </div>
                         <div>
-                          <h4 className="font-medium">Part-Time Female</h4>
-                          <p>{application.business.employees.partTimeFemale}</p>
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Female</h4>
+                          <p className="font-medium text-gray-900">{application.business.employees.partTimeFemale}</p>
                         </div>
                       </div>
                     </div>
-                    <div className="mt-6 border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-2">
+                    <div className="mt-8 border-t border-gray-100 pt-6">
+                      <h3 className="text-base font-semibold text-gray-900 mb-4">
                         Challenges & Support Needed
                       </h3>
-                      <div className="space-y-4">
+                      <div className="space-y-6">
                         <div>
-                          <h4 className="font-medium text-sm">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">
                             Current Challenges
                           </h4>
-                          <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                          <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                             {application.business.currentChallenges || "N/A"}
                           </p>
                         </div>
                         <div>
-                          <h4 className="font-medium text-sm">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">
                             Support Needed
                           </h4>
-                          <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                          <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                             {application.business.supportNeeded || "N/A"}
                           </p>
                         </div>
                       </div>
                     </div>
                     {application.business.additionalInformation && (
-                      <div className="mt-6 border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-2">
+                      <div className="mt-8 border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-2">
                           Additional Information
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.additionalInformation}
                         </p>
                       </div>
                     )}
                     {/* New Detailed Fields from Updated Schema */}
                     {application.business.growthHistory && (
-                      <div className="mt-6 border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-2">History & Growth</h3>
-                        <div className="space-y-4">
+                      <div className="mt-8 border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-4">History & Growth</h3>
+                        <div className="space-y-6">
                           <div>
-                            <h4 className="font-medium text-sm">Growth History</h4>
-                            <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.growthHistory}</p>
+                            <h4 className="text-sm font-medium text-gray-500 mb-1">Growth History</h4>
+                            <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{application.business.growthHistory}</p>
                           </div>
                           {application.business.futureSalesGrowth && (
                             <div>
-                              <h4 className="font-medium text-sm">Future Sales Growth</h4>
-                              <p className="text-muted-foreground whitespace-pre-wrap text-sm">
+                              <h4 className="text-sm font-medium text-gray-500 mb-1">Future Sales Growth</h4>
+                              <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                                 {application.business.futureSalesGrowth.toUpperCase()} - {application.business.futureSalesGrowthReason || ""}
                               </p>
                             </div>
@@ -944,104 +932,104 @@ export default function ApplicationDetail({
                       </div>
                     )}
                     {application.business.businessModelUniquenessDescription && (
-                      <div className="mt-6 border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-2">Strategy & Differentiation</h3>
-                        <div className="space-y-4">
+                      <div className="mt-8 border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-4">Strategy & Differentiation</h3>
+                        <div className="space-y-6">
                           <div>
-                            <h4 className="font-medium text-sm">Uniqueness</h4>
-                            <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.businessModelUniquenessDescription}</p>
+                            <h4 className="text-sm font-medium text-gray-500 mb-1">Uniqueness</h4>
+                            <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{application.business.businessModelUniquenessDescription}</p>
                           </div>
                           {application.business.competitiveAdvantageBarriers && (
                             <div>
-                              <h4 className="font-medium text-sm">Barriers to Entry</h4>
-                              <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.competitiveAdvantageBarriers}</p>
+                              <h4 className="text-sm font-medium text-gray-500 mb-1">Barriers to Entry</h4>
+                              <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{application.business.competitiveAdvantageBarriers}</p>
                             </div>
                           )}
                         </div>
                       </div>
                     )}
                     {application.business.externalFundingDetails && (
-                      <div className="mt-6 border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-2">External Funding Details</h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap text-sm">{application.business.externalFundingDetails}</p>
+                      <div className="mt-8 border-t border-gray-100 pt-6">
+                        <h3 className="text-base font-semibold text-gray-900 mb-2">External Funding Details</h3>
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{application.business.externalFundingDetails}</p>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
-              <TabsContent value="adaptation" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Climate Adaptation Solution</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
+              <TabsContent value="adaptation" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Climate Adaptation Solution</h2>
+                  </div>
+                  <div>
+                    <div className="space-y-6">
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Contribution to Climate Adaptation
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.climateAdaptationContribution ||
                             "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Product/Service Description
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.productServiceDescription ||
                             "N/A"}
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-sm font-medium">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Impact of Climate Extremes
                         </h3>
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {application.business.climateExtremeImpact || "N/A"}
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
-              <TabsContent value="financial" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Financial Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              <TabsContent value="financial" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Financial Information</h2>
+                  </div>
+                  <div>
                     {application.business.funding &&
                       application.business.funding.length > 0 ? (
-                      <div className="space-y-6">
+                      <div className="space-y-8">
                         {application.business.funding.map(
                           (fund, index: number) => (
                             <div
                               key={fund.id}
-                              className={index > 0 ? "border-t pt-6" : ""}
+                              className={index > 0 ? "border-t border-gray-100 pt-8" : ""}
                             >
-                              <h3 className="font-semibold mb-2">
+                              <h3 className="text-base font-semibold text-gray-900 mb-4">
                                 Funding Record {index + 1}
                               </h3>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                  <h4 className="font-medium">
+                                  <h4 className="text-sm font-medium text-gray-500 mb-1">
                                     Has External Funding?
                                   </h4>
-                                  <p>
+                                  <p className="font-medium text-gray-900">
                                     {fund.hasExternalFunding ? "Yes" : "No"}
                                   </p>
                                 </div>
                                 {fund.hasExternalFunding && (
                                   <>
                                     <div>
-                                      <h4 className="font-medium">
+                                      <h4 className="text-sm font-medium text-gray-500 mb-1">
                                         Funding Source
                                       </h4>
-                                      <p className="capitalize">
+                                      <p className="font-medium text-gray-900 capitalize">
                                         {fund.fundingSource === "other"
                                           ? fund.fundingSourceOther
                                           : fund.fundingSource?.replace(
@@ -1051,16 +1039,16 @@ export default function ApplicationDetail({
                                       </p>
                                     </div>
                                     <div>
-                                      <h4 className="font-medium">
+                                      <h4 className="text-sm font-medium text-gray-500 mb-1">
                                         Funder Name
                                       </h4>
-                                      <p>{fund.funderName || "N/A"}</p>
+                                      <p className="font-medium text-gray-900">{fund.funderName || "N/A"}</p>
                                     </div>
                                     <div>
-                                      <h4 className="font-medium">
+                                      <h4 className="text-sm font-medium text-gray-500 mb-1">
                                         Funding Date
                                       </h4>
-                                      <p>
+                                      <p className="font-medium text-gray-900">
                                         {fund.fundingDate
                                           ? new Date(
                                             fund.fundingDate
@@ -1069,20 +1057,20 @@ export default function ApplicationDetail({
                                       </p>
                                     </div>
                                     <div>
-                                      <h4 className="font-medium">
+                                      <h4 className="text-sm font-medium text-gray-500 mb-1">
                                         Amount (USD)
                                       </h4>
-                                      <p>
+                                      <p className="font-medium text-gray-900">
                                         $
                                         {fund.amountUsd?.toLocaleString() ??
                                           "N/A"}
                                       </p>
                                     </div>
                                     <div>
-                                      <h4 className="font-medium">
+                                      <h4 className="text-sm font-medium text-gray-500 mb-1">
                                         Instrument
                                       </h4>
-                                      <p className="capitalize">
+                                      <p className="font-medium text-gray-900 capitalize">
                                         {fund.fundingInstrument === "other"
                                           ? fund.fundingInstrumentOther
                                           : fund.fundingInstrument}
@@ -1096,33 +1084,33 @@ export default function ApplicationDetail({
                         )}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground">
+                      <p className="text-gray-500 italic">
                         No external funding information provided.
                       </p>
                     )}
-                    <div className="mt-6 border-t pt-6">
-                      <h3 className="font-semibold mb-2">
+                    <div className="mt-8 border-t border-gray-100 pt-6">
+                      <h3 className="text-base font-semibold text-gray-900 mb-2">
                         Revenue (Last 2 Years)
                       </h3>
-                      <p>
+                      <p className="font-medium text-gray-900 text-lg">
                         $
                         {application.business.revenueLastTwoYears?.toLocaleString() ??
                           "N/A"}
                       </p>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
-              <TabsContent value="documents" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Documents & Attachments</CardTitle>
-                    <CardDescription>
+              <TabsContent value="documents" className="mt-0">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold tracking-tight text-gray-900">Documents & Attachments</h2>
+                    <p className="mt-1 text-sm text-gray-500">
                       All uploaded documents and supporting materials
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                    </p>
+                  </div>
+                  <div>
                     <div className="space-y-4">
                       {/* Define all possible document types */}
                       {(() => {
@@ -1205,12 +1193,12 @@ export default function ApplicationDetail({
 
                         if (!hasDocuments) {
                           return (
-                            <div className="text-center py-12 bg-gray-50 rounded-lg">
-                              <FileText className="mx-auto h-16 w-16 text-gray-300" />
-                              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                            <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-100">
+                              <FileText className="mx-auto h-12 w-12 text-gray-300" />
+                              <h3 className="mt-4 text-sm font-medium text-gray-900">
                                 No Documents Uploaded
                               </h3>
-                              <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
+                              <p className="mt-2 text-xs text-gray-500 max-w-sm mx-auto">
                                 The applicant has not uploaded any supporting documents for this application.
                               </p>
                             </div>
@@ -1219,90 +1207,53 @@ export default function ApplicationDetail({
 
                         return (
                           <>
-                            <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                              <p className="text-sm text-blue-800">
-                                <span className="font-semibold">{uploadedDocs.length}</span> document{uploadedDocs.length !== 1 ? 's' : ''} uploaded
+                            <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg flex items-center gap-2">
+                              <CheckCircle className="h-5 w-5 text-blue-600" weight="fill" />
+                              <p className="text-sm font-medium text-blue-900">
+                                {uploadedDocs.length} document{uploadedDocs.length !== 1 ? 's' : ''} uploaded successfully
                               </p>
                             </div>
                             <div className="grid gap-3">
                               {uploadedDocs.map((doc, index) => {
                                 const colorStyles = {
-                                  emerald: "from-emerald-50 to-green-50 border-emerald-200 hover:border-emerald-300",
-                                  blue: "from-blue-50 to-sky-50 border-blue-200 hover:border-blue-300",
-                                  purple: "from-purple-50 to-violet-50 border-purple-200 hover:border-purple-300",
-                                  yellow: "from-yellow-50 to-amber-50 border-yellow-200 hover:border-yellow-300",
-                                  indigo: "from-indigo-50 to-blue-50 border-indigo-200 hover:border-indigo-300",
-                                  pink: "from-pink-50 to-rose-50 border-pink-200 hover:border-pink-300",
-                                  green: "from-green-50 to-emerald-50 border-green-200 hover:border-green-300",
-                                  orange: "from-orange-50 to-amber-50 border-orange-200 hover:border-orange-300",
-                                  gray: "from-gray-50 to-slate-50 border-gray-200 hover:border-gray-300"
+                                  emerald: "bg-emerald-50 border-emerald-100",
+                                  blue: "bg-blue-50 border-blue-100",
+                                  purple: "bg-purple-50 border-purple-100",
+                                  yellow: "bg-amber-50 border-amber-100",
+                                  indigo: "bg-indigo-50 border-indigo-100",
+                                  pink: "bg-pink-50 border-pink-100",
+                                  green: "bg-green-50 border-green-100",
+                                  orange: "bg-orange-50 border-orange-100",
+                                  gray: "bg-gray-50 border-gray-100"
                                 };
 
                                 const iconBgColors = {
-                                  emerald: "bg-emerald-100",
-                                  blue: "bg-blue-100",
-                                  purple: "bg-purple-100",
-                                  yellow: "bg-yellow-100",
-                                  indigo: "bg-indigo-100",
-                                  pink: "bg-pink-100",
-                                  green: "bg-green-100",
-                                  orange: "bg-orange-100",
-                                  gray: "bg-gray-100"
-                                };
-
-                                const textColors = {
-                                  emerald: "text-emerald-900",
-                                  blue: "text-blue-900",
-                                  purple: "text-purple-900",
-                                  yellow: "text-yellow-900",
-                                  indigo: "text-indigo-900",
-                                  pink: "text-pink-900",
-                                  green: "text-green-900",
-                                  orange: "text-orange-900",
-                                  gray: "text-gray-900"
-                                };
-
-                                const subTextColors = {
-                                  emerald: "text-emerald-600",
-                                  blue: "text-blue-600",
-                                  purple: "text-purple-600",
-                                  yellow: "text-yellow-600",
-                                  indigo: "text-indigo-600",
-                                  pink: "text-pink-600",
-                                  green: "text-green-600",
-                                  orange: "text-orange-600",
-                                  gray: "text-gray-600"
-                                };
-
-                                const buttonColors = {
-                                  emerald: "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100",
-                                  blue: "text-blue-600 hover:text-blue-700 hover:bg-blue-100",
-                                  purple: "text-purple-600 hover:text-purple-700 hover:bg-purple-100",
-                                  yellow: "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-100",
-                                  indigo: "text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100",
-                                  pink: "text-pink-600 hover:text-pink-700 hover:bg-pink-100",
-                                  green: "text-green-600 hover:text-green-700 hover:bg-green-100",
-                                  orange: "text-orange-600 hover:text-orange-700 hover:bg-orange-100",
-                                  gray: "text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                                  emerald: "bg-emerald-100 text-emerald-600",
+                                  blue: "bg-blue-100 text-blue-600",
+                                  purple: "bg-purple-100 text-purple-600",
+                                  yellow: "bg-amber-100 text-amber-600",
+                                  indigo: "bg-indigo-100 text-indigo-600",
+                                  pink: "bg-pink-100 text-pink-600",
+                                  green: "bg-green-100 text-green-600",
+                                  orange: "bg-orange-100 text-orange-600",
+                                  gray: "bg-gray-100 text-gray-600"
                                 };
 
                                 return (
                                   <div
                                     key={index}
-                                    className={`flex items-center justify-between p-4 bg-gradient-to-r ${colorStyles[doc.color as keyof typeof colorStyles]} border-2 rounded-xl transition-all duration-200 hover:shadow-md`}
+                                    className={`flex items-center justify-between p-4 border rounded-xl transition-all duration-200 hover:shadow-sm bg-white`}
                                   >
-                                    <div className="flex items-center space-x-3">
-                                      <div className="flex-shrink-0">
-                                        <div className={`w-12 h-12 ${iconBgColors[doc.color as keyof typeof iconBgColors]} rounded-lg flex items-center justify-center text-xl`}>
-                                          {doc.icon}
-                                        </div>
+                                    <div className="flex items-center space-x-4">
+                                      <div className={`h-10 w-10 flex items-center justify-center rounded-lg ${iconBgColors[doc.color as keyof typeof iconBgColors]} text-lg`}>
+                                        {doc.icon}
                                       </div>
                                       <div>
-                                        <p className={`text-sm font-semibold ${textColors[doc.color as keyof typeof textColors]}`}>
+                                        <p className="text-sm font-semibold text-gray-900">
                                           {doc.name}
                                         </p>
-                                        <p className={`text-xs ${subTextColors[doc.color as keyof typeof subTextColors]}`}>
-                                          {doc.type} • ✓ Uploaded
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {doc.type}
                                         </p>
                                       </div>
                                     </div>
@@ -1312,15 +1263,15 @@ export default function ApplicationDetail({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => window.open(doc.url, "_blank")}
-                                        className={`h-9 px-3 ${buttonColors[doc.color as keyof typeof buttonColors]} font-medium text-xs`}
+                                        className="h-8 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 text-xs font-medium"
                                       >
-                                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                                        <ArrowSquareOut className="h-3.5 w-3.5 mr-1.5" />
                                         View
                                       </Button>
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => {
                                           const link = document.createElement('a');
                                           link.href = doc.url!;
@@ -1329,11 +1280,9 @@ export default function ApplicationDetail({
                                           link.click();
                                           document.body.removeChild(link);
                                         }}
-                                        className={`h-9 w-9 p-0 ${buttonColors[doc.color as keyof typeof buttonColors]}`}
+                                        className="h-8 w-8 text-gray-400 hover:text-gray-900 hover:bg-gray-100"
                                       >
-                                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                                        </svg>
+                                        <DownloadSimple className="h-4 w-4" />
                                       </Button>
                                     </div>
                                   </div>
@@ -1341,15 +1290,17 @@ export default function ApplicationDetail({
                               })}
                             </div>
                             {/* Summary Section */}
-                            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                              <h4 className="text-sm font-medium text-gray-700 mb-2">Document Checklist</h4>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Document Checklist</h4>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
                                 {documents.map((doc, idx) => (
-                                  <div key={idx} className="flex items-center space-x-1">
-                                    <span className={doc.url ? "text-green-600" : "text-gray-400"}>
-                                      {doc.url ? "✓" : "○"}
-                                    </span>
-                                    <span className={doc.url ? "text-gray-700" : "text-gray-400"}>
+                                  <div key={idx} className="flex items-center space-x-2">
+                                    {doc.url ? (
+                                      <CheckCircle className="h-4 w-4 text-green-500" weight="fill" />
+                                    ) : (
+                                      <div className="h-4 w-4 rounded-full border-2 border-gray-200" />
+                                    )}
+                                    <span className={`text-xs ${doc.url ? "text-gray-900 font-medium" : "text-gray-400"}`}>
                                       {doc.name}
                                     </span>
                                   </div>
@@ -1360,8 +1311,8 @@ export default function ApplicationDetail({
                         );
                       })()}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>
@@ -1374,176 +1325,136 @@ export default function ApplicationDetail({
               isAdmin={true}
             />
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Eligibility Assessment</CardTitle>
-                <CardDescription>
+            <div className="relative overflow-hidden rounded-[24px] border border-white/50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="mb-8">
+                <h2 className="text-xl font-bold tracking-tight text-gray-900">Eligibility Assessment</h2>
+                <p className="mt-1 text-sm text-gray-500">
                   {application.eligibility
                     ? `Last evaluated: ${application.eligibility.evaluatedAt ? new Date(application.eligibility.evaluatedAt).toLocaleString() : "N/A"}`
                     : "Not evaluated yet"}
-                </CardDescription>
-              </CardHeader>
+                </p>
+              </div>
               {application.eligibility ? (
-                <CardContent>
+                <div>
                   <div className="space-y-6">
-                    <div>
+                    <div className="bg-gray-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium">Overall Result</h3>
-                        <span
+                        <h3 className="text-sm font-medium text-gray-700">Overall Result</h3>
+                        <Badge
                           className={
                             application.eligibility.isEligible
-                              ? "text-green-600 font-medium"
-                              : "text-red-600 font-medium"
+                              ? "bg-green-100 text-green-700 border-green-200 hover:bg-green-100"
+                              : "bg-red-100 text-red-700 border-red-200 hover:bg-red-100"
                           }
                         >
                           {application.eligibility.isEligible
                             ? "ELIGIBLE"
                             : "INELIGIBLE"}
-                        </span>
+                        </Badge>
                       </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium">Total Score</h3>
-                        <span className="font-medium">
-                          {application.eligibility.totalScore}/100
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-medium text-gray-700">Total Score</h3>
+                        <span className="text-xl font-bold text-gray-900">
+                          {application.eligibility.totalScore}<span className="text-sm text-gray-400 font-normal">/100</span>
                         </span>
                       </div>
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-medium mb-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                         Mandatory Criteria
                       </h3>
-                      <ul className="space-y-1 text-sm">
-                        <li className="flex justify-between">
-                          <span>Age (18-35)</span>
-                          <span
-                            className={
-                              application.eligibility.mandatoryCriteria
-                                .ageEligible
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {application.eligibility.mandatoryCriteria
-                              .ageEligible
-                              ? "✓"
-                              : "✗"}
-                          </span>
+                      <ul className="space-y-2">
+                        <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-700">Age (18-35)</span>
+                          {application.eligibility.mandatoryCriteria.ageEligible ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-500" weight="fill" />
+                          )}
                         </li>
-                        <li className="flex justify-between">
-                          <span>Business Registration</span>
-                          <span
-                            className={
-                              application.eligibility.mandatoryCriteria
-                                .registrationEligible
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {application.eligibility.mandatoryCriteria
-                              .registrationEligible
-                              ? "✓"
-                              : "✗"}
-                          </span>
+                        <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-700">Business Registration</span>
+                          {application.eligibility.mandatoryCriteria.registrationEligible ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-500" weight="fill" />
+                          )}
                         </li>
-                        <li className="flex justify-between">
-                          <span>Revenue Generation</span>
-                          <span
-                            className={
-                              application.eligibility.mandatoryCriteria
-                                .revenueEligible
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {application.eligibility.mandatoryCriteria
-                              .revenueEligible
-                              ? "✓"
-                              : "✗"}
-                          </span>
+                        <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-700">Revenue Generation</span>
+                          {application.eligibility.mandatoryCriteria.revenueEligible ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-500" weight="fill" />
+                          )}
                         </li>
-                        <li className="flex justify-between">
-                          <span>Business Plan</span>
-                          <span
-                            className={
-                              application.eligibility.mandatoryCriteria
-                                .businessPlanEligible
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {application.eligibility.mandatoryCriteria
-                              .businessPlanEligible
-                              ? "✓"
-                              : "✗"}
-                          </span>
+                        <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-700">Business Plan</span>
+                          {application.eligibility.mandatoryCriteria.businessPlanEligible ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-500" weight="fill" />
+                          )}
                         </li>
-                        <li className="flex justify-between">
-                          <span>Climate Impact</span>
-                          <span
-                            className={
-                              application.eligibility.mandatoryCriteria
-                                .impactEligible
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {application.eligibility.mandatoryCriteria
-                              .impactEligible
-                              ? "✓"
-                              : "✗"}
-                          </span>
+                        <li className="flex justify-between items-center p-2 rounded-md hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-700">Climate Impact</span>
+                          {application.eligibility.mandatoryCriteria.impactEligible ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" weight="fill" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-500" weight="fill" />
+                          )}
                         </li>
                       </ul>
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-medium mb-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                         Evaluation Scores
                       </h3>
                       {(() => {
                         const totals = computeSectionTotals();
                         return (
-                          <ul className="space-y-1 text-sm">
-                            <li className="flex justify-between">
-                              <span>Innovation and Climate Adaptation Focus</span>
-                              <span>{totals.innovation}/35</span>
+                          <ul className="space-y-3">
+                            <li className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">Innovation & Adaptation</span>
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-900 border-0">{totals.innovation}/35</Badge>
                             </li>
-                            <li className="flex justify-between">
-                              <span>Business Viability</span>
-                              <span>{totals.viability}/31</span>
+                            <li className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">Business Viability</span>
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-900 border-0">{totals.viability}/31</Badge>
                             </li>
-                            <li className="flex justify-between">
-                              <span>Sectoral and Strategic Alignment</span>
-                              <span>{totals.alignment}/20</span>
+                            <li className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">Strategic Alignment</span>
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-900 border-0">{totals.alignment}/20</Badge>
                             </li>
-                            <li className="flex justify-between">
-                              <span>Organization Capacity and Partnerships</span>
-                              <span>{totals.org}/14</span>
+                            <li className="flex justify-between items-center">
+                              <span className="text-sm text-gray-700">Org Capacity</span>
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-900 border-0">{totals.org}/14</Badge>
                             </li>
                           </ul>
                         );
                       })()}
                     </div>
                     {application.eligibility.evaluationNotes && (
-                      <div className="border-t pt-4">
-                        <h3 className="text-sm font-medium mb-2">
+                      <div className="border-t border-gray-100 pt-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
                           Evaluation Notes
                         </h3>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg border border-gray-100">
                           {application.eligibility.evaluationNotes}
                         </p>
                       </div>
                     )}
 
                     {application.eligibility.evaluator && (
-                      <div className="border-t pt-4">
-                        <h3 className="text-sm font-medium mb-2">
+                      <div className="border-t border-gray-100 pt-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
                           Reviewed By
                         </h3>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-sm text-gray-600 space-y-1">
                           <p>
-                            <strong>Reviewer:</strong>{" "}
+                            <span className="font-medium text-gray-900">Reviewer:</span>{" "}
                             {application.eligibility.evaluator.profile
                               ? `${application.eligibility.evaluator.profile.firstName} ${application.eligibility.evaluator.profile.lastName}`
                               : application.eligibility.evaluator.name ||
@@ -1551,7 +1462,7 @@ export default function ApplicationDetail({
                           </p>
                           {application.eligibility.evaluator.profile?.role && (
                             <p>
-                              <strong>Role:</strong>{" "}
+                              <span className="font-medium text-gray-900">Role:</span>{" "}
                               {application.eligibility.evaluator.profile.role
                                 .replace(/_/g, " ")
                                 .toUpperCase()}
@@ -1559,7 +1470,7 @@ export default function ApplicationDetail({
                           )}
                           {application.eligibility.evaluatedAt && (
                             <p>
-                              <strong>Review Date:</strong>{" "}
+                              <span className="font-medium text-gray-900">Date:</span>{" "}
                               {new Date(
                                 application.eligibility.evaluatedAt
                               ).toLocaleString()}
@@ -1569,27 +1480,28 @@ export default function ApplicationDetail({
                       </div>
                     )}
                   </div>
-                </CardContent>
+                </div>
               ) : (
-                <CardContent>
-                  <p className="text-muted-foreground text-sm text-center py-4">
+                <div className="p-8">
+                  <p className="text-gray-500 text-sm text-center italic">
                     This application has not been evaluated yet.
                   </p>
-                </CardContent>
+                </div>
               )}
-              <CardFooter>
-                <Button className="w-full" variant="outline" asChild>
+              <div className="bg-gray-50/50 border-t border-gray-100 p-6 rounded-b-[24px]">
+                <Button className="w-full bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-sm" variant="outline" asChild>
                   <Link href={`/admin/applications/${application.id}/evaluate`}>
                     {application.eligibility
                       ? "Re-evaluate Application"
                       : "Evaluate Application"}
                   </Link>
                 </Button>
-              </CardFooter>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
   );
 }
