@@ -139,7 +139,7 @@ export default function ExportPage() {
       }
 
       // Handle different data formats
-      let blobData: string | Uint8Array;
+      let blobData: BlobPart;
       const contentType = result.contentType || 'text/csv';
 
       if (result.isBase64) {
@@ -348,7 +348,7 @@ export default function ExportPage() {
                               <FormLabel className="text-base">Application Status</FormLabel>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {["draft", "submitted", "under_review", "pending_senior_review", "approved", "rejected"].map((status) => (
+                              {["submitted", "under_review", "pending_senior_review", "approved", "rejected"].map((status) => (
                                 <FormField
                                   key={status}
                                   control={form.control}

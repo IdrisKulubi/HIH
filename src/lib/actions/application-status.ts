@@ -7,12 +7,9 @@ import { auth } from "../../../auth";
 import { revalidatePath } from "next/cache";
 
 export type ApplicationStatus = 
-  | 'draft'
   | 'submitted'
   | 'under_review'
-  | 'shortlisted'
   | 'scoring_phase'
-  | 'dragons_den'
   | 'finalist'
   | 'approved'
   | 'rejected';
@@ -58,7 +55,7 @@ export async function updateApplicationStatus(applicationId: number, status: App
         where: eq(eligibilityResults.applicationId, applicationId)
       });
 
-      const isEligible = status === 'shortlisted' || status === 'scoring_phase' || status === 'dragons_den' || status === 'finalist' || status === 'approved';
+      const isEligible = status === 'scoring_phase' || status === 'finalist' || status === 'approved';
       const statusNote = `Status changed to ${status}: ${notes}`;
 
       if (existingResult) {
@@ -137,7 +134,7 @@ export async function bulkUpdateApplicationStatus(updates: ApplicationStatusUpda
           where: eq(eligibilityResults.applicationId, update.applicationId)
         });
 
-        const isEligible = update.status === 'shortlisted' || update.status === 'scoring_phase' || update.status === 'dragons_den' || update.status === 'finalist' || update.status === 'approved';
+        const isEligible = update.status === 'scoring_phase' || update.status === 'finalist' || update.status === 'approved';
         const statusNote = `Status changed to ${update.status}: ${update.notes}`;
 
         if (existingResult) {
@@ -278,11 +275,9 @@ export async function getApplicationStatusStats() {
         under_review: statusCounts.under_review || 0,
         shortlisted: statusCounts.shortlisted || 0,
         scoring_phase: statusCounts.scoring_phase || 0,
-        dragons_den: statusCounts.dragons_den || 0,
         finalist: statusCounts.finalist || 0,
         approved: statusCounts.approved || 0,
         rejected: statusCounts.rejected || 0,
-        draft: statusCounts.draft || 0
       }
     };
   } catch (error) {
@@ -314,7 +309,7 @@ export async function shortlistApplications(applicationIds: number[], notes?: st
     await db
       .update(applications)
       .set({ 
-        status: 'shortlisted',
+        status: 'scoring_phase',
         updatedAt: new Date()
       })
       .where(inArray(applications.id, applicationIds));
@@ -373,7 +368,7 @@ export async function moveToScoringPhase(applicationIds: number[], notes?: strin
       .where(
         and(
           inArray(applications.id, applicationIds),
-          eq(applications.status, 'shortlisted')
+          eq(applications.status, 'scoring_phase')
         )
       );
 

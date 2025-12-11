@@ -129,33 +129,30 @@ function checkMandatoryCriteria(business: any): {
   impactEligible: boolean;
 } {
   // BIRE Mandatory: Business must be registered in Kenya
+  // We track this but it doesn't disqualify
   const registrationEligible = business.isRegistered === true;
 
-  // BIRE Mandatory: Must have operational years (at least 1 for Foundation, 2 for Acceleration)
-  const yearsOperational = business.yearsOperational ?? 0;
-  const ageEligible = yearsOperational >= 1;
+  // BIRE: Age check removed per requirements ("anyone of age can apply")
+  // We set this to true to ensure it doesn't flag as a failure
+  const ageEligible = true;
 
-  // BIRE Mandatory: Must have revenue (500k-3M for Foundation, 3M+ for Acceleration)
+  // BIRE Mandatory: Revenue (Tracking only)
   const revenue = typeof business.revenueLastYear === 'string'
     ? parseFloat(business.revenueLastYear)
     : (business.revenueLastYear ?? 0);
   const revenueEligible = revenue >= 500000;
 
-  // BIRE Mandatory: Must have management books of accounts
+  // BIRE Mandatory: Records (Tracking only)
   const businessPlanEligible = business.hasFinancialRecords === true;
 
-  // BIRE: Must demonstrate climate adaptation focus
+  // BIRE: Impact (Tracking only)
   const impactEligible =
     (business.description?.length ?? 0) > 50 &&
     (business.problemSolved?.length ?? 0) > 50;
 
-  // Overall eligibility requires all mandatory criteria
-  const isEligible =
-    registrationEligible &&
-    ageEligible &&
-    revenueEligible &&
-    businessPlanEligible &&
-    impactEligible;
+  // Overall eligibility: System does not fail anyone, just compiles info
+  // As per "system does not fail anyone it just shows the total it compiled"
+  const isEligible = true;
 
   return {
     isEligible,

@@ -28,7 +28,7 @@ export function AnalyticsCharts({ data }: AnalyticsChartsProps) {
     .sort(([,a], [,b]) => b - a)
     .slice(0, 5);
 
-  const statusOrder = ['draft', 'submitted', 'under_review', 'shortlisted', 'scoring_phase', 'dragons_den', 'finalist', 'approved', 'rejected'];
+  const statusOrder = ['submitted', 'under_review', 'scoring_phase', 'approved', 'rejected'];
   const orderedStatuses = statusOrder.filter(status => data.statusDistribution[status] > 0);
 
   return (

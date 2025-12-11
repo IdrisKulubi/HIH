@@ -17,6 +17,7 @@ export interface ApplicationFilters {
     track?: "foundation" | "acceleration" | "all";
     page?: number;
     limit?: number;
+    scoreRange?: 'all' | 'passing' | 'borderline' | 'below' | 'not_scored';
 }
 
 export interface ApplicationListItem {
@@ -45,6 +46,12 @@ export interface ApplicationListItem {
         id: number;
         isEligible: boolean;
         totalScore: number | null;
+        // Granular flags for "Failure Insights"
+        ageEligible: boolean;
+        registrationEligible: boolean;
+        revenueEligible: boolean;
+        businessPlanEligible: boolean;
+        impactEligible: boolean;
         evaluatedAt: string | null;
         evaluatedBy: string | null;
         evaluator?: any;
@@ -108,6 +115,8 @@ export interface DetailedApplication extends ApplicationListItem {
         email: string;
         gender: string;
         phoneNumber: string;
+        dateOfBirth: string | null;
+
     };
     // DetailedApplication extends ApplicationListItem so it inherits eligibilityResults
     // We explicitly add `eligibility` back for Detailed view compatibility
@@ -224,6 +233,27 @@ export async function getApplications(
             filteredData = filteredData.filter((app) => app.track === filters.track);
         }
 
+        // Score Range Filter
+        if (filters.scoreRange && filters.scoreRange !== "all") {
+            filteredData = filteredData.filter((app) => {
+                const result = app.eligibilityResults[0];
+                const score = result?.totalScore ? Number(result.totalScore) : null;
+
+                switch (filters.scoreRange) {
+                    case "passing":
+                        return score !== null && score >= 70;
+                    case "borderline":
+                        return score !== null && score >= 50 && score < 70;
+                    case "below":
+                        return score !== null && score < 50;
+                    case "not_scored":
+                        return score === null;
+                    default:
+                        return true;
+                }
+            });
+        }
+
         // Search filter
         if (filters.search) {
             const searchTerm = filters.search.toLowerCase();
@@ -267,6 +297,12 @@ export async function getApplications(
                 id: er.id,
                 isEligible: er.isEligible,
                 totalScore: er.totalScore ? Number(er.totalScore) : null,
+                // Map granular flags
+                ageEligible: er.ageEligible,
+                registrationEligible: er.registrationEligible,
+                revenueEligible: er.revenueEligible,
+                businessPlanEligible: er.businessPlanEligible,
+                impactEligible: er.impactEligible,
                 evaluatedAt: er.evaluatedAt?.toISOString() ?? null,
                 evaluatedBy: er.evaluatedBy,
                 evaluator: er.evaluator // Pass the rich evaluator object
@@ -369,6 +405,7 @@ export async function getApplicationById(
                 firstName: applicationData.business.applicant.firstName,
                 lastName: applicationData.business.applicant.lastName,
                 idPassportNumber: applicationData.business.applicant.idPassportNumber,
+                dateOfBirth: applicationData.business.applicant.dob?.toISOString() ?? null,
                 gender: applicationData.business.applicant.gender,
                 phoneNumber: applicationData.business.applicant.phoneNumber,
                 email: applicationData.business.applicant.email,
@@ -377,6 +414,12 @@ export async function getApplicationById(
                 id: er.id,
                 isEligible: er.isEligible,
                 totalScore: er.totalScore ? Number(er.totalScore) : null,
+                // Granular flags
+                ageEligible: er.ageEligible,
+                registrationEligible: er.registrationEligible,
+                revenueEligible: er.revenueEligible,
+                businessPlanEligible: er.businessPlanEligible,
+                impactEligible: er.impactEligible,
                 evaluatedAt: er.evaluatedAt?.toISOString() ?? null,
                 evaluatedBy: er.evaluatedBy,
             })),
@@ -403,7 +446,7 @@ export async function getApplicationById(
 // UPDATE APPLICATION STATUS (ADMIN)
 // =============================================================================
 
-type ApplicationStatus = "draft" | "submitted" | "under_review" | "approved" | "rejected";
+type ApplicationStatus = "submitted" | "under_review" | "approved" | "rejected";
 
 export async function updateApplicationStatus(
     applicationId: number,

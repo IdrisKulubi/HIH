@@ -50,12 +50,9 @@ interface ApplicationStatusManagerProps {
 }
 
 const statusConfig = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-800", icon: FileText },
   submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800", icon: CheckCircle },
   under_review: { label: "Under Review", color: "bg-yellow-100 text-yellow-800", icon: Clock },
-  shortlisted: { label: "Shortlisted", color: "bg-green-100 text-green-800", icon: Star },
   scoring_phase: { label: "Scoring Phase", color: "bg-purple-100 text-purple-800", icon: Target },
-  dragons_den: { label: "Dragon's Den", color: "bg-orange-100 text-orange-800", icon: Trophy },
   finalist: { label: "Finalist", color: "bg-emerald-100 text-emerald-800", icon: Trophy },
   approved: { label: "Approved", color: "bg-green-100 text-green-800", icon: CheckCircle },
   rejected: { label: "Rejected", color: "bg-red-100 text-red-800", icon: X }

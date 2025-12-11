@@ -49,7 +49,7 @@ export async function exportData(params: {
       conditions.push(
         inArray(
           applications.status,
-          params.filters.status as ("draft" | "submitted" | "under_review" | "pending_senior_review" | "approved" | "rejected" | "shortlisted" | "scoring_phase" | "dragons_den" | "finalist")[]
+          params.filters.status as ("submitted" | "under_review" | "pending_senior_review" | "approved" | "rejected" | "scoring_phase"  | "finalist")[]
         )
       );
     }

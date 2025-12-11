@@ -69,14 +69,11 @@ const COLORS = {
     other: "#8B5CF6",
   },
   status: {
-    draft: "#6B7280",
     submitted: "#3B82F6",
     under_review: "#F59E0B",
     approved: "#10B981",
     rejected: "#EF4444",
-    shortlisted: "#8B5CF6",
     scoring_phase: "#14B8A6",
-    dragons_den: "#F97316",
     finalist: "#6366F1",
   },
 };

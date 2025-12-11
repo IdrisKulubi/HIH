@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,10 +50,7 @@ export default function ApplicationDetail({
     | "pending_senior_review"
     | "approved"
     | "rejected"
-    | "draft"
-    | "shortlisted"
     | "scoring_phase"
-    | "dragons_den"
     | "finalist";
     submittedAt: string | null;
     business: {
@@ -706,33 +704,15 @@ export default function ApplicationDetail({
                       </div>
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Date of Birth</h3>
-                        <p className="font-medium text-gray-900">{application.applicant.dateOfBirth}</p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Citizenship</h3>
-                        <p className="font-medium text-gray-900 capitalize">
-                          {application.applicant.citizenship}
+                        <p className="font-medium text-gray-900">
+                          {application.applicant.dateOfBirth
+                            ? format(new Date(application.applicant.dateOfBirth), "PPP")
+                            : "N/A"}
                         </p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Country of Residence
-                        </h3>
-                        <p className="font-medium text-gray-900 capitalize">
-                          {application.applicant.countryOfResidence}
-                        </p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Highest Education
-                        </h3>
-                        <p className="font-medium text-gray-900 capitalize">
-                          {application.applicant.highestEducation?.replace(
-                            /_/g,
-                            " "
-                          ) || "N/A"}
-                        </p>
-                      </div>
+                     
+                      
+                      
                     </div>
                   </div>
                 </div>
@@ -751,12 +731,7 @@ export default function ApplicationDetail({
                         </h3>
                         <p className="font-medium text-gray-900">{application.business.name}</p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Start Date
-                        </h3>
-                        <p className="font-medium text-gray-900">{application.business.startDate}</p>
-                      </div>
+                     
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">
                           Registered?
@@ -795,12 +770,7 @@ export default function ApplicationDetail({
                         <h3 className="text-sm font-medium text-gray-500 mb-1">City</h3>
                         <p className="font-medium text-gray-900">{application.business.city}</p>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">
-                          Registered Countries (Other)
-                        </h3>
-                        <p className="font-medium text-gray-900">{application.business.registeredCountries}</p>
-                      </div>
+                     
                     </div>
                     <div className="mt-8 border-t border-gray-100 pt-6">
                       <h3 className="text-base font-semibold text-gray-900 mb-4">Employees</h3>
@@ -825,14 +795,7 @@ export default function ApplicationDetail({
                           <h4 className="text-sm font-medium text-gray-500 mb-1">Full-Time PWD</h4>
                           <p className="font-medium text-gray-900">{application.business.employees?.fullTimePwd ?? "N/A"}</p>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Male</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees?.partTimeMale ?? "N/A"}</p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">Part-Time Female</h4>
-                          <p className="font-medium text-gray-900">{application.business.employees?.partTimeFemale ?? "N/A"}</p>
-                        </div>
+                       
                       </div>
                     </div>
                     {application.business.additionalInformation && (

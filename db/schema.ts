@@ -66,13 +66,10 @@ export const customerSegmentEnum = pgEnum('customer_segment', [
 ]);
 
 export const applicationStatusEnum = pgEnum('application_status', [
-  'draft',
   'submitted',
   'under_review',
   'pending_senior_review',
-  'shortlisted',
   'scoring_phase',
-  'dragons_den',
   'finalist',
   'approved',
   'rejected'
@@ -419,7 +416,7 @@ export const applications = pgTable('applications', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
   track: applicationTrackEnum('track'),
-  status: applicationStatusEnum('status').default('draft').notNull(),
+  status: applicationStatusEnum('status').default('submitted').notNull(),
   referralSource: varchar('referral_source', { length: 100 }),
   referralSourceOther: varchar('referral_source_other', { length: 100 }),
   submittedAt: timestamp('submitted_at'),

@@ -435,36 +435,36 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                 </div>
 
                 <div className="space-y-4">
-                    <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="flex items-start gap-3 cursor-pointer group">
                         <Checkbox
                             id="terms"
                             checked={termsAccepted}
                             onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-                            className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
+                            className="mt-1 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all shrink-0"
                         />
-                        <Label htmlFor="terms" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
+                        <Label htmlFor="terms" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors flex-1 leading-relaxed">
                             I confirm that all information provided is accurate and complete, and I agree to use the grant funds solely for the business purpose stated. Read our{" "}
-                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark">
+                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark inline-block">
                                 Terms & Privacy Policy
                             </Link>.
                         </Label>
-                    </label>
+                    </div>
 
-                    <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="flex items-start gap-3 cursor-pointer group">
                         <Checkbox
                             id="privacy"
                             checked={privacyAccepted}
                             onCheckedChange={(checked) => setPrivacyAccepted(checked === true)}
-                            className="mt-0.5 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all"
+                            className="mt-1 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all shrink-0"
                         />
-                        <Label htmlFor="privacy" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors">
+                        <Label htmlFor="privacy" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors flex-1 leading-relaxed">
                             I agree to the{" "}
-                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark">
+                            <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark inline-block">
                                 BIRE Project Privacy Policy
                             </Link>{" "}
                             and allow Hand in Hand Eastern Africa to process my data for the purpose of this application.
                         </Label>
-                    </label>
+                    </div>
                 </div>
             </div>
 

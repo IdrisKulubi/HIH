@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
     Select,
     SelectContent,
@@ -90,9 +89,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         />
                                     </div>
                                 </FormControl>
-                                <FormDescription>
-                                    Scoring Guide: Above 2M, 1M-2M, 500k-1M
-                                </FormDescription>
+                                
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -130,9 +127,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                     />
                                 </FormControl>
-                                <FormDescription>
-                                    Scoring Guide: Above 401, 200-400, 1-200
-                                </FormDescription>
+                              
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -195,9 +190,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                             <FormControl>
                                                 <RadioGroupItem value="false" />
                                             </FormControl>
-                                            <FormLabel className="font-normal">
-                                                No (1 mark)
-                                            </FormLabel>
+                                            
                                         </FormItem>
                                     </RadioGroup>
                                 </FormControl>
@@ -274,7 +267,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                                 <RadioGroupItem value="false" />
                                             </FormControl>
                                             <FormLabel className="font-normal">
-                                                No (1 mark)
+                                                No 
                                             </FormLabel>
                                         </FormItem>
                                     </RadioGroup>
