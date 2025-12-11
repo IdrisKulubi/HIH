@@ -177,30 +177,24 @@ export const businessRegistrationTypeEnum = pgEnum('business_registration_type',
 // Tables
 
 
-// First define all tables
-export const users = pgTable(
-  "user",
-  {
-    id: text("id").primaryKey(),
-    name: text("name"),
-    email: text("email").notNull().unique(),
-    password: text("password"), // For email/password authentication
-    role: text("role").$type<"user" | "admin">().default("user"),
-    emailVerified: timestamp("emailVerified"),
-    image: text("image"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-    lastActive: timestamp("last_active").defaultNow().notNull(),
-    isOnline: boolean("is_online").default(false),
-    profilePhoto: text("profile_photo"),
-    phoneNumber: text("phone_number"),
-  },
-  (table) => ({
-    emailIdx: index("user_email_idx").on(table.email),
-    createdAtIdx: index("user_created_at_idx").on(table.createdAt),
-    lastActiveIdx: index("user_last_active_idx").on(table.lastActive),
-  })
-);
+// Better Auth Tables
+export const users = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").notNull(),
+  image: text("image"),
+  createdAt: timestamp("createdAt").notNull(),
+  updatedAt: timestamp("updatedAt").notNull(),
+
+  // Custom fields reserved
+  password: text("password"),
+  role: text("role").$type<"user" | "admin">().default("user"),
+  lastActive: timestamp("last_active").defaultNow(), // Keep existing naming or migrate? Migration guide doesn't specify custom fields, keeping original but ensuring alignment
+  isOnline: boolean("is_online").default(false),
+  profilePhoto: text("profile_photo"),
+  phoneNumber: text("phone_number"),
+});
 
 // User Profiles table for extended user information
 export const userProfiles = pgTable('user_profiles', {
@@ -224,50 +218,41 @@ export const userProfiles = pgTable('user_profiles', {
   roleIdx: index("user_profiles_role_idx").on(table.role),
 }));
 
-// Auth.js tables
-export const accounts = pgTable(
-  "account",
-  {
-    userId: text("userId")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    type: text("type").$type<AdapterAccount["type"]>().notNull(),
-    provider: text("provider").notNull(),
-    providerAccountId: text("providerAccountId").notNull(),
-    refresh_token: text("refresh_token"),
-    access_token: text("access_token"),
-    expires_at: integer("expires_at"),
-    token_type: text("token_type"),
-    scope: text("scope"),
-    id_token: text("id_token"),
-    session_state: text("session_state"),
-  },
-  (account) => ({
-    compoundKey: primaryKey({
-      columns: [account.provider, account.providerAccountId],
-    }),
-  })
-);
-
 export const sessions = pgTable("session", {
-  sessionToken: text("sessionToken").notNull().primaryKey(),
-  userId: text("userId")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  expires: timestamp("expires", { mode: "date" }).notNull(),
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull().references(() => users.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").notNull(),
+  updatedAt: timestamp("updatedAt").notNull(),
 });
 
-export const verificationTokens = pgTable(
-  "verificationToken",
-  {
-    identifier: text("identifier").notNull(),
-    token: text("token").notNull(),
-    expires: timestamp("expires", { mode: "date" }).notNull(),
-  },
-  (vt) => ({
-    compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }),
-  })
-);
+export const accounts = pgTable("account", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull().references(() => users.id),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+  scope: text("scope"),
+  idToken: text("idToken"),
+  password: text("password"),
+  createdAt: timestamp("createdAt").notNull(),
+  updatedAt: timestamp("updatedAt").notNull(),
+});
+
+export const verifications = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt"),
+  updatedAt: timestamp("updatedAt"),
+});
 
 // Email verification codes table for custom email verification
 export const emailVerificationCodes = pgTable(

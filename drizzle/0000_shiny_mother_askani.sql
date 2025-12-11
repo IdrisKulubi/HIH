@@ -18,18 +18,19 @@ CREATE TYPE "public"."support_status" AS ENUM('open', 'in_progress', 'waiting_fo
 CREATE TYPE "public"."user_role" AS ENUM('applicant', 'admin', 'technical_reviewer');--> statement-breakpoint
 CREATE TYPE "public"."verification_status" AS ENUM('pending', 'verified', 'rejected', 'needs_info');--> statement-breakpoint
 CREATE TABLE "account" (
+	"id" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
-	"type" text NOT NULL,
-	"provider" text NOT NULL,
-	"providerAccountId" text NOT NULL,
-	"refresh_token" text,
-	"access_token" text,
-	"expires_at" integer,
-	"token_type" text,
+	"accountId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"accessToken" text,
+	"refreshToken" text,
+	"accessTokenExpiresAt" timestamp,
+	"refreshTokenExpiresAt" timestamp,
 	"scope" text,
-	"id_token" text,
-	"session_state" text,
-	CONSTRAINT "account_provider_providerAccountId_pk" PRIMARY KEY("provider","providerAccountId")
+	"idToken" text,
+	"password" text,
+	"createdAt" timestamp NOT NULL,
+	"updatedAt" timestamp NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "applicants" (
@@ -39,6 +40,7 @@ CREATE TABLE "applicants" (
 	"last_name" varchar(100) NOT NULL,
 	"id_passport_number" varchar(50) NOT NULL,
 	"gender" "gender" NOT NULL,
+	"dob" date NOT NULL,
 	"phone_number" varchar(20) NOT NULL,
 	"email" varchar(100) NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -50,6 +52,7 @@ CREATE TABLE "application_scores" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"eligibility_result_id" integer NOT NULL,
 	"criteria_id" integer NOT NULL,
+	"config_id" integer,
 	"score" numeric(5, 2) NOT NULL,
 	"reviewer_comment" text,
 	"created_at" timestamp DEFAULT now() NOT NULL
@@ -108,9 +111,13 @@ CREATE TABLE "businesses" (
 	"business_compliance" text,
 	"compliance_documents_url" varchar(500),
 	"growth_history" text,
+	"average_annual_revenue_growth" text,
 	"future_sales_growth" text,
 	"future_sales_growth_reason" text,
 	"job_creation_potential" text,
+	"projected_inclusion" text,
+	"scalability_plan" text,
+	"market_scale_potential" text,
 	"market_differentiation" text,
 	"competitive_advantage" text,
 	"competitive_advantage_source" text,
@@ -198,10 +205,20 @@ CREATE TABLE "employees" (
 --> statement-breakpoint
 CREATE TABLE "feedback_campaigns" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"title" varchar(255) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"subject" varchar(255),
+	"email_body" text,
+	"feedback_form_url" varchar(500),
+	"link_display_text" varchar(255),
 	"description" text,
 	"target_role" "user_role",
 	"status" "feedback_campaign_status" DEFAULT 'draft' NOT NULL,
+	"batch_size" integer DEFAULT 50,
+	"total_recipients" integer DEFAULT 0,
+	"sent_count" integer DEFAULT 0,
+	"failed_count" integer DEFAULT 0,
+	"started_at" timestamp,
+	"completed_at" timestamp,
 	"scheduled_at" timestamp,
 	"sent_at" timestamp,
 	"created_by" text NOT NULL,
@@ -213,8 +230,13 @@ CREATE TABLE "feedback_emails" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"campaign_id" integer NOT NULL,
 	"recipient_id" text NOT NULL,
+	"recipient_email" varchar(255) NOT NULL,
+	"recipient_name" varchar(255) NOT NULL,
+	"batch_number" integer DEFAULT 1 NOT NULL,
 	"status" "feedback_email_status" DEFAULT 'pending' NOT NULL,
 	"sent_at" timestamp,
+	"failed_at" timestamp,
+	"retry_count" integer DEFAULT 0,
 	"opened_at" timestamp,
 	"clicked_at" timestamp,
 	"error_message" text
@@ -234,8 +256,18 @@ CREATE TABLE "funding" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "scoring_configurations" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"is_active" boolean DEFAULT false NOT NULL,
+	"description" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "scoring_criteria" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"config_id" integer,
 	"category" text NOT NULL,
 	"criteria_name" text NOT NULL,
 	"track" "application_track" NOT NULL,
@@ -246,9 +278,28 @@ CREATE TABLE "scoring_criteria" (
 );
 --> statement-breakpoint
 CREATE TABLE "session" (
-	"sessionToken" text PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
-	"expires" timestamp NOT NULL
+	"token" text NOT NULL,
+	"expiresAt" timestamp NOT NULL,
+	"ipAddress" text,
+	"userAgent" text,
+	"createdAt" timestamp NOT NULL,
+	"updatedAt" timestamp NOT NULL,
+	CONSTRAINT "session_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "support_responses" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"ticket_id" integer NOT NULL,
+	"responder_id" text NOT NULL,
+	"responder_name" text NOT NULL,
+	"responder_role" varchar(50) NOT NULL,
+	"message" text NOT NULL,
+	"attachment_url" varchar(500),
+	"is_internal" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "support_tickets" (
@@ -315,32 +366,35 @@ CREATE TABLE "user_profiles" (
 --> statement-breakpoint
 CREATE TABLE "user" (
 	"id" text PRIMARY KEY NOT NULL,
-	"name" text,
+	"name" text NOT NULL,
 	"email" text NOT NULL,
+	"emailVerified" boolean NOT NULL,
+	"image" text,
+	"createdAt" timestamp NOT NULL,
+	"updatedAt" timestamp NOT NULL,
 	"password" text,
 	"role" text DEFAULT 'user',
-	"emailVerified" timestamp,
-	"image" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	"last_active" timestamp DEFAULT now() NOT NULL,
+	"last_active" timestamp DEFAULT now(),
 	"is_online" boolean DEFAULT false,
 	"profile_photo" text,
 	"phone_number" text,
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE "verificationToken" (
+CREATE TABLE "verification" (
+	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
-	"token" text NOT NULL,
-	"expires" timestamp NOT NULL,
-	CONSTRAINT "verificationToken_identifier_token_pk" PRIMARY KEY("identifier","token")
+	"value" text NOT NULL,
+	"expiresAt" timestamp NOT NULL,
+	"createdAt" timestamp,
+	"updatedAt" timestamp
 );
 --> statement-breakpoint
-ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "applicants" ADD CONSTRAINT "applicants_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_scores" ADD CONSTRAINT "application_scores_eligibility_result_id_eligibility_results_id_fk" FOREIGN KEY ("eligibility_result_id") REFERENCES "public"."eligibility_results"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_scores" ADD CONSTRAINT "application_scores_criteria_id_scoring_criteria_id_fk" FOREIGN KEY ("criteria_id") REFERENCES "public"."scoring_criteria"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_scores" ADD CONSTRAINT "application_scores_config_id_scoring_configurations_id_fk" FOREIGN KEY ("config_id") REFERENCES "public"."scoring_configurations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "applications" ADD CONSTRAINT "applications_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "applications" ADD CONSTRAINT "applications_business_id_businesses_id_fk" FOREIGN KEY ("business_id") REFERENCES "public"."businesses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "businesses" ADD CONSTRAINT "businesses_applicant_id_applicants_id_fk" FOREIGN KEY ("applicant_id") REFERENCES "public"."applicants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -353,7 +407,10 @@ ALTER TABLE "feedback_campaigns" ADD CONSTRAINT "feedback_campaigns_created_by_u
 ALTER TABLE "feedback_emails" ADD CONSTRAINT "feedback_emails_campaign_id_feedback_campaigns_id_fk" FOREIGN KEY ("campaign_id") REFERENCES "public"."feedback_campaigns"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "feedback_emails" ADD CONSTRAINT "feedback_emails_recipient_id_user_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funding" ADD CONSTRAINT "funding_business_id_businesses_id_fk" FOREIGN KEY ("business_id") REFERENCES "public"."businesses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scoring_criteria" ADD CONSTRAINT "scoring_criteria_config_id_scoring_configurations_id_fk" FOREIGN KEY ("config_id") REFERENCES "public"."scoring_configurations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "support_responses" ADD CONSTRAINT "support_responses_ticket_id_support_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."support_tickets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "support_responses" ADD CONSTRAINT "support_responses_responder_id_user_id_fk" FOREIGN KEY ("responder_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "support_tickets" ADD CONSTRAINT "support_tickets_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "support_tickets" ADD CONSTRAINT "support_tickets_assigned_to_user_id_fk" FOREIGN KEY ("assigned_to") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "target_customers" ADD CONSTRAINT "target_customers_business_id_businesses_id_fk" FOREIGN KEY ("business_id") REFERENCES "public"."businesses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -364,9 +421,9 @@ ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_user_id_user_id_fk" FO
 CREATE INDEX "email_verification_codes_email_idx" ON "email_verification_codes" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "email_verification_codes_code_idx" ON "email_verification_codes" USING btree ("code");--> statement-breakpoint
 CREATE INDEX "email_verification_codes_expires_at_idx" ON "email_verification_codes" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "support_responses_ticket_id_idx" ON "support_responses" USING btree ("ticket_id");--> statement-breakpoint
+CREATE INDEX "support_responses_responder_id_idx" ON "support_responses" USING btree ("responder_id");--> statement-breakpoint
+CREATE INDEX "support_responses_created_at_idx" ON "support_responses" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "user_profiles_user_id_idx" ON "user_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_profiles_email_idx" ON "user_profiles" USING btree ("email");--> statement-breakpoint
-CREATE INDEX "user_profiles_role_idx" ON "user_profiles" USING btree ("role");--> statement-breakpoint
-CREATE INDEX "user_email_idx" ON "user" USING btree ("email");--> statement-breakpoint
-CREATE INDEX "user_created_at_idx" ON "user" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "user_last_active_idx" ON "user" USING btree ("last_active");
+CREATE INDEX "user_profiles_role_idx" ON "user_profiles" USING btree ("role");
