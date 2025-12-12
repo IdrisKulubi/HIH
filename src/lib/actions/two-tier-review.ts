@@ -10,7 +10,7 @@
 
 import { auth } from "@/auth";
 import db from "../../../db/drizzle";
-import { applications, eligibilityResults, users } from "../../../db/schema";
+import { applications, eligibilityResults, users, userProfiles } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -141,7 +141,7 @@ export async function submitReviewer2Review(
 
         // Verify user has admin role (senior reviewer)
         const userProfile = await db.query.userProfiles.findFirst({
-            where: eq(users.id, session.user.id),
+            where: eq(userProfiles.userId, session.user.id),
         });
 
         if (userProfile?.role !== "admin") {
@@ -235,7 +235,7 @@ export async function lockApplication(input: LockInput): Promise<ReviewResult> {
 
         // Verify user has admin role
         const userProfile = await db.query.userProfiles.findFirst({
-            where: eq(users.id, session.user.id),
+            where: eq(userProfiles.userId, session.user.id),
         });
 
         if (userProfile?.role !== "admin") {
@@ -303,7 +303,7 @@ export async function unlockApplication(input: LockInput): Promise<ReviewResult>
 
         // Verify user has admin role
         const userProfile = await db.query.userProfiles.findFirst({
-            where: eq(users.id, session.user.id),
+            where: eq(userProfiles.userId, session.user.id),
         });
 
         if (userProfile?.role !== "admin") {

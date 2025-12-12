@@ -318,7 +318,7 @@ export function TwoTierReviewPanel({
                                     disabled={locking}
                                     variant="destructive"
                                     size="sm"
-                                    className="w-full"
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                                 >
                                     {locking ? <Spinner className="h-4 w-4 animate-spin" /> : "Confirm Lock"}
                                 </Button>

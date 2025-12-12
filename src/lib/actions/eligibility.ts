@@ -59,12 +59,39 @@ export async function checkEligibility(applicationId: number) {
       trackScore.breakdown.find(b => b.category.toLowerCase().includes(name.toLowerCase()))?.earnedPoints ?? 0;
 
     // Map to UI display categories (Innovation, Viability, Alignment, Org Capacity)
-    // Foundation: Commercial Viability (20) + Business Model (10) + Market Potential (30) + Social Impact (40) = 100
-    // We'll aggregate them into 4 UI buckets based on scoring rubric
-    const innovationTotal = getCategoryScore("social") + getCategoryScore("business model"); // Social Impact + Business Model
-    const viabilityTotal = getCategoryScore("commercial") + getCategoryScore("market"); // Commercial + Market
-    const alignmentTotal = getCategoryScore("scalab"); // Scalability for Acceleration track
-    const orgCapacityTotal = getCategoryScore("impact") || getCategoryScore("revenue"); // Impact/Revenue
+    // Each bire-scoring category maps to exactly ONE UI category to ensure sum = totalScore
+    // 
+    // FOUNDATION TRACK (100 pts total):
+    //   - Business Model (10 pts) -> Innovation (creativity/uniqueness of business model)
+    //   - Commercial Viability (20 pts) -> Viability (revenue, customers, funding)
+    //   - Market Potential (30 pts) -> Alignment (market fit, differentiation, competitive position)
+    //   - Social Impact (40 pts) -> Org. Capacity (environmental impact, employment, compliance)
+    //
+    // ACCELERATION TRACK (100 pts total):
+    //   - Revenues & Growth (20 pts) -> Viability
+    //   - Impact Potential (20 pts) -> Org. Capacity
+    //   - Scalability (20 pts) -> Alignment
+    //   - Social & Environmental Impact (20 pts) -> Org. Capacity (combined)
+    //   - Business Model (20 pts) -> Innovation
+
+    let innovationTotal: number;
+    let viabilityTotal: number;
+    let alignmentTotal: number;
+    let orgCapacityTotal: number;
+
+    if (track === "acceleration") {
+      innovationTotal = getCategoryScore("business model");
+      viabilityTotal = getCategoryScore("revenues");
+      alignmentTotal = getCategoryScore("scalability");
+      // Combine Impact Potential + Social & Environmental for Org Capacity
+      orgCapacityTotal = getCategoryScore("impact potential") + getCategoryScore("social");
+    } else {
+      // Foundation track
+      innovationTotal = getCategoryScore("business model");
+      viabilityTotal = getCategoryScore("commercial");
+      alignmentTotal = getCategoryScore("market");
+      orgCapacityTotal = getCategoryScore("social");
+    }
 
     // Create or update eligibility result
     const [eligibilityResult] = await db
