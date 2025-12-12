@@ -444,6 +444,12 @@ export const eligibilityResults = pgTable('eligibility_results', {
   revenueGrowthScore: decimal('revenue_growth_score', { precision: 5, scale: 2 }),
   scalabilityScore: decimal('scalability_score', { precision: 5, scale: 2 }),
 
+  // Category totals (aggregated from breakdown for direct UI display)
+  innovationTotal: decimal('innovation_total', { precision: 5, scale: 2 }),  // Innovation & Climate (max 35)
+  viabilityTotal: decimal('viability_total', { precision: 5, scale: 2 }),    // Business Viability (max 31)
+  alignmentTotal: decimal('alignment_total', { precision: 5, scale: 2 }),    // Strategic Alignment (max 20)
+  orgCapacityTotal: decimal('org_capacity_total', { precision: 5, scale: 2 }), // Org Capacity (max 14)
+
   // Two-Tier Review Fields
   reviewer1Score: decimal('reviewer1_score', { precision: 5, scale: 2 }),
   reviewer1Notes: text('reviewer1_notes'),

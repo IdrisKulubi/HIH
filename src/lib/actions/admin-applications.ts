@@ -431,6 +431,20 @@ export async function getApplicationById(
                     evaluationNotes: applicationData.eligibilityResults[0].evaluationNotes,
                     evaluatedAt: applicationData.eligibilityResults[0].evaluatedAt?.toISOString() ?? null,
                     evaluatedBy: applicationData.eligibilityResults[0].evaluatedBy,
+                    // Category totals - direct from DB (no reconstruction needed)
+                    categoryTotals: {
+                        innovation: applicationData.eligibilityResults[0].innovationTotal ? Number(applicationData.eligibilityResults[0].innovationTotal) : 0,
+                        viability: applicationData.eligibilityResults[0].viabilityTotal ? Number(applicationData.eligibilityResults[0].viabilityTotal) : 0,
+                        alignment: applicationData.eligibilityResults[0].alignmentTotal ? Number(applicationData.eligibilityResults[0].alignmentTotal) : 0,
+                        orgCapacity: applicationData.eligibilityResults[0].orgCapacityTotal ? Number(applicationData.eligibilityResults[0].orgCapacityTotal) : 0,
+                    },
+                    mandatoryCriteria: {
+                        ageEligible: applicationData.eligibilityResults[0].ageEligible,
+                        registrationEligible: applicationData.eligibilityResults[0].registrationEligible,
+                        revenueEligible: applicationData.eligibilityResults[0].revenueEligible,
+                        businessPlanEligible: applicationData.eligibilityResults[0].businessPlanEligible,
+                        impactEligible: applicationData.eligibilityResults[0].impactEligible,
+                    },
                 }
                 : null,
         };

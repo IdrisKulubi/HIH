@@ -54,6 +54,18 @@ export async function checkEligibility(applicationId: number) {
     // Map breakdown to legacy score fields for database compatibility
     const scoreMapping = mapBreakdownToLegacyFields(trackScore, applicant);
 
+    // Extract category totals from breakdown for direct UI display
+    const getCategoryScore = (name: string) =>
+      trackScore.breakdown.find(b => b.category.toLowerCase().includes(name.toLowerCase()))?.earnedPoints ?? 0;
+
+    // Map to UI display categories (Innovation, Viability, Alignment, Org Capacity)
+    // Foundation: Commercial Viability (20) + Business Model (10) + Market Potential (30) + Social Impact (40) = 100
+    // We'll aggregate them into 4 UI buckets based on scoring rubric
+    const innovationTotal = getCategoryScore("social") + getCategoryScore("business model"); // Social Impact + Business Model
+    const viabilityTotal = getCategoryScore("commercial") + getCategoryScore("market"); // Commercial + Market
+    const alignmentTotal = getCategoryScore("scalab"); // Scalability for Acceleration track
+    const orgCapacityTotal = getCategoryScore("impact") || getCategoryScore("revenue"); // Impact/Revenue
+
     // Create or update eligibility result
     const [eligibilityResult] = await db
       .insert(eligibilityResults)
@@ -71,7 +83,12 @@ export async function checkEligibility(applicationId: number) {
         socialImpactScore: String(scoreMapping.climateAdaptationScore),
         revenueGrowthScore: String(scoreMapping.managementCapacityScore),
         scalabilityScore: String(scoreMapping.jobCreationScore),
-        totalScore: String(trackScore.totalScore)
+        totalScore: String(trackScore.totalScore),
+        // Category totals for direct UI display
+        innovationTotal: String(innovationTotal),
+        viabilityTotal: String(viabilityTotal),
+        alignmentTotal: String(alignmentTotal),
+        orgCapacityTotal: String(orgCapacityTotal),
       })
       .onConflictDoUpdate({
         target: eligibilityResults.applicationId,
@@ -89,6 +106,11 @@ export async function checkEligibility(applicationId: number) {
           revenueGrowthScore: String(scoreMapping.managementCapacityScore),
           scalabilityScore: String(scoreMapping.jobCreationScore),
           totalScore: String(trackScore.totalScore),
+          // Category totals for direct UI display
+          innovationTotal: String(innovationTotal),
+          viabilityTotal: String(viabilityTotal),
+          alignmentTotal: String(alignmentTotal),
+          orgCapacityTotal: String(orgCapacityTotal),
           updatedAt: new Date(),
         },
       })
