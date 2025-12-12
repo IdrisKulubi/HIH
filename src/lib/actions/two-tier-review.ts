@@ -418,6 +418,7 @@ export async function getReviewStatus(applicationId: number) {
                 lockReason: eligibility?.lockReason,
                 finalScore: eligibility?.totalScore ? Number(eligibility.totalScore) : null,
                 isEligible: eligibility?.isEligible,
+                eligibilityId: eligibility?.id,
             },
         };
     } catch (error) {

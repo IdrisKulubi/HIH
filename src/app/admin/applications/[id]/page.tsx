@@ -109,6 +109,7 @@ export default function ApplicationDetail({
     business: {
       name: string;
       city: string;
+      county: string;
       country: string;
       description: string;
       yearsOperational?: number;
@@ -163,9 +164,7 @@ export default function ApplicationDetail({
       phoneNumber: string;
       gender: string;
       dateOfBirth: string | null;
-      citizenship: string;
-      countryOfResidence: string;
-      highestEducation: string;
+      county: string;
     };
     eligibility?: {
       isEligible: boolean;
@@ -580,8 +579,8 @@ export default function ApplicationDetail({
                     </div>
                   </div>
                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Revenue (2y)</p>
-                    <p className="font-semibold text-gray-900">${application.business.revenueLastTwoYears?.toLocaleString() || "0"}</p>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">County</p>
+                    <p className="font-semibold text-gray-900">{application.business.county}</p>
                   </div>
                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Employees</p>
