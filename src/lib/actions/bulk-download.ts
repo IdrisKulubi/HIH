@@ -26,9 +26,9 @@ export async function bulkDownloadApplications(applicationIds: number[]) {
       try {
         const result = await downloadEnhancedApplicationDOCX(appId);
         if (result.success && result.data) {
-          // Convert blob to array buffer for JSZip
-          const arrayBuffer = await result.data.blob.arrayBuffer();
-          zip.file(result.data.filename, arrayBuffer);
+          // Decode base64 to Buffer for JSZip
+          const buffer = Buffer.from(result.data.base64, 'base64');
+          zip.file(result.data.filename, buffer);
           return { success: true, filename: result.data.filename };
         }
         return { success: false, error: `Failed to generate document for application ${appId}` };
@@ -40,25 +40,26 @@ export async function bulkDownloadApplications(applicationIds: number[]) {
 
     const results = await Promise.all(downloadPromises);
     const successCount = results.filter(r => r.success).length;
-    
+
     if (successCount === 0) {
       return { success: false, error: "Failed to generate any documents" };
     }
 
-    // Generate ZIP blob
-    const zipBlob = await zip.generateAsync({ type: "blob" });
+    // Generate ZIP as base64 (server actions can't return Blobs)
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    const base64 = zipBuffer.toString('base64');
     const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const filename = `BIREProgramme_Applications_${timestamp}.zip`;
 
     return {
       success: true,
       data: {
-        blob: zipBlob,
+        base64,
         filename,
         contentType: "application/zip",
       },
-      message: successCount < applicationIds.length 
-        ? `Generated ${successCount} of ${applicationIds.length} documents` 
+      message: successCount < applicationIds.length
+        ? `Generated ${successCount} of ${applicationIds.length} documents`
         : `Generated ${successCount} documents successfully`
     };
 

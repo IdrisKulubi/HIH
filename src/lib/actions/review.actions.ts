@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
 import { applications, eligibilityResults } from "@/db/schema";
-import { eq,  or, desc } from "drizzle-orm";
+import { eq, or, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { verifyPasscode, setReviewAccess, hasReviewAccess } from "../review-auth";
 import * as XLSX from 'xlsx';
@@ -19,7 +19,7 @@ export async function verifyReviewPasscode(passcode: string) {
     }
 
     const isValid = await verifyPasscode(passcode);
-    
+
     if (isValid) {
       await setReviewAccess();
       revalidatePath("/admin/review");
@@ -70,7 +70,7 @@ export async function getApplicationsForReview() {
     // Fetch only shortlisted and under_review applications
     const applicationsData = await db.query.applications.findMany({
       where: or(
-        eq(applications.status, 'shortlisted'),
+        eq(applications.status, 'scoring_phase'),
         eq(applications.status, 'under_review')
       ),
       orderBy: [desc(applications.updatedAt)],
@@ -125,7 +125,7 @@ export async function approveApplication(applicationId: number, notes?: string) 
     // Update application status
     await db
       .update(applications)
-      .set({ 
+      .set({
         status: 'approved',
         updatedAt: new Date()
       })
@@ -175,7 +175,7 @@ export async function rejectApplication(applicationId: number, notes?: string) {
     // Update application status
     await db
       .update(applications)
-      .set({ 
+      .set({
         status: 'rejected',
         updatedAt: new Date()
       })
@@ -225,7 +225,7 @@ export async function exportApplicationsToExcel() {
     // Fetch all evaluated applications
     const applicationsData = await db.query.applications.findMany({
       where: or(
-        eq(applications.status, 'shortlisted'),
+        eq(applications.status, 'scoring_phase'),
         eq(applications.status, 'under_review'),
         eq(applications.status, 'approved'),
         eq(applications.status, 'rejected')
@@ -256,9 +256,9 @@ export async function exportApplicationsToExcel() {
       'Is Eligible': app.eligibilityResults[0]?.isEligible ? 'Yes' : 'No',
       'Total Score': app.eligibilityResults[0]?.totalScore || 0,
       'Evaluation Notes': app.eligibilityResults[0]?.evaluationNotes || '',
-      'Evaluated Date': app.eligibilityResults[0]?.evaluatedAt ? 
+      'Evaluated Date': app.eligibilityResults[0]?.evaluatedAt ?
         new Date(app.eligibilityResults[0].evaluatedAt).toLocaleDateString() : '',
-      'Submitted Date': app.submittedAt ? 
+      'Submitted Date': app.submittedAt ?
         new Date(app.submittedAt).toLocaleDateString() : '',
     }));
 
@@ -269,12 +269,12 @@ export async function exportApplicationsToExcel() {
 
     // Generate buffer
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
-    
+
     // Convert to base64 for download
     const base64 = Buffer.from(excelBuffer).toString('base64');
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       data: base64,
       filename: `applications_review_${new Date().toISOString().split('T')[0]}.xlsx`
     };

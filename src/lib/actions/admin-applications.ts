@@ -127,6 +127,12 @@ export interface DetailedApplication extends ApplicationListItem {
         evaluationNotes: string | null;
         evaluatedAt: string | null;
         evaluatedBy: string | null;
+        categoryTotals?: {
+            innovation: number;
+            viability: number;
+            alignment: number;
+            orgCapacity: number;
+        };
         mandatoryCriteria?: any;
         evaluationScores?: any;
     } | null;

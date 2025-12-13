@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getApplications,
@@ -52,7 +52,25 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
+// Loading fallback for Suspense
+function ApplicationsLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <Spinner className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  );
+}
+
+// Main page wrapper with Suspense
 export default function ApplicationsPage() {
+  return (
+    <Suspense fallback={<ApplicationsLoading />}>
+      <ApplicationsContent />
+    </Suspense>
+  );
+}
+
+function ApplicationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 

@@ -14,8 +14,18 @@ interface EnhancedDocumentDownloadProps {
   className?: string;
 }
 
-export function EnhancedDocumentDownload({ 
-  applicationId, 
+// Helper to decode base64 and create blob
+const base64ToBlob = (base64: string, contentType: string): Blob => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: contentType });
+};
+
+export function EnhancedDocumentDownload({
+  applicationId,
   variant = "outline",
   size = "default",
   className = ""
@@ -25,16 +35,17 @@ export function EnhancedDocumentDownload({
   const handleDownload = async () => {
     try {
       setIsDownloading(true);
-      
+
       const result = await downloadEnhancedApplicationDOCX(applicationId);
-      
+
       if (!result.success || !result.data) {
         toast.error(result.error || "Failed to generate document");
         return;
       }
 
-      // Create download link
-      const url = URL.createObjectURL(result.data.blob);
+      // Decode base64 and create blob
+      const blob = base64ToBlob(result.data.base64, result.data.contentType);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = result.data.filename;
@@ -76,28 +87,29 @@ export function EnhancedDocumentDownload({
 }
 
 // Alternative compact version for use in tables or lists
-export function CompactEnhancedDocumentDownload({ 
-  applicationId, 
-  applicantName 
-}: { 
-  applicationId: number; 
-  applicantName: string; 
+export function CompactEnhancedDocumentDownload({
+  applicationId,
+  applicantName
+}: {
+  applicationId: number;
+  applicantName: string;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
     try {
       setIsDownloading(true);
-      
+
       const result = await downloadEnhancedApplicationDOCX(applicationId);
-      
+
       if (!result.success || !result.data) {
         toast.error(result.error || "Failed to generate document");
         return;
       }
 
-      // Create download link
-      const url = URL.createObjectURL(result.data.blob);
+      // Decode base64 and create blob
+      const blob = base64ToBlob(result.data.base64, result.data.contentType);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = result.data.filename;

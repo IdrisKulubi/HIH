@@ -76,7 +76,7 @@ export function DueDiligenceForm({
                 category,
                 criterion,
                 score,
-                item?.comments
+                item?.comments ?? undefined
             );
 
             if (result.success) {

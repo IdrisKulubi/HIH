@@ -88,7 +88,6 @@ export default async function ReviewDashboard() {
   // Calculate statistics
   const stats = {
     total: applications.length,
-    shortlisted: applications.filter(app => app.status === 'shortlisted').length,
     underReview: applications.filter(app => app.status === 'under_review').length,
     eligible: applications.filter(app => app.eligibilityResults?.[0]?.isEligible).length,
     ineligible: applications.filter(app => app.eligibilityResults?.[0] && !app.eligibilityResults[0].isEligible).length,
