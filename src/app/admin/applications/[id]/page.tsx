@@ -49,6 +49,7 @@ import {
   Clock
 } from "@phosphor-icons/react";
 import { TwoTierReviewPanel } from "@/components/admin/TwoTierReviewPanel";
+import { DocumentViewerModal } from "@/components/admin/DocumentViewerModal";
 import { cn } from "@/lib/utils";
 
 // --- UI Helpers ---
@@ -201,6 +202,17 @@ export default function ApplicationDetail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  // Document Viewer State
+  const [docViewerOpen, setDocViewerOpen] = useState(false);
+  const [docViewerUrl, setDocViewerUrl] = useState<string | null>(null);
+  const [docViewerName, setDocViewerName] = useState("");
+
+  const handleOpenDocument = (url: string, name: string) => {
+    setDocViewerUrl(url);
+    setDocViewerName(name);
+    setDocViewerOpen(true);
+  };
 
   useEffect(() => {
     const initializeParams = async () => {
@@ -713,14 +725,25 @@ export default function ApplicationDetail({
                           </div>
                           <div>
                             <p className="font-medium text-gray-900 text-sm truncate max-w-[150px]">{doc.name}</p>
-                            <p className="text-xs text-blue-600">View Document</p>
+                            <p className="text-xs text-gray-500">Click to preview</p>
                           </div>
                         </div>
-                        <Button size="icon" variant="ghost" asChild className="h-8 w-8 text-gray-400 hover:text-blue-600">
-                          <Link href={doc.url!} target="_blank"><ArrowSquareOut className="h-4 w-4" /></Link>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs bg-white hover:bg-blue-50 hover:text-blue-600"
+                            onClick={() => handleOpenDocument(doc.url!, doc.name)}
+                          >
+                            View
+                          </Button>
+                          <Button size="icon" variant="ghost" asChild className="h-8 w-8 text-gray-400 hover:text-blue-600">
+                            <Link href={doc.url!} target="_blank"><ArrowSquareOut className="h-4 w-4" /></Link>
+                          </Button>
+                        </div>
                       </div>
                     ))}
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {(!application.business.registrationCertificateUrl && !(application.business as any).businessOverviewUrl) && (
                       <div className="col-span-full py-8 text-center text-gray-500">No documents uploaded.</div>
                     )}
@@ -790,6 +813,14 @@ export default function ApplicationDetail({
           </div>
         </div>
       </main>
+
+      {/* Document Viewer Modal */}
+      <DocumentViewerModal
+        isOpen={docViewerOpen}
+        onClose={() => setDocViewerOpen(false)}
+        url={docViewerUrl}
+        filename={docViewerName}
+      />
     </div>
   );
 }

@@ -129,12 +129,12 @@ export default async function AdminDashboard() {
                 title="View Eligible Candidates"
                 description="Browse qualified applications only"
               />
-              <QuickActionRow
+              {/* <QuickActionRow
                 href="/admin/scoring"
                 icon={<GearIcon weight="duotone" className="w-5 h-5 text-purple-500" />}
                 title="Scoring Criteria"
                 description="Configure evaluation metrics & weights"
-              />
+              /> */}
               <QuickActionRow
                 href="/admin/support"
                 icon={<ChatIcon weight="duotone" className="w-5 h-5 text-cyan-500" />}

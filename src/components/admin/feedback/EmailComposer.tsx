@@ -66,9 +66,9 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
     resolver: zodResolver(campaignSchema),
     defaultValues: {
       name: "",
-      subject: "We'd love your feedback on the YouthAdapt Challenge",
+      subject: "We'd love your feedback on the BIRE Program",
       emailBody:
-        "Thank you for participating in the YouthAdapt Challenge. Your experience and insights are invaluable to us as we work to improve the program for future applicants.\n\nWe've prepared a short feedback form that should take only 5-10 minutes to complete. Your responses will help us understand what worked well and what we can improve.\n\nYour feedback is completely anonymous and will be used solely to enhance the program experience.",
+        "Thank you for participating in the BIRE Program. Your experience and insights are invaluable to us as we work to improve the program for future applicants.\n\nWe've prepared a short feedback form that should take only 5-10 minutes to complete. Your responses will help us understand what worked well and what we can improve.\n\nYour feedback is completely anonymous and will be used solely to enhance the program experience.",
       feedbackFormUrl: "",
       linkDisplayText: "Share Your Feedback",
       batchSize: 5,
@@ -421,7 +421,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 {/* Header */}
                 <div className="bg-gradient-to-r from-[#0B5FBA] to-[#00D0AB] p-8 text-center rounded-t-lg">
                   <h2 className="text-2xl font-bold text-white">
-                    YouthAdapt Challenge
+                    BIRE Program
                   </h2>
                   <p className="text-blue-100 mt-1">
                     In-Country Program Feedback
@@ -455,10 +455,10 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 {/* Footer */}
                 <div className="bg-gray-50 p-6 text-center rounded-b-lg border-t">
                   <p className="text-sm text-gray-600">
-                    YouthAdapt Challenge - In-Country Program
+                    BIRE Program - In-Country Program
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    © {new Date().getFullYear()} YouthAdapt Challenge
+                    © {new Date().getFullYear()} BIRE Program
                   </p>
                 </div>
               </div>
