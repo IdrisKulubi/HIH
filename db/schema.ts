@@ -802,3 +802,61 @@ export const feedbackEmailRelations = relations(feedbackEmails, ({ one }) => ({
     references: [users.id]
   })
 }));
+
+// === DUE DILIGENCE MODULE ===
+
+export const dueDiligenceRecords = pgTable('due_diligence_records', {
+  id: serial('id').primaryKey(),
+  applicationId: integer('application_id').references(() => applications.id, { onDelete: 'cascade' }).notNull(),
+
+  // Phase 1: Phone / Desk Due Diligence
+  phase1Score: integer('phase1_score').default(0),
+  phase1Status: text('phase1_status').default('pending'), // pending, in_progress, completed
+  phase1Notes: text('phase1_notes'),
+
+  // Phase 2: Physical Due Diligence
+  phase2Score: integer('phase2_score').default(0),
+  phase2Status: text('phase2_status').default('pending'), // pending, ready, in_progress, completed, skipped
+  phase2Notes: text('phase2_notes'),
+
+  reviewerId: text('reviewer_id'), // User ID of the staff member
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const dueDiligenceItems = pgTable('due_diligence_items', {
+  id: serial('id').primaryKey(),
+  recordId: integer('record_id').references(() => dueDiligenceRecords.id, { onDelete: 'cascade' }).notNull(),
+  phase: text('phase').notNull(), // 'phase1' or 'phase2'
+  category: text('category').notNull(), // e.g., 'Business Legitimacy'
+  criterion: text('criterion').notNull(), // e.g., 'Registration Status'
+  score: integer('score').default(0), // 0, 1, 3, 5
+  comments: text('comments'),
+});
+
+// Relations
+export const dueDiligenceRecordsRelations = relations(dueDiligenceRecords, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [dueDiligenceRecords.applicationId],
+    references: [applications.id],
+  }),
+  items: many(dueDiligenceItems),
+  reviewer: one(users, {
+    fields: [dueDiligenceRecords.reviewerId],
+    references: [users.id],
+  }),
+}));
+
+export const dueDiligenceItemsRelations = relations(dueDiligenceItems, ({ one }) => ({
+  record: one(dueDiligenceRecords, {
+    fields: [dueDiligenceItems.recordId],
+    references: [dueDiligenceRecords.id],
+  }),
+}));
+
+// Export types
+export type DueDiligenceRecord = typeof dueDiligenceRecords.$inferSelect;
+export type NewDueDiligenceRecord = typeof dueDiligenceRecords.$inferInsert;
+export type DueDiligenceItem = typeof dueDiligenceItems.$inferSelect;
+export type NewDueDiligenceItem = typeof dueDiligenceItems.$inferInsert;

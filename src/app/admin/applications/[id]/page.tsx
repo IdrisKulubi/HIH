@@ -449,6 +449,17 @@ export default function ApplicationDetail({
                 <span className="hidden sm:inline">Export</span>
               </Button>
 
+              <Link href={`/admin/applications/${application.id}/due-diligence`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:text-gray-900 font-medium"
+                >
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Due Diligence</span>
+                </Button>
+              </Link>
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
