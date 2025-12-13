@@ -2,8 +2,8 @@
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DownloadSimple, X, Spinner, Warning, ArrowsClockwise, ArrowSquareOut } from "@phosphor-icons/react";
-import { useState, useEffect, useRef } from "react";
+import { DownloadSimple, X, Spinner, Warning, ArrowSquareOut, FileDoc, FilePdf, Image as ImageIcon } from "@phosphor-icons/react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface DocumentViewerModalProps {
     isOpen: boolean;
@@ -12,8 +12,6 @@ interface DocumentViewerModalProps {
     filename?: string;
 }
 
-type ViewerType = "native" | "office" | "google";
-
 export function DocumentViewerModal({
     isOpen,
     onClose,
@@ -21,74 +19,113 @@ export function DocumentViewerModal({
     filename = "Document",
 }: DocumentViewerModalProps) {
     const [loading, setLoading] = useState(true);
-    const [currentViewer, setCurrentViewer] = useState<ViewerType>("native");
-    const [showFallback, setShowFallback] = useState(false);
-    const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [docxHtml, setDocxHtml] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // Reset state when URL changes or modal opens
+    // Determine file type
+    const getFileType = useCallback(() => {
+        if (!url) return "unknown";
+        const lowerUrl = url.toLowerCase();
+        if (lowerUrl.includes(".pdf")) return "pdf";
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(lowerUrl)) return "image";
+        if (/\.(doc|docx)$/i.test(lowerUrl)) return "docx";
+        if (/\.(xls|xlsx)$/i.test(lowerUrl)) return "excel";
+        if (/\.(ppt|pptx)$/i.test(lowerUrl)) return "pptx";
+        return "unknown";
+    }, [url]);
+
+    const fileType = getFileType();
+
+    // Load DOCX files using docx-preview
     useEffect(() => {
-        if (url && isOpen) {
-            setLoading(true);
-            setShowFallback(false);
-            // Determine initial viewer based on file type
-            const isOffice = /\.(doc|docx|xls|xlsx|ppt|pptx)$/i.test(url.toLowerCase());
-            setCurrentViewer(isOffice ? "google" : "native");
-
-            // Set a timeout - if loading takes too long, show fallback options
-            if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-            loadTimeoutRef.current = setTimeout(() => {
-                setLoading(false);
-                setShowFallback(true);
-            }, 8000); // 8 seconds timeout
+        if (!isOpen || !url || fileType !== "docx") {
+            setDocxHtml(null);
+            return;
         }
 
-        return () => {
-            if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+        const loadDocx = async () => {
+            setLoading(true);
+            setError(null);
+            setDocxHtml(null);
+
+            try {
+                // Dynamically import docx-preview (client-side only)
+                const docxPreview = await import("docx-preview");
+
+                // Fetch the document
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Failed to fetch document");
+
+                const blob = await response.blob();
+
+                // Create a container for the rendered document
+                if (containerRef.current) {
+                    containerRef.current.innerHTML = "";
+                    await docxPreview.renderAsync(blob, containerRef.current, undefined, {
+                        className: "docx-viewer",
+                        inWrapper: true,
+                        ignoreWidth: false,
+                        ignoreHeight: false,
+                        ignoreFonts: false,
+                        breakPages: true,
+                        useBase64URL: true,
+                    });
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error("DOCX render error:", err);
+                setError("Unable to preview this document. Please download to view.");
+                setLoading(false);
+            }
         };
-    }, [url, isOpen]);
+
+        loadDocx();
+    }, [url, isOpen, fileType]);
+
+    // Reset state when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            setLoading(true);
+            setError(null);
+            setDocxHtml(null);
+        }
+    }, [isOpen]);
 
     if (!url) return null;
 
-    // Determine file type
-    const isPdf = url.toLowerCase().includes(".pdf");
-    const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(url.toLowerCase());
-    const isOffice = /\.(doc|docx|xls|xlsx|ppt|pptx)$/i.test(url.toLowerCase());
-
-    // Build viewer URLs
-    const getViewerUrl = (type: ViewerType): string => {
-        switch (type) {
-            case "office":
-                return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
-            case "google":
-                return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
-            default:
-                return url;
-        }
-    };
-
-    const handleLoad = () => {
-        if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+    const handleImageLoad = () => {
         setLoading(false);
-        setShowFallback(false);
+        setError(null);
     };
 
-    const tryAlternativeViewer = () => {
-        setLoading(true);
-        setShowFallback(false);
-        if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-        loadTimeoutRef.current = setTimeout(() => {
-            setLoading(false);
-            setShowFallback(true);
-        }, 8000);
+    const handleError = () => {
+        setLoading(false);
+        setError("Unable to preview this file. Please download to view.");
+    };
 
-        if (currentViewer === "google") {
-            setCurrentViewer("office");
-        } else if (currentViewer === "office") {
-            setCurrentViewer("google");
+    const getFileIcon = () => {
+        switch (fileType) {
+            case "pdf": return <FilePdf className="w-5 h-5" />;
+            case "docx": return <FileDoc className="w-5 h-5" />;
+            case "image": return <ImageIcon className="w-5 h-5" />;
+            default: return <FileDoc className="w-5 h-5" />;
         }
     };
 
-    const viewerUrl = getViewerUrl(currentViewer);
+    const getFileLabel = () => {
+        switch (fileType) {
+            case "pdf": return "PDF";
+            case "docx": return "DOC";
+            case "excel": return "XLS";
+            case "pptx": return "PPT";
+            case "image": return "IMG";
+            default: return "FILE";
+        }
+    };
+
+    // For Excel and PPT, show download-only interface
+    const isDownloadOnly = fileType === "excel" || fileType === "pptx" || fileType === "unknown";
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -96,30 +133,19 @@ export function DocumentViewerModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white/50 z-10 shrink-0">
                     <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="bg-blue-50 p-2 rounded-lg text-blue-600 font-mono text-xs font-bold">
-                            {isPdf ? "PDF" : isImage ? "IMG" : isOffice ? "DOC" : "FILE"}
+                        <div className="bg-blue-50 p-2 rounded-lg text-blue-600 flex items-center justify-center">
+                            {getFileIcon()}
                         </div>
-                        <h2 className="text-lg font-semibold text-gray-900 truncate">
-                            {filename}
-                        </h2>
-                        {isOffice && (
-                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                                via {currentViewer === "google" ? "Google Docs" : "Office Online"}
+                        <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-700 font-mono text-xs font-bold px-2 py-0.5 rounded">
+                                {getFileLabel()}
                             </span>
-                        )}
+                            <h2 className="text-lg font-semibold text-gray-900 truncate max-w-[300px]">
+                                {filename}
+                            </h2>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {isOffice && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={tryAlternativeViewer}
-                                className="text-xs text-gray-500"
-                            >
-                                <ArrowsClockwise className="h-4 w-4 mr-1" />
-                                Switch Viewer
-                            </Button>
-                        )}
                         <Button
                             variant="outline"
                             size="sm"
@@ -132,9 +158,9 @@ export function DocumentViewerModal({
                             </a>
                         </Button>
                         <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
-                            className="bg-white/80 backdrop-blur-sm border-gray-200"
+                            className="bg-blue-600 hover:bg-blue-700"
                             asChild
                         >
                             <a href={url} download={filename}>
@@ -154,35 +180,37 @@ export function DocumentViewerModal({
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 bg-gray-50/50 relative overflow-hidden flex items-center justify-center">
-                    {loading && !showFallback && (
+                <div className="flex-1 bg-gray-50/50 relative overflow-auto flex items-center justify-center">
+                    {loading && !error && !isDownloadOnly && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3 bg-gray-50">
                             <Spinner className="h-8 w-8 text-blue-600 animate-spin" />
                             <p className="text-sm text-gray-500">Loading document...</p>
-                            <p className="text-xs text-gray-400">This may take a few seconds</p>
                         </div>
                     )}
 
-                    {showFallback && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center z-30 bg-gray-50 gap-4">
-                            <Warning className="h-12 w-12 text-amber-500" />
-                            <div className="text-center max-w-md">
-                                <h3 className="font-semibold text-gray-900 mb-2">Document Preview Unavailable</h3>
-                                <p className="text-sm text-gray-500 mb-4">
-                                    The document couldn&apos;t be displayed in the browser. This often happens with private files or specific document formats.
+                    {(error || isDownloadOnly) && (
+                        <div className="flex flex-col items-center justify-center gap-6 p-8 text-center">
+                            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center">
+                                {isDownloadOnly ? getFileIcon() : <Warning className="h-10 w-10 text-amber-500" />}
+                            </div>
+                            <div className="max-w-md">
+                                <h3 className="font-semibold text-gray-900 mb-2 text-lg">
+                                    {isDownloadOnly ? "Preview Not Available" : "Preview Error"}
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    {isDownloadOnly
+                                        ? `${getFileLabel()} files cannot be previewed in the browser. Please download or open externally to view.`
+                                        : error
+                                    }
                                 </p>
-                                <div className="flex gap-3 justify-center flex-wrap">
-                                    <Button variant="outline" onClick={tryAlternativeViewer}>
-                                        <ArrowsClockwise className="h-4 w-4 mr-2" />
-                                        Try {currentViewer === "google" ? "Office Viewer" : "Google Viewer"}
-                                    </Button>
-                                    <Button asChild>
+                                <div className="flex gap-3 justify-center">
+                                    <Button asChild variant="outline">
                                         <a href={url} target="_blank" rel="noopener noreferrer">
                                             <ArrowSquareOut className="h-4 w-4 mr-2" />
                                             Open in New Tab
                                         </a>
                                     </Button>
-                                    <Button variant="secondary" asChild>
+                                    <Button asChild>
                                         <a href={url} download={filename}>
                                             <DownloadSimple className="h-4 w-4 mr-2" />
                                             Download File
@@ -193,26 +221,52 @@ export function DocumentViewerModal({
                         </div>
                     )}
 
-                    {isImage ? (
-                        //eslint-disable-next-line @next/next/no-img-element
+                    {/* Image Viewer */}
+                    {fileType === "image" && !error && (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                             src={url}
                             alt={filename}
                             className="max-h-full max-w-full object-contain shadow-lg"
-                            onLoad={handleLoad}
-                            onError={() => setShowFallback(true)}
+                            onLoad={handleImageLoad}
+                            onError={handleError}
                         />
-                    ) : (
+                    )}
+
+                    {/* PDF Viewer - native browser */}
+                    {fileType === "pdf" && !error && (
                         <iframe
-                            key={viewerUrl}
-                            src={viewerUrl}
-                            className={`w-full h-full border-0 ${showFallback ? 'hidden' : ''}`}
+                            src={url}
+                            className="w-full h-full border-0"
                             title={filename}
-                            onLoad={handleLoad}
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                            onLoad={() => setLoading(false)}
+                            onError={handleError}
+                        />
+                    )}
+
+                    {/* DOCX Viewer - using docx-preview */}
+                    {fileType === "docx" && !error && (
+                        <div
+                            ref={containerRef}
+                            className="w-full h-full overflow-auto bg-white p-4"
+                            style={{ minHeight: "100%" }}
                         />
                     )}
                 </div>
+
+                {/* DOCX Styles */}
+                <style jsx global>{`
+                    .docx-viewer {
+                        background: white;
+                        padding: 20px;
+                    }
+                    .docx-viewer section.docx {
+                        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                        margin: 20px auto;
+                        padding: 40px 60px;
+                        background: white;
+                    }
+                `}</style>
             </DialogContent>
         </Dialog>
     );

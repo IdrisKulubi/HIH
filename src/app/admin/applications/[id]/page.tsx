@@ -530,7 +530,7 @@ export default function ApplicationDetail({
 
             {/* Applicant Profile Header Card */}
             <div className="bg-white rounded-2xl p-6 border border-gray-200/60 shadow-sm flex flex-col md:flex-row gap-6 items-start md:items-center">
-              <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-blue-200 shadow-lg">
+              <div className="h-20 w-20 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-2xl font-bold shadow-blue-200 shadow-lg">
                 {application.business.name.substring(0, 2).toUpperCase()}
               </div>
               <div className="flex-1">
