@@ -10,16 +10,14 @@ import {
   Text,
   render,
   Tailwind,
-  Img,
 } from '@react-email/components';
-import * as React from 'react';
 
 export interface VerificationCodeEmailProps {
   verificationCode: string;
   userEmail: string;
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bire-platform.org';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bireprogramme.org';
 
 export const VerificationCodeEmail = ({
   verificationCode = '123456',

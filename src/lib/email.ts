@@ -14,7 +14,7 @@ import {
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
-  process.env.RESEND_FROM_EMAIL || 'YouthADAPT <verify@bireprogramme.org>';
+  process.env.RESEND_FROM_EMAIL || 'BIRE <verify@bireprogramme.org>';
 
 if (!process.env.RESEND_API_KEY) {
   console.warn(' RESEND_API_KEY is not set. Emails will not be sent.');
@@ -28,18 +28,30 @@ export interface SendEmailParams {
 
 export const sendEmail = async (params: SendEmailParams) => {
   const { to, subject, react } = params;
+
+  if (!process.env.RESEND_API_KEY) {
+    console.error('RESEND_API_KEY is not configured');
+    throw new Error('Email service not configured');
+  }
+
   try {
+    console.log('[EMAIL] Sending email to:', to, 'subject:', subject);
     const { data, error } = await resend.emails.send({
       from: fromEmail,
       to,
       subject,
       html: await render(react),
     });
+
     if (error) {
-      throw new Error('Failed to send email');
+      console.error('[EMAIL] Resend API error:', JSON.stringify(error, null, 2));
+      throw new Error(`Failed to send email: ${error.message || JSON.stringify(error)}`);
     }
+
+    console.log('[EMAIL] Email sent successfully:', data?.id);
     return { success: true, data };
   } catch (error) {
+    console.error('[EMAIL] Error sending email:', error);
     throw error;
   }
 };
@@ -53,7 +65,7 @@ export async function sendVerificationCode(props: {
 }) {
   return sendEmail({
     to: props.to,
-    subject: 'Your In-Country YouthADAPT Verification Code',
+    subject: 'Your BIRE Verification Code',
     react: VerificationCodeEmail({
       userEmail: props.to,
       verificationCode: props.verificationCode,
