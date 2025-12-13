@@ -16,6 +16,16 @@ const formatValue = (value: unknown): string => {
   return String(value);
 };
 
+// Helper function to format currency
+const formatCurrency = (value: unknown): string => {
+  if (value === null || value === undefined) return "Not provided";
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (typeof num === 'number' && !isNaN(num)) {
+    return `KES ${num.toLocaleString()}`;
+  }
+  return String(value);
+};
+
 // Helper function to create a section header
 const createSectionHeader = (title: string, icon: string) => {
   return new Paragraph({
@@ -72,11 +82,7 @@ const createStatusTable = (application: any) => {
             children: [
               new Paragraph({
                 children: [
-                  new TextRun({
-                    text: "Application Status",
-                    bold: true,
-                    size: 20
-                  })
+                  new TextRun({ text: "Application Status", bold: true, size: 20 })
                 ]
               })
             ],
@@ -87,7 +93,7 @@ const createStatusTable = (application: any) => {
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: application.status.replace('_', ' ').toUpperCase(),
+                    text: (application.status || 'submitted').replace('_', ' ').toUpperCase(),
                     bold: true,
                     size: 20,
                     color: application.status === 'approved' ? '059669' :
@@ -104,58 +110,35 @@ const createStatusTable = (application: any) => {
       new TableRow({
         children: [
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Application ID",
-                    bold: true,
-                    size: 20
-                  })
-                ]
-              })
-            ]
+            children: [new Paragraph({ children: [new TextRun({ text: "Application ID", bold: true, size: 20 })] })]
           }),
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `#${application.id}`,
-                    size: 20
-                  })
-                ]
-              })
-            ]
+            children: [new Paragraph({ children: [new TextRun({ text: `#${application.id}`, size: 20 })] })]
           })
         ]
       }),
       new TableRow({
         children: [
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: "Submitted",
-                    bold: true,
-                    size: 20
-                  })
-                ]
-              })
-            ]
+            children: [new Paragraph({ children: [new TextRun({ text: "Track", bold: true, size: 20 })] })]
           }),
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: application.submittedAt ? format(new Date(application.submittedAt), "MMMM do, yyyy 'at' h:mm a") : "Not submitted",
-                    size: 20
-                  })
-                ]
-              })
-            ]
+            children: [new Paragraph({ children: [new TextRun({ text: (application.track || 'foundation').toUpperCase(), size: 20 })] })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: "Submitted", bold: true, size: 20 })] })]
+          }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({
+                text: application.submittedAt ? format(new Date(application.submittedAt), "MMMM do, yyyy 'at' h:mm a") : "Not submitted",
+                size: 20
+              })]
+            })]
           })
         ]
       })
@@ -173,7 +156,7 @@ const createStatusTable = (application: any) => {
 };
 
 /**
- * Generate enhanced professional DOCX document for application review with all details
+ * Generate enhanced professional DOCX document for BIRE application review
  */
 export async function downloadEnhancedApplicationDOCX(applicationId: number) {
   try {
@@ -182,51 +165,41 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get full application data
     const result = await getApplicationById(applicationId);
     if (!result.success || !result.data) {
       return { success: false, error: "Application not found" };
     }
 
+    //eslint-disable-next-line @typescript-eslint/no-explicit-any
     const application = result.data as any;
-    const applicantName = `${application.applicant.firstName} ${application.applicant.lastName}`;
+    const applicantName = `${application.applicant?.firstName || ''} ${application.applicant?.lastName || ''}`.trim() || 'Unknown Applicant';
+    const business = application.business || {};
 
-    // Create document sections
     const sections = [];
 
     // Document Header
     sections.push(
       new Paragraph({
         children: [
-          new TextRun({
-            text: "BIRE Programme Application Review Document",
-            bold: true,
-            size: 48,
-            color: "1D4ED8"
-          })
+          new TextRun({ text: "BIRE 2026 Programme", bold: true, size: 48, color: "1D4ED8" })
         ],
         heading: HeadingLevel.TITLE,
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 }
-      }),
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Applicant: ${applicantName}`,
-            bold: true,
-            size: 24
-          })
-        ],
         spacing: { after: 100 }
       }),
       new Paragraph({
         children: [
-          new TextRun({
-            text: `Business: ${application.business.name}`,
-            bold: true,
-            size: 24
-          })
+          new TextRun({ text: "Application Review Document", bold: true, size: 28, color: "6B7280" })
         ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 300 }
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: `Business: ${business.name || 'N/A'}`, bold: true, size: 26 })],
+        spacing: { after: 100 }
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: `Applicant: ${applicantName}`, bold: true, size: 24 })],
         spacing: { after: 300 }
       })
     );
@@ -235,307 +208,151 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     sections.push(createStatusTable(application));
     sections.push(new Paragraph({ text: "", spacing: { after: 400 } }));
 
-    // STEP 1: Personal Information Section
-    sections.push(createSectionHeader("Step 1: Personal Information", "👤"));
-    sections.push(...createQuestionAnswer("Full Name", `${application.applicant.firstName} ${application.applicant.lastName}`));
-    sections.push(...createQuestionAnswer("Email Address", formatValue(application.applicant.email)));
-    sections.push(...createQuestionAnswer("Phone Number", formatValue(application.applicant.phoneNumber)));
-    sections.push(...createQuestionAnswer("Gender", formatValue(application.applicant.gender)));
-    sections.push(...createQuestionAnswer("Date of Birth", formatValue(application.applicant.dateOfBirth)));
-    sections.push(...createQuestionAnswer("Citizenship", formatValue(application.applicant.citizenship)));
-    sections.push(...createQuestionAnswer("Country of Residence", formatValue(application.applicant.countryOfResidence)));
-    sections.push(...createQuestionAnswer("Highest Education", formatValue(application.applicant.highestEducation?.replace(/_/g, ' '))));
+    // =====================
+    // SECTION 1: APPLICANT INFO
+    // =====================
+    sections.push(createSectionHeader("Applicant Information", "👤"));
+    sections.push(...createQuestionAnswer("Full Name", applicantName));
+    sections.push(...createQuestionAnswer("Email Address", formatValue(application.applicant?.email)));
+    sections.push(...createQuestionAnswer("Phone Number", formatValue(application.applicant?.phoneNumber)));
+    sections.push(...createQuestionAnswer("Gender", formatValue(application.applicant?.gender)));
+    sections.push(...createQuestionAnswer("Date of Birth", application.applicant?.dob ? format(new Date(application.applicant.dob), "PPP") : "Not provided"));
+    sections.push(...createQuestionAnswer("ID/Passport Number", formatValue(application.applicant?.idPassportNumber)));
 
-    // STEP 2: Business Information Section
-    sections.push(createSectionHeader("Step 2: Business Information", "🏢"));
-    sections.push(...createQuestionAnswer("Business Name", formatValue(application.business.name)));
-    sections.push(...createQuestionAnswer("Business Start Date", formatValue(application.business.startDate)));
-    sections.push(...createQuestionAnswer("Location", `${application.business.city}, ${application.business.country?.toUpperCase()}`));
-    sections.push(...createQuestionAnswer("Is Business Registered?", formatValue(application.business.isRegistered)));
-    sections.push(...createQuestionAnswer("Registered Countries", formatValue(application.business.registeredCountries)));
-    sections.push(...createQuestionAnswer("Business Description", formatValue(application.business.description)));
-    sections.push(...createQuestionAnswer("Problem Solved", formatValue(application.business.problemSolved)));
-    sections.push(...createQuestionAnswer("Revenue (Last 2 Years)", `$${application.business.revenueLastTwoYears?.toLocaleString() || '600'}`));
+    // =====================
+    // SECTION 2: BUSINESS INFO
+    // =====================
+    sections.push(createSectionHeader("Business Information", "🏢"));
+    sections.push(...createQuestionAnswer("Business Name", formatValue(business.name)));
+    sections.push(...createQuestionAnswer("Sector", formatValue(business.sector?.replace(/_/g, ' '))));
+    if (business.sectorOther) {
+      sections.push(...createQuestionAnswer("Sector (Other)", formatValue(business.sectorOther)));
+    }
+    sections.push(...createQuestionAnswer("Location", `${business.city || 'N/A'}, ${business.county?.replace(/_/g, ' ') || ''}, ${(business.country || '').toUpperCase()}`));
+    sections.push(...createQuestionAnswer("Years Operational", formatValue(business.yearsOperational)));
+    sections.push(...createQuestionAnswer("Is Registered?", formatValue(business.isRegistered)));
+    if (business.registrationType) {
+      sections.push(...createQuestionAnswer("Registration Type", formatValue(business.registrationType?.replace(/_/g, ' '))));
+    }
+    sections.push(...createQuestionAnswer("Business Description", formatValue(business.description)));
+    sections.push(...createQuestionAnswer("Problem Solved", formatValue(business.problemSolved)));
 
-    // Employee Information Subsection
-    sections.push(new Paragraph({
-      children: [
-        new TextRun({
-          text: "Employee Information",
-          bold: true,
-          size: 26,
-          color: "374151"
-        })
-      ],
-      spacing: { before: 400, after: 200 }
-    }));
-    sections.push(...createQuestionAnswer("Full-time Employees (Total)", formatValue(application.business.employees.fullTimeTotal)));
-    sections.push(...createQuestionAnswer("Full-time Employees (Male)", formatValue(application.business.employees.fullTimeMale)));
-    sections.push(...createQuestionAnswer("Full-time Employees (Female)", formatValue(application.business.employees.fullTimeFemale)));
-    sections.push(...createQuestionAnswer("Part-time Employees (Male)", formatValue(application.business.employees.partTimeMale)));
-    sections.push(...createQuestionAnswer("Part-time Employees (Female)", formatValue(application.business.employees.partTimeFemale)));
-
-    // Climate Adaptation Solution
-    sections.push(new Paragraph({
-      children: [
-        new TextRun({
-          text: "Climate Adaptation Solution",
-          bold: true,
-          size: 26,
-          color: "374151"
-        })
-      ],
-      spacing: { before: 400, after: 200 }
-    }));
-    sections.push(...createQuestionAnswer("Climate Adaptation Contribution", formatValue(application.business.climateAdaptationContribution)));
-    sections.push(...createQuestionAnswer("Product/Service Description", formatValue(application.business.productServiceDescription)));
-
-    // Add text to meet minimum requirements if needed
-    if (application.business.productServiceDescription && application.business.productServiceDescription.length < 50) {
-      sections.push(...createQuestionAnswer("Text added to meet mini", "Additional product/service details may be required"));
+    // =====================
+    // SECTION 3: FINANCIAL INFO
+    // =====================
+    sections.push(createSectionHeader("Financial Information", "💰"));
+    sections.push(...createQuestionAnswer("Revenue Last Year", formatCurrency(business.revenueLastYear)));
+    sections.push(...createQuestionAnswer("Customer Count", formatValue(business.customerCount)));
+    sections.push(...createQuestionAnswer("Has Financial Records?", formatValue(business.hasFinancialRecords)));
+    sections.push(...createQuestionAnswer("Has Audited Accounts?", formatValue(business.hasAuditedAccounts)));
+    sections.push(...createQuestionAnswer("Has External Funding?", formatValue(business.hasExternalFunding)));
+    if (business.externalFundingDetails) {
+      sections.push(...createQuestionAnswer("External Funding Details", formatValue(business.externalFundingDetails)));
     }
 
-    sections.push(...createQuestionAnswer("Climate Extreme Impact", formatValue(application.business.climateExtremeImpact)));
+    // =====================
+    // SECTION 4: EMPLOYEES
+    // =====================
+    sections.push(createSectionHeader("Employee Information", "👥"));
+    sections.push(...createQuestionAnswer("Full-time Employees (Total)", formatValue(business.fullTimeEmployeesTotal)));
+    sections.push(...createQuestionAnswer("Full-time Employees (Women)", formatValue(business.fullTimeEmployeesWomen)));
+    sections.push(...createQuestionAnswer("Full-time Employees (Youth)", formatValue(business.fullTimeEmployeesYouth)));
+    sections.push(...createQuestionAnswer("Full-time Employees (PWD)", formatValue(business.fullTimeEmployeesPwd)));
 
-    // Add text to meet minimum requirements if needed
-    if (application.business.climateExtremeImpact && application.business.climateExtremeImpact.length < 50) {
-      sections.push(...createQuestionAnswer("Text", "Additional climate impact details may be required"));
+    // =====================
+    // SECTION 5: MARKET & COMPETITION
+    // =====================
+    sections.push(createSectionHeader("Market & Competition", "📊"));
+    sections.push(...createQuestionAnswer("Relative Pricing", formatValue(business.relativePricing)));
+    sections.push(...createQuestionAnswer("Product Differentiation", formatValue(business.productDifferentiation)));
+    sections.push(...createQuestionAnswer("Threat of Substitutes", formatValue(business.threatOfSubstitutes)));
+    sections.push(...createQuestionAnswer("Competitor Overview", formatValue(business.competitorOverview)));
+    sections.push(...createQuestionAnswer("Ease of Market Entry", formatValue(business.easeOfMarketEntry)));
+
+    // =====================
+    // SECTION 6: BUSINESS MODEL
+    // =====================
+    sections.push(createSectionHeader("Business Model", "💡"));
+    sections.push(...createQuestionAnswer("Business Model Innovation", formatValue(business.businessModelInnovation)));
+    sections.push(...createQuestionAnswer("Digitization Level", formatValue(business.digitizationLevel)));
+    if (business.digitizationReason) {
+      sections.push(...createQuestionAnswer("Digitization Reason", formatValue(business.digitizationReason)));
+    }
+    sections.push(...createQuestionAnswer("Business Model Uniqueness", formatValue(business.businessModelUniqueness)));
+    if (business.businessModelUniquenessDescription) {
+      sections.push(...createQuestionAnswer("Uniqueness Description", formatValue(business.businessModelUniquenessDescription)));
+    }
+    sections.push(...createQuestionAnswer("Customer Value Proposition", formatValue(business.customerValueProposition)));
+    sections.push(...createQuestionAnswer("Competitive Advantage", formatValue(business.competitiveAdvantage)));
+    if (business.competitiveAdvantageSource) {
+      sections.push(...createQuestionAnswer("Competitive Advantage Source", formatValue(business.competitiveAdvantageSource)));
     }
 
-    sections.push(...createQuestionAnswer("Unit Price", `$${application.business.unitPrice?.toLocaleString() || '21'}`));
-    sections.push(...createQuestionAnswer("Customer Count (Last 6 Months)", formatValue(application.business.customerCountLastSixMonths || '216')));
-    sections.push(...createQuestionAnswer("Production Capacity (Last 6 Months)", formatValue(application.business.productionCapacityLastSixMonths || '700 neem trees per month')));
-
-    // Customer Segments
-    if (application.business.targetCustomers && application.business.targetCustomers.length > 0) {
-      sections.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: "Customer Segments",
-            bold: true,
-            size: 26,
-            color: "374151"
-          })
-        ],
-        spacing: { before: 400, after: 200 }
-      }));
-      sections.push(...createQuestionAnswer("Customer Segments", application.business.targetCustomers.join(", ")));
+    // =====================
+    // SECTION 7: GROWTH & SCALABILITY
+    // =====================
+    sections.push(createSectionHeader("Growth & Scalability", "🚀"));
+    sections.push(...createQuestionAnswer("Growth History", formatValue(business.growthHistory)));
+    sections.push(...createQuestionAnswer("Average Annual Revenue Growth", formatValue(business.averageAnnualRevenueGrowth)));
+    sections.push(...createQuestionAnswer("Future Sales Growth", formatValue(business.futureSalesGrowth)));
+    if (business.futureSalesGrowthReason) {
+      sections.push(...createQuestionAnswer("Future Growth Reason", formatValue(business.futureSalesGrowthReason)));
     }
+    sections.push(...createQuestionAnswer("Scalability Plan", formatValue(business.scalabilityPlan)));
+    sections.push(...createQuestionAnswer("Market Scale Potential", formatValue(business.marketScalePotential)));
+    sections.push(...createQuestionAnswer("Technology Integration", formatValue(business.technologyIntegration)));
+    sections.push(...createQuestionAnswer("Sales & Marketing Integration", formatValue(business.salesMarketingIntegration)));
 
-    // Challenges & Support
-    sections.push(new Paragraph({
-      children: [
-        new TextRun({
-          text: "Challenges & Support",
-          bold: true,
-          size: 26,
-          color: "374151"
-        })
-      ],
-      spacing: { before: 400, after: 200 }
-    }));
-    sections.push(...createQuestionAnswer("Current Challenges", formatValue(application.business.currentChallenges)));
-    sections.push(...createQuestionAnswer("Support Needed", formatValue(application.business.supportNeeded)));
-    if (application.business.additionalInformation) {
-      sections.push(...createQuestionAnswer("Additional Information", formatValue(application.business.additionalInformation)));
+    // =====================
+    // SECTION 8: SOCIAL & ENVIRONMENTAL IMPACT
+    // =====================
+    sections.push(createSectionHeader("Social & Environmental Impact", "🌍"));
+    sections.push(...createQuestionAnswer("Environmental Impact", formatValue(business.environmentalImpact)));
+    if (business.environmentalImpactDescription) {
+      sections.push(...createQuestionAnswer("Environmental Impact Description", formatValue(business.environmentalImpactDescription)));
     }
+    sections.push(...createQuestionAnswer("Social Impact Contribution", formatValue(business.socialImpactContribution)));
+    sections.push(...createQuestionAnswer("Business Compliance", formatValue(business.businessCompliance)));
+    sections.push(...createQuestionAnswer("Job Creation Potential", formatValue(business.jobCreationPotential)));
+    sections.push(...createQuestionAnswer("Projected Inclusion (Women/Youth/PWD)", formatValue(business.projectedInclusion)));
+    sections.push(...createQuestionAnswer("Supplier Involvement", formatValue(business.supplierInvolvement)));
 
-    // Add registration certificate information if available
-    if (application.business.registrationCertificateUrl) {
-      sections.push(...createQuestionAnswer("Registration Certificate", "✓ Document uploaded - View in digital application"));
-    }
+    // =====================
+    // SECTION 9: DOCUMENTS
+    // =====================
+    sections.push(createSectionHeader("Uploaded Documents", "📁"));
+    sections.push(...createQuestionAnswer("Registration Certificate", business.registrationCertificateUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Financial Records", business.financialRecordsUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Audited Accounts", business.auditedAccountsUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Compliance Documents", business.complianceDocumentsUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Sales Evidence", business.salesEvidenceUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Tax Compliance", business.taxComplianceUrl ? "✓ Uploaded" : "Not uploaded"));
+    sections.push(...createQuestionAnswer("Photos", business.photosUrl ? "✓ Uploaded" : "Not uploaded"));
 
-    // Funding Information Subsection (within Business Information)
-    if (application.business.funding && application.business.funding.length > 0) {
-      sections.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: "Funding Information",
-            bold: true,
-            size: 26,
-            color: "374151"
-          })
-        ],
-        spacing: { before: 400, after: 200 }
-      }));
-
-      //eslint-disable-next-line @typescript-eslint/no-explicit-any
-      application.business.funding.forEach((fund: any, index: number) => {
-        if (fund.hasExternalFunding) {
-          sections.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: `Funding Record ${index + 1}`,
-                bold: true,
-                size: 26,
-                color: "374151"
-              })
-            ],
-            spacing: { before: 300, after: 200 }
-          }));
-
-          sections.push(...createQuestionAnswer("Has External Funding", formatValue(fund.hasExternalFunding)));
-          sections.push(...createQuestionAnswer("Funding Source", formatValue(fund.fundingSource?.replace(/_/g, ' '))));
-          sections.push(...createQuestionAnswer("Funder Name", formatValue(fund.funderName)));
-          sections.push(...createQuestionAnswer("Funding Amount (USD)", `$${fund.amountUsd?.toLocaleString() || 'N/A'}`));
-          sections.push(...createQuestionAnswer("Funding Date", formatValue(fund.fundingDate)));
-          sections.push(...createQuestionAnswer("Funding Instrument", formatValue(fund.fundingInstrument)));
-        }
-      });
-    }
-
-    // STEP 3: Climate Adaptation Solution Section
-    sections.push(createSectionHeader("Step 3: Climate Adaptation Solution", "🌍"));
-
-    // Climate Solution Details
-    sections.push(new Paragraph({
-      children: [
-        new TextRun({
-          text: "Climate Solution Details",
-          bold: true,
-          size: 26,
-          color: "374151"
-        })
-      ],
-      spacing: { before: 400, after: 200 }
-    }));
-
-    sections.push(...createQuestionAnswer("Climate Adaptation Contribution", formatValue(application.business.climateAdaptationContribution)));
-    sections.push(...createQuestionAnswer("Product/Service Description", formatValue(application.business.productServiceDescription)));
-    sections.push(...createQuestionAnswer("Climate Extreme Impact", formatValue(application.business.climateExtremeImpact)));
-
-    // Add text to meet minimum requirements if needed
-    if (application.business.climateAdaptationContribution && application.business.climateAdaptationContribution.length < 50) {
-      sections.push(...createQuestionAnswer("Text added to meet minimum", "Additional climate adaptation details may be required"));
-    }
-    if (application.business.climateExtremeImpact && application.business.climateExtremeImpact.length < 50) {
-      sections.push(...createQuestionAnswer("Text", "Additional climate impact details may be required"));
-    }
-
-    // STEP 4: Financial Information Section
-    sections.push(createSectionHeader("Step 4: Financial Information", "💰"));
-    sections.push(...createQuestionAnswer("Revenue (Last 2 Years)", `$${application.business.revenueLastTwoYears?.toLocaleString() || 'N/A'}`));
-    sections.push(...createQuestionAnswer("Unit Price", `$${application.business.unitPrice?.toLocaleString() || 'N/A'}`));
-    sections.push(...createQuestionAnswer("Customer Count (Last 6 Months)", formatValue(application.business.customerCountLastSixMonths)));
-    sections.push(...createQuestionAnswer("Production Capacity (Last 6 Months)", formatValue(application.business.productionCapacityLastSixMonths)));
-
-    // STEP 5: Support Needs Section
-    sections.push(createSectionHeader("Step 5: Support Needs", "🤝"));
-    sections.push(...createQuestionAnswer("Current Challenges", formatValue(application.business.currentChallenges)));
-    sections.push(...createQuestionAnswer("Support Needed", formatValue(application.business.supportNeeded)));
-    if (application.business.additionalInformation) {
-      sections.push(...createQuestionAnswer("Additional Information", formatValue(application.business.additionalInformation)));
-    }
-
-    // Eligibility Assessment Section
+    // =====================
+    // SECTION 10: ELIGIBILITY (if available)
+    // =====================
     if (application.eligibility) {
-      sections.push(createSectionHeader("Eligibility Assessment", "📊"));
-      sections.push(...createQuestionAnswer("Overall Result", application.eligibility.isEligible ? "✅ ELIGIBLE" : "❌ INELIGIBLE"));
-      sections.push(...createQuestionAnswer("Total Score", `${application.eligibility.totalScore}/100`));
+      sections.push(createSectionHeader("Eligibility Assessment", "✅"));
+      sections.push(...createQuestionAnswer("Overall Eligible", application.eligibility.isEligible ? "✅ YES" : "❌ NO"));
+      sections.push(...createQuestionAnswer("Total Score", `${application.eligibility.totalScore || 0}/100`));
 
-      // Add reviewer information
-      if (application.eligibility.evaluator) {
-        const reviewerName = application.eligibility.evaluator.profile
-          ? `${application.eligibility.evaluator.profile.firstName} ${application.eligibility.evaluator.profile.lastName}`
-          : application.eligibility.evaluator.name || "Unknown Reviewer";
-        const reviewerRole = application.eligibility.evaluator.profile?.role
-          ? application.eligibility.evaluator.profile.role.replace(/_/g, ' ').toUpperCase()
-          : "REVIEWER";
-        sections.push(...createQuestionAnswer("Reviewed By", `${reviewerName} (${reviewerRole})`));
-        if (application.eligibility.evaluatedAt) {
-          sections.push(...createQuestionAnswer("Review Date", formatValue(new Date(application.eligibility.evaluatedAt))));
-        }
-      }
-
-      // Mandatory Criteria
-      sections.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: "Mandatory Criteria",
-            bold: true,
-            size: 26,
-            color: "374151"
-          })
-        ],
-        spacing: { before: 300, after: 200 }
-      }));
-
-      sections.push(...createQuestionAnswer("Age/Operational Eligible", application.eligibility.mandatoryCriteria.ageEligible ? "✅ Yes" : "❌ No"));
-      sections.push(...createQuestionAnswer("Registration Eligible", application.eligibility.mandatoryCriteria.registrationEligible ? "✅ Yes" : "❌ No"));
-      sections.push(...createQuestionAnswer("Revenue Eligible", application.eligibility.mandatoryCriteria.revenueEligible ? "✅ Yes" : "❌ No"));
-      sections.push(...createQuestionAnswer("Business Plan Eligible", application.eligibility.mandatoryCriteria.businessPlanEligible ? "✅ Yes" : "❌ No"));
-      sections.push(...createQuestionAnswer("Climate Impact Eligible", application.eligibility.mandatoryCriteria.impactEligible ? "✅ Yes" : "❌ No"));
-
-      // Evaluation Scores
-      sections.push(new Paragraph({
-        children: [
-          new TextRun({
-            text: "Evaluation Scores",
-            bold: true,
-            size: 26,
-            color: "374151"
-          })
-        ],
-        spacing: { before: 300, after: 200 }
-      }));
-
-      sections.push(...createQuestionAnswer("Innovation and Climate Adaptation Focus", `${application.eligibility.evaluationScores.innovationScore + application.eligibility.evaluationScores.climateAdaptationScore}/35`));
-      sections.push(...createQuestionAnswer("Business Viability", `${application.eligibility.evaluationScores.viabilityScore + application.eligibility.evaluationScores.marketPotentialScore + application.eligibility.evaluationScores.managementCapacityScore}/31`));
-      sections.push(...createQuestionAnswer("Sectoral and Strategic Alignment", `${application.eligibility.evaluationScores.jobCreationScore + application.eligibility.evaluationScores.locationBonus + application.eligibility.evaluationScores.genderBonus}/20`));
-      sections.push(...createQuestionAnswer("Organization Capacity and Partnerships", `${application.eligibility.evaluationScores.managementCapacityScore || 0}/14`));
-
-      if (application.eligibility.evaluationNotes) {
-        sections.push(...createQuestionAnswer("Evaluation Notes", formatValue(application.eligibility.evaluationNotes)));
+      if (application.eligibility.mandatoryCriteria) {
+        sections.push(...createQuestionAnswer("Age Eligible", application.eligibility.mandatoryCriteria.ageEligible ? "✅ Yes" : "❌ No"));
+        sections.push(...createQuestionAnswer("Registration Eligible", application.eligibility.mandatoryCriteria.registrationEligible ? "✅ Yes" : "❌ No"));
+        sections.push(...createQuestionAnswer("Revenue Eligible", application.eligibility.mandatoryCriteria.revenueEligible ? "✅ Yes" : "❌ No"));
       }
     }
 
     // Footer
     sections.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: "End of Application Review",
-            size: 20,
-            italics: true,
-            color: "6B7280"
-          })
-        ],
+        children: [new TextRun({ text: "— End of Document —", size: 20, italics: true, color: "6B7280" })],
         alignment: AlignmentType.CENTER,
         spacing: { before: 800, after: 200 }
       }),
       new Paragraph({
-        children: [
-          new TextRun({
-            text: "View Online Application:",
-            bold: true,
-            size: 18,
-            color: "374151"
-          })
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 100 }
-      }),
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `https://bireprogramme.org/admin/applications/${application.id}`,
-            size: 16,
-            color: "2563EB",
-            underline: {}
-          })
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 200 }
-      }),
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Generated on ${format(new Date(), "PPP 'at' p")}`,
-            italics: true,
-            size: 18,
-            color: "9CA3AF"
-          })
-        ],
+        children: [new TextRun({ text: `Generated on ${format(new Date(), "PPP 'at' p")}`, italics: true, size: 18, color: "9CA3AF" })],
         alignment: AlignmentType.CENTER
       })
     );
@@ -548,14 +365,15 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       }]
     });
 
-    // Generate blob
-    const blob = await Packer.toBlob(doc);
-    const filename = `YouthADAPT-Application-Review-${applicantName.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.docx`;
+    // Generate buffer (not blob - blobs can't be serialized in server actions)
+    const buffer = await Packer.toBuffer(doc);
+    const base64 = buffer.toString('base64');
+    const filename = `BIRE-Application-${business.name?.replace(/\s+/g, '-') || applicationId}-${format(new Date(), 'yyyy-MM-dd')}.docx`;
 
     return {
       success: true,
       data: {
-        blob,
+        base64,
         filename,
         contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       },

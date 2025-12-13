@@ -308,8 +308,16 @@ export default function ApplicationDetail({
     try {
       const result = await downloadEnhancedApplicationDOCX(applicationId);
       if (result.success && result.data) {
+        // Decode base64 to binary and create blob
+        const binaryString = atob(result.data.base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.data.contentType });
+
         // Create download link from blob
-        const url = URL.createObjectURL(result.data.blob);
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = result.data.filename;
@@ -317,6 +325,7 @@ export default function ApplicationDetail({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success("Application exported successfully!");
       } else {
         console.error("Failed to download application:", result.error);
         toast.error("Failed to download application. Please try again.");
