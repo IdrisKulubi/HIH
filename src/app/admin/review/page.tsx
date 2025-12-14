@@ -109,7 +109,7 @@ export default async function ReviewDashboard() {
               </h1>
             </div>
             <p className="text-gray-600 mt-2">
-              Review and approve shortlisted applications for the In-Country YouthAdapt Challenge
+              Review and approve shortlisted applications for the BIRE Programme
             </p>
           </div>
           <div className="flex gap-3">

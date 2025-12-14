@@ -27,7 +27,7 @@ export const PasswordResetEmail = ({
   return (
     <Html>
       <Head />
-      <Preview>In-Country YouthADAPT - Reset Your Password</Preview>
+      <Preview>BIRE Programme - Reset Your Password</Preview>
       <Tailwind
         config={{
           theme: {

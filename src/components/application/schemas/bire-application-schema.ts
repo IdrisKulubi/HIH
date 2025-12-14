@@ -162,8 +162,8 @@ export const foundationSocialImpactSchema = z.object({
 // Revenue & Growth (20 marks)
 export const accelerationRevenuesSchema = z.object({
     revenueLastYear: z.number().min(3000000, "Revenue must be above KES 3,000,000 to qualify for Accelerator"), // Enforcement
-    auditedAccountsUrl: z.string().min(1, "Management or audited accounts are mandatory"),
-    yearsOperational: z.number().min(2, "Must be operational for at least 2 years"),
+    auditedAccountsUrl: z.string().optional(), // Optional - collected in business form section if available
+    yearsOperational: z.number().min(0, "Years operational must be a number"), // Data collection only, not a filter
     growthHistory: z.string().min(20, "Provide a brief history of growth"),
     averageAnnualRevenueGrowth: z.string().optional(), // Added for scoring: >20%, 10-20%, <10%
     futureSalesGrowth: z.enum(["high", "moderate", "low"], {
@@ -189,44 +189,43 @@ export const accelerationImpactPotentialSchema = z.object({
 });
 
 // Scalability (20 marks)
+// Schema simplified to match actual form UI fields
 export const accelerationScalabilitySchema = z.object({
-    scalabilityPlan: z.string().optional(), // Added for scoring: Clear plan, some idea, no plan
-    marketScalePotential: z.string().optional(), // Added for scoring: Large, Stable, Small
+    // Fields present in form UI
+    scalabilityPlan: z.string().optional(), // D1: Clear plan, some idea, no plan
+    marketScalePotential: z.string().optional(), // D2: Large, Stable, Small
+    marketDifferentiationDescription: z.string().min(20, "Explain your key competitive strengths"), // Textarea in D1
+    salesMarketingApproach: z.string().min(20, "Describe sales channels & marketing approach"), // Textarea in D2
 
-    marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"], {
-        required_error: "How differentiated is your product?",
-    }),
-    marketDifferentiationDescription: z.string().min(20, "Explain your key competitive strengths"),
-    competitiveAdvantage: z.enum(["high", "moderate", "low"], {
-        required_error: "Level of competitive advantage",
-    }),
-    competitiveAdvantageSource: z.string().min(20, "Describe sources of advantage"),
-    technologyIntegration: z.enum(["high", "moderate", "low"], {
-        required_error: "Level of technology application",
-    }),
-    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"], {
-        required_error: "Sales & marketing integration level",
-    }),
-    salesMarketingApproach: z.string().min(20, "Describe sales channels & marketing approach"),
+    // Fields NOT in form UI but kept for schema compatibility (all optional)
+    marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"]).optional(),
+    competitiveAdvantage: z.enum(["high", "moderate", "low"]).optional(),
+    competitiveAdvantageSource: z.string().optional(),
+    technologyIntegration: z.enum(["high", "moderate", "low"]).optional(),
+    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"]).optional(),
 });
 
 // Social & Env Impact (20 marks)
+// Schema simplified to match actual form UI fields
 export const accelerationSocialImpactSchema = z.object({
+    // Fields present in form UI
     socialImpactContribution: z.enum(["high", "moderate", "none"], {
         required_error: "Rate contribution to social improvements",
     }),
-    supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"], {
-        required_error: "How do you engage suppliers?",
-    }),
-    supplierSupportDescription: z.string().min(20, "Describe supplier support"),
     environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"], {
         required_error: "Do you conserve the environment?",
     }),
     environmentalImpactDescription: z.string().optional(),
+
+    // Fields NOT in form UI but kept for schema compatibility (all optional)
+    supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"]).optional(),
+    supplierSupportDescription: z.string().optional(),
 });
 
 // Business Model (20 marks)
+// Schema simplified to match actual form UI fields
 export const accelerationBusinessModelSchema = z.object({
+    // Fields present in form UI
     businessModelUniqueness: z.enum(["high", "moderate", "low"], {
         required_error: "How unique is your business model?",
     }),
@@ -234,10 +233,10 @@ export const accelerationBusinessModelSchema = z.object({
     customerValueProposition: z.enum(["high", "moderate", "low"], {
         required_error: "Strength of value proposition",
     }),
-    competitiveAdvantageStrength: z.enum(["high", "moderate", "low"], {
-        required_error: "Strength of competitive advantage",
-    }),
-    competitiveAdvantageBarriers: z.string().min(20, "Explain barriers protecting position"),
+
+    // Fields NOT in form UI but kept for schema compatibility (all optional)
+    competitiveAdvantageStrength: z.enum(["high", "moderate", "low"]).optional(),
+    competitiveAdvantageBarriers: z.string().optional(),
 });
 
 // === DECLARATION & UPLOADS ===

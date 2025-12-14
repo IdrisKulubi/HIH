@@ -185,7 +185,7 @@ export default async function ProfileEditPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <h4 className="font-medium">Member Since</h4>
-                    <p className="text-sm text-gray-500">When you joined In-Country YouthADAPT</p>
+                    <p className="text-sm text-gray-500">When you joined BIRE Programme</p>
                   </div>
                   <div className="text-sm font-medium">
                     {new Date(userProfile.createdAt).toLocaleDateString('en-US', {

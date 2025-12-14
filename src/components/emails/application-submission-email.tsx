@@ -34,7 +34,7 @@ export const ApplicationSubmissionEmail = ({
   return (
     <Html>
       <Head />
-      <Preview>Application Submitted Successfully - In-Country YouthADAPT</Preview>
+      <Preview>Application Submitted Successfully - BIRE Programme</Preview>
       <Tailwind
         config={{
           theme: {

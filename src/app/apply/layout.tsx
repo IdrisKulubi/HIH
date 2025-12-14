@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Apply | In-Country YouthAdapt Challenge",
-  description: "Application form for the In-country YouthAdapt Challenge program",
+  title: "Apply | BIRE Programme",
+  description: "Application form for the BIRE Programme program",
 };
 
 export default function ApplicationLayout({

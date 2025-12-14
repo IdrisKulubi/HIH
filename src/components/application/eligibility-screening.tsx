@@ -44,11 +44,8 @@ export function EligibilityScreening() {
             return { status: EligibilityStatus.DISQUALIFIED, reasons };
         }
 
-        // 2. Operational Years Check
-        if (formData.yearsInOperation === 'less_than_1') {
-            reasons.push("Your business must be operational for at least 1 year.");
-            return { status: EligibilityStatus.DISQUALIFIED, reasons };
-        }
+        // 2. Operational Years Check - Removed as filter, just data collection now
+        // No longer disqualifies applicants based on years of operation
 
         // 3. Financial Records Check
         if (formData.hasFinancialRecords === 'no') {
@@ -117,26 +114,22 @@ export function EligibilityScreening() {
                                 We&#39;ve matched you to a specialized support track based on your business stage.
                             </p>
 
-                            <div className={`bg-slate-50 border ${result.track === ApplicationTrack.OBSERVATION ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100'} rounded-3xl p-8 mb-8 text-left relative overflow-hidden group`}>
+                            <div className="bg-slate-50 border border-slate-100 rounded-3xl p-8 mb-8 text-left relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                                     {result.track === ApplicationTrack.ACCELERATION ? <ChartLineUpIcon size={120} /> : <BuildingsIcon size={120} />}
                                 </div>
-                                <span className={`inline-block px-3 py-1 rounded-full ${result.track === ApplicationTrack.OBSERVATION ? 'bg-amber-500/10 text-amber-700' : 'bg-brand-blue/10 text-brand-blue'} text-xs font-bold uppercase tracking-wider mb-3`}>
-                                    {result.track === ApplicationTrack.OBSERVATION ? 'Data Collection Track' : 'Recommended Track'}
+                                <span className="inline-block px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-bold uppercase tracking-wider mb-3">
+                                    Recommended Track
                                 </span>
                                 <h3 className="text-3xl font-bold text-slate-900 mb-2">
                                     {result.track === ApplicationTrack.ACCELERATION
                                         ? "Acceleration Track"
-                                        : result.track === ApplicationTrack.OBSERVATION
-                                            ? "Observation Track"
-                                            : "Foundation Track"}
+                                        : "Foundation Track"}
                                 </h3>
                                 <p className="text-slate-600 text-lg">
                                     {result.track === ApplicationTrack.ACCELERATION
                                         ? "Designed for scaling businesses ready for rapid growth and investment readiness."
-                                        : result.track === ApplicationTrack.OBSERVATION
-                                            ? "We'd love to learn more about your business. Your data helps us understand the MSE landscape."
-                                            : "Tailored for early-stage businesses building robust operational foundations."}
+                                        : "Tailored for early-stage businesses building robust operational foundations."}
                                 </p>
                             </div>
 

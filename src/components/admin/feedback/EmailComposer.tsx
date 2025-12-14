@@ -424,7 +424,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                     BIRE Program
                   </h2>
                   <p className="text-blue-100 mt-1">
-                    In-Country Program Feedback
+                    y Program Feedback
                   </p>
                 </div>
 
@@ -455,7 +455,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 {/* Footer */}
                 <div className="bg-gray-50 p-6 text-center rounded-b-lg border-t">
                   <p className="text-sm text-gray-600">
-                    BIRE Program - In-Country Program
+                    BIRE Program 
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     © {new Date().getFullYear()} BIRE Program
