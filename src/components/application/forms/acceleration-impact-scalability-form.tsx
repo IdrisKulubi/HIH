@@ -243,6 +243,8 @@ interface AccelerationScalabilityFormProps {
 }
 
 export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFormProps) {
+    const scalabilityPlan = form.watch("scalability.scalabilityPlan");
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -294,24 +296,26 @@ export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFor
                         )}
                     />
 
-                    {/* Context fields */}
-                    <FormField
-                        control={form.control}
-                        name="scalability.marketDifferentiationDescription"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-slate-700">Detailed Strategy Description</FormLabel>
-                                <FormControl>
-                                    <Textarea
-                                        {...field}
-                                        placeholder="Describe your plan to scale..."
-                                        className="min-h-[80px] rounded-xl"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                    {/* Context fields - Hidden if 'No Plan' selected */}
+                    {scalabilityPlan !== "no_plan" && (
+                        <FormField
+                            control={form.control}
+                            name="scalability.marketDifferentiationDescription"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-slate-700">Detailed Strategy Description</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            {...field}
+                                            placeholder="Describe your plan to scale..."
+                                            className="min-h-[80px] rounded-xl"
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                 </CardContent>
             </Card>
 

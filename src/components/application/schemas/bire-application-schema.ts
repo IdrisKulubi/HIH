@@ -53,8 +53,8 @@ export const businessEligibilitySchema = z.object({
         "other"
     ], { required_error: "Please select a sector" }),
     sectorOther: z.string().optional(),
-    description: z.string().min(50, "Description must be at least 50 characters"),
-    problemSolved: z.string().min(50, "Please describe the problem your business solves"),
+    description: z.string().min(10, "Description must be at least 10 characters"),
+    problemSolved: z.string().min(10, "Please describe the problem your business solves"),
     country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
     city: z.string().min(1, "Please enter your town or city"),
@@ -92,8 +92,8 @@ export const accelerationBusinessEligibilitySchema = z.object({
         "other"
     ], { required_error: "Please select a sector" }),
     sectorOther: z.string().optional(),
-    description: z.string().min(50, "Description must be at least 50 characters"),
-    problemSolved: z.string().min(50, "Please describe the problem your business solves"),
+    description: z.string().min(10, "Description must be at least 10 characters"),
+    problemSolved: z.string().min(10, "Please describe the problem your business solves"),
     country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
     city: z.string().min(1, "Please enter your town or city"),
@@ -112,7 +112,7 @@ export const foundationBusinessModelSchema = z.object({
 export const foundationCommercialViabilitySchema = z.object({
     revenueLastYear: z.number().min(0, "Revenue is required"),
     customerCount: z.number().min(0, "Customer count is required"),
-    keyCustomerSegments: z.string().min(10, "Please describe your customer segments"),
+    keyCustomerSegments: z.string().min(5, "Please describe your customer segments"),
     hasExternalFunding: z.boolean(),
     externalFundingDetails: z.string().optional(), // Required if hasExternalFunding is true (handled in UI/logic)
     digitizationLevel: z.boolean({ required_error: "Please answer if you use digital tools" }),
@@ -124,15 +124,15 @@ export const foundationMarketPotentialSchema = z.object({
     relativePricing: z.enum(["lower", "equal", "higher"], {
         required_error: "How does your pricing compare?",
     }),
-    relativePricingReason: z.string().min(10, "Please explain your pricing"),
+    relativePricingReason: z.string().min(5, "Please explain your pricing"),
     productDifferentiation: z.enum(["new", "relatively_new", "similar"], {
         required_error: "How unique is your product?",
     }),
-    productDifferentiationDescription: z.string().min(10, "Please describe what makes it unique"),
+    productDifferentiationDescription: z.string().min(5, "Please describe what makes it unique"),
     threatOfSubstitutes: z.enum(["low", "moderate", "high"], {
         required_error: "Select intensity of competition",
     }),
-    competitorOverview: z.string().min(10, "Provide a brief overview of competitors"),
+    competitorOverview: z.string().min(5, "Provide a brief overview of competitors"),
     easeOfMarketEntry: z.enum(["low", "moderate", "high"], {
         required_error: "How easy is it for others to enter?",
     }),
@@ -164,12 +164,12 @@ export const accelerationRevenuesSchema = z.object({
     revenueLastYear: z.number().min(3000000, "Revenue must be above KES 3,000,000 to qualify for Accelerator"), // Enforcement
     auditedAccountsUrl: z.string().optional(), // Optional - collected in business form section if available
     yearsOperational: z.number().min(0, "Years operational must be a number"), // Data collection only, not a filter
-    growthHistory: z.string().min(20, "Provide a brief history of growth"),
+    growthHistory: z.string().min(5, "Provide a brief history of growth"),
     averageAnnualRevenueGrowth: z.string().optional(), // Added for scoring: >20%, 10-20%, <10%
     futureSalesGrowth: z.enum(["high", "moderate", "low"], {
         required_error: "Rate your projected sales growth",
     }),
-    futureSalesGrowthReason: z.string().min(20, "Explain the basis for projected growth"),
+    futureSalesGrowthReason: z.string().min(5, "Explain the basis for projected growth"),
     hasExternalFunding: z.boolean(),
     externalFundingDetails: z.string().optional(),
 });
@@ -194,8 +194,8 @@ export const accelerationScalabilitySchema = z.object({
     // Fields present in form UI
     scalabilityPlan: z.string().optional(), // D1: Clear plan, some idea, no plan
     marketScalePotential: z.string().optional(), // D2: Large, Stable, Small
-    marketDifferentiationDescription: z.string().min(20, "Explain your key competitive strengths"), // Textarea in D1
-    salesMarketingApproach: z.string().min(20, "Describe sales channels & marketing approach"), // Textarea in D2
+    marketDifferentiationDescription: z.string().optional(), // Made optional, validated by superRefine below
+    salesMarketingApproach: z.string().min(5, "Describe sales channels & marketing approach"), // Textarea in D2
 
     // Fields NOT in form UI but kept for schema compatibility (all optional)
     marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"]).optional(),
@@ -203,6 +203,18 @@ export const accelerationScalabilitySchema = z.object({
     competitiveAdvantageSource: z.string().optional(),
     technologyIntegration: z.enum(["high", "moderate", "low"]).optional(),
     salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"]).optional(),
+}).superRefine((data, ctx) => {
+    // Skip logic enforcement:
+    // If scalabilityPlan is NOT 'no_plan', then marketDifferentiationDescription is required
+    if (data.scalabilityPlan && data.scalabilityPlan !== "no_plan") {
+        if (!data.marketDifferentiationDescription || data.marketDifferentiationDescription.length < 5) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Explain your key competitive strengths (min 5 chars)",
+                path: ["marketDifferentiationDescription"],
+            });
+        }
+    }
 });
 
 // Social & Env Impact (20 marks)
@@ -229,7 +241,7 @@ export const accelerationBusinessModelSchema = z.object({
     businessModelUniqueness: z.enum(["high", "moderate", "low"], {
         required_error: "How unique is your business model?",
     }),
-    businessModelUniquenessDescription: z.string().min(20, "Describe difference"),
+    businessModelUniquenessDescription: z.string().min(5, "Describe difference"),
     customerValueProposition: z.enum(["high", "moderate", "low"], {
         required_error: "Strength of value proposition",
     }),

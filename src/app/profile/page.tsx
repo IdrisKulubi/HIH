@@ -68,7 +68,7 @@ function getStatusDescription(status: string) {
     case 'dragons_den':
       return 'Amazing! You\'ve been selected for the Dragon\'s Den pitch event.';
     case 'finalist':
-      return 'Outstanding! You are now a finalist in the BIRE Challenge.';
+      return 'Outstanding! You are now a finalist in the BIRE Program.';
     case 'approved':
       return 'Congratulations! Your application has been approved for funding.';
     case 'rejected':
@@ -143,7 +143,7 @@ export default async function ProfilePage() {
             </h1>
             <p className="text-lg text-slate-500 font-medium mb-4 flex items-center justify-center md:justify-start gap-2">
               <Briefcase className="w-5 h-5 text-teal-500" />
-              {userProfile.organization || 'BIRE Challenge Participant'}
+              {userProfile.organization || 'BIRE Program Participant'}
             </p>
 
             <div className="flex flex-wrap justify-center md:justify-start gap-3">
@@ -307,7 +307,7 @@ export default async function ProfilePage() {
                     <Sparkles className="w-12 h-12 mx-auto mb-4 text-blue-200" />
                     <h3 className="text-2xl font-bold mb-2">Start Your Application</h3>
                     <p className="text-blue-100 mb-6 max-w-md mx-auto">
-                      Join the BIRE Challenge and take your climate solution to the next level.
+                      Join the BIRE Program and take your climate solution to the next level.
                     </p>
                     <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 border-0 rounded-xl font-bold px-8 shadow-lg">
                       <Link href="/apply">Apply Now</Link>
@@ -450,7 +450,7 @@ export default async function ProfilePage() {
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900 mb-2">No Application Found</h3>
                 <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                  You haven&apos;t started your application yet. The BIRE Challenge is waiting for you!
+                  You haven&apos;t started your application yet. The BIRE Program is waiting for you!
                 </p>
                 <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-8 shadow-lg shadow-blue-200">
                   <Link href="/apply">Start Application</Link>
@@ -468,7 +468,7 @@ export default async function ProfilePage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">Application Journey</h3>
-                  <p className="text-slate-500 text-sm">Track your progress through the challenge</p>
+                  <p className="text-slate-500 text-sm">Track your progress through the program</p>
                 </div>
               </div>
 

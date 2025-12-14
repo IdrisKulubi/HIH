@@ -13,7 +13,7 @@ export default function AdminLayout({
 }>) {
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground ">
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-16 z-40 border-b bg-slate-800 text-white shadow-md">
         <div className="container mx-auto py-4 px-4 flex justify-between items-center">
           <Link href="/admin" className="font-bold text-xl">
             BIRE Programme Admin
@@ -21,32 +21,32 @@ export default function AdminLayout({
           <nav>
             <ul className="flex space-x-8">
               <li>
-                <Link href="/admin" className="hover:text-primary transition-colors">
+                <Link href="/admin" className="text-white/80 hover:text-white transition-colors">
                   Dashboard
                 </Link>
               </li>
               <li>
-                <Link href="/admin/applications" className="hover:text-primary transition-colors">
+                <Link href="/admin/applications" className="text-white/80 hover:text-white transition-colors">
                   Applications
                 </Link>
               </li>
               <li>
-                <Link href="/admin/observation" className="hover:text-primary transition-colors text-amber-600">
+                <Link href="/admin/observation" className="text-amber-400 hover:text-amber-300 transition-colors">
                   Observation
                 </Link>
               </li>
               <li>
-                <Link href="/admin/analytics" className="hover:text-primary transition-colors">
+                <Link href="/admin/analytics" className="text-white/80 hover:text-white transition-colors">
                   Analytics
                 </Link>
               </li>
               <li>
-                <Link href="/admin/scoring" className="hover:text-primary transition-colors">
+                <Link href="/admin/scoring" className="text-white/80 hover:text-white transition-colors">
                   Scoring
                 </Link>
               </li>
               <li>
-                <Link href="/" className="hover:text-primary transition-colors">
+                <Link href="/" className="text-white/80 hover:text-white transition-colors">
                   Back to Site
                 </Link>
               </li>

@@ -63,7 +63,7 @@ export default async function ProfileSetupPage() {
         {/* Left Column: Welcome & Info */}
         <div className="space-y-6">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-slate-900">Welcome to the BIRE Challenge</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Welcome to the BIRE Program</h1>
             <p className="text-lg text-slate-600">
               You're one step away from joining a community of climate innovators.
             </p>

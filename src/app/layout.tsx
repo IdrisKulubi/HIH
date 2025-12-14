@@ -42,7 +42,7 @@ export default function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              <main className="pt-14 min-h-screen">{children}</main>
+              <main className="pt-16 min-h-screen">{children}</main>
             </ThemeProvider>
           </SmoothScroll>
         </Providers>

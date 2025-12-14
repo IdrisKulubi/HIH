@@ -1,6 +1,6 @@
-# YouthAdapt Challenge Platform
+# BIRE Challenge Platform
 
-A comprehensive Next.js 15 application built for the YouthAdapt Challenge, featuring modern web technologies and a robust support system for youth entrepreneurship initiatives.
+A comprehensive Next.js 15 application built for the BIRE program , featuring modern web technologies and a robust support system for youth entrepreneurship initiatives.
 
 ## 🚀 Tech Stack
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,8 +88,8 @@ export function Header() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3, duration: 0.8 }}
             >
-              {/* Hand in Hand Logo - Thinner */}
-              <Link href="/" className="relative h-10 w-32 lg:h-12 lg:w-40">
+              {/* Hand in Hand Logo - Reduced size */}
+              <Link href="/" className="relative h-8 w-28 lg:h-10 lg:w-32">
                 <Image
                   src="/logos/hand.png"
                   alt="Hand in Hand Eastern Africa"
@@ -98,10 +99,10 @@ export function Header() {
                 />
               </Link>
 
-              <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
+              <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
 
-              {/* Embassy of Sweden Logo - Thinner */}
-              <div className="hidden sm:block relative h-10 w-28 lg:h-12 lg:w-36">
+              {/* Embassy of Sweden Logo - Reduced size */}
+              <div className="hidden sm:block relative h-8 w-24 lg:h-10 lg:w-28">
                 <Image
                   src="/logos/sweden.png"
                   alt="Embassy of Sweden Nairobi"
@@ -109,8 +110,9 @@ export function Header() {
                   className="object-contain object-left"
                 />
               </div>
-              {/* Hand in Hand Sweden Logo - Thinner */}
-              <div className="hidden sm:block relative h-20 w-38 lg:h-24 lg:w-40">
+
+              {/* Hand in Hand Sweden Logo - Reduced size */}
+              <div className="hidden sm:block relative h-8 w-24 lg:h-10 lg:w-28">
                 <Image
                   src="/logos/hand-sweden.png"
                   alt="Hand in Hand Sweden"
@@ -186,7 +188,7 @@ export function Header() {
                         <span>My Application</span>
                       </Link>
                     </DropdownMenuItem>
-                   
+
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
                       <LogOut className="mr-2 h-4 w-4" />

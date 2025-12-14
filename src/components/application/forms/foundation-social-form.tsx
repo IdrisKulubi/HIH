@@ -46,7 +46,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                 <div className="w-16 h-16 bg-brand-green/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <LeafIcon className="w-8 h-8 text-brand-green" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL IMPACT</h2>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL ECONOMIC IMPACT CONTRIBUTION</h2>
                 <p className="text-slate-500 mt-2">D1 - D3: Environment, Inclusion, Compliance</p>
             </div>
 
