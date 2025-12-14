@@ -1,3 +1,5 @@
+// BIRE Programme Evaluation Types - Foundation and Acceleration Tracks
+
 export interface ScoringCriterion {
   id: string;
   name: string;
@@ -16,247 +18,451 @@ export interface ScoringSection {
   criteria: ScoringCriterion[];
 }
 
-export interface EvaluationScores {
-  // Innovation and Climate Adaptation Focus (35 points)
-  climateAdaptationBenefits: number;
-  innovativeness: number;
-  scalabilityReplicability: number;
-  environmentalImpact: number;
-  socioeconomicGenderImpact: number;
-  
-  // Business Viability (31 points)
-  entrepreneurshipManagement: number;
-  marketPotentialDemand: number;
-  financialManagement: number;
-  timeFrameFeasibility: number;
-  
-  // Sectoral and Strategic Alignment (20 points)
-  foodSecurityRelevance: number;
-  gcaAlignment: number;
-  
-  // Organizational Capacity and Partnerships (14 points)
-  humanResourcesInfrastructure: number;
-  technicalExpertise: number;
-  experienceTrackRecord: number;
-  governanceManagement: number;
-  genderInclusionManagement: number;
-  riskManagementStrategy: number;
-  partnershipsCollaborations: number;
-  
-  // Notes
-  evaluationNotes: string;
-}
+// =============================================================================
+// FOUNDATION TRACK SCORING (100 Marks Total)
+// =============================================================================
 
-export const SCORING_SECTIONS: ScoringSection[] = [
+export const FOUNDATION_SCORING_SECTIONS: ScoringSection[] = [
   {
-    id: 'innovation-climate',
-    name: 'Innovation and Climate Adaptation Focus',
-    maxPoints: 35,
+    id: 'commercial-viability',
+    name: 'Commercial Viability',
+    maxPoints: 30,
     criteria: [
       {
-        id: 'climateAdaptationBenefits',
-        name: 'Demonstratable Climate Adaptation Benefits',
+        id: 'revenueProof',
+        name: 'Proof of Sales (Last 1 year revenue)',
         maxPoints: 10,
         options: [
-          { value: 0, label: 'Limited capacity', description: 'Minimal or unclear climate adaptation benefits' },
-          { value: 5, label: 'Moderate capacity', description: 'Some climate adaptation benefits with room for improvement' },
-          { value: 10, label: 'Strong capacity', description: 'Clear, significant climate adaptation benefits' }
+          { value: 10, label: '> KES 2M', description: 'Strong revenue above 2 million KES' },
+          { value: 5, label: 'KES 1M - 2M', description: 'Moderate revenue between 1-2 million KES' },
+          { value: 2, label: 'KES 500k - 1M', description: 'Entry-level revenue between 500k-1M KES' }
         ]
       },
       {
-        id: 'innovativeness',
-        name: 'Innovativeness of the Solution',
+        id: 'customerCount',
+        name: 'Number of Customers',
         maxPoints: 10,
         options: [
-          { value: 1, label: 'Conventional idea', description: 'Traditional approach with limited innovation' },
-          { value: 5, label: 'Somewhat innovative', description: 'Some innovative elements but not groundbreaking' },
-          { value: 10, label: 'Highly innovative', description: 'Novel, creative solution with significant innovation' }
+          { value: 10, label: '> 401 customers', description: 'Large customer base' },
+          { value: 5, label: '200 - 400 customers', description: 'Medium customer base' },
+          { value: 2, label: '1 - 200 customers', description: 'Small customer base' }
         ]
       },
       {
-        id: 'scalabilityReplicability',
-        name: 'Scalability and Replicability',
-        maxPoints: 5,
+        id: 'externalFunding',
+        name: 'External Fundraising (Received loans/grants)',
+        maxPoints: 10,
         options: [
-          { value: 1, label: 'Limited adaptability/scalability', description: 'Difficult to scale or replicate' },
-          { value: 3, label: 'Moderate adaptability/scalability', description: 'Some potential for scaling with modifications' },
-          { value: 5, label: 'High adaptability/scalability', description: 'Easy to scale and replicate in different contexts' }
+          { value: 10, label: 'Yes', description: 'Has received external funding' },
+          { value: 5, label: 'No', description: 'No external funding received' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'business-model',
+    name: 'Business Model',
+    maxPoints: 10,
+    criteria: [
+      {
+        id: 'businessModelDescription',
+        name: 'Business Model Innovation',
+        maxPoints: 10,
+        options: [
+          { value: 10, label: 'Innovative concept', description: 'New and innovative business model' },
+          { value: 5, label: 'Relatively innovative', description: 'Some innovation in the model' },
+          { value: 2, label: 'Existing/well-established', description: 'Traditional business model' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'market-potential',
+    name: 'Market Potential',
+    maxPoints: 30,
+    criteria: [
+      {
+        id: 'relativePricing',
+        name: 'Relative Pricing (Compared to competitors)',
+        maxPoints: 7,
+        options: [
+          { value: 7, label: 'Lower', description: 'Priced lower than competitors' },
+          { value: 4, label: 'Equal', description: 'Similar pricing to competitors' },
+          { value: 1, label: 'Higher', description: 'Priced higher than competitors' }
         ]
       },
+      {
+        id: 'productDifferentiation',
+        name: 'Product Differentiation',
+        maxPoints: 8,
+        options: [
+          { value: 8, label: 'New', description: 'Unique product/service in the market' },
+          { value: 5, label: 'Relatively new', description: 'Some unique features' },
+          { value: 2, label: 'Existing', description: 'Similar to existing products' }
+        ]
+      },
+      {
+        id: 'threatOfSubstitutes',
+        name: 'Threat of Substitutes',
+        maxPoints: 7,
+        options: [
+          { value: 7, label: 'Low', description: 'Few or no substitutes available' },
+          { value: 4, label: 'Moderate', description: 'Some substitutes exist' },
+          { value: 0, label: 'High', description: 'Many substitutes available' }
+        ]
+      },
+      {
+        id: 'easeOfEntry',
+        name: 'Ease of Market Entry for Competitors',
+        maxPoints: 8,
+        options: [
+          { value: 8, label: 'Low', description: 'High barriers to entry' },
+          { value: 5, label: 'Moderate', description: 'Some barriers exist' },
+          { value: 1, label: 'High', description: 'Easy for competitors to enter' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'social-impact',
+    name: 'Social Impact',
+    maxPoints: 40,
+    criteria: [
       {
         id: 'environmentalImpact',
         name: 'Environmental Impact',
-        maxPoints: 5,
-        options: [
-          { value: 1, label: 'Minimal environmental impact', description: 'Limited positive environmental effects' },
-          { value: 3, label: 'Moderate environmental impact', description: 'Some positive environmental benefits' },
-          { value: 5, label: 'Significant environmental impact', description: 'Strong positive environmental outcomes' }
-        ]
-      },
-      {
-        id: 'socioeconomicGenderImpact',
-        name: 'Socioeconomic and Gender Inclusion Impact',
-        maxPoints: 5,
-        options: [
-          { value: 1, label: 'Limited socioeconomic impact', description: 'Minimal social or economic benefits' },
-          { value: 3, label: 'Moderate socioeconomic impact', description: 'Some social and economic benefits' },
-          { value: 5, label: 'Substantial socioeconomic impact', description: 'Strong social and economic benefits with gender inclusion' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'business-viability',
-    name: 'Business Viability',
-    maxPoints: 31,
-    criteria: [
-      {
-        id: 'entrepreneurshipManagement',
-        name: 'Entrepreneurship and Management Capacity',
-        maxPoints: 6,
-        options: [
-          { value: 1, label: 'Limited capacity', description: 'Weak entrepreneurial and management skills' },
-          { value: 3, label: 'Average capacity', description: 'Adequate entrepreneurial and management capabilities' },
-          { value: 6, label: 'Above average capacity', description: 'Strong entrepreneurial and management expertise' }
-        ]
-      },
-      {
-        id: 'marketPotentialDemand',
-        name: 'Market Potential and Demand',
-        maxPoints: 10,
-        options: [
-          { value: 1, label: 'Limited potential', description: 'Small or unclear market opportunity' },
-          { value: 5, label: 'Moderate potential', description: 'Reasonable market opportunity with some demand' },
-          { value: 10, label: 'Strong potential', description: 'Large market opportunity with clear demand' }
-        ]
-      },
-      {
-        id: 'financialManagement',
-        name: 'Financial Management and Cost-Benefit',
-        maxPoints: 10,
-        options: [
-          { value: 1, label: 'Poor financial management', description: 'Weak financial planning and cost-benefit analysis' },
-          { value: 5, label: 'Adequate financial management', description: 'Reasonable financial planning with some analysis' },
-          { value: 10, label: 'Excellent financial management', description: 'Strong financial planning with clear cost-benefit analysis' }
-        ]
-      },
-      {
-        id: 'timeFrameFeasibility',
-        name: 'Time Frame and Feasibility',
-        maxPoints: 5,
-        options: [
-          { value: 1, label: 'Over 36 months', description: 'Long implementation timeline (over 36 months)' },
-          { value: 3, label: '12 - 36 months', description: 'Medium implementation timeline (12-36 months)' },
-          { value: 5, label: '6-12 months', description: 'Short implementation timeline (6-12 months)' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'sectoral-alignment',
-    name: 'Sectoral and Strategic Alignment',
-    maxPoints: 20,
-    criteria: [
-      {
-        id: 'foodSecurityRelevance',
-        name: 'Relevance to Food Security and Infrastructure Adaptation Needs',
         maxPoints: 15,
         options: [
-          { value: 1, label: 'Limited adaptive capacity', description: 'Minimal relevance to food security and infrastructure adaptation' },
-          { value: 8, label: 'Moderate adaptive capacity', description: 'Some relevance to food security and infrastructure needs' },
-          { value: 15, label: 'High adaptive capacity', description: 'Strong relevance to food security and infrastructure adaptation' }
+          { value: 15, label: 'Clearly Defined', description: 'Strong positive environmental impact' },
+          { value: 10, label: 'Neutral', description: 'Minimal environmental impact' },
+          { value: 5, label: 'Not Defined', description: 'No clear environmental consideration' }
         ]
       },
       {
-        id: 'gcaAlignment',
-        name: 'Alignment with GCA and National/Regional Climate Priorities',
-        maxPoints: 5,
+        id: 'specialGroupsEmployed',
+        name: 'Special Groups Employed (Women, Youth, PWD)',
+        maxPoints: 15,
         options: [
-          { value: 1, label: 'Low alignment', description: 'Minimal alignment with climate priorities' },
-          { value: 3, label: 'Moderate alignment', description: 'Some alignment with climate priorities' },
-          { value: 5, label: 'High alignment', description: 'Strong alignment with GCA and climate priorities' }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'organizational-capacity',
-    name: 'Organizational Capacity and Partnerships',
-    maxPoints: 14,
-    criteria: [
-      {
-        id: 'humanResourcesInfrastructure',
-        name: 'Human Resources and Infrastructure',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'Limited capacity', description: 'Insufficient human resources and infrastructure' },
-          { value: 1, label: 'Moderate capacity', description: 'Adequate human resources and infrastructure' },
-          { value: 2, label: 'Strong capacity', description: 'Excellent human resources and infrastructure' }
+          { value: 15, label: '> 10 employees', description: 'More than 10 from special groups' },
+          { value: 10, label: '6 - 9 employees', description: '6-9 from special groups' },
+          { value: 5, label: '5 employees', description: '5 from special groups' }
         ]
       },
       {
-        id: 'technicalExpertise',
-        name: 'Technical Expertise',
-        maxPoints: 2,
+        id: 'businessCompliance',
+        name: 'Business Compliance Status',
+        maxPoints: 10,
         options: [
-          { value: 0, label: 'Limited capacity', description: 'Insufficient technical expertise' },
-          { value: 1, label: 'Moderate capacity', description: 'Adequate technical expertise' },
-          { value: 2, label: 'Strong capacity', description: 'Excellent technical expertise' }
-        ]
-      },
-      {
-        id: 'experienceTrackRecord',
-        name: 'Experience and Track Record',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'Limited capacity', description: 'Minimal relevant experience' },
-          { value: 1, label: 'Moderate capacity', description: 'Some relevant experience' },
-          { value: 2, label: 'Strong capacity', description: 'Strong track record and experience' }
-        ]
-      },
-      {
-        id: 'governanceManagement',
-        name: 'Governance and Management Structure',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'Limited capacity', description: 'Weak governance and management structure' },
-          { value: 1, label: 'Moderate capacity', description: 'Adequate governance and management structure' },
-          { value: 2, label: 'Strong capacity', description: 'Excellent governance and management structure' }
-        ]
-      },
-      {
-        id: 'genderInclusionManagement',
-        name: 'Gender Inclusion in Management Structure',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'No gender balance (men)', description: 'Male-dominated management with no gender balance' },
-          { value: 1, label: 'Partial gender balance', description: 'Some gender balance in management' },
-          { value: 2, label: 'Women-led', description: 'Women-led or strong gender balance in management' }
-        ]
-      },
-      {
-        id: 'riskManagementStrategy',
-        name: 'Risk Management Strategy',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'Weak risk management', description: 'No clear risk management strategy' },
-          { value: 1, label: 'Adequate risk management', description: 'Basic risk management approach' },
-          { value: 2, label: 'Robust risk management', description: 'Comprehensive risk management strategy' }
-        ]
-      },
-      {
-        id: 'partnershipsCollaborations',
-        name: 'Partnerships and Collaborations',
-        maxPoints: 2,
-        options: [
-          { value: 0, label: 'Limited capacity', description: 'Few or no strategic partnerships' },
-          { value: 1, label: 'Moderate capacity', description: 'Some partnerships and collaborations' },
-          { value: 2, label: 'Strong capacity', description: 'Strong network of partnerships and collaborations' }
+          { value: 10, label: 'Fully Compliant', description: 'All regulatory requirements met' },
+          { value: 3, label: 'Partially Compliant', description: 'Some compliance gaps' },
+          { value: 1, label: 'Not clear', description: 'Compliance status unclear' }
         ]
       }
     ]
   }
 ];
 
-export const PASS_THRESHOLD = 60;
-export const TOTAL_MAX_SCORE = 100; 
+// =============================================================================
+// ACCELERATION TRACK SCORING (100 Marks Total)
+// =============================================================================
+
+export const ACCELERATION_SCORING_SECTIONS: ScoringSection[] = [
+  {
+    id: 'revenues-growth',
+    name: 'Revenues & Growth',
+    maxPoints: 20,
+    criteria: [
+      {
+        id: 'annualRevenue',
+        name: 'Annual Revenue',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: '> KES 5M', description: 'Revenue above 5 million KES' },
+          { value: 3, label: 'KES 3.5M - 5M', description: 'Revenue between 3.5-5 million KES' },
+          { value: 1, label: 'KES 3M - 3.5M', description: 'Revenue between 3-3.5 million KES' }
+        ]
+      },
+      {
+        id: 'yearsOfOperation',
+        name: 'Years of Operation',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: '> 4 years', description: 'More than 4 years operational' },
+          { value: 3, label: '> 3 years', description: 'More than 3 years operational' },
+          { value: 1, label: '2 years', description: '2 years operational' }
+        ]
+      },
+      {
+        id: 'futureSalesGrowth',
+        name: 'Future Potential Sales Growth',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'High', description: 'Strong projected growth' },
+          { value: 3, label: 'Moderate', description: 'Moderate projected growth' },
+          { value: 1, label: 'Low', description: 'Low projected growth' }
+        ]
+      },
+      {
+        id: 'fundsRaised',
+        name: 'External Funds Raised',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'Yes', description: 'Has raised external funds' },
+          { value: 1, label: 'No', description: 'No external funds raised' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'impact-potential',
+    name: 'Impact Potential',
+    maxPoints: 20,
+    criteria: [
+      {
+        id: 'currentSpecialGroupsEmployed',
+        name: 'Current Youth/Women/PWD Employed',
+        maxPoints: 10,
+        options: [
+          { value: 10, label: '> 10 employees', description: 'More than 10 from special groups' },
+          { value: 6, label: '6 - 9 employees', description: '6-9 from special groups' },
+          { value: 3, label: '5 employees', description: '5 from special groups' }
+        ]
+      },
+      {
+        id: 'jobCreationPotential',
+        name: 'Potential to Create New Jobs (Women/PWD/Youth)',
+        maxPoints: 10,
+        options: [
+          { value: 10, label: 'High', description: 'Strong potential for job creation' },
+          { value: 6, label: 'Moderate', description: 'Moderate job creation potential' },
+          { value: 3, label: 'Low', description: 'Limited job creation potential' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'scalability',
+    name: 'Scalability',
+    maxPoints: 20,
+    criteria: [
+      {
+        id: 'marketDifferentiation',
+        name: 'Market Differentiation',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'Truly Unique', description: 'One-of-a-kind offering' },
+          { value: 3, label: 'Provably Better', description: 'Better than competitors' },
+          { value: 1, label: 'Undifferentiated', description: 'Similar to competitors' }
+        ]
+      },
+      {
+        id: 'competitiveAdvantage',
+        name: 'Competitive Advantage',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'High', description: 'Strong competitive position' },
+          { value: 3, label: 'Moderate', description: 'Some competitive advantages' },
+          { value: 1, label: 'Low', description: 'Weak competitive position' }
+        ]
+      },
+      {
+        id: 'offeringFocus',
+        name: 'Offering Focus',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'Outcome Focused', description: 'Focus on customer outcomes' },
+          { value: 3, label: 'Solution Focused', description: 'Focus on solutions' },
+          { value: 1, label: 'Feature Focused', description: 'Focus on features' }
+        ]
+      },
+      {
+        id: 'salesMarketingIntegration',
+        name: 'Sales & Marketing Integration',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'Fully Integrated', description: 'Sales and marketing fully aligned' },
+          { value: 3, label: 'Aligned', description: 'Some alignment exists' },
+          { value: 1, label: 'No Alignment', description: 'No coordination between sales/marketing' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'social-environmental-impact',
+    name: 'Social & Environmental Impact',
+    maxPoints: 20,
+    criteria: [
+      {
+        id: 'socialImpact',
+        name: 'Social Impact (Household income improvement)',
+        maxPoints: 6,
+        options: [
+          { value: 6, label: 'High', description: 'Significant income improvement' },
+          { value: 4, label: 'Moderate', description: 'Some income improvement' },
+          { value: 0, label: 'None', description: 'No measurable impact' }
+        ]
+      },
+      {
+        id: 'supplierInvolvement',
+        name: 'Supplier Involvement',
+        maxPoints: 6,
+        options: [
+          { value: 6, label: 'Direct Engagement', description: 'Direct engagement with suppliers' },
+          { value: 3, label: 'Network Based', description: 'Network-based supplier engagement' },
+          { value: 1, label: 'None', description: 'No supplier engagement' }
+        ]
+      },
+      {
+        id: 'environmentalImpactAcc',
+        name: 'Environmental Impact',
+        maxPoints: 6,
+        options: [
+          { value: 6, label: 'High', description: 'Strong positive environmental impact' },
+          { value: 4, label: 'Moderate', description: 'Some environmental consideration' },
+          { value: 0, label: 'Low', description: 'Minimal environmental focus' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'business-model-acc',
+    name: 'Business Model',
+    maxPoints: 20,
+    criteria: [
+      {
+        id: 'businessModelUniqueness',
+        name: 'Business Model Uniqueness',
+        maxPoints: 7,
+        options: [
+          { value: 7, label: 'High', description: 'Highly unique business model' },
+          { value: 3, label: 'Moderate', description: 'Some unique elements' },
+          { value: 1, label: 'Low', description: 'Common business model' }
+        ]
+      },
+      {
+        id: 'customerValueProposition',
+        name: 'Customer Value Proposition',
+        maxPoints: 7,
+        options: [
+          { value: 7, label: 'High', description: 'Strong value proposition' },
+          { value: 3, label: 'Moderate', description: 'Adequate value proposition' },
+          { value: 1, label: 'Low', description: 'Weak value proposition' }
+        ]
+      },
+      {
+        id: 'competitiveAdvantageStrength',
+        name: 'Competitive Advantage Strength',
+        maxPoints: 6,
+        options: [
+          { value: 6, label: 'High', description: 'Strong barriers to competition' },
+          { value: 3, label: 'Moderate', description: 'Some protection' },
+          { value: 1, label: 'Low', description: 'Easily replicated' }
+        ]
+      }
+    ]
+  }
+];
+
+// =============================================================================
+// EVALUATION SCORE INTERFACES
+// =============================================================================
+
+export interface FoundationEvaluationScores {
+  // Commercial Viability (30 marks)
+  revenueProof: number;
+  customerCount: number;
+  externalFunding: number;
+  // Business Model (10 marks)
+  businessModelDescription: number;
+  // Market Potential (30 marks)
+  relativePricing: number;
+  productDifferentiation: number;
+  threatOfSubstitutes: number;
+  easeOfEntry: number;
+  // Social Impact (40 marks)
+  environmentalImpact: number;
+  specialGroupsEmployed: number;
+  businessCompliance: number;
+  // Notes
+  evaluationNotes: string;
+}
+
+export interface AccelerationEvaluationScores {
+  // Revenues & Growth (20 marks)
+  annualRevenue: number;
+  yearsOfOperation: number;
+  futureSalesGrowth: number;
+  fundsRaised: number;
+  // Impact Potential (20 marks)
+  currentSpecialGroupsEmployed: number;
+  jobCreationPotential: number;
+  // Scalability (20 marks)
+  marketDifferentiation: number;
+  competitiveAdvantage: number;
+  offeringFocus: number;
+  salesMarketingIntegration: number;
+  // Social & Environmental Impact (20 marks)
+  socialImpact: number;
+  supplierInvolvement: number;
+  environmentalImpactAcc: number;
+  // Business Model (20 marks)
+  businessModelUniqueness: number;
+  customerValueProposition: number;
+  competitiveAdvantageStrength: number;
+  // Notes
+  evaluationNotes: string;
+}
+
+// Union type for all evaluation scores
+export type EvaluationScores = FoundationEvaluationScores | AccelerationEvaluationScores;
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+
+export const PASS_THRESHOLD = 70; // Both tracks require minimum 70 marks
+export const TOTAL_MAX_SCORE = 100;
+
+// Helper to get sections by track
+export function getScoringSection(track: 'foundation' | 'acceleration'): ScoringSection[] {
+  return track === 'acceleration' ? ACCELERATION_SCORING_SECTIONS : FOUNDATION_SCORING_SECTIONS;
+}
+
+// Helper to get default scores by track
+export function getDefaultScores(track: 'foundation' | 'acceleration'): EvaluationScores {
+  if (track === 'acceleration') {
+    return {
+      annualRevenue: 0,
+      yearsOfOperation: 0,
+      futureSalesGrowth: 0,
+      fundsRaised: 0,
+      currentSpecialGroupsEmployed: 0,
+      jobCreationPotential: 0,
+      marketDifferentiation: 0,
+      competitiveAdvantage: 0,
+      offeringFocus: 0,
+      salesMarketingIntegration: 0,
+      socialImpact: 0,
+      supplierInvolvement: 0,
+      environmentalImpactAcc: 0,
+      businessModelUniqueness: 0,
+      customerValueProposition: 0,
+      competitiveAdvantageStrength: 0,
+      evaluationNotes: ''
+    };
+  }
+  return {
+    revenueProof: 0,
+    customerCount: 0,
+    externalFunding: 0,
+    businessModelDescription: 0,
+    relativePricing: 0,
+    productDifferentiation: 0,
+    threatOfSubstitutes: 0,
+    easeOfEntry: 0,
+    environmentalImpact: 0,
+    specialGroupsEmployed: 0,
+    businessCompliance: 0,
+    evaluationNotes: ''
+  };
+}

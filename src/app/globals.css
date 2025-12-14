@@ -95,44 +95,44 @@
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 240 5.9% 10%;
-  --primary-foreground: 0 0% 98%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 45.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 240 5.9% 10%;
-  --chart-1: 12 76% 61%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 37% 24%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(240 10% 3.9%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(240 10% 3.9%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(240 10% 3.9%);
+  --primary: hsl(240 5.9% 10%);
+  --primary-foreground: hsl(0 0% 98%);
+  --secondary: hsl(240 4.8% 95.9%);
+  --secondary-foreground: hsl(240 5.9% 10%);
+  --muted: hsl(240 4.8% 95.9%);
+  --muted-foreground: hsl(240 3.8% 45.1%);
+  --accent: hsl(240 4.8% 95.9%);
+  --accent-foreground: hsl(240 5.9% 10%);
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(240 5.9% 90%);
+  --input: hsl(240 5.9% 90%);
+  --ring: hsl(240 5.9% 10%);
+  --chart-1: hsl(12 76% 61%);
+  --chart-2: hsl(173 58% 39%);
+  --chart-3: hsl(197 37% 24%);
+  --chart-4: hsl(43 74% 66%);
+  --chart-5: hsl(27 87% 67%);
   --radius: 0.75rem;
-  --sidebar-background: 0 0% 98%;
-  --sidebar-foreground: 240 5.3% 26.1%;
-  --sidebar-primary: 240 5.9% 10%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 4.8% 95.9%;
-  --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 217.2 10.6% 64.9%;
+  --sidebar-background: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 10.6% 64.9%);
 
   /* GCA Brand Colors */
-  --gca-blue: 221 88% 39%;
+  --gca-blue: hsl(221 88% 39%);
   /* #0B5FBA */
-  --gca-green: 175 100% 41%;
+  --gca-green: hsl(175 100% 41%);
   /* #00D0AB */
 
   /* Hand in Hand Brand Colors - CSS Variables */
@@ -184,16 +184,20 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Global Canvas Gradient: Light throughout, dark only at footer */
-    background: linear-gradient(180deg,
-        #ffffff 0%,
-        #f8fafc 30%,
-        #f0f9ff 60%,
-        #e0f2fe 85%,
-        #0f172a 98%,
-        #020617 100%);
+    background-color: hsl(var(--background));
     min-height: 100vh;
   }
+}
+
+/* Optional: Use this class on specific pages that need the gradient */
+.gradient-background {
+  background: linear-gradient(180deg,
+      #ffffff 0%,
+      #f8fafc 30%,
+      #f0f9ff 60%,
+      #e0f2fe 85%,
+      #0f172a 98%,
+      #020617 100%);
 }
 
 /* GCA Brand Color Utilities */
@@ -542,5 +546,3 @@ button:focus-visible {
   --error-border: hsl(359, 83%, 24%, 0.4);
   --error-text: hsl(359, 83%, 70%);
 }
-
-@tailwind utilities;

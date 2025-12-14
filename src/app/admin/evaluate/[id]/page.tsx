@@ -32,6 +32,7 @@ import { getActiveScoringConfiguration, initializeDefaultScoringConfig } from "@
 import { getDetailedScores, saveScoringProgress } from "@/lib/actions/scoring-progress";
 import { DocumentViewerModal } from "@/components/admin/DocumentViewerModal";
 import { ScoringSectionModal } from "@/components/admin/ScoringSectionModal";
+import { getScoringConfigByTrack } from "@/lib/types/scoring";
 
 // --- UI Helpers ---
 function SectionHeader({ title, icon }: { title: string; icon?: React.ReactNode }) {
@@ -89,14 +90,31 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
 
     async function loadData() {
         try {
-            const [appRes, statusRes, configRes, scoresRes] = await Promise.all([
+            const [appRes, statusRes, scoresRes] = await Promise.all([
                 getApplicationById(applicationId),
                 getReviewStatus(applicationId),
-                getActiveScoringConfiguration(),
                 getDetailedScores(applicationId)
             ]);
 
-            if (appRes.success && appRes.data) setApplication(appRes.data);
+            if (appRes.success && appRes.data) {
+                setApplication(appRes.data);
+
+                // Use track-specific BIRE Programme scoring config
+                const track = appRes.data.track === 'acceleration' ? 'acceleration' : 'foundation';
+                const trackConfig = getScoringConfigByTrack(track);
+
+                // Convert to the format expected by the component
+                const configWithIds = {
+                    ...trackConfig,
+                    criteria: trackConfig.criteria.map((c, index) => ({
+                        ...c,
+                        id: index + 1, // Assign temporary IDs for the UI
+                        weight: c.maxPoints
+                    }))
+                };
+                setScoringConfig(configWithIds);
+            }
+
             if (statusRes.success && statusRes.data) {
                 setReviewStatus(statusRes.data);
                 // Pre-fill notes
@@ -107,8 +125,6 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                     setGeneralNotes(statusRes.data.reviewer1.notes || "");
                 }
             }
-
-            if (configRes.success && configRes.data) setScoringConfig(configRes.data);
 
             if (scoresRes.success && scoresRes.data) {
                 // Populate existing detailed scores

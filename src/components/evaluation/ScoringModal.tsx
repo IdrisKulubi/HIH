@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Circle, FileText, Eye } from "lucide-react";
+import { CheckCircle2, Circle, FileText, Eye, CheckCircle } from "lucide-react";
 import { ScoringSection, ScoringCriterion, EvaluationScores } from "@/types/evaluation";
 
 interface ScoringModalProps {
@@ -37,83 +37,192 @@ interface CriterionScorerProps {
 function CriterionScorer({ criterion, currentScore, onScoreChange, applicationData }: CriterionScorerProps) {
   const [showApplicationData, setShowApplicationData] = useState(false);
 
+  // Get relevant application data for each criterion type
   const getRelevantApplicationData = (criterionId: string) => {
     if (!applicationData) return null;
 
-    const { business, applicant } = applicationData;
+    const { business, applicant, revenues, impactPotential, socialImpact, businessModel } = applicationData;
 
+    // Foundation Track Criteria
     switch (criterionId) {
-      case 'timeFrameFeasibility':
+      case 'revenueProof':
+      case 'annualRevenue':
         return {
-          title: "Time Frame & Implementation Details",
+          title: "Revenue Information",
           data: [
-            { label: "Business Start Date", value: new Date(business.startDate).toLocaleDateString() },
-            { label: "Business Age", value: `${Math.floor((new Date().getTime() - new Date(business.startDate).getTime()) / (1000 * 60 * 60 * 24 * 365))} years` },
-            { label: "Current Challenges", value: business.currentChallenges },
-            { label: "Support Needed", value: business.supportNeeded },
-            { label: "Production Capacity (Last 6 Months)", value: business.productionCapacityLastSixMonths },
-            { label: "Additional Information", value: business.additionalInformation || "Not provided" }
+            { label: "Annual Revenue", value: business?.revenueLastYear ? `KES ${business.revenueLastYear.toLocaleString()}` : (revenues?.revenueLastYear ? `KES ${revenues.revenueLastYear.toLocaleString()}` : 'Not provided') },
+            { label: "Revenue (Last 2 Years)", value: business?.revenueLastTwoYears ? `KES ${parseFloat(business.revenueLastTwoYears).toLocaleString()}` : 'Not provided' },
           ]
         };
 
-      case 'marketPotentialDemand':
+      case 'customerCount':
         return {
-          title: "Market & Customer Information",
+          title: "Customer Information",
           data: [
-            { label: "Unit Price", value: `$${parseFloat(business.unitPrice).toLocaleString()}` },
-            { label: "Customer Count (Last 6 Months)", value: business.customerCountLastSixMonths.toLocaleString() },
-            { label: "Product/Service Description", value: business.productServiceDescription },
-            { label: "Problem Being Solved", value: business.problemSolved },
-            { label: "Target Customers", value: business.targetCustomers?.join(", ") || "Not specified" },
-            { label: "Production Capacity", value: business.productionCapacityLastSixMonths }
+            { label: "Customer Count (6 months)", value: business?.customerCountLastSixMonths?.toLocaleString() || 'Not provided' },
+            { label: "Target Customers", value: business?.targetCustomers?.join(", ") || 'Not specified' },
           ]
         };
 
-      case 'financialManagement':
+      case 'externalFunding':
+      case 'fundsRaised':
         return {
-          title: "Financial Information",
+          title: "Funding Information",
           data: [
-            { label: "Revenue (Last 2 Years)", value: `$${parseFloat(business.revenueLastTwoYears).toLocaleString()}` },
-            { label: "Unit Price", value: `$${parseFloat(business.unitPrice).toLocaleString()}` },
-            { label: "Customer Count", value: business.customerCountLastSixMonths.toLocaleString() },
-            { label: "Business Registration", value: business.isRegistered ? "Yes" : "No" },
-            { label: "Registered Countries", value: business.registeredCountries },
-            { label: "Funding History", value: business.funding?.length ? `${business.funding.length} funding round(s)` : "No external funding" }
+            { label: "Has External Funding", value: revenues?.hasExternalFunding ? 'Yes' : 'No' },
+            { label: "Funding Details", value: revenues?.externalFundingDetails || business?.funding?.length ? `${business.funding?.length} funding round(s)` : 'No external funding' },
           ]
         };
 
-      case 'entrepreneurshipManagement':
+      case 'businessModelDescription':
+      case 'businessModelUniqueness':
         return {
-          title: "Management & Leadership Information",
+          title: "Business Model",
           data: [
-            { label: "Founder", value: `${applicant?.firstName || 'N/A'} ${applicant?.lastName || ''}` },
-            { label: "Education Level", value: applicant?.highestEducation?.replace(/_/g, ' ')?.replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'N/A' },
-            { label: "Age", value: applicant?.dateOfBirth ? `${new Date().getFullYear() - new Date(applicant.dateOfBirth).getFullYear()} years` : 'N/A' },
-            { label: "Business Experience", value: business?.startDate ? `${Math.floor((new Date().getTime() - new Date(business.startDate).getTime()) / (1000 * 60 * 60 * 24 * 365))} years running this business` : 'N/A' },
-            { label: "Team Size", value: business?.employees?.fullTimeTotal ? `${business.employees.fullTimeTotal} full-time employees` : 'N/A' },
-            { label: "Business Vision", value: business?.description || 'N/A' }
+            { label: "Business Description", value: business?.description || 'Not provided' },
+            { label: "Product/Service", value: business?.productServiceDescription || 'Not provided' },
+            { label: "Problem Solved", value: business?.problemSolved || 'Not provided' },
           ]
         };
 
-      case 'climateAdaptationBenefits':
+      case 'relativePricing':
         return {
-          title: "Climate Adaptation Information",
+          title: "Pricing Information",
           data: [
-            { label: "Climate Adaptation Contribution", value: business.climateAdaptationContribution },
-            { label: "Climate Extreme Impact", value: business.climateExtremeImpact },
-            { label: "Product/Service Description", value: business.productServiceDescription },
-            { label: "Problem Solved", value: business.problemSolved }
+            { label: "Unit Price", value: business?.unitPrice ? `KES ${parseFloat(business.unitPrice).toLocaleString()}` : 'Not provided' },
           ]
         };
 
-      case 'innovativeness':
+      case 'productDifferentiation':
+      case 'marketDifferentiation':
         return {
-          title: "Innovation Information",
+          title: "Product Differentiation",
           data: [
-            { label: "Business Description", value: business.description },
-            { label: "Product/Service Innovation", value: business.productServiceDescription },
-            { label: "Current Challenges", value: business.currentChallenges },
-            { label: "Business Age", value: `Started ${new Date(business.startDate).toLocaleDateString()}` }
+            { label: "Product Description", value: business?.productServiceDescription || 'Not provided' },
+            { label: "Problem Solved", value: business?.problemSolved || 'Not provided' },
+            { label: "Business Description", value: business?.description || 'Not provided' },
+          ]
+        };
+
+      case 'threatOfSubstitutes':
+      case 'easeOfEntry':
+      case 'competitiveAdvantage':
+        return {
+          title: "Market Competition",
+          data: [
+            { label: "Business Sector", value: business?.sector || 'Not provided' },
+            { label: "Product Description", value: business?.productServiceDescription || 'Not provided' },
+            { label: "Current Challenges", value: business?.currentChallenges || 'Not provided' },
+          ]
+        };
+
+      case 'environmentalImpact':
+      case 'environmentalImpactAcc':
+        return {
+          title: "Environmental Impact",
+          data: [
+            { label: "Environmental Impact", value: socialImpact?.environmentalImpact || 'Not specified' },
+            { label: "Description", value: socialImpact?.environmentalImpactDescription || 'Not provided' },
+            { label: "Climate Contribution", value: business?.climateAdaptationContribution || 'Not provided' },
+          ]
+        };
+
+      case 'specialGroupsEmployed':
+      case 'currentSpecialGroupsEmployed':
+        return {
+          title: "Employment - Special Groups",
+          data: [
+            { label: "Total Employees", value: impactPotential?.fullTimeEmployeesTotal || business?.employees?.fullTimeTotal || 'Not provided' },
+            { label: "Women Employed", value: impactPotential?.fullTimeEmployeesWomen || business?.employees?.women || 'Not provided' },
+            { label: "Youth Employed", value: impactPotential?.fullTimeEmployeesYouth || business?.employees?.youth || 'Not provided' },
+            { label: "PWD Employed", value: impactPotential?.fullTimeEmployeesPwd || business?.employees?.pwd || 'Not provided' },
+          ]
+        };
+
+      case 'jobCreationPotential':
+        return {
+          title: "Job Creation Potential",
+          data: [
+            { label: "Job Creation Rating", value: impactPotential?.jobCreationPotential || 'Not specified' },
+            { label: "Projected Inclusion", value: impactPotential?.projectedInclusion || 'Not specified' },
+            { label: "Current Employees", value: impactPotential?.fullTimeEmployeesTotal || 'Not provided' },
+          ]
+        };
+
+      case 'businessCompliance':
+        return {
+          title: "Business Compliance",
+          data: [
+            { label: "Business Registered", value: business?.isRegistered ? 'Yes' : 'No' },
+            { label: "Registration Type", value: business?.registrationType || 'Not specified' },
+            { label: "Has Financial Records", value: business?.hasFinancialRecords ? 'Yes' : 'No' },
+          ]
+        };
+
+      case 'yearsOfOperation':
+        return {
+          title: "Years of Operation",
+          data: [
+            { label: "Years Operational", value: business?.yearsOperational || revenues?.yearsOperational || 'Not provided' },
+            { label: "Start Date", value: business?.startDate ? new Date(business.startDate).toLocaleDateString() : 'Not provided' },
+          ]
+        };
+
+      case 'futureSalesGrowth':
+        return {
+          title: "Growth Projections",
+          data: [
+            { label: "Future Sales Growth", value: revenues?.futureSalesGrowth || 'Not specified' },
+            { label: "Growth Reason", value: revenues?.futureSalesGrowthReason || 'Not provided' },
+            { label: "Growth History", value: revenues?.growthHistory || 'Not provided' },
+          ]
+        };
+
+      case 'offeringFocus':
+      case 'salesMarketingIntegration':
+        return {
+          title: "Sales & Marketing",
+          data: [
+            { label: "Product Description", value: business?.productServiceDescription || 'Not provided' },
+            { label: "Target Customers", value: business?.targetCustomers?.join(", ") || 'Not specified' },
+            { label: "Business Description", value: business?.description || 'Not provided' },
+          ]
+        };
+
+      case 'socialImpact':
+        return {
+          title: "Social Impact",
+          data: [
+            { label: "Social Impact Level", value: socialImpact?.socialImpactContribution || 'Not specified' },
+            { label: "Special Groups Employed", value: `Women: ${impactPotential?.fullTimeEmployeesWomen || 0}, Youth: ${impactPotential?.fullTimeEmployeesYouth || 0}, PWD: ${impactPotential?.fullTimeEmployeesPwd || 0}` },
+          ]
+        };
+
+      case 'supplierInvolvement':
+        return {
+          title: "Supplier Engagement",
+          data: [
+            { label: "Supplier Involvement", value: socialImpact?.supplierInvolvement || 'Not specified' },
+            { label: "Support Description", value: socialImpact?.supplierSupportDescription || 'Not provided' },
+          ]
+        };
+
+      case 'customerValueProposition':
+        return {
+          title: "Value Proposition",
+          data: [
+            { label: "Value Proposition", value: businessModel?.customerValueProposition || 'Not specified' },
+            { label: "Product Description", value: business?.productServiceDescription || 'Not provided' },
+            { label: "Problem Solved", value: business?.problemSolved || 'Not provided' },
+          ]
+        };
+
+      case 'competitiveAdvantageStrength':
+        return {
+          title: "Competitive Advantage",
+          data: [
+            { label: "Advantage Strength", value: businessModel?.competitiveAdvantageStrength || 'Not specified' },
+            { label: "Barriers", value: businessModel?.competitiveAdvantageBarriers || 'Not provided' },
           ]
         };
 
@@ -124,22 +233,24 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
             { label: "Business Name", value: business?.name || 'N/A' },
             { label: "Description", value: business?.description || 'N/A' },
             { label: "Location", value: `${business?.city || 'N/A'}, ${business?.country || 'N/A'}` },
-            { label: "Current Challenges", value: business?.currentChallenges || 'N/A' },
-            { label: "Support Needed", value: business?.supportNeeded || 'N/A' }
           ]
         };
     }
   };
 
   const relevantData = getRelevantApplicationData(criterion.id);
+  const isSelected = currentScore > 0;
 
   return (
-    <Card className="mb-6">
+    <Card className={`mb-4 transition-all ${isSelected ? 'ring-2 ring-green-500 bg-green-50/30' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{criterion.name}</CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-sm">
+            {isSelected && <CheckCircle className="h-5 w-5 text-green-600" />}
+            <CardTitle className="text-lg">{criterion.name}</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={isSelected ? "default" : "outline"} className={`text-sm ${isSelected ? 'bg-green-600' : ''}`}>
               {currentScore}/{criterion.maxPoints} points
             </Badge>
             <Button
@@ -165,7 +276,7 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-2">
                 {relevantData.data.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div className="font-medium text-sm text-blue-900">{item.label}:</div>
@@ -185,7 +296,14 @@ function CriterionScorer({ criterion, currentScore, onScoreChange, applicationDa
           className="space-y-3"
         >
           {criterion.options.map((option) => (
-            <div key={option.value} className="flex items-start space-x-3">
+            <div
+              key={option.value}
+              className={`flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer ${currentScore === option.value
+                  ? 'bg-green-100 border-green-300'
+                  : 'hover:bg-gray-50 border-gray-200'
+                }`}
+              onClick={() => onScoreChange(option.value)}
+            >
               <RadioGroupItem
                 value={option.value.toString()}
                 id={`${criterion.id}-${option.value}`}
@@ -254,13 +372,13 @@ export function ScoringModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
         <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-xl">{section.name}</DialogTitle>
               <DialogDescription className="mt-1">
-                Score each criterion based on the application details. Click &quot;View Data&quot; to see relevant applicant information.
+                Select the option that best matches the application for each criterion. Click &quot;View Data&quot; to see relevant information.
               </DialogDescription>
             </div>
             <div className="text-right">
@@ -280,7 +398,7 @@ export function ScoringModal({
             <TabsTrigger value="overview">Application Overview</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="scoring" className="py-6 space-y-6">
+          <TabsContent value="scoring" className="py-6 space-y-4">
             {section.criteria.map((criterion) => (
               <CriterionScorer
                 key={criterion.id}
@@ -299,26 +417,24 @@ export function ScoringModal({
                   <CardHeader>
                     <CardTitle className="text-lg">Business Information</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div><strong>Name:</strong> {applicationData.business.name}</div>
-                    <div><strong>Location:</strong> {applicationData.business.city}, {applicationData.business.country}</div>
-                    <div><strong>Started:</strong> {new Date(applicationData.business.startDate).toLocaleDateString()}</div>
-                    <div><strong>Registered:</strong> {applicationData.business.isRegistered ? "Yes" : "No"}</div>
-                    <div><strong>Revenue (2 years):</strong> ${parseFloat(applicationData.business.revenueLastTwoYears).toLocaleString()}</div>
-                    <div><strong>Employees:</strong> {applicationData.business.employees.fullTimeTotal} full-time</div>
+                  <CardContent className="space-y-2 text-sm">
+                    <div><strong>Name:</strong> {applicationData.business?.name || 'N/A'}</div>
+                    <div><strong>Sector:</strong> {applicationData.business?.sector || 'N/A'}</div>
+                    <div><strong>Location:</strong> {applicationData.business?.city || 'N/A'}, {applicationData.business?.country || 'Kenya'}</div>
+                    <div><strong>Years Operational:</strong> {applicationData.business?.yearsOperational || 'N/A'}</div>
+                    <div><strong>Registered:</strong> {applicationData.business?.isRegistered ? "Yes" : "No"}</div>
+                    <div><strong>Employees:</strong> {applicationData.impactPotential?.fullTimeEmployeesTotal || applicationData.business?.employees?.fullTimeTotal || 'N/A'}</div>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Founder Information</CardTitle>
+                    <CardTitle className="text-lg">Applicant Information</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-2 text-sm">
                     <div><strong>Name:</strong> {applicationData.applicant?.firstName || 'N/A'} {applicationData.applicant?.lastName || ''}</div>
-                    <div><strong>Education:</strong> {applicationData.applicant?.highestEducation?.replace(/_/g, ' ') || 'N/A'}</div>
-                    <div><strong>Age:</strong> {applicationData.applicant?.dateOfBirth ? `${new Date().getFullYear() - new Date(applicationData.applicant.dateOfBirth).getFullYear()} years` : 'N/A'}</div>
-                    <div><strong>Citizenship:</strong> {applicationData.applicant?.citizenship || 'N/A'}</div>
-                    <div><strong>Residence:</strong> {applicationData.applicant?.countryOfResidence || 'N/A'}</div>
+                    <div><strong>Email:</strong> {applicationData.applicant?.email || 'N/A'}</div>
+                    <div><strong>Phone:</strong> {applicationData.applicant?.phone || 'N/A'}</div>
                   </CardContent>
                 </Card>
 
@@ -327,7 +443,7 @@ export function ScoringModal({
                     <CardTitle className="text-lg">Business Description</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="whitespace-pre-wrap">{applicationData.business.description}</p>
+                    <p className="whitespace-pre-wrap text-sm">{applicationData.business?.description || 'No description provided'}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -361,4 +477,4 @@ export function ScoringModal({
       </DialogContent>
     </Dialog>
   );
-} 
+}

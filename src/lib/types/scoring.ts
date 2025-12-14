@@ -28,273 +28,415 @@ export interface ScoringConfigurationData {
   criteria: ScoringCriteriaData[];
 }
 
-// Default KCIC scoring configuration based on your specifications
-export const DEFAULT_KCIC_SCORING_CONFIG: ScoringConfigurationData = {
-  name: "KCIC Climate Adaptation Challenge - v2.0",
-  description: "Updated scoring criteria for YouthAdapt Challenge with enhanced climate adaptation focus",
-  version: "2.0",
+// =============================================================================
+// BIRE PROGRAMME - FOUNDATION TRACK SCORING (100 Marks)
+// =============================================================================
+export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
+  name: "BIRE Programme - Foundation Track",
+  description: "Scoring criteria for Foundation Phase - Early-stage ventures with revenues KES 500k-3M",
+  version: "1.0",
   totalMaxScore: 100,
-  passThreshold: 60,
+  passThreshold: 70,
   criteria: [
-    // Innovation and Climate Adaptation Focus (35 points)
+    // Commercial Viability (20 Marks)
     {
-      category: "Innovation and Climate Adaptation Focus",
-      name: "Demonstratable Climate Adaptation Benefits",
-      description: "Evaluate the capacity to demonstrate direct climate adaptation benefits",
+      category: "Commercial Viability",
+      name: "Proof of Sales (Last 1 year revenue)",
+      description: "Evaluate the business revenue over the last year",
       maxPoints: 10,
-      weightage: 28.6,
       scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "No clear climate adaptation benefits demonstrated" },
-        { level: "Moderate capacity", points: 5, description: "Some climate adaptation benefits shown" },
-        { level: "Strong capacity", points: 10, description: "Clear, measurable climate adaptation benefits" }
+        { level: "> KES 2M", points: 10, description: "Revenue above 2 million KES" },
+        { level: "KES 1M - 2M", points: 5, description: "Revenue between 1-2 million KES" },
+        { level: "KES 500k - 1M", points: 2, description: "Revenue between 500k-1M KES" }
       ],
       evaluationType: "manual",
       sortOrder: 1,
       isRequired: true
     },
     {
-      category: "Innovation and Climate Adaptation Focus",
-      name: "Innovativeness of the Solution",
-      description: "Assess the level of innovation in the proposed solution",
+      category: "Commercial Viability",
+      name: "Number of Customers",
+      description: "Evaluate the customer base size",
       maxPoints: 10,
-      weightage: 28.6,
       scoringLevels: [
-        { level: "Conventional idea", points: 1, description: "Traditional approach with limited innovation" },
-        { level: "Somewhat innovative", points: 5, description: "Moderate innovation with some new elements" },
-        { level: "Highly innovative", points: 10, description: "Groundbreaking or highly novel approach" }
+        { level: "> 401 customers", points: 10, description: "Large customer base" },
+        { level: "200 - 400 customers", points: 5, description: "Medium customer base" },
+        { level: "1 - 200 customers", points: 2, description: "Small customer base" }
       ],
       evaluationType: "manual",
-      sortOrder: 2
+      sortOrder: 2,
+      isRequired: true
     },
+
+    // Business Model (10 Marks)
     {
-      category: "Innovation and Climate Adaptation Focus",
-      name: "Scalability and Replicability",
-      description: "Evaluate potential for scaling and replication",
-      maxPoints: 5,
-      weightage: 14.3,
+      category: "Business Model",
+      name: "Business Model Description",
+      description: "Evaluate the innovation level of the business model",
+      maxPoints: 10,
       scoringLevels: [
-        { level: "Limited adaptability/scalability", points: 1, description: "Difficult to scale or replicate" },
-        { level: "Moderate adaptability/scalability", points: 3, description: "Some potential for scaling" },
-        { level: "High adaptability/scalability", points: 5, description: "High potential for scaling and replication" }
+        { level: "New", points: 10, description: "Innovative new business model" },
+        { level: "Relatively New", points: 5, description: "Some innovation in the model" },
+        { level: "Existing", points: 2, description: "Traditional/existing business model" }
       ],
       evaluationType: "manual",
-      sortOrder: 3
+      sortOrder: 3,
+      isRequired: true
+    },
+
+    // Market Potential (30 Marks)
+    {
+      category: "Market Potential",
+      name: "Relative Pricing",
+      description: "Compare pricing to competitors",
+      maxPoints: 7,
+      scoringLevels: [
+        { level: "Lower", points: 7, description: "Priced lower than competitors" },
+        { level: "Equal", points: 4, description: "Similar pricing to competitors" },
+        { level: "Higher", points: 1, description: "Priced higher than competitors" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 4,
+      isRequired: true
     },
     {
-      category: "Innovation and Climate Adaptation Focus",
+      category: "Market Potential",
+      name: "Product Differentiation",
+      description: "Evaluate product uniqueness in the market",
+      maxPoints: 8,
+      scoringLevels: [
+        { level: "New", points: 8, description: "Unique product/service in the market" },
+        { level: "Relatively New", points: 5, description: "Some unique features" },
+        { level: "Existing", points: 2, description: "Similar to existing products" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 5,
+      isRequired: true
+    },
+    {
+      category: "Market Potential",
+      name: "Threat of Substitutes",
+      description: "Assess the risk of substitute products",
+      maxPoints: 7,
+      scoringLevels: [
+        { level: "Low", points: 7, description: "Few or no substitutes available" },
+        { level: "Moderate", points: 4, description: "Some substitutes exist" },
+        { level: "High", points: 0, description: "Many substitutes available" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 6,
+      isRequired: true
+    },
+    {
+      category: "Market Potential",
+      name: "Ease of Market Entry",
+      description: "Evaluate barriers for competitors to enter",
+      maxPoints: 8,
+      scoringLevels: [
+        { level: "Low", points: 8, description: "High barriers to entry for competitors" },
+        { level: "Moderate", points: 5, description: "Some barriers exist" },
+        { level: "High", points: 1, description: "Easy for competitors to enter" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 7,
+      isRequired: true
+    },
+
+    // Social Impact (40 Marks)
+    {
+      category: "Social Impact",
       name: "Environmental Impact",
-      description: "Assess the environmental impact of the solution",
-      maxPoints: 5,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Minimal environmental impact", points: 1, description: "Limited positive environmental effects" },
-        { level: "Moderate environmental impact", points: 3, description: "Moderate positive environmental effects" },
-        { level: "Significant environmental impact", points: 5, description: "Substantial positive environmental impact" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 4
-    },
-    {
-      category: "Innovation and Climate Adaptation Focus",
-      name: "Socioeconomic and Gender Inclusion Impact",
-      description: "Evaluate socioeconomic benefits and gender inclusion",
-      maxPoints: 5,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Limited socioeconomic impact", points: 1, description: "Minimal socioeconomic benefits" },
-        { level: "Moderate socioeconomic impact", points: 3, description: "Some socioeconomic benefits" },
-        { level: "Substantial socioeconomic impact", points: 5, description: "Significant socioeconomic benefits with strong gender inclusion" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 5
-    },
-    
-    // Business Viability (31 points)
-    {
-      category: "Business Viability",
-      name: "Entrepreneurship and Management Capacity",
-      description: "Assess leadership and management capabilities",
-      maxPoints: 6,
-      weightage: 19.4,
-      scoringLevels: [
-        { level: "Limited capacity", points: 1, description: "Weak leadership and management skills" },
-        { level: "Average capacity", points: 3, description: "Adequate leadership and management skills" },
-        { level: "Above average capacity", points: 6, description: "Strong leadership and management capabilities" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 6
-    },
-    {
-      category: "Business Viability",
-      name: "Market Potential and Demand",
-      description: "Evaluate market opportunity and demand validation",
-      maxPoints: 10,
-      weightage: 32.3,
-      scoringLevels: [
-        { level: "Limited potential", points: 1, description: "Unclear market opportunity" },
-        { level: "Moderate potential", points: 5, description: "Some market validation" },
-        { level: "Strong potential", points: 10, description: "Clear market demand with strong validation" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 7
-    },
-    {
-      category: "Business Viability",
-      name: "Financial Management and Cost-Benefit",
-      description: "Assess financial planning and cost-benefit analysis",
-      maxPoints: 10,
-      weightage: 32.3,
-      scoringLevels: [
-        { level: "Poor financial management", points: 1, description: "Weak financial planning and unclear cost-benefit" },
-        { level: "Adequate financial management", points: 5, description: "Basic financial planning with some cost-benefit analysis" },
-        { level: "Excellent financial management", points: 10, description: "Strong financial planning with clear cost-benefit analysis" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 8
-    },
-    {
-      category: "Business Viability",
-      name: "Time Frame and Feasibility",
-      description: "Evaluate implementation timeline and feasibility",
-      maxPoints: 5,
-      weightage: 16.1,
-      scoringLevels: [
-        { level: "Over 36 months", points: 1, description: "Long implementation timeline" },
-        { level: "12 - 36 months", points: 3, description: "Moderate implementation timeline" },
-        { level: "6-12 months", points: 5, description: "Short, achievable implementation timeline" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 9
-    },
-
-    // Sectoral and Strategic Alignment (20 points)
-    {
-      category: "Sectoral and Strategic Alignment",
-      name: "Relevance to Food Security and Infrastructure Adaptation Needs",
-      description: "Assess alignment with food security and infrastructure adaptation priorities",
+      description: "Evaluate environmental sustainability focus",
       maxPoints: 15,
-      weightage: 75,
       scoringLevels: [
-        { level: "Limited adaptive capacity", points: 1, description: "Minimal alignment with food security/infrastructure needs" },
-        { level: "Moderate adaptive capacity", points: 8, description: "Some alignment with adaptation needs" },
-        { level: "High adaptive capacity", points: 15, description: "Strong alignment with critical adaptation needs" }
+        { level: "Clearly Defined", points: 15, description: "Strong positive environmental impact" },
+        { level: "Neutral", points: 10, description: "Minimal environmental impact" },
+        { level: "Not Defined", points: 5, description: "No clear environmental consideration" }
       ],
       evaluationType: "manual",
-      sortOrder: 10
+      sortOrder: 8,
+      isRequired: true
     },
     {
-      category: "Sectoral and Strategic Alignment",
-      name: "Alignment with GCA and National and Regional Climate Priorities",
-      description: "Evaluate alignment with GCA and national/regional climate priorities",
-      maxPoints: 5,
-      weightage: 25,
+      category: "Social Impact",
+      name: "Special Groups Employed (Women, Youth, PWD)",
+      description: "Number of women, youth, or persons with disabilities employed",
+      maxPoints: 15,
       scoringLevels: [
-        { level: "Low alignment", points: 1, description: "Poor alignment with climate priorities" },
-        { level: "Moderate alignment", points: 3, description: "Some alignment with climate priorities" },
-        { level: "High alignment", points: 5, description: "Strong alignment with climate priorities" }
+        { level: "> 10 employees", points: 15, description: "More than 10 from special groups" },
+        { level: "6 - 9 employees", points: 10, description: "6-9 from special groups" },
+        { level: "5 employees", points: 5, description: "5 from special groups" }
       ],
       evaluationType: "manual",
-      sortOrder: 11
-    },
-
-    // Organizational Capacity and Partnerships (14 points)
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Human Resources and Infrastructure",
-      description: "Assess human resources and infrastructure capacity",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "Insufficient human resources/infrastructure" },
-        { level: "Moderate capacity", points: 1, description: "Adequate human resources/infrastructure" },
-        { level: "Strong capacity", points: 2, description: "Strong human resources and infrastructure" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 12
+      sortOrder: 9,
+      isRequired: true
     },
     {
-      category: "Organizational Capacity and Partnerships",
-      name: "Technical Expertise",
-      description: "Evaluate technical expertise and capabilities",
-      maxPoints: 2,
-      weightage: 14.3,
+      category: "Social Impact",
+      name: "Business Compliance",
+      description: "Evaluate regulatory compliance status",
+      maxPoints: 10,
       scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "Limited technical expertise" },
-        { level: "Moderate capacity", points: 1, description: "Adequate technical expertise" },
-        { level: "Strong capacity", points: 2, description: "Strong technical expertise" }
+        { level: "Fully Compliant", points: 10, description: "All regulatory requirements met" },
+        { level: "Partially Compliant", points: 3, description: "Some compliance gaps" },
+        { level: "Not Clear", points: 1, description: "Compliance status unclear" }
       ],
       evaluationType: "manual",
-      sortOrder: 13
-    },
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Experience and Track Record",
-      description: "Assess past experience and track record",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "Limited relevant experience" },
-        { level: "Moderate capacity", points: 1, description: "Some relevant experience" },
-        { level: "Strong capacity", points: 2, description: "Strong track record and experience" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 14
-    },
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Governance and Management Structure",
-      description: "Evaluate governance and management structure",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "Weak governance structure" },
-        { level: "Moderate capacity", points: 1, description: "Adequate governance structure" },
-        { level: "Strong capacity", points: 2, description: "Strong governance and management structure" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 15
-    },
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Gender Inclusion in Management Structure",
-      description: "Assess gender balance in leadership and management",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "No gender balance (men)", points: 0, description: "Male-dominated leadership with no gender balance" },
-        { level: "Partial gender balance", points: 1, description: "Some gender balance in leadership" },
-        { level: "Women-led", points: 2, description: "Women-led or strong gender balance" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 16
-    },
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Risk Management Strategy",
-      description: "Evaluate risk identification and management approach",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Weak risk management", points: 0, description: "No clear risk management strategy" },
-        { level: "Adequate risk management", points: 1, description: "Basic risk management approach" },
-        { level: "Robust risk management", points: 2, description: "Comprehensive risk management strategy" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 17
-    },
-    {
-      category: "Organizational Capacity and Partnerships",
-      name: "Partnerships and Collaborations",
-      description: "Assess strategic partnerships and collaborative capacity",
-      maxPoints: 2,
-      weightage: 14.3,
-      scoringLevels: [
-        { level: "Limited capacity", points: 0, description: "Few or weak partnerships" },
-        { level: "Moderate capacity", points: 1, description: "Some strategic partnerships" },
-        { level: "Strong capacity", points: 2, description: "Strong partnership network and collaborative approach" }
-      ],
-      evaluationType: "manual",
-      sortOrder: 18
+      sortOrder: 10,
+      isRequired: true
     }
   ]
 };
+
+// =============================================================================
+// BIRE PROGRAMME - ACCELERATION TRACK SCORING (100 Marks)
+// =============================================================================
+export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
+  name: "BIRE Programme - Acceleration Track",
+  description: "Scoring criteria for Acceleration Phase - Ventures with revenues above KES 3M demonstrating growth traction",
+  version: "1.0",
+  totalMaxScore: 100,
+  passThreshold: 70,
+  criteria: [
+    // Revenues & Growth (20 Marks)
+    {
+      category: "Revenues & Growth",
+      name: "Revenue",
+      description: "Evaluate annual revenue",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "> KES 5M", points: 5, description: "Revenue above 5 million KES" },
+        { level: "KES 3.5M - 5M", points: 3, description: "Revenue between 3.5-5 million KES" },
+        { level: "KES 3M - 3.5M", points: 1, description: "Revenue between 3-3.5 million KES" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 1,
+      isRequired: true
+    },
+    {
+      category: "Revenues & Growth",
+      name: "Years of Operation",
+      description: "Evaluate business operational history",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "> 4 years", points: 5, description: "More than 4 years operational" },
+        { level: "> 3 years", points: 3, description: "More than 3 years operational" },
+        { level: "2 years", points: 1, description: "2 years operational" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 2,
+      isRequired: true
+    },
+    {
+      category: "Revenues & Growth",
+      name: "Future Potential Sales Growth",
+      description: "Evaluate projected growth potential",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "High", points: 5, description: "Strong projected growth" },
+        { level: "Moderate", points: 3, description: "Moderate projected growth" },
+        { level: "Low", points: 1, description: "Low projected growth" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 3,
+      isRequired: true
+    },
+    {
+      category: "Revenues & Growth",
+      name: "Funds Raised",
+      description: "Has the business raised external funds",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "Yes", points: 5, description: "Has raised external funds" },
+        { level: "No", points: 1, description: "No external funds raised" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 4,
+      isRequired: true
+    },
+
+    // Impact Potential (20 Marks)
+    {
+      category: "Impact Potential",
+      name: "Current Youth/Women/PWD Employed",
+      description: "Number of special groups currently employed",
+      maxPoints: 10,
+      scoringLevels: [
+        { level: "> 10 employees", points: 10, description: "More than 10 from special groups" },
+        { level: "6 - 9 employees", points: 6, description: "6-9 from special groups" },
+        { level: "5 employees", points: 3, description: "5 from special groups" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 5,
+      isRequired: true
+    },
+    {
+      category: "Impact Potential",
+      name: "Potential to Create New Jobs (Women/PWD/Youth)",
+      description: "Evaluate job creation potential for special groups",
+      maxPoints: 10,
+      scoringLevels: [
+        { level: "High", points: 10, description: "Strong potential for job creation" },
+        { level: "Moderate", points: 6, description: "Moderate job creation potential" },
+        { level: "Low", points: 3, description: "Limited job creation potential" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 6,
+      isRequired: true
+    },
+
+    // Scalability (20 Marks)
+    {
+      category: "Scalability",
+      name: "Market Differentiation",
+      description: "Evaluate product/service uniqueness",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "Truly Unique", points: 5, description: "One-of-a-kind offering" },
+        { level: "Provably Better", points: 3, description: "Better than competitors" },
+        { level: "Undifferentiated", points: 1, description: "Similar to competitors" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 7,
+      isRequired: true
+    },
+    {
+      category: "Scalability",
+      name: "Competitive Advantage",
+      description: "Evaluate competitive positioning",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "High", points: 5, description: "Strong competitive position" },
+        { level: "Moderate", points: 3, description: "Some competitive advantages" },
+        { level: "Low", points: 1, description: "Weak competitive position" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 8,
+      isRequired: true
+    },
+    {
+      category: "Scalability",
+      name: "Offering Focus",
+      description: "Evaluate business offering approach",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "Outcome Focused", points: 5, description: "Focus on customer outcomes" },
+        { level: "Solution Focused", points: 3, description: "Focus on solutions" },
+        { level: "Feature Focused", points: 1, description: "Focus on features" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 9,
+      isRequired: true
+    },
+    {
+      category: "Scalability",
+      name: "Sales & Marketing Integration",
+      description: "Evaluate sales and marketing alignment",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "Fully Integrated", points: 5, description: "Sales and marketing fully aligned" },
+        { level: "Aligned", points: 3, description: "Some alignment exists" },
+        { level: "No Alignment", points: 1, description: "No coordination between sales/marketing" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 10,
+      isRequired: true
+    },
+
+    // Social & Environmental Impact (20 Marks)
+    {
+      category: "Social & Environmental Impact",
+      name: "Social Impact (Household Income)",
+      description: "Evaluate impact on household income improvement",
+      maxPoints: 6,
+      scoringLevels: [
+        { level: "High", points: 6, description: "Significant income improvement" },
+        { level: "Moderate", points: 4, description: "Some income improvement" },
+        { level: "None", points: 0, description: "No measurable impact" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 11,
+      isRequired: true
+    },
+    {
+      category: "Social & Environmental Impact",
+      name: "Supplier Involvement",
+      description: "Evaluate engagement with suppliers",
+      maxPoints: 6,
+      scoringLevels: [
+        { level: "Direct Engagement", points: 6, description: "Direct engagement with suppliers" },
+        { level: "Network Based", points: 3, description: "Network-based supplier engagement" },
+        { level: "None", points: 1, description: "No supplier engagement" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 12,
+      isRequired: true
+    },
+    {
+      category: "Social & Environmental Impact",
+      name: "Environmental Impact",
+      description: "Evaluate environmental sustainability",
+      maxPoints: 6,
+      scoringLevels: [
+        { level: "High", points: 6, description: "Strong positive environmental impact" },
+        { level: "Moderate", points: 4, description: "Some environmental consideration" },
+        { level: "Low", points: 0, description: "Minimal environmental focus" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 13,
+      isRequired: true
+    },
+
+    // Business Model (20 Marks)
+    {
+      category: "Business Model",
+      name: "Uniqueness",
+      description: "Evaluate business model uniqueness",
+      maxPoints: 7,
+      scoringLevels: [
+        { level: "High", points: 7, description: "Highly unique business model" },
+        { level: "Moderate", points: 3, description: "Some unique elements" },
+        { level: "Low", points: 1, description: "Common business model" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 14,
+      isRequired: true
+    },
+    {
+      category: "Business Model",
+      name: "Customer Value Proposition",
+      description: "Evaluate strength of value proposition",
+      maxPoints: 7,
+      scoringLevels: [
+        { level: "High", points: 7, description: "Strong value proposition" },
+        { level: "Moderate", points: 3, description: "Adequate value proposition" },
+        { level: "Low", points: 1, description: "Weak value proposition" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 15,
+      isRequired: true
+    },
+    {
+      category: "Business Model",
+      name: "Competitive Advantage Strength",
+      description: "Evaluate sustainability of competitive advantage",
+      maxPoints: 6,
+      scoringLevels: [
+        { level: "High", points: 6, description: "Strong barriers to competition" },
+        { level: "Moderate", points: 3, description: "Some protection" },
+        { level: "Low", points: 1, description: "Easily replicated" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 16,
+      isRequired: true
+    }
+  ]
+};
+
+// Default config - use Foundation for backward compatibility
+export const DEFAULT_KCIC_SCORING_CONFIG = FOUNDATION_SCORING_CONFIG;
+
+// Helper to get config by track
+export function getScoringConfigByTrack(track: 'foundation' | 'acceleration'): ScoringConfigurationData {
+  return track === 'acceleration' ? ACCELERATION_SCORING_CONFIG : FOUNDATION_SCORING_CONFIG;
+}

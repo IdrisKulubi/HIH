@@ -14,45 +14,29 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { getApplicationById, saveEvaluation, type DetailedApplication } from "@/lib/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle, XCircle, Loader2, Lightbulb, DollarSign, Target, Building2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, TrendingUp, Users, Target, Leaf, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { ScoringModal } from "@/components/evaluation/ScoringModal";
 import { SectionCard } from "@/components/evaluation/SectionCard";
-import { SCORING_SECTIONS, PASS_THRESHOLD, TOTAL_MAX_SCORE, EvaluationScores } from "@/types/evaluation";
+import {
+  getScoringSection,
+  getDefaultScores,
+  PASS_THRESHOLD,
+  TOTAL_MAX_SCORE,
+  EvaluationScores,
+  ScoringSection
+} from "@/types/evaluation";
 
 export default function EvaluateApplicationPage({ params }: { params: Promise<{ id: string }> }) {
   const [applicationId, setApplicationId] = useState<number | null>(null);
   const [application, setApplication] = useState<DetailedApplication | null>(null);
+  const [track, setTrack] = useState<'foundation' | 'acceleration'>('foundation');
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, startTransition] = useTransition();
-  const [formState, setFormState] = useState<EvaluationScores>({
-    // Innovation and Climate Adaptation Focus (40 points)
-    climateAdaptationBenefits: 0,
-    innovativeness: 0,
-    scalabilityReplicability: 0,
-    environmentalImpact: 0,
-    socioeconomicGenderImpact: 0,
-    // Business Viability (31 points)
-    entrepreneurshipManagement: 0,
-    marketPotentialDemand: 0,
-    financialManagement: 0,
-    timeFrameFeasibility: 0,
-    // Sectoral and Strategic Alignment (20 points)
-    foodSecurityRelevance: 0,
-    gcaAlignment: 0,
-    // Organizational Capacity and Partnerships (14 points)
-    humanResourcesInfrastructure: 0,
-    technicalExpertise: 0,
-    experienceTrackRecord: 0,
-    governanceManagement: 0,
-    genderInclusionManagement: 0,
-    riskManagementStrategy: 0,
-    partnershipsCollaborations: 0,
-    // Notes
-    evaluationNotes: "",
-  });
+  const [formState, setFormState] = useState<EvaluationScores>(getDefaultScores('foundation'));
+  const [scoringSections, setScoringSections] = useState<ScoringSection[]>(getScoringSection('foundation'));
 
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [totalScore, setTotalScore] = useState(0);
@@ -88,127 +72,23 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
             throw new Error(result.error || "Failed to fetch application data.");
           }
         } else {
-          setApplication(result.data);
-          if (result.data.eligibility) {
-            // Map existing scores to new structure for backward compatibility
-            // Calculate how to distribute the existing total score across new fields
-            const existingTotal = result.data.eligibility.totalScore || 0;
-            const eligScores = result.data.eligibility.evaluationScores;
+          const appData = result.data;
+          setApplication(appData);
 
-            // Safety check - if no evaluation scores yet, use defaults
-            if (!eligScores) {
-              // No existing scores, keep default form state
-              console.log("No existing evaluationScores found, using defaults.");
-            } else {
-              // First, map the old fields to their equivalent new fields
-              const baseScores = {
-                // Map old scores to closest matching new fields
-                climateAdaptationBenefits: eligScores.climateAdaptationScore || 0,
-                innovativeness: eligScores.innovationScore || 0,
-                socioeconomicGenderImpact: eligScores.jobCreationScore || 0,
-                entrepreneurshipManagement: eligScores.managementCapacityScore || 0,
-                marketPotentialDemand: eligScores.marketPotentialScore || 0,
-                financialManagement: eligScores.viabilityScore || 0,
-                foodSecurityRelevance: eligScores.locationBonus || 0,
-                genderInclusionManagement: eligScores.genderBonus || 0,
-              };
+          // Determine track from application data
+          const appTrack = appData.track === 'acceleration' ? 'acceleration' : 'foundation';
+          setTrack(appTrack);
+          setScoringSections(getScoringSection(appTrack));
+          setFormState(getDefaultScores(appTrack));
 
-              // Calculate the sum of mapped scores
-              const mappedTotal = Object.values(baseScores).reduce((sum, score) => sum + score, 0);
-
-              // Calculate remaining points to distribute
-              let remainingPoints = existingTotal - mappedTotal;
-
-              // Initialize new fields with smart defaults based on remaining points
-              const newFieldDefaults: { [key: string]: number } = {
-                scalabilityReplicability: 0,
-                environmentalImpact: 0,
-                timeFrameFeasibility: 0,
-                gcaAlignment: 0,
-                humanResourcesInfrastructure: 0,
-                technicalExpertise: 0,
-                experienceTrackRecord: 0,
-                governanceManagement: 0,
-                riskManagementStrategy: 0,
-                partnershipsCollaborations: 0,
-              };
-
-              // Distribute remaining points intelligently across new fields
-              if (remainingPoints > 0) {
-                // Define max points for each new field
-                const fieldMaxPoints: { [key: string]: number } = {
-                  scalabilityReplicability: 5,
-                  environmentalImpact: 5,
-                  timeFrameFeasibility: 5,
-                  gcaAlignment: 5,
-                  humanResourcesInfrastructure: 2,
-                  technicalExpertise: 2,
-                  experienceTrackRecord: 2,
-                  governanceManagement: 2,
-                  riskManagementStrategy: 2,
-                  partnershipsCollaborations: 2,
-                };
-
-                // Distribute points proportionally up to max for each field
-                const totalMaxNewPoints = Object.values(fieldMaxPoints).reduce((sum, max) => sum + max, 0);
-
-                for (const [field, maxPoints] of Object.entries(fieldMaxPoints)) {
-                  if (remainingPoints <= 0) break;
-
-                  // Calculate proportional share, but cap at field's max and remaining points
-                  const proportionalPoints = Math.floor((remainingPoints * maxPoints) / totalMaxNewPoints);
-                  const assignedPoints = Math.min(proportionalPoints, maxPoints, remainingPoints);
-
-                  newFieldDefaults[field] = assignedPoints;
-                  remainingPoints -= assignedPoints;
-                }
-
-                // If there are still remaining points, distribute them one by one
-                while (remainingPoints > 0) {
-                  let distributed = false;
-                  for (const [field, maxPoints] of Object.entries(fieldMaxPoints)) {
-                    if (newFieldDefaults[field] < maxPoints && remainingPoints > 0) {
-                      newFieldDefaults[field]++;
-                      remainingPoints--;
-                      distributed = true;
-                    }
-                  }
-                  if (!distributed) break; // Can't distribute more points
-                }
-              }
-
-              // Set the form state with properly distributed scores
-              setFormState({
-                // Innovation and Climate Adaptation Focus
-                climateAdaptationBenefits: baseScores.climateAdaptationBenefits,
-                innovativeness: baseScores.innovativeness,
-                scalabilityReplicability: newFieldDefaults.scalabilityReplicability,
-                environmentalImpact: newFieldDefaults.environmentalImpact,
-                socioeconomicGenderImpact: baseScores.socioeconomicGenderImpact,
-
-                // Business Viability
-                entrepreneurshipManagement: baseScores.entrepreneurshipManagement,
-                marketPotentialDemand: baseScores.marketPotentialDemand,
-                financialManagement: baseScores.financialManagement,
-                timeFrameFeasibility: newFieldDefaults.timeFrameFeasibility,
-
-                // Sectoral and Strategic Alignment
-                foodSecurityRelevance: baseScores.foodSecurityRelevance,
-                gcaAlignment: newFieldDefaults.gcaAlignment,
-
-                // Organizational Capacity and Partnerships
-                humanResourcesInfrastructure: newFieldDefaults.humanResourcesInfrastructure,
-                technicalExpertise: newFieldDefaults.technicalExpertise,
-                experienceTrackRecord: newFieldDefaults.experienceTrackRecord,
-                governanceManagement: newFieldDefaults.governanceManagement,
-                genderInclusionManagement: baseScores.genderInclusionManagement,
-                riskManagementStrategy: newFieldDefaults.riskManagementStrategy,
-                partnershipsCollaborations: newFieldDefaults.partnershipsCollaborations,
-
-                // Notes
-                evaluationNotes: result.data.eligibility.evaluationNotes || "",
-              });
-            }
+          // Load existing scores if available
+          if (appData.eligibility?.evaluationScores) {
+            const existingScores = appData.eligibility.evaluationScores;
+            setFormState(prev => ({
+              ...prev,
+              ...existingScores,
+              evaluationNotes: appData.eligibility?.evaluationNotes || ''
+            }));
           }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,27 +103,12 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
     fetchData();
   }, [applicationId]);
 
+  // Calculate total score whenever form state changes
   useEffect(() => {
-    const score =
-      formState.climateAdaptationBenefits +
-      formState.innovativeness +
-      formState.scalabilityReplicability +
-      formState.environmentalImpact +
-      formState.socioeconomicGenderImpact +
-      formState.entrepreneurshipManagement +
-      formState.marketPotentialDemand +
-      formState.financialManagement +
-      formState.timeFrameFeasibility +
-      formState.foodSecurityRelevance +
-      formState.gcaAlignment +
-      formState.humanResourcesInfrastructure +
-      formState.technicalExpertise +
-      formState.experienceTrackRecord +
-      formState.governanceManagement +
-      formState.genderInclusionManagement +
-      formState.riskManagementStrategy +
-      formState.partnershipsCollaborations;
-    setTotalScore(score);
+    const scores = Object.entries(formState)
+      .filter(([key]) => key !== 'evaluationNotes')
+      .reduce((sum, [, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+    setTotalScore(scores);
   }, [formState]);
 
   const handleScoreChange = (criterionId: string, score: number) => {
@@ -323,13 +188,21 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
     );
   }
 
-  const mandatoryEligible = application.eligibility?.mandatoryCriteria ? (
-    application.eligibility.mandatoryCriteria.ageEligible &&
-    application.eligibility.mandatoryCriteria.registrationEligible &&
-    application.eligibility.mandatoryCriteria.revenueEligible &&
-    application.eligibility.mandatoryCriteria.businessPlanEligible &&
-    application.eligibility.mandatoryCriteria.impactEligible
-  ) : false;
+  // Section icons based on track
+  const getSectionIcon = (sectionId: string) => {
+    const iconMap: Record<string, React.ReactNode> = {
+      'commercial-viability': <TrendingUp className="h-5 w-5 text-green-600" />,
+      'business-model': <Briefcase className="h-5 w-5 text-blue-600" />,
+      'market-potential': <Target className="h-5 w-5 text-purple-600" />,
+      'social-impact': <Users className="h-5 w-5 text-orange-600" />,
+      'revenues-growth': <TrendingUp className="h-5 w-5 text-green-600" />,
+      'impact-potential': <Users className="h-5 w-5 text-blue-600" />,
+      'scalability': <Target className="h-5 w-5 text-purple-600" />,
+      'social-environmental-impact': <Leaf className="h-5 w-5 text-emerald-600" />,
+      'business-model-acc': <Briefcase className="h-5 w-5 text-orange-600" />,
+    };
+    return iconMap[sectionId] || <Briefcase className="h-5 w-5 text-gray-600" />;
+  };
 
   return (
     <div className="container mx-auto py-8">
@@ -340,7 +213,15 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
         >
           ← Back to Application Detail
         </Link>
-        <h1 className="text-3xl font-bold">Evaluate Application #{application.id}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">Evaluate Application #{application.id}</h1>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${track === 'acceleration'
+              ? 'bg-purple-100 text-purple-700'
+              : 'bg-blue-100 text-blue-700'
+            }`}>
+            {track} Track
+          </span>
+        </div>
         <p className="text-muted-foreground">
           {application.business.name} - {application.applicant.firstName} {application.applicant.lastName}
         </p>
@@ -353,35 +234,27 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
               <CardHeader>
                 <CardTitle>Evaluation Sections</CardTitle>
                 <CardDescription>
-                  Click on each section to score the criteria. Each section has specific weightings based on the BIRE Programme requirements.
+                  Click on each section to score the criteria. Select the option that best matches the application.
+                  Scores are automatically calculated based on your selections.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 gap-6">
-                  {SCORING_SECTIONS.map((section, index) => {
-                    const sectionIcons = [
-                      <Lightbulb key="innovation" className="h-5 w-5 text-yellow-600" />,
-                      <DollarSign key="viability" className="h-5 w-5 text-green-600" />,
-                      <Target key="alignment" className="h-5 w-5 text-blue-600" />,
-                      <Building2 key="capacity" className="h-5 w-5 text-purple-600" />
-                    ];
-
-                    return (
-                      <SectionCard
-                        key={section.id}
-                        section={section}
-                        scores={formState}
-                        onOpenModal={() => setActiveModal(section.id)}
-                        icon={sectionIcons[index]}
-                      />
-                    );
-                  })}
+                  {scoringSections.map((section) => (
+                    <SectionCard
+                      key={section.id}
+                      section={section}
+                      scores={formState}
+                      onOpenModal={() => setActiveModal(section.id)}
+                      icon={getSectionIcon(section.id)}
+                    />
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
             {/* Scoring Modals */}
-            {SCORING_SECTIONS.map((section) => (
+            {scoringSections.map((section) => (
               <ScoringModal
                 key={section.id}
                 section={section}
@@ -440,48 +313,45 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
 
             <Card>
               <CardHeader>
-                <CardTitle>Mandatory Criteria</CardTitle>
-                <CardDescription>Based on initial automatic check.</CardDescription>
+                <CardTitle>Scoring Guide</CardTitle>
+                <CardDescription>BIRE Programme criteria for {track} track</CardDescription>
               </CardHeader>
               <CardContent>
-                {application.eligibility?.mandatoryCriteria ? (
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex justify-between items-center">
-                      <span>Age (18-35)</span>
-                      {application.eligibility.mandatoryCriteria.ageEligible
-                        ? <CheckCircle className="h-5 w-5 text-green-600" />
-                        : <XCircle className="h-5 w-5 text-red-600" />}
-                    </li>
-                    <li className="flex justify-between items-center">
-                      <span>Business Registration</span>
-                      {application.eligibility.mandatoryCriteria.registrationEligible
-                        ? <CheckCircle className="h-5 w-5 text-green-600" />
-                        : <XCircle className="h-5 w-5 text-red-600" />}
-                    </li>
-                    <li className="flex justify-between items-center">
-                      <span>Revenue Generation (&gt; $0)</span>
-                      {application.eligibility.mandatoryCriteria.revenueEligible
-                        ? <CheckCircle className="h-5 w-5 text-green-600" />
-                        : <XCircle className="h-5 w-5 text-red-600" />}
-                    </li>
-                    <li className="flex justify-between items-center">
-                      <span>Business Plan (Complete)</span>
-                      {application.eligibility.mandatoryCriteria.businessPlanEligible
-                        ? <CheckCircle className="h-5 w-5 text-green-600" />
-                        : <XCircle className="h-5 w-5 text-red-600" />}
-                    </li>
-                    <li className="flex justify-between items-center">
-                      <span>Climate Impact Focus</span>
-                      {application.eligibility.mandatoryCriteria.impactEligible
-                        ? <CheckCircle className="h-5 w-5 text-green-600" />
-                        : <XCircle className="h-5 w-5 text-red-600" />}
-                    </li>
-                  </ul>
-                ) : (
-                  <p className="text-muted-foreground text-sm text-center py-4">Eligibility criteria not available for this application type.</p>
-                )}
-                <div className={`mt-4 p-3 rounded-md text-center font-medium text-sm ${mandatoryEligible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                  Mandatory Criteria: {mandatoryEligible ? "PASSED" : "FAILED"}
+                <div className="space-y-3 text-sm">
+                  {scoringSections.map((section) => (
+                    <div key={section.id} className="flex justify-between items-center">
+                      <span className="text-muted-foreground">{section.name}</span>
+                      <span className="font-medium">{section.maxPoints} pts</span>
+                    </div>
+                  ))}
+                  <div className="pt-3 border-t flex justify-between items-center font-bold">
+                    <span>Total</span>
+                    <span>{TOTAL_MAX_SCORE} pts</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Application Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Business</span>
+                  <span className="font-medium">{application.business.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Track</span>
+                  <span className="font-medium capitalize">{track}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sector</span>
+                  <span className="font-medium">{application.business.sector || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">County</span>
+                  <span className="font-medium">{application.business.county || 'N/A'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -502,4 +372,4 @@ export default function EvaluateApplicationPage({ params }: { params: Promise<{ 
       </form>
     </div>
   );
-} 
+}

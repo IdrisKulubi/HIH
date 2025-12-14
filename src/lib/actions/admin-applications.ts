@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import db from "../../../db/drizzle";
 import { applications, eligibilityResults } from "../../../db/schema";
-import { eq, desc, count as drizzleCount } from "drizzle-orm";
+import { eq, desc, and, count as drizzleCount } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, successResponse, errorResponse, PaginatedResponse, paginatedResponse } from "./types";
 
@@ -144,32 +144,47 @@ export interface DetailedApplication extends ApplicationListItem {
 
 export async function getApplicationStats(): Promise<ActionResponse<ApplicationStats>> {
     try {
-        // Total applications
-        const totalResult = await db.select({ count: drizzleCount() }).from(applications);
+        // Total applications (excluding observation-only)
+        const totalResult = await db.select({ count: drizzleCount() })
+            .from(applications)
+            .where(eq(applications.isObservationOnly, false));
         const totalApplications = totalResult[0]?.count ?? 0;
 
-        // Foundation track count
+        // Foundation track count (excluding observation-only)
         const foundationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.track, "foundation"));
+            .where(and(
+                eq(applications.track, "foundation"),
+                eq(applications.isObservationOnly, false)
+            ));
         const foundationTrack = foundationResult[0]?.count ?? 0;
 
-        // Acceleration track count
+        // Acceleration track count (excluding observation-only)
         const accelerationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.track, "acceleration"));
+            .where(and(
+                eq(applications.track, "acceleration"),
+                eq(applications.isObservationOnly, false)
+            ));
         const accelerationTrack = accelerationResult[0]?.count ?? 0;
 
-        // Eligible applications
+        // Eligible applications (excluding observation-only)
         const eligibleResult = await db.select({ count: drizzleCount() })
             .from(eligibilityResults)
-            .where(eq(eligibilityResults.isEligible, true));
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(and(
+                eq(eligibilityResults.isEligible, true),
+                eq(applications.isObservationOnly, false)
+            ));
         const eligibleApplications = eligibleResult[0]?.count ?? 0;
 
-        // Pending review
+        // Pending review (excluding observation-only)
         const pendingResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.status, "submitted"));
+            .where(and(
+                eq(applications.status, "submitted"),
+                eq(applications.isObservationOnly, false)
+            ));
         const pendingReview = pendingResult[0]?.count ?? 0;
 
         return successResponse({
