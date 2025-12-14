@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeSlash, SpinnerGap, CheckCircle, WarningCircle } from "@phosphor-icons/react";
 import { sendVerificationCodeAction, verifyCodeAndCreateAccount, resendVerificationCode } from "@/lib/actions/email-verification";
 import Link from "next/link";
+import { Switch } from "@/components/ui/switch";
 
 interface SignupFormProps {
   callbackUrl?: string;
@@ -29,6 +30,7 @@ export function SignupForm({ callbackUrl }: SignupFormProps) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const startResendTimer = () => {
     setResendTimer(60);
@@ -132,7 +134,28 @@ export function SignupForm({ callbackUrl }: SignupFormProps) {
                   </Button>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300" disabled={isLoading}>
+
+              <div className="flex items-center space-x-2 py-2">
+                <Switch
+                  id="terms"
+                  checked={termsAccepted}
+                  onCheckedChange={setTermsAccepted}
+                />
+                <Label htmlFor="terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-gray-600">
+                  I agree to the{" "}
+                  <Link
+                    href="/terms-and-privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-blue hover:text-brand-blue-dark underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Terms and Privacy Policy
+                  </Link>
+                </Label>
+              </div>
+
+              <Button type="submit" className="w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isLoading || !termsAccepted}>
                 {isLoading && <SpinnerGap className="mr-2 h-5 w-5 animate-spin" />}
                 Create Account
               </Button>
@@ -196,20 +219,8 @@ export function SignupForm({ callbackUrl }: SignupFormProps) {
       <div className="pt-4 border-t border-gray-100">
         <div className="bg-blue-50/50 rounded-xl p-4 mb-4 border border-blue-100">
           <h4 className="text-sm font-semibold text-brand-blue mb-2">Data Usage & Retention</h4>
-          <p className="text-xs text-slate-600 mb-3">
+          <p className="text-xs text-slate-600 mb-0">
             Your data will be used solely for the BIRE Programme {currentYear}. We retain application data for 5 years, account information for 2 years after inactivity, and then permanently delete it.
-          </p>
-          <p className="text-xs text-center text-slate-500">
-            By creating an account, you agree to our{" "}
-            <Link
-              href="/terms-and-privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-blue hover:text-brand-blue-dark font-medium underline"
-            >
-              Terms and Privacy Policy
-            </Link>
-            {" "}for the BIRE Programme {currentYear}.
           </p>
         </div>
       </div>

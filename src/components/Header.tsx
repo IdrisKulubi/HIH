@@ -109,6 +109,15 @@ export function Header() {
                   className="object-contain object-left"
                 />
               </div>
+              {/* Hand in Hand Sweden Logo - Thinner */}
+              <div className="hidden sm:block relative h-20 w-38 lg:h-24 lg:w-40">
+                <Image
+                  src="/logos/hand-sweden.png"
+                  alt="Hand in Hand Sweden"
+                  fill
+                  className="object-contain object-left"
+                />
+              </div>
             </motion.div>
 
             {/* Center: Title removed per user edit */}

@@ -44,7 +44,7 @@ export function DeclarationForm({ form }: DeclarationFormProps) {
                                     Social Safeguarding Guidelines
                                 </FormLabel>
                                 <FormDescription className="text-zinc-500 dark:text-zinc-400">
-                                    Does the business have inclusive social safeguarding guidelines? (Required)
+                                    I certify that my business has inclusive social safeguarding guidelines
                                 </FormDescription>
                                 <FormMessage />
                             </div>

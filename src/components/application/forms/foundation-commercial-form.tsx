@@ -190,6 +190,9 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                             <FormControl>
                                                 <RadioGroupItem value="false" />
                                             </FormControl>
+                                            <FormLabel className="font-normal">
+                                                No
+                                            </FormLabel>
                                             
                                         </FormItem>
                                     </RadioGroup>

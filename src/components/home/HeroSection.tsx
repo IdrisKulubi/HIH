@@ -58,8 +58,7 @@ export function HeroSection() {
             variants={itemVariants}
             className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-4"
           >
-            <span className="bg-brand-blue text-white text-xs font-bold px-2 py-0.5 rounded-full">New Partnership</span>
-            <span className="text-sm font-medium text-cyan-50">Hand in Hand Eastern Africa & Embassy of Sweden</span>
+            <span className="text-sm font-medium text-cyan-50">HiH Eastern Africa,Embassy of Sweden & HiH Sweden</span>
           </motion.div>
 
           <motion.h1

@@ -497,10 +497,10 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                     onClick={handleSubmit}
                     disabled={isSubmitting || !termsAccepted || !privacyAccepted}
                     className={cn(
-                        "gap-2 px-8 py-6 text-lg font-semibold rounded-xl transition-all",
+                        "gap-2 px-8 py-6 text-lg font-semibold rounded-xl transition-all text-white",
                         termsAccepted && privacyAccepted
-                            ? "bg-gradient-to-r from-brand-green to-brand-green-dark hover:shadow-lg hover:shadow-brand-green/20"
-                            : "bg-slate-300 cursor-not-allowed"
+                            ? "bg-brand-blue hover:bg-brand-blue-dark shadow-md hover:shadow-lg"
+                            : "bg-brand-blue-light opacity-60 cursor-not-allowed"
                     )}
                 >
                     {isSubmitting ? (
