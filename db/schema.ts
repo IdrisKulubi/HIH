@@ -333,8 +333,10 @@ export const businesses = pgTable('businesses', {
   hasExternalFunding: boolean('has_external_funding'),
   externalFundingDetails: text('external_funding_details'), // List funders/amounts
 
+
   // === FOUNDATION TRACK: BUSINESS MODEL (10 marks) ===
   businessModelInnovation: text('business_model_innovation'),
+  businessModelDescription: text('business_model_description'), // User explanation of their business model
   digitizationLevel: boolean('digitization_level'), // Yes/No for Foundation D4
   digitizationReason: text('digitization_reason'), // If No, why?
 

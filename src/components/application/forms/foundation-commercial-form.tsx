@@ -339,7 +339,7 @@ export function FoundationBusinessModelForm({ form }: FoundationBusinessModelFor
                         Describe your business model. (How does the business make money.)
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
                     <FormField
                         control={form.control}
                         name="businessModel.businessModelInnovation"
@@ -364,6 +364,28 @@ export function FoundationBusinessModelForm({ form }: FoundationBusinessModelFor
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+
+                    {/* Business Model Description */}
+                    <FormField
+                        control={form.control}
+                        name="businessModel.businessModelDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Explain Your Business Model</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe how your business makes money (e.g., products sold, services offered, revenue streams, pricing model)..."
+                                        className="min-h-[100px] rounded-xl resize-none"
+                                    />
+                                </FormControl>
+                                <FormDescription className="text-xs text-slate-500">
+                                    Help us understand how your business generates revenue.
+                                </FormDescription>
                                 <FormMessage />
                             </FormItem>
                         )}

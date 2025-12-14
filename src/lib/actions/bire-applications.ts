@@ -166,6 +166,7 @@ export async function submitFoundationApplication(
 
                 // Business Model
                 businessModelInnovation: validatedData.businessModel.businessModelInnovation,
+                businessModelDescription: validatedData.businessModel.businessModelDescription,
 
                 // Market Potential
                 relativePricing: validatedData.marketPotential.relativePricing,

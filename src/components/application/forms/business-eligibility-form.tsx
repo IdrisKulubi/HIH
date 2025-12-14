@@ -235,7 +235,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                             />
                         </FormControl>
                         <FormDescription className="text-slate-500 text-sm">
-                            Minimum 50 characters
+                            Minimum 5 characters
                         </FormDescription>
                         <FormMessage />
                     </FormItem>
@@ -259,7 +259,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                             />
                         </FormControl>
                         <FormDescription className="text-slate-500 text-sm">
-                            Minimum 50 characters
+                            Minimum 5  characters
                         </FormDescription>
                         <FormMessage />
                     </FormItem>

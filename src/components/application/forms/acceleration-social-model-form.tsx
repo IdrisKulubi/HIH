@@ -61,8 +61,8 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                             <HeartIcon className="w-5 h-5 text-rose-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">E1. Social Contribution</CardTitle>
-                            <CardDescription>Contribution to household income and suppliers</CardDescription>
+                            <CardTitle className="text-lg">E1. How strongly does your business contribute to social and economic improvements? </CardTitle>
+                            <CardDescription> (Examples: new jobs created, higher farmer earnings, women/youth participation)</CardDescription>
                         </div>
                     </div>
                 </CardHeader>

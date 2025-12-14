@@ -227,12 +227,18 @@ export function EligibilityScreening() {
                             {formData.registeredInKenya === 'yes' && (
                                 <QuestionSection title="What is your registration type?">
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        {['limited', 'partnership', 'cooperative', 'cbo', 'sole'].map((type) => (
+                                        {[
+                                            { value: 'limited', label: 'Limited Company' },
+                                            { value: 'partnership', label: 'Partnership' },
+                                            { value: 'cooperative', label: 'Cooperative' },
+                                            { value: 'cbo', label: 'Self Help Group / CBO' },
+                                            { value: 'sole', label: 'Sole Proprietorship' },
+                                        ].map((type) => (
                                             <SelectionPill
-                                                key={type}
-                                                label={type.replace('_', ' ')}
-                                                selected={formData.businessType === type}
-                                                onClick={() => updateFormData('businessType', type as any)}
+                                                key={type.value}
+                                                label={type.label}
+                                                selected={formData.businessType === type.value}
+                                                onClick={() => updateFormData('businessType', type.value as any)}
                                             />
                                         ))}
                                     </div>
@@ -322,7 +328,7 @@ export function EligibilityScreening() {
                                 </div>
                             </QuestionSection>
 
-                            <QuestionSection title="Financial Records">
+                            <QuestionSection title="Financial Records (Mpesa Statements/Bank Statements/Management Accounts)">
                                 <div className="grid grid-cols-2 gap-4">
                                     <SelectionCard
                                         icon={<ScrollIcon size={28} weight="duotone" className="text-brand-blue" />}

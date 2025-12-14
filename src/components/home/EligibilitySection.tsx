@@ -36,7 +36,7 @@ const checklist = [
   "Registered Micro or Small Enterprise (MSE)",
   "Operating in Kenya",
   "Legal Business Entity",
-  "Operational for at least 6 months"
+  "Operational for at least 2 years"
 ];
 
 export function EligibilitySection() {

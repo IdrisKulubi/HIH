@@ -7,7 +7,7 @@ import { ScrollReveal } from "@/components/ui/scroll-reveal";
 const faqs = [
   {
     question: "What is the BIRE Programme?",
-    answer: "The Building Inclusive & Resilient Enterprises (BIRE) Programme is a partnership between Hand in Hand Eastern Africa and the Embassy of Sweden. It supports Kenyan MSEs with funding, mentorship, and market access to build resilience and inclusivity."
+    answer: "The Building Inclusive & Resilient Enterprises (BIRE) Programme is a partnership between Hand in Hand Eastern Africa ,Hand in Hand Sweden and the Embassy of Sweden. It supports Kenyan MSEs with funding, mentorship, and market access to build resilience and inclusivity."
   },
   {
     question: "Which track should I apply for?",
@@ -15,7 +15,7 @@ const faqs = [
   },
   {
     question: "Who is eligible to apply?",
-    answer: "We welcome registered Micro and Small Enterprises (MSEs) in Kenya. We have specific targets for Women-Led (50%), Youth-Led (40%), and businesses including Persons with Disabilities. Your business must be operational for at least 6 months."
+    answer: "We welcome registered Micro and Small Enterprises (MSEs) in Kenya. We have specific targets for Women-Led (50%), Youth-Led (40%), and businesses including Persons with Disabilities. Your business must be operational for at least 2 years."
   },
   {
     question: "What kind of support is provided?",

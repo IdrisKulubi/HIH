@@ -124,7 +124,7 @@ export function AccelerationRevenuesForm({ form }: AccelerationRevenuesFormProps
                                     <Input
                                         {...field}
                                         type="number"
-                                        min="1"
+                                        min="2"
                                         placeholder="Enter years"
                                         className="h-12 rounded-xl"
                                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}

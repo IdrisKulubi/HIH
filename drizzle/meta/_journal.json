@@ -43,6 +43,13 @@
       "when": 1765670598133,
       "tag": "0005_happy_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765732633223,
+      "tag": "0006_cool_shaman",
+      "breakpoints": true
     }
   ]
 }

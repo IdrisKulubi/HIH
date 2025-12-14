@@ -106,6 +106,7 @@ export const foundationBusinessModelSchema = z.object({
     businessModelInnovation: z.enum(["innovative_concept", "relatively_innovative", "existing"], {
         required_error: "Please describe your business model",
     }),
+    businessModelDescription: z.string().min(10, "Please explain how your business makes money"),
 });
 
 // Commercial Viability (30 marks total: Rev=10, Cust=10, Fund=5, Digit=5)
