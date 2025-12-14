@@ -98,7 +98,7 @@ export const ApplicationSubmissionEmail = ({
               <div className="flex mb-4 items-start">
                 <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-[12px] font-bold mr-3 mt-1 shrink-0">1</div>
                 <div>
-                  <Text className="font-bold text-slate-800 text-[14px] m-0">Initial Review (1-2 Weeks)</Text>
+                  <Text className="font-bold text-slate-800 text-[14px] m-0">Initial Review (2-4 Weeks)</Text>
                   <Text className="text-slate-500 text-[13px] m-0">Eligibility assessment and completeness check.</Text>
                 </div>
               </div>
@@ -106,7 +106,7 @@ export const ApplicationSubmissionEmail = ({
               <div className="flex mb-4 items-start">
                 <div className="bg-slate-200 text-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-[12px] font-bold mr-3 mt-1 shrink-0">2</div>
                 <div>
-                  <Text className="font-bold text-slate-800 text-[14px] m-0">Evaluation (2-3 Weeks)</Text>
+                  <Text className="font-bold text-slate-800 text-[14px] m-0">Evaluation (4-6 Weeks)</Text>
                   <Text className="text-slate-500 text-[13px] m-0">Detailed scoring based on impact and viability.</Text>
                 </div>
               </div>
@@ -122,7 +122,7 @@ export const ApplicationSubmissionEmail = ({
 
             <Section className="text-center mb-[20px]">
               <Link
-                href={`${baseUrl}/dashboard`}
+                href={`${baseUrl}/profile`}
                 className="bg-[#0B5FBA] text-white px-6 py-3 rounded-lg font-bold text-[14px] no-underline inline-block hover:bg-blue-700 transition"
               >
                 Track Status

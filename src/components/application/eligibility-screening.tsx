@@ -61,11 +61,11 @@ export function EligibilityScreening() {
         // --- ELIGIBLE: DETERMINE TRACK ---
 
         // Acceleration Track Criteria
+        // Note: Audited accounts (yes/no) does NOT affect eligibility - both are allowed
         if (
             formData.yearsInOperation === 'more_than_2' &&
             formData.annualRevenue === 'more_than_3m' &&
-            (formData.employees === '5_to_20' || formData.employees === 'more_than_20') &&
-            formData.hasAuditedAccounts === 'yes'
+            (formData.employees === '5_to_20' || formData.employees === 'more_than_20')
         ) {
             return { status: EligibilityStatus.ELIGIBLE, track: ApplicationTrack.ACCELERATION };
         }

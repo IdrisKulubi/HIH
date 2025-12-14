@@ -219,37 +219,45 @@ export const accelerationScalabilitySchema = z.object({
 });
 
 // Social & Env Impact (20 marks)
-// Schema simplified to match actual form UI fields
+// E1: socialImpactContribution (7 marks), E2: environmentalImpact (7 marks), E3: supplierInvolvement (6 marks)
 export const accelerationSocialImpactSchema = z.object({
-    // Fields present in form UI
+    // E1. Social Impact Contribution (7 marks)
     socialImpactContribution: z.enum(["high", "moderate", "none"], {
         required_error: "Rate contribution to social improvements",
     }),
+
+    // E2. Environmental Impact (7 marks)
     environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"], {
         required_error: "Do you conserve the environment?",
     }),
     environmentalImpactDescription: z.string().optional(),
 
-    // Fields NOT in form UI but kept for schema compatibility (all optional)
-    supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"]).optional(),
-    supplierSupportDescription: z.string().optional(),
+    // E3. Supplier Involvement (6 marks) - Now required
+    supplierInvolvement: z.enum(["direct_engagement", "network_based", "none"], {
+        required_error: "How do you engage suppliers?",
+    }),
+    supplierSupportDescription: z.string().min(10, "Describe how you support suppliers"),
 });
 
 // Business Model (20 marks)
-// Schema simplified to match actual form UI fields
+// F1: businessModelUniqueness (7 marks), F2: customerValueProposition (7 marks), F3: competitiveAdvantageStrength (6 marks)
 export const accelerationBusinessModelSchema = z.object({
-    // Fields present in form UI
+    // F1. Business Model Uniqueness (7 marks)
     businessModelUniqueness: z.enum(["high", "moderate", "low"], {
         required_error: "How unique is your business model?",
     }),
     businessModelUniquenessDescription: z.string().min(5, "Describe difference"),
+
+    // F2. Customer Value Proposition (7 marks)
     customerValueProposition: z.enum(["high", "moderate", "low"], {
         required_error: "Strength of value proposition",
     }),
 
-    // Fields NOT in form UI but kept for schema compatibility (all optional)
-    competitiveAdvantageStrength: z.enum(["high", "moderate", "low"]).optional(),
-    competitiveAdvantageBarriers: z.string().optional(),
+    // F3. Competitive Advantage Strength (6 marks) - Now required
+    competitiveAdvantageStrength: z.enum(["high", "moderate", "low"], {
+        required_error: "Rate the strength of your competitive advantage",
+    }),
+    competitiveAdvantageBarriers: z.string().min(10, "Explain barriers that protect your competitive position"),
 });
 
 // === DECLARATION & UPLOADS ===

@@ -443,7 +443,7 @@ export function ReviewSubmitSection<T extends FoundationApplicationFormData | Ac
                             className="mt-1 h-5 w-5 border-2 border-slate-400 data-[state=checked]:bg-brand-blue data-[state=checked]:border-brand-blue transition-all shrink-0"
                         />
                         <Label htmlFor="terms" className="text-base text-slate-700 cursor-pointer group-hover:text-slate-900 transition-colors flex-1 leading-relaxed">
-                            I confirm that all information provided is accurate and complete, and I agree to use the grant funds solely for the business purpose stated. Read our{" "}
+                            I confirm that all information provided is accurate and complete,. Read our{" "}
                             <Link href="/terms-and-privacy" target="_blank" className="text-brand-blue underline hover:text-brand-blue-dark inline-block">
                                 Terms & Privacy Policy
                             </Link>.
