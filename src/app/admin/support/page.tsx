@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageSquare } from "lucide-react";
-import { SupportTicketsTable } from "@/components/admin/support/SupportTicketsTable";
-import { SupportStatsCards } from "@/components/admin/support/SupportStatsCards";
+import { SupportTicketsTable } from "@/components/application/admin/support/SupportTicketsTable";
+import { SupportStatsCards } from "@/components/application/admin/support/SupportStatsCards";
 
 export default function AdminSupportPage() {
   return (

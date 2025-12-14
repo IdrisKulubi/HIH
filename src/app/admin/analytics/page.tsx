@@ -16,7 +16,7 @@ import {
   getScoringAnalytics,
   getEvaluatorPerformance,
 } from "@/lib/actions/analytics";
-import { EnhancedAnalyticsCharts } from "@/components/admin/EnhancedAnalyticsCharts";
+import { EnhancedAnalyticsCharts } from "@/components/application/admin/EnhancedAnalyticsCharts";
 import {
   Users,
   Target,

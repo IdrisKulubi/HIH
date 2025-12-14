@@ -12,7 +12,6 @@ import {
   Tailwind,
   Hr,
 } from '@react-email/components';
-import * as React from 'react';
 
 export interface ApplicationSubmissionEmailProps {
   applicantName: string;
@@ -134,7 +133,7 @@ export const ApplicationSubmissionEmail = ({
 
             <Text className="text-slate-400 text-[12px] leading-[20px] text-center">
               Best regards,<br />
-              <strong>The BIRE Challenge Team</strong><br />
+              <strong>The BIRE Programme Team</strong><br />
               Hand in Hand Eastern Africa
             </Text>
 

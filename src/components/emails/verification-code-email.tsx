@@ -57,7 +57,7 @@ export const VerificationCodeEmail = ({
             </Heading>
 
             <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-8">
-              Welcome to the <strong>BIRE Redesign  Challenge</strong>. <br />
+              Welcome to the <strong>BIRE Programme</strong>. <br />
               Please use the code below to complete your registration.
             </Text>
 
@@ -80,7 +80,7 @@ export const VerificationCodeEmail = ({
 
             <Text className="text-slate-400 text-[12px] leading-[20px] text-center">
               Best regards,<br />
-              <strong>The BIRE Challenge Team</strong>
+              <strong>The BIRE Programme Team</strong>
             </Text>
 
             <Text className="text-center mt-4">

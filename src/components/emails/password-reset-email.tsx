@@ -82,7 +82,7 @@ export const PasswordResetEmail = ({
 
             <Text className="text-slate-400 text-[12px] leading-[20px] text-center">
               Best regards,<br />
-              <strong>The BIRE Challenge Team</strong>
+              <strong>The BIRE Programme Team</strong>
             </Text>
 
             <Text className="text-center mt-4">

@@ -33,7 +33,7 @@ export default function FeedbackRequestEmail({
   return (
     <Html>
       <Head />
-      <Preview>We'd love to hear your feedback on the BIRE Challenge</Preview>
+      <Preview>We'd love to hear your feedback on the BIRE Programme</Preview>
       <Tailwind
         config={{
           theme: {
@@ -65,7 +65,7 @@ export default function FeedbackRequestEmail({
 
             <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-8">
               Hi <strong>{recipientName}</strong>, <br />
-              Help us improve the BIRE Challenge.
+              Help us improve the BIRE Programme.
             </Text>
 
             {/* Custom email body card */}
@@ -92,7 +92,7 @@ export default function FeedbackRequestEmail({
             <Hr className="border-slate-200 my-8" />
 
             <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 max-w-[400px] mx-auto">
-              BIRE Challenge • Hand in Hand Eastern Africa <br />
+              BIRE Programme • Hand in Hand Eastern Africa <br />
               © {new Date().getFullYear()} All rights reserved.
             </Text>
           </Container>

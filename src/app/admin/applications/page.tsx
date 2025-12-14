@@ -7,8 +7,8 @@ import {
   ApplicationListItem,
   getApplicationStats,
 } from "@/lib/actions/admin-applications";
-import { DashboardStats } from "@/components/admin/DashboardStats";
-import { FeedbackDisplay } from "@/components/admin/FeedbackDisplay";
+import { DashboardStats } from "@/components/application/admin/DashboardStats";
+import { FeedbackDisplay } from "@/components/application/admin/FeedbackDisplay";
 import {
   Table,
   TableBody,

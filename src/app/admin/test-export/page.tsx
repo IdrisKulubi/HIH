@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "../../../../auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EnhancedDocumentDownload } from "@/components/admin/EnhancedDocumentDownload";
+import { EnhancedDocumentDownload } from "@/components/application/admin/EnhancedDocumentDownload";
 import { FileText } from "lucide-react";
 
 async function TestExportPage() {
@@ -47,7 +47,7 @@ async function TestExportPage() {
                 className="w-full"
               />
             </div>
-            
+
             <div className="p-4 bg-amber-50 rounded-lg">
               <h3 className="font-semibold text-amber-900 mb-2">Features Included</h3>
               <ul className="text-amber-700 text-sm space-y-1">

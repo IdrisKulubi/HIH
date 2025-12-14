@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
 import { getApplicationById, getReviewStatus, submitReviewer1Review, submitReviewer2Review } from "@/lib/actions";
 import { getActiveScoringConfiguration, initializeDefaultScoringConfig } from "@/lib/actions/scoring";
 import { getDetailedScores, saveScoringProgress } from "@/lib/actions/scoring-progress";
-import { DocumentViewerModal } from "@/components/admin/DocumentViewerModal";
-import { ScoringSectionModal } from "@/components/admin/ScoringSectionModal";
+import { DocumentViewerModal } from "@/components/application/admin/DocumentViewerModal";
+import { ScoringSectionModal } from "@/components/application/admin/ScoringSectionModal";
 import { getScoringConfigByTrack } from "@/lib/types/scoring";
 
 // --- UI Helpers ---

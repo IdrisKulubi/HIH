@@ -48,8 +48,8 @@ import {
   Target,
   Clock
 } from "@phosphor-icons/react";
-import { TwoTierReviewPanel } from "@/components/admin/TwoTierReviewPanel";
-import { DocumentViewerModal } from "@/components/admin/DocumentViewerModal";
+import { TwoTierReviewPanel } from "@/components/application/admin/TwoTierReviewPanel";
+import { DocumentViewerModal } from "@/components/application/admin/DocumentViewerModal";
 import { cn } from "@/lib/utils";
 
 // --- UI Helpers ---

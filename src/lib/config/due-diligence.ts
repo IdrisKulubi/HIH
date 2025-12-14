@@ -1,5 +1,5 @@
 
-import { PhaseConfig } from "@/components/admin/due-diligence/DueDiligenceForm";
+import { PhaseConfig } from "@/components/application/admin/due-diligence/DueDiligenceForm";
 
 // Criteria Options Helper
 const options = [

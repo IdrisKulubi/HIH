@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { saveDueDiligenceItem } from "@/lib/actions/due-diligence";
 import { toast } from "sonner";
-import { DueDiligenceItem } from "../../../../db/schema";
+import { DueDiligenceItem } from "../../../../../db/schema";
 
 interface ScoringCriterion {
     name: string;

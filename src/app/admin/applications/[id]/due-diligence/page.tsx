@@ -2,7 +2,7 @@
 import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
 import { getDueDiligence } from "@/lib/actions/due-diligence";
-import { DueDiligenceForm } from "@/components/admin/due-diligence/DueDiligenceForm";
+import { DueDiligenceForm } from "@/components/application/admin/due-diligence/DueDiligenceForm";
 import { PHASE_1_CONFIG, PHASE_2_CONFIG } from "@/lib/config/due-diligence";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, CheckCircle, Clock } from "@phosphor-icons/react/dist/ssr";

@@ -15,10 +15,10 @@ import {
   RefreshCw
 } from "lucide-react";
 import { getScoringConfigurations, getActiveScoringConfiguration } from "@/lib/actions/scoring";
-import { ScoringConfigCard } from "@/components/admin/scoring/ScoringConfigCard";
-import { CreateScoringConfigDialog } from "@/components/admin/scoring/CreateScoringConfigDialog";
-import { ReEvaluationDialog } from "@/components/admin/scoring/ReEvaluationDialog";
-import { InitializeDefaultConfigButton } from "@/components/admin/scoring/InitializeDefaultConfigButton";
+import { ScoringConfigCard } from "@/components/application/admin/scoring/ScoringConfigCard";
+import { CreateScoringConfigDialog } from "@/components/application/admin/scoring/CreateScoringConfigDialog";
+import { ReEvaluationDialog } from "@/components/application/admin/scoring/ReEvaluationDialog";
+import { InitializeDefaultConfigButton } from "@/components/application/admin/scoring/InitializeDefaultConfigButton";
 
 async function ScoringConfigsSection() {
   const configsResult = await getScoringConfigurations();

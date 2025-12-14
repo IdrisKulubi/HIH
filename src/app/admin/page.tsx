@@ -49,7 +49,7 @@ export default async function AdminDashboard() {
               Admin Dashboard
             </h1>
             <p className="text-slate-500 text-lg font-normal tracking-wide">
-              Overview of the YouthAdapt Challenge.
+              Overview of the BIRE Programme .   
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/user.actions";
-import { FeedbackEmailSystem } from "@/components/admin/feedback/FeedbackEmailSystem";
+import { FeedbackEmailSystem } from "@/components/application/admin/feedback/FeedbackEmailSystem";
 
 export default async function FeedbackEmailPage() {
   const user = await getCurrentUser();
-  
+
   if (user?.role !== "admin") {
     redirect("/");
   }
