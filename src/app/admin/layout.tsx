@@ -31,6 +31,11 @@ export default function AdminLayout({
                 </Link>
               </li>
               <li>
+                <Link href="/admin/observation" className="hover:text-primary transition-colors text-amber-600">
+                  Observation
+                </Link>
+              </li>
+              <li>
                 <Link href="/admin/analytics" className="hover:text-primary transition-colors">
                   Analytics
                 </Link>

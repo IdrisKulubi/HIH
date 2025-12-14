@@ -270,14 +270,46 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
             <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900">SECTION 1 — Business Registration & Legality</h3>
 
-                {/* Registered in Kenya */}
-                <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200">
-                    <CheckCircleIcon className="w-6 h-6 text-green-600" weight="fill" />
-                    <div>
-                        <span className="text-slate-900 font-medium">Is your business registered in Kenya?</span>
-                        <p className="text-green-600 font-semibold">Yes</p>
-                    </div>
-                </div>
+                {/* Is Registered Toggle */}
+                <FormField
+                    control={form.control}
+                    name="business.isRegistered"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium">
+                                Is your business registered in Kenya? <span className="text-red-500">*</span>
+                            </FormLabel>
+                            <div className="flex gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => field.onChange(true)}
+                                    className={cn(
+                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                        field.value === true
+                                            ? "bg-green-50 border-green-500 text-green-700"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                    )}
+                                >
+                                    <CheckCircleIcon className="w-5 h-5" weight={field.value === true ? "fill" : "regular"} />
+                                    Yes, Registered
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => field.onChange(false)}
+                                    className={cn(
+                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                        field.value === false
+                                            ? "bg-red-50 border-red-500 text-red-700"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                    )}
+                                >
+                                    No, Not Yet
+                                </button>
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
                 {/* Registration Type */}
                 <FormField
@@ -401,62 +433,105 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
             <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900">SECTION 3 — Books of Accounts (Financial Records)</h3>
 
-                {/* Financial Records */}
-                <div className="pt-2">
-                    <FormLabel className="text-slate-700 font-medium flex flex-col gap-1 mb-3">
-                        <span>Do you have at least 1 year (latest 12 months) of books of accounts/ bank statements or Mpesa statements? (not necessarily audited) <span className="text-red-500">*</span></span>
-                    </FormLabel>
-
-                    {form.watch("business.financialRecordsUrl") ? (
-                        <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
-                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
-                            <div className="flex-1 min-w-0">
-                                <span className="text-green-700 font-medium block">Detailed records uploaded</span>
-                                <a
-                                    href={form.watch("business.financialRecordsUrl")}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-green-600 text-sm hover:underline truncate block"
+                {/* Has Financial Records Toggle */}
+                <FormField
+                    control={form.control}
+                    name="business.hasFinancialRecords"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-slate-700 font-medium flex flex-col gap-1">
+                                <span>Do you have at least 1 year (latest 12 months) of books of accounts/ bank statements or Mpesa statements? <span className="text-red-500">*</span></span>
+                            </FormLabel>
+                            <div className="flex gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => field.onChange(true)}
+                                    className={cn(
+                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                        field.value === true
+                                            ? "bg-green-50 border-green-500 text-green-700"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                    )}
                                 >
-                                    View document ↗
-                                </a>
+                                    <CheckCircleIcon className="w-5 h-5" weight={field.value === true ? "fill" : "regular"} />
+                                    Yes, I have records
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => field.onChange(false)}
+                                    className={cn(
+                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                        field.value === false
+                                            ? "bg-red-50 border-red-500 text-red-700"
+                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                    )}
+                                >
+                                    No, not yet
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    form.setValue("business.financialRecordsUrl", "");
-                                    toast.info("Records removed.");
-                                }}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
-                                title="Remove document"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    ) : (
-                        <UploadButton
-                            endpoint="businessOverviewUploader"
-                            onClientUploadComplete={(res) => {
-                                if (res?.[0]) {
-                                    form.setValue("business.financialRecordsUrl", res[0].url);
-                                    toast.success("Financial records uploaded!");
-                                }
-                                setIsUploadingRecords(false);
-                            }}
-                            onUploadError={(error) => {
-                                toast.error(`Upload failed: ${error.message}`);
-                                setIsUploadingRecords(false);
-                            }}
-                            onUploadBegin={() => setIsUploadingRecords(true)}
-                            appearance={{
-                                button: cn(
-                                    "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
-                                    isUploadingRecords && "opacity-50 cursor-not-allowed"
-                                ),
-                            }}
-                        />
+                            <FormMessage />
+                        </FormItem>
                     )}
-                </div>
+                />
+
+                {/* Upload Financial Records (only show if they have records) */}
+                {form.watch("business.hasFinancialRecords") && (
+                    <div className="pt-4">
+                        <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
+                            <UploadIcon className="w-4 h-4 text-brand-blue" />
+                            Upload your financial records (optional)
+                        </FormLabel>
+                        {form.watch("business.financialRecordsUrl") ? (
+                            <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                                <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                                <div className="flex-1 min-w-0">
+                                    <span className="text-green-700 font-medium block">Detailed records uploaded</span>
+                                    <a
+                                        href={form.watch("business.financialRecordsUrl")}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-green-600 text-sm hover:underline truncate block"
+                                    >
+                                        View document ↗
+                                    </a>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        form.setValue("business.financialRecordsUrl", "");
+                                        toast.info("Records removed.");
+                                    }}
+                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                    title="Remove document"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ) : (
+                            <UploadButton
+                                endpoint="businessOverviewUploader"
+                                onClientUploadComplete={(res) => {
+                                    if (res?.[0]) {
+                                        form.setValue("business.financialRecordsUrl", res[0].url);
+                                        toast.success("Financial records uploaded!");
+                                    }
+                                    setIsUploadingRecords(false);
+                                }}
+                                onUploadError={(error) => {
+                                    toast.error(`Upload failed: ${error.message}`);
+                                    setIsUploadingRecords(false);
+                                }}
+                                onUploadBegin={() => setIsUploadingRecords(true)}
+                                appearance={{
+                                    button: cn(
+                                        "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                        isUploadingRecords && "opacity-50 cursor-not-allowed"
+                                    ),
+                                }}
+                            />
+                        )}
+                    </div>
+                )}
 
                 {/* Audited Accounts */}
                 <div className="pt-4 border-t border-slate-200">

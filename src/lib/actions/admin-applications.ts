@@ -219,6 +219,9 @@ export async function getApplications(
         // Apply filters
         let filteredData = allApplications;
 
+        // Exclude observation-only applications from main list
+        filteredData = filteredData.filter((app) => !app.isObservationOnly);
+
         // Status filter
         if (filters.status && filters.status !== "all") {
             if (filters.status === "eligible") {

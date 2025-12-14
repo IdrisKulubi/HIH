@@ -310,7 +310,11 @@ export function AccelerationApplicationForm() {
                 const disqualification = checkEligibility(currentData);
 
                 if (disqualification) {
-                    setDisqualifiedReason(disqualification);
+                    // Show toast with the issue instead of blocking dialog
+                    toast.error("Eligibility Issue", {
+                        description: disqualification,
+                        duration: 8000,
+                    });
                     return;
                 }
 

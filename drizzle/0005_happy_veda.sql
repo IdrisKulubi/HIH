@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "is_observation_only" boolean DEFAULT false NOT NULL;

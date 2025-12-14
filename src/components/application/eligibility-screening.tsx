@@ -56,10 +56,9 @@ export function EligibilityScreening() {
             return { status: EligibilityStatus.DISQUALIFIED, reasons };
         }
 
-        // 4. Revenue Check
+        // 4. Revenue Check - Low revenue goes to Observation Track (data collection)
         if (formData.annualRevenue === 'less_than_500k') {
-            reasons.push("Annual revenue must be above KES 500,000 to be eligible.");
-            return { status: EligibilityStatus.DISQUALIFIED, reasons };
+            return { status: EligibilityStatus.ELIGIBLE, track: ApplicationTrack.OBSERVATION };
         }
 
         // --- ELIGIBLE: DETERMINE TRACK ---
@@ -89,10 +88,14 @@ export function EligibilityScreening() {
 
     const handleProceed = () => {
         if (result?.track) {
-            const route = result.track === ApplicationTrack.ACCELERATION
-                ? "/apply/acceleration"
-                : "/apply/foundation";
-            router.push(route);
+            // OBSERVATION track uses foundation form but passes flag to mark it as observation-only
+            if (result.track === ApplicationTrack.ACCELERATION) {
+                router.push("/apply/acceleration");
+            } else if (result.track === ApplicationTrack.OBSERVATION) {
+                router.push("/apply/foundation?observation=true"); // Flag for observation
+            } else {
+                router.push("/apply/foundation");
+            }
         }
     };
 
@@ -114,20 +117,26 @@ export function EligibilityScreening() {
                                 We&#39;ve matched you to a specialized support track based on your business stage.
                             </p>
 
-                            <div className="bg-slate-50 border border-slate-100 rounded-3xl p-8 mb-8 text-left relative overflow-hidden group">
+                            <div className={`bg-slate-50 border ${result.track === ApplicationTrack.OBSERVATION ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100'} rounded-3xl p-8 mb-8 text-left relative overflow-hidden group`}>
                                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                                     {result.track === ApplicationTrack.ACCELERATION ? <ChartLineUpIcon size={120} /> : <BuildingsIcon size={120} />}
                                 </div>
-                                <span className="inline-block px-3 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-bold uppercase tracking-wider mb-3">
-                                    Recommended Track
+                                <span className={`inline-block px-3 py-1 rounded-full ${result.track === ApplicationTrack.OBSERVATION ? 'bg-amber-500/10 text-amber-700' : 'bg-brand-blue/10 text-brand-blue'} text-xs font-bold uppercase tracking-wider mb-3`}>
+                                    {result.track === ApplicationTrack.OBSERVATION ? 'Data Collection Track' : 'Recommended Track'}
                                 </span>
                                 <h3 className="text-3xl font-bold text-slate-900 mb-2">
-                                    {result.track === ApplicationTrack.ACCELERATION ? "Acceleration Track" : "Foundation Track"}
+                                    {result.track === ApplicationTrack.ACCELERATION
+                                        ? "Acceleration Track"
+                                        : result.track === ApplicationTrack.OBSERVATION
+                                            ? "Observation Track"
+                                            : "Foundation Track"}
                                 </h3>
                                 <p className="text-slate-600 text-lg">
                                     {result.track === ApplicationTrack.ACCELERATION
                                         ? "Designed for scaling businesses ready for rapid growth and investment readiness."
-                                        : "Tailored for early-stage businesses building robust operational foundations."}
+                                        : result.track === ApplicationTrack.OBSERVATION
+                                            ? "We'd love to learn more about your business. Your data helps us understand the MSE landscape."
+                                            : "Tailored for early-stage businesses building robust operational foundations."}
                                 </p>
                             </div>
 

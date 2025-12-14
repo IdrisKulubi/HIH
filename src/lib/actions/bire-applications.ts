@@ -198,18 +198,32 @@ export async function submitFoundationApplication(
                 submittedAt: new Date(),
             }).returning();
 
-            return { applicationId: application.id };
+            // Check if this should be an observation-only application
+            // Criteria: Kenya-registered + revenue < 500,000 KES
+            const revenueValue = Number(validatedData.commercialViability.revenueLastYear) || 0;
+            const isObservation = revenueValue < 500000;
+
+            return { applicationId: application.id, isObservation };
         });
 
         const eligibilityResponse = await checkEligibility(result.applicationId);
 
-        await sendApplicationSubmissionEmail({
-            userEmail: userEmail!,
-            applicantName: userName || formData.applicant.firstName,
-            applicationId: result.applicationId.toString(),
-            businessName: formData.business.name,
-            submissionDate: new Date().toISOString(),
-        });
+        // If observation mode, update the flag and skip email
+        if (result.isObservation) {
+            await db.update(applications)
+                .set({ isObservationOnly: true })
+                .where(eq(applications.id, result.applicationId));
+            console.log(`[OBSERVATION] Application ${result.applicationId} marked as observation-only (revenue < 500k)`);
+        } else {
+            // Only send confirmation email for qualified applicants
+            await sendApplicationSubmissionEmail({
+                userEmail: userEmail!,
+                applicantName: userName || formData.applicant.firstName,
+                applicationId: result.applicationId.toString(),
+                businessName: formData.business.name,
+                submissionDate: new Date().toISOString(),
+            });
+        }
 
         revalidatePath("/apply");
         revalidatePath("/dashboard");

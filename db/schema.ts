@@ -417,6 +417,7 @@ export const applications = pgTable('applications', {
   businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
   track: applicationTrackEnum('track'),
   status: applicationStatusEnum('status').default('submitted').notNull(),
+  isObservationOnly: boolean('is_observation_only').default(false).notNull(), // Kenya applicants with revenue < 500k
   referralSource: varchar('referral_source', { length: 100 }),
   referralSourceOther: varchar('referral_source_other', { length: 100 }),
   submittedAt: timestamp('submitted_at'),

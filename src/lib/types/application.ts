@@ -1,6 +1,7 @@
 export enum ApplicationTrack {
     FOUNDATION = 'FOUNDATION',
     ACCELERATION = 'ACCELERATION',
+    OBSERVATION = 'OBSERVATION', // Kenya-registered, revenue < 500k KES (data collection only)
 }
 
 export enum EligibilityStatus {

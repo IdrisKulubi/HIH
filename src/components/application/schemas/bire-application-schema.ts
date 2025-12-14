@@ -60,6 +60,45 @@ export const businessEligibilitySchema = z.object({
     city: z.string().min(1, "Please enter your town or city"),
 });
 
+// Acceleration track uses relaxed business schema (registration/records already confirmed in screening)
+export const accelerationBusinessEligibilitySchema = z.object({
+    name: z.string().min(2, "Business name is required"),
+    isRegistered: z.boolean().optional().default(true), // Auto-set, already confirmed in screening
+    registrationType: z.enum([
+        "limited_company",
+        "partnership",
+        "cooperative",
+        "self_help_group_cbo",
+        "sole_proprietorship"
+    ], { required_error: "Please select your registration type" }),
+    registrationCertificateUrl: z.string().min(1, "Please upload your registration certificate"),
+    yearsOperational: z.number().min(0, "Years operational must be a number"),
+    hasFinancialRecords: z.boolean().optional().default(true), // Auto-set, already confirmed in screening
+    financialRecordsUrl: z.string().optional(),
+    sector: z.enum([
+        "agriculture_and_agribusiness",
+        "manufacturing",
+        "renewable_energy",
+        "water_management",
+        "waste_management",
+        "forestry",
+        "tourism",
+        "transport",
+        "construction",
+        "ict",
+        "trade",
+        "healthcare",
+        "education",
+        "other"
+    ], { required_error: "Please select a sector" }),
+    sectorOther: z.string().optional(),
+    description: z.string().min(50, "Description must be at least 50 characters"),
+    problemSolved: z.string().min(50, "Please describe the problem your business solves"),
+    country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
+    county: z.string().min(1, "Please select a county"),
+    city: z.string().min(1, "Please enter your town or city"),
+});
+
 // === FOUNDATION TRACK SCHEMA ===
 
 // Business Model (10 marks)
@@ -234,7 +273,7 @@ export const foundationApplicationSchema = z.object({
 
 export const accelerationApplicationSchema = z.object({
     applicant: applicantSchema,
-    business: businessEligibilitySchema,
+    business: accelerationBusinessEligibilitySchema, // Uses relaxed validation (isRegistered/hasFinancialRecords already confirmed in screening)
     revenues: accelerationRevenuesSchema, // Renamed from commercialViability for Acceleration track in logic
     impactPotential: accelerationImpactPotentialSchema,
     scalability: accelerationScalabilitySchema,
