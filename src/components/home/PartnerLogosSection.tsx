@@ -35,10 +35,19 @@ export function PartnerLogosSection() {
                 <span className="block text-xs font-bold text-brand-blue uppercase tracking-widest mb-6">Supported By</span>
                 <div className="flex items-center justify-center gap-8">
                   {/* Embassy of Sweden Logo */}
-                  <div className="relative h-24 w-56">
+                  <div className="relative h-24 w-40">
                     <Image
                       src="/logos/sweden.png"
                       alt="Embassy of Sweden Nairobi"
+                      fill
+                      className="object-contain mix-blend-multiply"
+                    />
+                  </div>
+                  {/* Hand in Hand Sweden Logo */}
+                  <div className="relative h-40 w-60">
+                    <Image
+                      src="/logos/hand-sweden.png"
+                      alt="Hand in Hand Sweden"
                       fill
                       className="object-contain mix-blend-multiply"
                     />
