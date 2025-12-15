@@ -153,17 +153,26 @@ export function AccelerationApplicationForm() {
                 projectedInclusion: undefined, // Added
             },
             scalability: {
-                scalabilityPlan: undefined, // Added
-                marketScalePotential: undefined, // Added
+                // D1-D4 new fields
                 marketDifferentiation: undefined,
+                marketDifferentiationDescription: "",
                 competitiveAdvantage: undefined,
+                competitiveAdvantageSource: "",
+                technologyIntegration: undefined,
+                technologyIntegrationDescription: "",
                 salesMarketingIntegration: undefined,
+                salesMarketingApproach: "",
+                // Legacy fields
+                scalabilityPlan: undefined,
+                marketScalePotential: undefined,
             },
             socialImpact: {
-                socialImpactContribution: undefined, // Added - Note: Schema says socialImpactContribution, Component had socialImpactHousehold?
+                socialImpactContribution: undefined,
+                socialImpactContributionDescription: "",
                 supplierInvolvement: undefined,
+                supplierSupportDescription: "",
                 environmentalImpact: undefined,
-                environmentalImpactDescription: "", // Schema says default optional
+                environmentalImpactDescription: "",
             },
             businessModel: {
                 businessModelUniqueness: undefined,

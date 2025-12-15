@@ -384,9 +384,11 @@ export async function submitAccelerationApplication(
                 scalabilityPlan: validatedData.scalability.scalabilityPlan,
                 marketScalePotential: validatedData.scalability.marketScalePotential,
                 marketDifferentiation: validatedData.scalability.marketDifferentiation,
+                marketDifferentiationDescription: validatedData.scalability.marketDifferentiationDescription,
                 competitiveAdvantage: validatedData.scalability.competitiveAdvantage,
                 competitiveAdvantageSource: validatedData.scalability.competitiveAdvantageSource,
                 technologyIntegration: validatedData.scalability.technologyIntegration,
+                technologyIntegrationDescription: validatedData.scalability.technologyIntegrationDescription,
                 salesMarketingIntegration: validatedData.scalability.salesMarketingIntegration,
                 salesMarketingApproach: validatedData.scalability.salesMarketingApproach,
                 // offeringFocus not in DB schema but in Zod - probably legacy or new field. Ignoring if not in DB, 
@@ -394,6 +396,7 @@ export async function submitAccelerationApplication(
 
                 // Social Impact
                 socialImpactContribution: validatedData.socialImpact.socialImpactContribution,
+                socialImpactContributionDescription: validatedData.socialImpact.socialImpactContributionDescription,
                 supplierInvolvement: validatedData.socialImpact.supplierInvolvement,
                 supplierSupportDescription: validatedData.socialImpact.supplierSupportDescription,
                 environmentalImpact: validatedData.socialImpact.environmentalImpact as any,

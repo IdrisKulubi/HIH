@@ -50,7 +50,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                     <HeartIcon className="w-8 h-8 text-rose-600" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL & ENVIRONMENTAL IMPACT</h2>
-                <p className="text-slate-500 mt-2">E1 - E3: Social Impact, Environment & Supplier Involvement (20 Marks)</p>
+                <p className="text-slate-500 mt-2">E1 - E3: Social Impact, Environment & Supplier Involvement </p>
             </div>
 
             {/* E1. Social Contribution */}
@@ -66,7 +66,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
                         name="socialImpact.socialImpactContribution"
@@ -85,6 +85,23 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                         <SelectItem value="none">Low / None</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="socialImpact.socialImpactContributionDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Explain your social and economic impact</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe how your business creates jobs, improves incomes, supports women/youth participation, etc..."
+                                        className="min-h-[100px] rounded-xl"
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -156,7 +173,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                             <TruckIcon className="w-5 h-5 text-amber-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">E3. Supplier Involvement — 6 Marks</CardTitle>
+                            <CardTitle className="text-lg">E3. Supplier Involvement </CardTitle>
                             <CardDescription>How do you engage suppliers?</CardDescription>
                         </div>
                     </div>
@@ -175,9 +192,9 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="direct_engagement">Direct engagement → 6 marks</SelectItem>
-                                        <SelectItem value="network_based">Network-based engagement → 3 marks</SelectItem>
-                                        <SelectItem value="none">No clear engagement → 1 mark</SelectItem>
+                                        <SelectItem value="direct_engagement">Direct engagement </SelectItem>
+                                        <SelectItem value="network_based">Network-based engagement </SelectItem>
+                                        <SelectItem value="none">No clear engagement </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -225,7 +242,7 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                     <LightbulbIcon className="w-8 h-8 text-amber-600" weight="duotone" />
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">SECTION F: BUSINESS MODEL</h2>
-                <p className="text-slate-500 mt-2">F1 - F3: Uniqueness, Value Proposition & Competitive Advantage (20 Marks)</p>
+                <p className="text-slate-500 mt-2">F1 - F3: Uniqueness, Value Proposition & Competitive Advantage </p>
             </div>
 
             {/* F1. Business Model Innovation */}
@@ -331,7 +348,7 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                             <ShieldCheckIcon className="w-5 h-5 text-teal-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">F3. Competitive Advantage Strength — 6 Marks</CardTitle>
+                            <CardTitle className="text-lg">F3. Competitive Advantage Strength </CardTitle>
                             <CardDescription>Rate the strength of your competitive advantage. Explain barriers that protect your competitive position.</CardDescription>
                         </div>
                     </div>
@@ -350,9 +367,9 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="high">High → 6 marks</SelectItem>
-                                        <SelectItem value="moderate">Moderate → 3 marks</SelectItem>
-                                        <SelectItem value="low">Low → 1 mark</SelectItem>
+                                        <SelectItem value="high">High</SelectItem>
+                                        <SelectItem value="moderate">Moderate </SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />

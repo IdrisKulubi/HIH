@@ -376,14 +376,17 @@ export const businesses = pgTable('businesses', {
   scalabilityPlan: text('scalability_plan'), // Added for scoring
   marketScalePotential: text('market_scale_potential'), // Added for scoring
   marketDifferentiation: text('market_differentiation'), // Truly unique, Provably better, Undifferentiated
+  marketDifferentiationDescription: text('market_differentiation_description'), // Describe competitive strengths
   competitiveAdvantage: text('competitive_advantage'), // High, Moderate, Low
   competitiveAdvantageSource: text('competitive_advantage_source'), // Describe sources
   technologyIntegration: text('technology_integration'), // High, Moderate, Low
+  technologyIntegrationDescription: text('technology_integration_description'), // Describe tech/innovation use
   salesMarketingIntegration: text('sales_marketing_integration'), // Fully, Aligned, Not aligned
   salesMarketingApproach: text('sales_marketing_approach'), // Describe channels
 
   // === ACCELERATION TRACK: SOCIAL & ENVIRONMENTAL IMPACT (20 marks) ===
   socialImpactContribution: text('social_impact_contribution'), // High, Moderate, None
+  socialImpactContributionDescription: text('social_impact_contribution_description'), // Describe impact
   supplierInvolvement: text('supplier_involvement'), // Direct, Network, None
   supplierSupportDescription: text('supplier_support_description'), // Describe support
   // environmentalImpact reused

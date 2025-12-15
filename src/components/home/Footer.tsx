@@ -26,7 +26,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>Nairobi, Kenya</li>
               <li>
-                <Link href="mailto:support@bire.org" className="hover:text-brand-blue transition-colors">support@bire.org</Link>
+                <Link href="mailto:support@bire.org" className="hover:text-brand-blue transition-colors">bire@handinhandea.or.ke </Link>
               </li>
             </ul>
           </div>

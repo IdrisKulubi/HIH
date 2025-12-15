@@ -243,8 +243,6 @@ interface AccelerationScalabilityFormProps {
 }
 
 export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFormProps) {
-    const scalabilityPlan = form.watch("scalability.scalabilityPlan");
-
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -255,11 +253,11 @@ export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFor
                 <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <RocketLaunchIcon className="w-8 h-8 text-indigo-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION D: SCALABILITY</h2>
-                <p className="text-slate-500 mt-2">D1 - D2: Scalability Strategy & Market Potential</p>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION D: SCALABILITY & MARKET POSITION</h2>
+                <p className="text-slate-500 mt-2">D1 - D4: Market Differentiation, Competitive Advantage, Technology & Sales</p>
             </div>
 
-            {/* D1. Scalability Strategy */}
+            {/* D1. Market Differentiation */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
@@ -267,107 +265,213 @@ export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFor
                             <TargetIcon className="w-5 h-5 text-indigo-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D1. Scalability Strategy </CardTitle>
-                            <CardDescription>Do you have a clear plan for scaling your business?</CardDescription>
+                            <CardTitle className="text-lg">D1. Market Differentiation</CardTitle>
+                            <CardDescription>How differentiated is your product/service?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
-                        name="scalability.scalabilityPlan"
+                        name="scalability.marketDifferentiation"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Scalability Plan</FormLabel>
+                                <FormLabel className="text-slate-700">Differentiation Level</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select description" />
+                                            <SelectValue placeholder="Select differentiation level" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="clear_plan">Clear, actionable plan</SelectItem>
-                                        <SelectItem value="some_idea">Some idea</SelectItem>
-                                        <SelectItem value="no_plan">No plan</SelectItem>
+                                        <SelectItem value="truly_unique">Truly unique</SelectItem>
+                                        <SelectItem value="provably_better">Provably better than competition</SelectItem>
+                                        <SelectItem value="undifferentiated">Undifferentiated / similar</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-
-                    {/* Context fields - Hidden if 'No Plan' selected */}
-                    {scalabilityPlan !== "no_plan" && (
-                        <FormField
-                            control={form.control}
-                            name="scalability.marketDifferentiationDescription"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-slate-700">Detailed Strategy Description</FormLabel>
-                                    <FormControl>
-                                        <Textarea
-                                            {...field}
-                                            placeholder="Describe your plan to scale..."
-                                            className="min-h-[80px] rounded-xl"
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    )}
+                    <FormField
+                        control={form.control}
+                        name="scalability.marketDifferentiationDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Explain your key competitive strengths</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe what makes your product/service unique compared to competitors..."
+                                        className="min-h-[100px] rounded-xl"
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                 </CardContent>
             </Card>
 
-            {/* D2. Market Potential */}
+            {/* D2. Competitive Advantage */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <HeartIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">D2. Competitive Advantage</CardTitle>
+                            <CardDescription>What level of competitive advantage do you currently have?</CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="scalability.competitiveAdvantage"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Competitive Advantage Level</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select advantage level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="high">High (strong IP, technology, networks, production advantage, cost barriers)</SelectItem>
+                                        <SelectItem value="moderate">Moderate</SelectItem>
+                                        <SelectItem value="low">Low</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="scalability.competitiveAdvantageSource"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Describe the sources of your competitive advantage</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Explain your IP, technology, networks, production advantages, cost barriers, etc..."
+                                        className="min-h-[100px] rounded-xl"
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
+
+            {/* D3. Technology Integration */}
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <MegaphoneIcon className="w-5 h-5 text-blue-600" weight="duotone" />
+                            <RocketLaunchIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D2. Market Potential for Scale</CardTitle>
-                            <CardDescription>Is the market large enough to support significant growth?</CardDescription>
+                            <CardTitle className="text-lg">D3. Technology Integration / Focus</CardTitle>
+                            <CardDescription>What level of technology and innovation does your business apply?</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <FormField
                         control={form.control}
-                        name="scalability.marketScalePotential"
+                        name="scalability.technologyIntegration"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Market Size</FormLabel>
+                                <FormLabel className="text-slate-700">Technology & Innovation Level</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger className="h-12 rounded-xl">
-                                            <SelectValue placeholder="Select market potential" />
+                                            <SelectValue placeholder="Select technology level" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="large_growing">Large & Growing</SelectItem>
-                                        <SelectItem value="stable">Stable</SelectItem>
-                                        <SelectItem value="small_niche">Small / Niche</SelectItem>
+                                        <SelectItem value="high">High innovation & advanced technology use</SelectItem>
+                                        <SelectItem value="moderate">Moderate innovation & basic technology use</SelectItem>
+                                        <SelectItem value="low">Low innovation & minimal technology use</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="scalability.technologyIntegrationDescription"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Describe how you use technology and innovation</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...field}
+                                        placeholder="Describe digital tools, automation, data systems, or new methods you use..."
+                                        className="min-h-[100px] rounded-xl"
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+            </Card>
 
-                    {/* Context fields */}
+            {/* D4. Sales & Marketing Integration */}
+            <Card className="border-slate-200 shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <MegaphoneIcon className="w-5 h-5 text-amber-600" weight="duotone" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">D4. Sales & Marketing Integration</CardTitle>
+                            <CardDescription>How well do your sales and marketing activities work together?</CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="scalability.salesMarketingIntegration"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-slate-700">Sales & Marketing Alignment</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="h-12 rounded-xl">
+                                            <SelectValue placeholder="Select alignment level" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="fully_integrated">Fully integrated</SelectItem>
+                                        <SelectItem value="aligned">Aligned but not integrated</SelectItem>
+                                        <SelectItem value="not_aligned">Not aligned</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                     <FormField
                         control={form.control}
                         name="scalability.salesMarketingApproach"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-slate-700">Sales & Marketing Approach</FormLabel>
+                                <FormLabel className="text-slate-700">Describe your sales channels and marketing approach</FormLabel>
                                 <FormControl>
                                     <Textarea
                                         {...field}
-                                        placeholder="Describe your sales and marketing approach..."
-                                        className="min-h-[80px] rounded-xl"
+                                        placeholder="Do you have a sales team? Use social media? Run promotions? Follow up with customers?..."
+                                        className="min-h-[100px] rounded-xl"
                                     />
                                 </FormControl>
                                 <FormMessage />

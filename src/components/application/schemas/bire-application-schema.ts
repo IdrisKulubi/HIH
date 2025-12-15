@@ -190,32 +190,36 @@ export const accelerationImpactPotentialSchema = z.object({
 });
 
 // Scalability (20 marks)
-// Schema simplified to match actual form UI fields
+// D1: Market Differentiation (5 marks), D2: Competitive Advantage (5 marks), 
+// D3: Technology Integration (5 marks), D4: Sales & Marketing Integration (5 marks)
 export const accelerationScalabilitySchema = z.object({
-    // Fields present in form UI
-    scalabilityPlan: z.string().optional(), // D1: Clear plan, some idea, no plan
-    marketScalePotential: z.string().optional(), // D2: Large, Stable, Small
-    marketDifferentiationDescription: z.string().optional(), // Made optional, validated by superRefine below
-    salesMarketingApproach: z.string().min(5, "Describe sales channels & marketing approach"), // Textarea in D2
+    // D1. Market Differentiation (5 marks)
+    marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"], {
+        required_error: "Select how differentiated your product/service is",
+    }),
+    marketDifferentiationDescription: z.string().min(10, "Explain your key competitive strengths (min 10 chars)"),
 
-    // Fields NOT in form UI but kept for schema compatibility (all optional)
-    marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"]).optional(),
-    competitiveAdvantage: z.enum(["high", "moderate", "low"]).optional(),
-    competitiveAdvantageSource: z.string().optional(),
-    technologyIntegration: z.enum(["high", "moderate", "low"]).optional(),
-    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"]).optional(),
-}).superRefine((data, ctx) => {
-    // Skip logic enforcement:
-    // If scalabilityPlan is NOT 'no_plan', then marketDifferentiationDescription is required
-    if (data.scalabilityPlan && data.scalabilityPlan !== "no_plan") {
-        if (!data.marketDifferentiationDescription || data.marketDifferentiationDescription.length < 5) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Explain your key competitive strengths (min 5 chars)",
-                path: ["marketDifferentiationDescription"],
-            });
-        }
-    }
+    // D2. Competitive Advantage (5 marks)
+    competitiveAdvantage: z.enum(["high", "moderate", "low"], {
+        required_error: "Select your competitive advantage level",
+    }),
+    competitiveAdvantageSource: z.string().min(10, "Describe the sources of your competitive advantage (min 10 chars)"),
+
+    // D3. Technology Integration (5 marks)
+    technologyIntegration: z.enum(["high", "moderate", "low"], {
+        required_error: "Select your technology integration level",
+    }),
+    technologyIntegrationDescription: z.string().min(10, "Describe how you use technology/innovation (min 10 chars)"),
+
+    // D4. Sales & Marketing Integration (5 marks)
+    salesMarketingIntegration: z.enum(["fully_integrated", "aligned", "not_aligned"], {
+        required_error: "Select how well your sales and marketing work together",
+    }),
+    salesMarketingApproach: z.string().min(10, "Describe your sales channels and marketing approach (min 10 chars)"),
+
+    // Legacy fields kept for backwards compatibility
+    scalabilityPlan: z.string().optional(),
+    marketScalePotential: z.string().optional(),
 });
 
 // Social & Env Impact (20 marks)
@@ -225,6 +229,7 @@ export const accelerationSocialImpactSchema = z.object({
     socialImpactContribution: z.enum(["high", "moderate", "none"], {
         required_error: "Rate contribution to social improvements",
     }),
+    socialImpactContributionDescription: z.string().min(10, "Explain your social/economic impact (min 10 chars)"),
 
     // E2. Environmental Impact (7 marks)
     environmentalImpact: z.enum(["clearly_defined", "minimal", "not_defined"], {
