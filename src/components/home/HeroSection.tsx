@@ -57,9 +57,18 @@ export function HeroSection() {
           <motion.div
             variants={itemVariants}
             className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-4"
-            >
-              <span className="text-sm font-medium text-cyan-50">Hand in Hand Eastern Africa,Hand in Hand Sweden & Embassy of Sweden</span>
+          >
+            <span className="text-sm font-medium text-cyan-50">Hand in Hand Eastern Africa,Hand in Hand Sweden & Embassy of Sweden</span>
           </motion.div>
+
+          {/* Deadline Badge - Links to Guidelines */}
+          <motion.a
+           
+            variants={itemVariants}
+            className="inline-flex items-center gap-2 bg-red-500/90 backdrop-blur-sm border border-red-400 rounded-full px-4 py-2 mb-2 hover:bg-red-600/90 transition cursor-pointer"
+          >
+            <span className="text-sm font-bold text-white">📅 Application Deadline: 15th January 2026 </span>
+          </motion.a>
 
           <motion.h1
             className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]"
@@ -97,8 +106,10 @@ export function HeroSection() {
               className="w-full sm:w-auto rounded-full border-2 border-white text-white hover:bg-white/10 px-8 py-6 text-lg font-bold backdrop-blur-sm transition-all duration-300 bg-transparent"
               asChild
             >
-              <Link href="#eligibility" className="flex items-center gap-2">
-                Check Eligibility
+              <Link href="/guidelines"
+            target="_blank"
+            rel="noopener noreferrer" className="flex items-center gap-2">
+              Read Guidelines
                 <CheckCircle className="w-5 h-5" weight="bold" />
               </Link>
             </Button>

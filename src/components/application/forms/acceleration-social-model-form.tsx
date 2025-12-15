@@ -118,7 +118,7 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                         </div>
                         <div>
                             <CardTitle className="text-lg">E2. Environmental Impact</CardTitle>
-                            <CardDescription>Environmental conservation practices</CardDescription>
+                            <CardDescription>Does your business conserve the environment? </CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -136,9 +136,9 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="clearly_defined">High (Positive impact)</SelectItem>
-                                        <SelectItem value="minimal">Moderate</SelectItem>
-                                        <SelectItem value="not_defined">Low / None</SelectItem>
+                                        <SelectItem value="clearly_defined">Clearly defined</SelectItem>
+                                        <SelectItem value="minimal">Minimal</SelectItem>
+                                        <SelectItem value="not_defined">Not defined</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -154,7 +154,8 @@ export function AccelerationSocialImpactForm({ form }: AccelerationSocialImpactF
                                 <FormControl>
                                     <Textarea
                                         {...field}
-                                        placeholder="Describe your environmental practices..."
+                                        placeholder="Provide examples of your environmental practices.
+(recycling, use of solar, water conservation, climate-smart operations, etc.)"
                                         className="min-h-[80px] rounded-xl"
                                     />
                                 </FormControl>
@@ -290,7 +291,7 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                                 <FormControl>
                                     <Textarea
                                         {...field}
-                                        placeholder="Describe what makes your business model unique..."
+                                        placeholder="Describe what makes your business model different. "
                                         className="min-h-[80px] rounded-xl"
                                     />
                                 </FormControl>
@@ -309,8 +310,8 @@ export function AccelerationBusinessModelForm({ form }: AccelerationBusinessMode
                             <StarIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">F2. Value Proposition</CardTitle>
-                            <CardDescription>How strong is your customer value proposition?</CardDescription>
+                            <CardTitle className="text-lg">F2.Customer Value Proposition</CardTitle>
+                            <CardDescription>How strong is your value proposition/product to customers? In simple terms why do customers buy from you instead of competitors? (E.g., price, quality, convenience, reliability.)</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
