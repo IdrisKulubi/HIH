@@ -11,6 +11,7 @@ import { JourneySection } from "@/components/home/JourneySection";
 import { ImpactStatsSection } from "@/components/home/ImpactStatsSection";
 import { ApplicationPrepSection } from "@/components/home/ApplicationPrepSection";
 import { FloatingCTA } from "@/components/home/FloatingCTA";
+import { FloatingWhatsAppButton } from "@/components/home/FloatingWhatsAppButton";
 
 export default function Home() {
   return (
@@ -35,6 +36,8 @@ export default function Home() {
 
       <Footer />
       <FloatingCTA />
+      <FloatingWhatsAppButton />
     </div>
   );
 }
+
