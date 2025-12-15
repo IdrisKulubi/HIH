@@ -53,8 +53,8 @@ export const businessEligibilitySchema = z.object({
         "other"
     ], { required_error: "Please select a sector" }),
     sectorOther: z.string().optional(),
-    description: z.string().min(10, "Description must be at least 10 characters"),
-    problemSolved: z.string().min(10, "Please describe the problem your business solves"),
+    description: z.string().min(50, "Description must be at least 50 characters"),
+    problemSolved: z.string().min(50, "Please describe the problem your business solves atleast 50 characters"),
     country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
     city: z.string().min(1, "Please enter your town or city"),
@@ -92,8 +92,8 @@ export const accelerationBusinessEligibilitySchema = z.object({
         "other"
     ], { required_error: "Please select a sector" }),
     sectorOther: z.string().optional(),
-    description: z.string().min(10, "Description must be at least 10 characters"),
-    problemSolved: z.string().min(10, "Please describe the problem your business solves"),
+    description: z.string().min(50, "Description must be at least 50 characters"),
+    problemSolved: z.string().min(50, "Please describe the problem your business solves atleast 50 characters"),
     country: z.literal("kenya", { errorMap: () => ({ message: "Business must be in Kenya" }) }),
     county: z.string().min(1, "Please select a county"),
     city: z.string().min(1, "Please enter your town or city"),

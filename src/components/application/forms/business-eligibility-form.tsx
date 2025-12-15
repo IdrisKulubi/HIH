@@ -61,9 +61,10 @@ const SECTORS = [
 interface BusinessEligibilityFormProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     form: UseFormReturn<any>;
+    track?: "foundation" | "acceleration";
 }
 
-export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) {
+export function BusinessEligibilityForm({ form, track = "foundation" }: BusinessEligibilityFormProps) {
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const [isUploadingCert, setIsUploadingCert] = useState(false);
     const [isUploadingRecords, setIsUploadingRecords] = useState(false);
@@ -235,7 +236,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                             />
                         </FormControl>
                         <FormDescription className="text-slate-500 text-sm">
-                            Minimum 5 characters
+                            Minimum 50 characters
                         </FormDescription>
                         <FormMessage />
                     </FormItem>
@@ -259,7 +260,7 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
                             />
                         </FormControl>
                         <FormDescription className="text-slate-500 text-sm">
-                            Minimum 5  characters
+                            Minimum 50  characters
                         </FormDescription>
                         <FormMessage />
                     </FormItem>
@@ -433,162 +434,294 @@ export function BusinessEligibilityForm({ form }: BusinessEligibilityFormProps) 
             <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900">SECTION 3 — Books of Accounts (Financial Records)</h3>
 
-                {/* Has Financial Records Toggle */}
-                <FormField
-                    control={form.control}
-                    name="business.hasFinancialRecords"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel className="text-slate-700 font-medium flex flex-col gap-1">
-                                <span>Do you have at least 1 year (latest 12 months) of books of accounts/ bank statements or Mpesa statements? <span className="text-red-500">*</span></span>
-                            </FormLabel>
-                            <div className="flex gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => field.onChange(true)}
-                                    className={cn(
-                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
-                                        field.value === true
-                                            ? "bg-green-50 border-green-500 text-green-700"
-                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                                    )}
-                                >
-                                    <CheckCircleIcon className="w-5 h-5" weight={field.value === true ? "fill" : "regular"} />
-                                    Yes, I have records
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => field.onChange(false)}
-                                    className={cn(
-                                        "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
-                                        field.value === false
-                                            ? "bg-red-50 border-red-500 text-red-700"
-                                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                                    )}
-                                >
-                                    No, not yet
-                                </button>
-                            </div>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {/* Foundation Track: Show toggle */}
+                {track === "foundation" && (
+                    <>
+                        {/* Has Financial Records Toggle */}
+                        <FormField
+                            control={form.control}
+                            name="business.hasFinancialRecords"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-slate-700 font-medium flex flex-col gap-1">
+                                        <span>Do you have at least 1 year (latest 12 months) of books of accounts/ bank statements or Mpesa statements? <span className="text-red-500">*</span></span>
+                                    </FormLabel>
+                                    <div className="flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => field.onChange(true)}
+                                            className={cn(
+                                                "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                                field.value === true
+                                                    ? "bg-green-50 border-green-500 text-green-700"
+                                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            )}
+                                        >
+                                            <CheckCircleIcon className="w-5 h-5" weight={field.value === true ? "fill" : "regular"} />
+                                            Yes, I have records
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => field.onChange(false)}
+                                            className={cn(
+                                                "flex-1 p-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                                                field.value === false
+                                                    ? "bg-red-50 border-red-500 text-red-700"
+                                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                            )}
+                                        >
+                                            No, not yet
+                                        </button>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
-                {/* Upload Financial Records (only show if they have records) */}
-                {form.watch("business.hasFinancialRecords") && (
-                    <div className="pt-4">
-                        <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
-                            <UploadIcon className="w-4 h-4 text-brand-blue" />
-                            Upload your financial records (optional)
-                        </FormLabel>
-                        {form.watch("business.financialRecordsUrl") ? (
-                            <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
-                                <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-green-700 font-medium block">Detailed records uploaded</span>
-                                    <a
-                                        href={form.watch("business.financialRecordsUrl")}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-green-600 text-sm hover:underline truncate block"
-                                    >
-                                        View document ↗
-                                    </a>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        form.setValue("business.financialRecordsUrl", "");
-                                        toast.info("Records removed.");
-                                    }}
-                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
-                                    title="Remove document"
-                                >
-                                    ×
-                                </button>
+                        {/* Upload Financial Records (only show if they have records) */}
+                        {form.watch("business.hasFinancialRecords") && (
+                            <div className="pt-4">
+                                <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
+                                    <UploadIcon className="w-4 h-4 text-brand-blue" />
+                                    Upload your financial records (optional)
+                                </FormLabel>
+                                {form.watch("business.financialRecordsUrl") ? (
+                                    <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                                        <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-green-700 font-medium block">Detailed records uploaded</span>
+                                            <a
+                                                href={form.watch("business.financialRecordsUrl")}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-green-600 text-sm hover:underline truncate block"
+                                            >
+                                                View document ↗
+                                            </a>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                form.setValue("business.financialRecordsUrl", "");
+                                                toast.info("Records removed.");
+                                            }}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                            title="Remove document"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <UploadButton
+                                        endpoint="businessOverviewUploader"
+                                        onClientUploadComplete={(res) => {
+                                            if (res?.[0]) {
+                                                form.setValue("business.financialRecordsUrl", res[0].url);
+                                                toast.success("Financial records uploaded!");
+                                            }
+                                            setIsUploadingRecords(false);
+                                        }}
+                                        onUploadError={(error) => {
+                                            toast.error(`Upload failed: ${error.message}`);
+                                            setIsUploadingRecords(false);
+                                        }}
+                                        onUploadBegin={() => setIsUploadingRecords(true)}
+                                        appearance={{
+                                            button: cn(
+                                                "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                                isUploadingRecords && "opacity-50 cursor-not-allowed"
+                                            ),
+                                        }}
+                                    />
+                                )}
                             </div>
-                        ) : (
-                            <UploadButton
-                                endpoint="businessOverviewUploader"
-                                onClientUploadComplete={(res) => {
-                                    if (res?.[0]) {
-                                        form.setValue("business.financialRecordsUrl", res[0].url);
-                                        toast.success("Financial records uploaded!");
-                                    }
-                                    setIsUploadingRecords(false);
-                                }}
-                                onUploadError={(error) => {
-                                    toast.error(`Upload failed: ${error.message}`);
-                                    setIsUploadingRecords(false);
-                                }}
-                                onUploadBegin={() => setIsUploadingRecords(true)}
-                                appearance={{
-                                    button: cn(
-                                        "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
-                                        isUploadingRecords && "opacity-50 cursor-not-allowed"
-                                    ),
-                                }}
-                            />
                         )}
-                    </div>
+
+                        {/* Audited Accounts - Foundation */}
+                        <div className="pt-4 border-t border-slate-200">
+                            <FormLabel className="text-slate-700 font-medium flex flex-col gap-1 mb-3">
+                                <span>Do you have 1 year of audited financial statements?</span>
+                            </FormLabel>
+
+                            {form.watch("business.auditedAccountsUrl") ? (
+                                <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                                    <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-green-700 font-medium block">Audited statements uploaded</span>
+                                        <a
+                                            href={form.watch("business.auditedAccountsUrl")}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-green-600 text-sm hover:underline truncate block"
+                                        >
+                                            View document ↗
+                                        </a>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            form.setValue("business.auditedAccountsUrl", "");
+                                            toast.info("Audited statements removed.");
+                                        }}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                        title="Remove document"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ) : (
+                                <UploadButton
+                                    endpoint="auditedAccountsUploader"
+                                    onClientUploadComplete={(res) => {
+                                        if (res?.[0]) {
+                                            form.setValue("business.auditedAccountsUrl", res[0].url);
+                                            toast.success("Audited statements uploaded!");
+                                        }
+                                        setIsUploadingAudit(false);
+                                    }}
+                                    onUploadError={(error) => {
+                                        toast.error(`Upload failed: ${error.message}`);
+                                        setIsUploadingAudit(false);
+                                    }}
+                                    onUploadBegin={() => setIsUploadingAudit(true)}
+                                    appearance={{
+                                        button: cn(
+                                            "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                            isUploadingAudit && "opacity-50 cursor-not-allowed"
+                                        ),
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </>
                 )}
 
-                {/* Audited Accounts */}
-                <div className="pt-4 border-t border-slate-200">
-                    <FormLabel className="text-slate-700 font-medium flex flex-col gap-1 mb-3">
-                        <span>Do you have 1 year of audited financial statements?</span>
-                    </FormLabel>
-
-                    {form.watch("business.auditedAccountsUrl") ? (
-                        <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
-                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
-                            <div className="flex-1 min-w-0">
-                                <span className="text-green-700 font-medium block">Audited statements uploaded</span>
-                                <a
-                                    href={form.watch("business.auditedAccountsUrl")}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-green-600 text-sm hover:underline truncate block"
-                                >
-                                    View document ↗
-                                </a>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    form.setValue("business.auditedAccountsUrl", "");
-                                    toast.info("Audited statements removed.");
-                                }}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
-                                title="Remove document"
-                            >
-                                ×
-                            </button>
+                {/* Acceleration Track: Direct uploads (mandatory) */}
+                {track === "acceleration" && (
+                    <>
+                        {/* Financial Records Upload - Mandatory */}
+                        <div className="pt-2">
+                            <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
+                                <UploadIcon className="w-4 h-4 text-brand-blue" />
+                                Upload Financial Records (Books of accounts/Bank/Mpesa statements) <span className="text-red-500">*</span>
+                            </FormLabel>
+                            <FormDescription className="text-xs text-slate-500 mb-3">
+                                At least 1 year (latest 12 months) of financial records required for Acceleration Track
+                            </FormDescription>
+                            {form.watch("business.financialRecordsUrl") ? (
+                                <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                                    <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-green-700 font-medium block">Financial records uploaded</span>
+                                        <a
+                                            href={form.watch("business.financialRecordsUrl")}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-green-600 text-sm hover:underline truncate block"
+                                        >
+                                            View document ↗
+                                        </a>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            form.setValue("business.financialRecordsUrl", "");
+                                            toast.info("Records removed.");
+                                        }}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                        title="Remove document"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ) : (
+                                <UploadButton
+                                    endpoint="businessOverviewUploader"
+                                    onClientUploadComplete={(res) => {
+                                        if (res?.[0]) {
+                                            form.setValue("business.financialRecordsUrl", res[0].url);
+                                            form.setValue("business.hasFinancialRecords", true);
+                                            toast.success("Financial records uploaded!");
+                                        }
+                                        setIsUploadingRecords(false);
+                                    }}
+                                    onUploadError={(error) => {
+                                        toast.error(`Upload failed: ${error.message}`);
+                                        setIsUploadingRecords(false);
+                                    }}
+                                    onUploadBegin={() => setIsUploadingRecords(true)}
+                                    appearance={{
+                                        button: cn(
+                                            "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                            isUploadingRecords && "opacity-50 cursor-not-allowed"
+                                        ),
+                                    }}
+                                />
+                            )}
                         </div>
-                    ) : (
-                        <UploadButton
-                            endpoint="auditedAccountsUploader"
-                            onClientUploadComplete={(res) => {
-                                if (res?.[0]) {
-                                    form.setValue("business.auditedAccountsUrl", res[0].url);
-                                    toast.success("Audited statements uploaded!");
-                                }
-                                setIsUploadingAudit(false);
-                            }}
-                            onUploadError={(error) => {
-                                toast.error(`Upload failed: ${error.message}`);
-                                setIsUploadingAudit(false);
-                            }}
-                            onUploadBegin={() => setIsUploadingAudit(true)}
-                            appearance={{
-                                button: cn(
-                                    "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
-                                    isUploadingAudit && "opacity-50 cursor-not-allowed"
-                                ),
-                            }}
-                        />
-                    )}
-                </div>
+
+                        {/* Audited Accounts Upload - Optional for Acceleration */}
+                        <div className="pt-4 border-t border-slate-200">
+                            <FormLabel className="text-slate-700 font-medium flex items-center gap-2 mb-3">
+                                <UploadIcon className="w-4 h-4 text-brand-blue" />
+                                Upload Audited Financial Statements (Optional)
+                            </FormLabel>
+                            <FormDescription className="text-xs text-slate-500 mb-3">
+                                If available, upload 1 year of audited financial statements
+                            </FormDescription>
+
+                            {form.watch("business.auditedAccountsUrl") ? (
+                                <div className="relative flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200 group">
+                                    <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" weight="fill" />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-green-700 font-medium block">Audited statements uploaded</span>
+                                        <a
+                                            href={form.watch("business.auditedAccountsUrl")}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-green-600 text-sm hover:underline truncate block"
+                                        >
+                                            View document ↗
+                                        </a>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            form.setValue("business.auditedAccountsUrl", "");
+                                            toast.info("Audited statements removed.");
+                                        }}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all opacity-100 group-hover:opacity-100"
+                                        title="Remove document"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ) : (
+                                <UploadButton
+                                    endpoint="auditedAccountsUploader"
+                                    onClientUploadComplete={(res) => {
+                                        if (res?.[0]) {
+                                            form.setValue("business.auditedAccountsUrl", res[0].url);
+                                            toast.success("Audited statements uploaded!");
+                                        }
+                                        setIsUploadingAudit(false);
+                                    }}
+                                    onUploadError={(error) => {
+                                        toast.error(`Upload failed: ${error.message}`);
+                                        setIsUploadingAudit(false);
+                                    }}
+                                    onUploadBegin={() => setIsUploadingAudit(true)}
+                                    appearance={{
+                                        button: cn(
+                                            "w-full h-12 rounded-xl bg-brand-blue hover:bg-brand-blue-dark text-white font-medium",
+                                            isUploadingAudit && "opacity-50 cursor-not-allowed"
+                                        ),
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
         </motion.div>
     );
