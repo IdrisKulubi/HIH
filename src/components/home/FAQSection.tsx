@@ -52,7 +52,7 @@ export function FAQSection() {
   };
 
   return (
-    <section className="py-24 relative z-10 overflow-hidden">
+    <section id="faq" className="py-24 relative z-10 overflow-hidden">
       {/* Background Elements - updated to be subtle on top of global canvas */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#00D0AB]/10 rounded-full blur-3xl -z-10"></div>
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#0B5FBA]/10 rounded-full blur-3xl -z-10"></div>

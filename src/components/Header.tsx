@@ -16,8 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, FileText, LogIn } from "lucide-react";
-import { ModeToggle } from "@/components/theme/theme-toggle";
+import { User, LogOut, FileText, LogIn } from "lucide-react";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -112,7 +111,7 @@ export function Header() {
               </div>
 
               {/* Hand in Hand Sweden Logo - Made larger */}
-              <div className="hidden sm:block relative h-12 w-32 lg:h-14 lg:w-40">
+              <div className="hidden sm:block relative h-8 w-24 lg:h-10 lg:w-28">
                 <Image
                   src="/logos/hand-sweden.png"
                   alt="Hand in Hand Sweden"
@@ -142,8 +141,7 @@ export function Header() {
                 </Link>
               ))}
 
-              {/* Theme Toggle */}
-              <ModeToggle />
+             
 
               {/* Authentication Section */}
               {status === "loading" ? (
