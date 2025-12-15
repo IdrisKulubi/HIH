@@ -96,6 +96,7 @@ export const PasswordResetEmail = ({
           </Container>
 
           <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 mb-10 max-w-[400px] mx-auto">
+            For support, contact: <Link href="mailto:bire@handinhandea.or.ke" className="text-[#0B5FBA] no-underline">bire@handinhandea.or.ke</Link><br />
             © {new Date().getFullYear()} Hand in Hand Eastern Africa. All rights reserved.
           </Text>
         </Body>

@@ -93,6 +93,7 @@ export default function FeedbackRequestEmail({
 
             <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 max-w-[400px] mx-auto">
               BIRE Programme • Hand in Hand Eastern Africa <br />
+              For support, contact: <Link href="mailto:bire@handinhandea.or.ke" className="text-[#0B5FBA] no-underline">bire@handinhandea.or.ke</Link><br />
               © {new Date().getFullYear()} All rights reserved.
             </Text>
           </Container>

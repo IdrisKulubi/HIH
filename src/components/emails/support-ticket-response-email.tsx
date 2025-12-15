@@ -111,6 +111,7 @@ export const SupportTicketResponseEmail = ({
 
             <Text className="text-slate-400 text-[11px] leading-[20px] text-center mt-4 max-w-[400px] mx-auto">
               This email was sent to {userName}. If you didn't create this ticket, please ignore this email. <br />
+              For support, contact: <Link href="mailto:bire@handinhandea.or.ke" className="text-[#0B5FBA] no-underline">bire@handinhandea.or.ke</Link><br />
               © {new Date().getFullYear()} Hand in Hand Eastern Africa.
             </Text>
           </Container>
