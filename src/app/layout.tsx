@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { Header } from "@/components/Header";
 import { Providers } from "@/components/providers";
 import { SmoothScroll } from "@/components/ui/smooth-scroll";
+import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +43,10 @@ export default function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              <main className="pt-16 min-h-screen">{children}</main>
+              <main className="pt-16 min-h-screen">
+                      
+ 
+                {children} <Analytics /></main>
             </ThemeProvider>
           </SmoothScroll>
         </Providers>
