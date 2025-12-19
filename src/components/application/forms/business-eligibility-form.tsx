@@ -86,7 +86,7 @@ export function BusinessEligibilityForm({ form, track = "foundation" }: Business
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
+            className="space-y-10 pb-12"
         >
             <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-brand-blue/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
