@@ -213,7 +213,7 @@ function ApplicationsContent() {
               // Get count for this tab from stats
               const getTabCount = () => {
                 if (!stats) return null;
-                if (tab === 'all') return stats.total || 0;
+                if (tab === 'all') return stats.totalApplications || 0;
                 if (tab === 'foundation') return stats.foundationTrack || 0;
                 if (tab === 'acceleration') return stats.accelerationTrack || 0;
                 return null;
