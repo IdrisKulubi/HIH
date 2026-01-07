@@ -144,47 +144,34 @@ export interface DetailedApplication extends ApplicationListItem {
 
 export async function getApplicationStats(): Promise<ActionResponse<ApplicationStats>> {
     try {
-        // Total applications (excluding observation-only)
+        // Total applications (all applications)
         const totalResult = await db.select({ count: drizzleCount() })
-            .from(applications)
-            .where(eq(applications.isObservationOnly, false));
+            .from(applications);
         const totalApplications = totalResult[0]?.count ?? 0;
 
-        // Foundation track count (excluding observation-only)
+        // Foundation track count
         const foundationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(and(
-                eq(applications.track, "foundation"),
-                eq(applications.isObservationOnly, false)
-            ));
+            .where(eq(applications.track, "foundation"));
         const foundationTrack = foundationResult[0]?.count ?? 0;
 
-        // Acceleration track count (excluding observation-only)
+        // Acceleration track count
         const accelerationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(and(
-                eq(applications.track, "acceleration"),
-                eq(applications.isObservationOnly, false)
-            ));
+            .where(eq(applications.track, "acceleration"));
         const accelerationTrack = accelerationResult[0]?.count ?? 0;
 
-        // Eligible applications (excluding observation-only)
+        // Eligible applications
         const eligibleResult = await db.select({ count: drizzleCount() })
             .from(eligibilityResults)
             .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
-            .where(and(
-                eq(eligibilityResults.isEligible, true),
-                eq(applications.isObservationOnly, false)
-            ));
+            .where(eq(eligibilityResults.isEligible, true));
         const eligibleApplications = eligibleResult[0]?.count ?? 0;
 
-        // Pending review (excluding observation-only)
+        // Pending review
         const pendingResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(and(
-                eq(applications.status, "submitted"),
-                eq(applications.isObservationOnly, false)
-            ));
+            .where(eq(applications.status, "submitted"));
         const pendingReview = pendingResult[0]?.count ?? 0;
 
         return successResponse({
@@ -234,8 +221,6 @@ export async function getApplications(
         // Apply filters
         let filteredData = allApplications;
 
-        // Exclude observation-only applications from main list
-        filteredData = filteredData.filter((app) => !app.isObservationOnly);
 
         // Status filter
         if (filters.status && filters.status !== "all") {
