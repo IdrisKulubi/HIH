@@ -209,20 +209,42 @@ function ApplicationsContent() {
 
           {/* Track Tabs (Pills) */}
           <div className="flex p-1 bg-gray-100/50 rounded-xl">
-            {['all', 'foundation', 'acceleration'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all",
-                  (currentTab === tab || (tab === 'all' && !currentTab))
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-900"
-                )}
-              >
-                {tab === 'all' ? 'All Tracks' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+            {['all', 'foundation', 'acceleration'].map((tab) => {
+              // Get count for this tab from stats
+              const getTabCount = () => {
+                if (!stats) return null;
+                if (tab === 'all') return stats.total || 0;
+                if (tab === 'foundation') return stats.foundationTrack || 0;
+                if (tab === 'acceleration') return stats.accelerationTrack || 0;
+                return null;
+              };
+              const count = getTabCount();
+
+              return (
+                <button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  className={cn(
+                    "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5",
+                    (currentTab === tab || (tab === 'all' && !currentTab))
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  {tab === 'all' ? 'All Tracks' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {count !== null && (
+                    <span className={cn(
+                      "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                      (currentTab === tab || (tab === 'all' && !currentTab))
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-gray-200 text-gray-600"
+                    )}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Actions */}
