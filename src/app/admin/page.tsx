@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { getApplicationStats } from "@/lib/actions";
 import {
   UsersIcon,
-  CheckCircleIcon ,
+  CheckCircleIcon,
   ClockIcon,
   ChartBarIcon,
   FileTextIcon,
@@ -19,6 +19,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr"; // Use SSR import if needed, or standard
 import { getCurrentUser } from "@/lib/actions/user.actions";
 import { redirect } from "next/navigation";
+
 
 export default async function AdminDashboard() {
 
@@ -49,7 +50,7 @@ export default async function AdminDashboard() {
               Admin Dashboard
             </h1>
             <p className="text-slate-500 text-lg font-normal tracking-wide">
-              Overview of the BIRE Programme .   
+              Overview of the BIRE Programme .
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -160,6 +161,12 @@ export default async function AdminDashboard() {
                 icon={<EnvelopeSimpleIcon weight="duotone" className="w-5 h-5 text-pink-500" />}
                 title="Feedback Emails"
                 description="Send bulk feedback to applicants"
+              />
+              <QuickActionRow
+                href="/admin/users"
+                icon={<ShieldCheckIcon weight="duotone" className="w-5 h-5 text-violet-500" />}
+                title="User Management"
+                description="Add admins and manage user roles"
               />
             </div>
           </div>
