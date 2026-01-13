@@ -809,6 +809,27 @@ export const feedbackEmailRelations = relations(feedbackEmails, ({ one }) => ({
   })
 }));
 
+export const fundingRelations = relations(funding, ({ one }) => ({
+  business: one(businesses, {
+    fields: [funding.businessId],
+    references: [businesses.id]
+  })
+}));
+
+export const employeeRelations = relations(employees, ({ one }) => ({
+  business: one(businesses, {
+    fields: [employees.businessId],
+    references: [businesses.id]
+  })
+}));
+
+export const targetCustomersRelations = relations(targetCustomers, ({ one }) => ({
+  business: one(businesses, {
+    fields: [targetCustomers.businessId],
+    references: [businesses.id]
+  })
+}));
+
 // === DUE DILIGENCE MODULE ===
 
 export const dueDiligenceRecords = pgTable('due_diligence_records', {
