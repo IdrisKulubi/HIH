@@ -147,8 +147,8 @@ export default async function AdminDashboard() {
               <QuickActionRow
                 href="/admin/review"
                 icon={<ShieldCheckIcon weight="duotone" className="w-5 h-5 text-indigo-500" />}
-                title="Senior Review"
-                description="Final evaluation for shortlisted apps"
+                title="Dual Review"
+                description="View applications pending second review"
               />
               <QuickActionRow
                 href="/admin/export"

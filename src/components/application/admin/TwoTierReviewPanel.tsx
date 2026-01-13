@@ -129,7 +129,7 @@ export function TwoTierReviewPanel({
                     Two-Tier Review
                 </CardTitle>
                 <CardDescription className="text-gray-500">
-                    Workflow: Initial review → Senior review → Final decision
+                    Workflow: Reviewer 1 → Reviewer 2 → Average Score
                 </CardDescription>
             </CardHeader>
 
@@ -238,7 +238,7 @@ export function TwoTierReviewPanel({
                             <div className="bg-purple-50 p-1.5 rounded-md">
                                 <UserCheck className="h-4 w-4 text-purple-600" weight="fill" />
                             </div>
-                            Senior Review
+                            Second Review
                         </h3>
                         {canReview2 && !isLocked && (
                             <Button
@@ -255,7 +255,7 @@ export function TwoTierReviewPanel({
                                         </>
                                     ) : (
                                         <>
-                                            Start Final Review
+                                            Start Second Review
                                             <ArrowRight className="h-4 w-4 ml-2" />
                                         </>
                                     )}
@@ -275,11 +275,6 @@ export function TwoTierReviewPanel({
                                     <Badge className="bg-purple-100 text-purple-700 border-0 text-sm px-3 py-1">
                                         {reviewStatus.reviewer2.score}/100
                                     </Badge>
-                                    {reviewStatus.reviewer2.overrodeReviewer1 && (
-                                        <Badge className="bg-amber-100 text-amber-700 border-0 px-2 py-1">
-                                            Override
-                                        </Badge>
-                                    )}
                                 </div>
                             </div>
                             <div className="bg-white/80 p-3 rounded-lg border border-purple-100 text-sm text-gray-700 leading-relaxed">
@@ -289,7 +284,7 @@ export function TwoTierReviewPanel({
                     ) : (
                         <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-200">
                             <p className="text-sm text-gray-500">
-                                {reviewStatus?.reviewer1 ? "Ready for senior review." : "Pending initial review completion."}
+                                {reviewStatus?.reviewer1 ? "Ready for second reviewer." : "Pending first reviewer."}
                             </p>
                         </div>
                     )}

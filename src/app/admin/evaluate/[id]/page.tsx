@@ -27,9 +27,15 @@ import {
     Warning
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { getApplicationById, getReviewStatus, submitReviewer1Review, submitReviewer2Review } from "@/lib/actions";
-import { getActiveScoringConfiguration, initializeDefaultScoringConfig } from "@/lib/actions/scoring";
-import { getDetailedScores, saveScoringProgress } from "@/lib/actions/scoring-progress";
+import {
+    getApplicationById,
+    getReviewStatus,
+    submitReview,
+    getActiveScoringConfiguration,
+    getDetailedScores,
+    saveScoringProgress,
+    initializeDefaultScoringConfig
+} from "@/lib/actions";
 import { DocumentViewerModal } from "@/components/application/admin/DocumentViewerModal";
 import { ScoringSectionModal } from "@/components/application/admin/ScoringSectionModal";
 import { getScoringConfigByTrack } from "@/lib/types/scoring";
@@ -90,28 +96,58 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
 
     async function loadData() {
         try {
-            const [appRes, statusRes, scoresRes] = await Promise.all([
+            const [appRes, statusRes, scoresRes, activeConfigRes] = await Promise.all([
                 getApplicationById(applicationId),
                 getReviewStatus(applicationId),
-                getDetailedScores(applicationId)
+                getDetailedScores(applicationId),
+                getActiveScoringConfiguration()
             ]);
 
             if (appRes.success && appRes.data) {
                 setApplication(appRes.data);
 
-                // Use track-specific BIRE Programme scoring config
                 const track = appRes.data.track === 'acceleration' ? 'acceleration' : 'foundation';
-                const trackConfig = getScoringConfigByTrack(track);
+                let configWithIds;
 
-                // Convert to the format expected by the component
-                const configWithIds = {
-                    ...trackConfig,
-                    criteria: trackConfig.criteria.map((c, index) => ({
-                        ...c,
-                        id: index + 1, // Assign temporary IDs for the UI
-                        weight: c.maxPoints
-                    }))
-                };
+                // Try to use criteria from the database first
+                if (activeConfigRes.success && activeConfigRes.data?.criteria) {
+                    const dbCriteria = activeConfigRes.data.criteria
+                        .filter((c: any) => c.track === track)
+                        .map((c: any) => ({
+                            id: c.id,
+                            category: c.category,
+                            name: c.criteriaName,
+                            maxPoints: c.weight,
+                            weight: c.weight,
+                            scoringLevels: typeof c.scoringLogic === 'string' ? JSON.parse(c.scoringLogic) : c.scoringLogic
+                        }));
+
+                    if (dbCriteria.length > 0) {
+                        configWithIds = {
+                            id: activeConfigRes.data.id,
+                            name: activeConfigRes.data.name,
+                            criteria: dbCriteria
+                        };
+                    }
+                }
+
+                // Fallback to hardcoded config if DB config is missing/empty
+                if (!configWithIds) {
+                    const trackConfig = getScoringConfigByTrack(track);
+                    configWithIds = {
+                        ...trackConfig,
+                        criteria: trackConfig.criteria.map((c, index) => ({
+                            ...c,
+                            id: index + 1, // This will still fail on save, but it's better than nothing
+                            weight: c.maxPoints
+                        }))
+                    };
+
+                    if (activeConfigRes.success && !activeConfigRes.data) {
+                        toast.error("Scoring configuration not initialized. Please go to Admin Dashboard to initialize it.");
+                    }
+                }
+
                 setScoringConfig(configWithIds);
             }
 
@@ -127,16 +163,29 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
             }
 
             if (scoresRes.success && scoresRes.data) {
-                // Populate existing detailed scores
-                const dScores: Record<number, number> = {};
-                const dNotes: Record<number, string> = {};
-                //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                scoresRes.data.forEach((s: any) => {
-                    dScores[s.criteriaId] = parseFloat(s.score);
-                    dNotes[s.criteriaId] = s.reviewerComment || "";
-                });
-                setDetailedScores(dScores);
-                setDetailedNotes(dNotes);
+                // BLIND REVIEW: Only load scores if:
+                // 1. Both reviews are complete, OR
+                // 2. Current user has already reviewed (viewing their own scores)
+                // R2 should NOT see R1's per-criteria scores before submitting
+                const bothReviewsComplete = statusRes.data?.bothReviewsComplete;
+                const currentUserHasReviewed = statusRes.data?.currentUserHasReviewed;
+
+                if (bothReviewsComplete || currentUserHasReviewed) {
+                    // Safe to show scores
+                    const dScores: Record<number, number> = {};
+                    const dNotes: Record<number, string> = {};
+                    //eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    scoresRes.data.forEach((s: any) => {
+                        dScores[s.criteriaId] = parseFloat(s.score);
+                        dNotes[s.criteriaId] = s.reviewerComment || "";
+                    });
+                    setDetailedScores(dScores);
+                    setDetailedNotes(dNotes);
+                } else {
+                    // Blind review mode - R2 should start fresh
+                    setDetailedScores({});
+                    setDetailedNotes({});
+                }
             }
 
         } catch (error) {
@@ -202,24 +251,12 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
 
         setSubmitting(true);
         try {
-            const isR2 = application.status === "pending_senior_review";
-            let result;
-
-            if (isR2) {
-                result = await submitReviewer2Review({
-                    applicationId,
-                    score: totalScore,
-                    notes: generalNotes,
-                    finalDecision: decision,
-                    overrideReviewer1: totalScore !== reviewStatus?.reviewer1?.score,
-                });
-            } else {
-                result = await submitReviewer1Review({
-                    applicationId,
-                    score: totalScore,
-                    notes: generalNotes,
-                });
-            }
+            // Use unified submitReview - it auto-detects R1/R2
+            const result = await submitReview({
+                applicationId,
+                score: totalScore,
+                notes: generalNotes,
+            });
 
             if (result.success) {
                 toast.success(result.message);
@@ -287,8 +324,26 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
         );
     }
 
-    const isR2 = application.status === "pending_senior_review";
-    const reviewerTitle = isR2 ? "Senior Review" : "Initial Review";
+    // Determine reviewer role - based on review status
+    const isBlindReview = reviewStatus?.isBlindReview;
+    const currentUserHasReviewed = reviewStatus?.currentUserHasReviewed;
+    const canSubmitReview = reviewStatus?.canSubmitReview !== false;
+
+    // Check if R1 slot is filled
+    const hasReviewer1 = !!reviewStatus?.reviewer1;
+    const hasReviewer2 = !!reviewStatus?.reviewer2;
+
+    // If no R1 yet, current user will be R1
+    // If R1 exists but no R2, current user will be R2
+    const awaitingSecondReview = hasReviewer1 && !hasReviewer2;
+
+    // Determine the role title
+    let reviewerTitle = "Reviewer 1";
+    if (hasReviewer1 && !hasReviewer2) {
+        reviewerTitle = "Reviewer 2 (Blind)";
+    } else if (hasReviewer1 && hasReviewer2) {
+        reviewerTitle = "Review Complete";
+    }
 
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
@@ -314,7 +369,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                     <Button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className={cn("shadow-lg shadow-blue-900/10 min-w-[120px]", isR2 ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700")}
+                        className={cn("shadow-lg shadow-blue-900/10 min-w-[120px]", awaitingSecondReview ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700")}
                     >
                         {submitting ? <Spinner className="animate-spin h-4 w-4" /> : "Submit Review"}
                     </Button>
@@ -420,40 +475,28 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                 {/* Right Column: Scoring (Sticky) */}
                 <div className="lg:col-span-4 flex flex-col">
                     <div className="bg-white rounded-2xl border border-gray-200/60 shadow-lg shadow-gray-200/50 flex flex-col">
-                        <div className={cn("p-6 border-b border-gray-100", isR2 ? "bg-purple-50/50" : "bg-blue-50/50")}>
+                        <div className={cn("p-6 border-b border-gray-100", awaitingSecondReview ? "bg-purple-50/50" : "bg-blue-50/50")}>
                             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                {isR2 ? <ShieldCheck className="text-purple-600" weight="fill" /> : <User className="text-blue-600" weight="fill" />}
+                                {awaitingSecondReview ? <ShieldCheck className="text-purple-600" weight="fill" /> : <User className="text-blue-600" weight="fill" />}
                                 {reviewerTitle}
                             </h2>
                             <p className="text-sm text-gray-500 mt-1">
-                                {isR2 ? "Finalize application decision." : "Complete the scoring sections below."}
+                                {isBlindReview ? "Blind review - other scores hidden until you submit." : "Complete the scoring sections below."}
                             </p>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* R1 Summary for R2 */}
-                            {isR2 && reviewStatus?.reviewer1 && (
-                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 mb-2">
-                                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-widest pl-1 mb-2 block">Initial Review Summary</Label>
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <User size={16} className="text-gray-400" />
-                                            <span className="text-sm font-medium text-gray-900">{reviewStatus.reviewer1.name || "Reviewer 1"}</span>
-                                        </div>
-                                        <Badge variant="outline" className={cn("font-mono", getScoreColor(reviewStatus.reviewer1.score))}>
-                                            Score: {reviewStatus.reviewer1.score}/100
-                                        </Badge>
+                            {/* Blind Review Notice */}
+                            {isBlindReview && (
+                                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 mb-2">
+                                    <div className="flex items-center gap-2 text-amber-700">
+                                        <Warning weight="fill" className="h-5 w-5" />
+                                        <span className="text-sm font-medium">Blind Review Mode</span>
                                     </div>
-                                    {reviewStatus.reviewer1.notes && (
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-0 text-gray-300 text-2xl font-serif">“</span>
-                                            <p className="text-sm text-gray-600 italic bg-white p-3 px-6 rounded border border-gray-100 leading-relaxed">
-                                                {reviewStatus.reviewer1.notes}
-                                            </p>
-                                        </div>
-                                    )}
+                                    <p className="text-xs text-amber-600 mt-1">Another reviewer has scored this application. Their scores are hidden to ensure unbiased evaluation. Final score will be the average of both reviews.</p>
                                 </div>
                             )}
+
 
                             {/* Total Score Display */}
                             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
@@ -514,29 +557,39 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                                 })}
                             </div>
 
-                            {/* Decision (R2 Only) */}
-                            {isR2 && (
+                            {/* Final Score Info */}
+                            {reviewStatus?.bothReviewsComplete && (
+                                <div className="space-y-3 pt-4 border-t border-gray-100">
+                                    <Label className="text-sm font-medium text-gray-900">Review Complete</Label>
+                                    <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                                        <div className="text-center">
+                                            <span className="text-2xl font-bold text-green-700">{reviewStatus.finalScore?.toFixed(1)}</span>
+                                            <span className="text-sm text-green-600 ml-1">/ 100</span>
+                                        </div>
+                                        <p className="text-xs text-green-600 text-center mt-1">Average of both reviewers</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Decision Info (R2 Only) - Decision is automatic based on average */}
+                            {awaitingSecondReview && (
                                 <div className="space-y-3 pt-4 border-t border-gray-100">
                                     <Label className="text-sm font-medium text-gray-900">Final Decision</Label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setDecision("approved")}
-                                            className={cn("flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
-                                                decision === "approved" ? "border-green-500 bg-green-50 text-green-700" : "border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <CheckCircle size={24} weight={decision === "approved" ? "fill" : "regular"} />
-                                            <span className="font-semibold">Approve</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setDecision("rejected")}
-                                            className={cn("flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
-                                                decision === "rejected" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100"
-                                            )}
-                                        >
-                                            <XCircle size={24} weight={decision === "rejected" ? "fill" : "regular"} />
-                                            <span className="font-semibold">Reject</span>
-                                        </button>
+                                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                        <p className="text-sm text-blue-800 font-medium">Automatic Decision</p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            The final decision will be calculated automatically based on the average of both reviewers&apos; scores.
+                                        </p>
+                                        <div className="mt-3 text-xs text-blue-700 space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <CheckCircle size={14} weight="fill" className="text-green-600" />
+                                                <span>Average ≥ 70: <strong>Approved</strong></span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <XCircle size={14} weight="fill" className="text-red-500" />
+                                                <span>Average &lt; 70: <strong>Rejected</strong></span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -559,7 +612,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                             <Button
                                 onClick={handleSubmit}
                                 disabled={submitting}
-                                className={cn("w-full h-12 text-base font-semibold shadow-xl", isR2 ? "bg-purple-600 hover:bg-purple-700 shadow-purple-900/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-900/20")}
+                                className={cn("w-full h-12 text-base font-semibold shadow-xl", awaitingSecondReview ? "bg-purple-600 hover:bg-purple-700 shadow-purple-900/20" : "bg-blue-600 hover:bg-blue-700 shadow-blue-900/20")}
                             >
                                 {submitting ? <Spinner className="animate-spin mr-2" /> : <PaperPlaneRight weight="fill" className="mr-2" />}
                                 Submit Evaluation
@@ -576,19 +629,21 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                 filename={viewerFilename}
             />
 
-            {activeCategory && (
-                <ScoringSectionModal
-                    open={modalOpen}
-                    onOpenChange={setModalOpen}
-                    category={activeCategory}
-                    //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    criteria={groupedCriteria[activeCategory] as any[]}
-                    initialScores={detailedScores}
-                    initialNotes={detailedNotes}
-                    onSave={handleSectionSave}
-                    applicationData={application}
-                />
-            )}
+            {
+                activeCategory && (
+                    <ScoringSectionModal
+                        open={modalOpen}
+                        onOpenChange={setModalOpen}
+                        category={activeCategory}
+                        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        criteria={groupedCriteria[activeCategory] as any[]}
+                        initialScores={detailedScores}
+                        initialNotes={detailedNotes}
+                        onSave={handleSectionSave}
+                        applicationData={application}
+                    />
+                )
+            }
         </div>
     );
 }

@@ -85,12 +85,31 @@ export {
 } from "./bire-scoring";
 
 // =============================================================================
-// TWO-TIER REVIEW SYSTEM
+// TWO-TIER REVIEW SYSTEM (Blind Dual Review)
 // =============================================================================
 export {
-    submitReviewer1Review,
-    submitReviewer2Review,
+    submitReview,
+    submitReviewer1Review, // @deprecated - use submitReview
+    submitReviewer2Review, // @deprecated - use submitReview
     lockApplication,
     unlockApplication,
     getReviewStatus,
 } from "./two-tier-review";
+
+// =============================================================================
+// SCORING CONFIGURATION & PROGRESS
+// =============================================================================
+export {
+    createScoringConfiguration,
+    getScoringConfigurations,
+    getActiveScoringConfiguration,
+    activateScoringConfiguration,
+    reEvaluateApplications,
+    initializeDefaultScoringConfig,
+} from "./scoring";
+
+export {
+    saveScoringProgress,
+    getDetailedScores,
+} from "./scoring-progress";
+

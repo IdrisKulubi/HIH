@@ -15,9 +15,9 @@ export function InitializeDefaultConfigButton() {
     setIsInitializing(true);
     try {
       const result = await initializeDefaultScoringConfig();
-      
+
       if (result.success) {
-        toast.success("Default KCIC scoring configuration initialized successfully!");
+        toast.success("BIRE Programme scoring configuration initialized successfully!");
         router.refresh();
       } else {
         toast.error(result.error || "Failed to initialize default configuration");

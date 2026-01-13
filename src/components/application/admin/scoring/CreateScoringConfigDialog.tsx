@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,17 +15,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  
-  Save, 
-  
-  Settings, 
- 
+import {
+
+  Save,
+
+  Settings,
+
 } from "lucide-react";
-import { createScoringConfiguration} from "@/lib/actions/scoring";
+import { createScoringConfiguration } from "@/lib/actions/scoring";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { DEFAULT_KCIC_SCORING_CONFIG } from "@/lib/types/scoring";
+import { DEFAULT_BIRE_SCORING_CONFIG } from "@/lib/types/scoring";
 
 interface CreateScoringConfigDialogProps {
   children: React.ReactNode;
@@ -54,13 +54,13 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
     setIsCreating(true);
     try {
       let configToCreate;
-      
+
       if (useDefaultConfig) {
         // Use default config but with custom name and description
         configToCreate = {
-          ...DEFAULT_KCIC_SCORING_CONFIG,
+          ...DEFAULT_BIRE_SCORING_CONFIG,
           name: formData.name,
-          description: formData.description || DEFAULT_KCIC_SCORING_CONFIG.description,
+          description: formData.description || DEFAULT_BIRE_SCORING_CONFIG.description,
           version: formData.version,
           totalMaxScore: formData.totalMaxScore,
           passThreshold: formData.passThreshold,
@@ -78,7 +78,7 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
       }
 
       const result = await createScoringConfiguration(configToCreate);
-      
+
       if (result.success) {
         toast.success("Scoring configuration created successfully!");
         setIsOpen(false);
@@ -121,13 +121,13 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
           {/* Basic Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900">Basic Information</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Configuration Name *</Label>
                 <Input
                   id="name"
-                  placeholder="e.g., KCIC Climate Challenge v2.0"
+                  placeholder="e.g., BIRE Programme v2.0"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
@@ -185,7 +185,7 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
           {/* Configuration Template */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900">Configuration Template</h3>
-            
+
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <input
@@ -197,32 +197,32 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
                   className="h-4 w-4 text-blue-600"
                 />
                 <Label htmlFor="useDefault" className="cursor-pointer">
-                  Use KCIC Default Template (Recommended)
+                  Use BIRE Default Template (Recommended)
                 </Label>
               </div>
-              
+
               {useDefaultConfig && (
                 <div className="ml-7 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800 mb-3">
-                    This template includes the complete KCIC scoring criteria with all categories and evaluation levels.
+                    This template includes the complete BIRE Programme scoring criteria for both Foundation and Acceleration tracks.
                   </p>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div className="space-y-1">
                       <div className="font-medium text-blue-900">Categories Included:</div>
                       <div className="text-blue-700">
-                        • Innovation & Climate Adaptation (40pts)<br/>
-                        • Business Viability (31pts)<br/>
-                        • Sectoral & Strategic Alignment (20pts)<br/>
-                        • Organizational Capacity (14pts)
+                        • Commercial Viability (30pts)<br />
+                        • Business Model (10pts)<br />
+                        • Market Potential (30pts)<br />
+                        • Social Impact (40pts)
                       </div>
                     </div>
                     <div className="space-y-1">
                       <div className="font-medium text-blue-900">Features:</div>
                       <div className="text-blue-700">
-                        • 18 detailed criteria<br/>
-                        • 3-level scoring system<br/>
-                        • Gender inclusion focus<br/>
-                        • Climate adaptation priority
+                        • 11 Foundation criteria<br />
+                        • 16 Acceleration criteria<br />
+                        • Women/Youth/PWD focus<br />
+                        • 70% pass threshold
                       </div>
                     </div>
                   </div>
@@ -242,11 +242,11 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
                   Start with Empty Configuration
                 </Label>
               </div>
-              
+
               {!useDefaultConfig && (
                 <div className="ml-7 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <p className="text-sm text-gray-600">
-                    Create a blank configuration and add your own criteria after creation. 
+                    Create a blank configuration and add your own criteria after creation.
                     This gives you complete control over the evaluation structure.
                   </p>
                 </div>
@@ -257,14 +257,14 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
           {useDefaultConfig && (
             <>
               <Separator />
-              
+
               {/* Preview of Default Config */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium text-gray-900">Template Preview</h3>
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {Object.entries(
                     //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    DEFAULT_KCIC_SCORING_CONFIG.criteria.reduce((acc: any, criteria: any) => {
+                    DEFAULT_BIRE_SCORING_CONFIG.criteria.reduce((acc: any, criteria: any) => {
                       if (!acc[criteria.category]) {
                         acc[criteria.category] = [];
                       }
@@ -275,7 +275,7 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
                   ).map(([category, categoryCriteria]: [string, any]) => {
                     //eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const categoryTotal = categoryCriteria.reduce((sum: number, c: any) => sum + c.maxPoints, 0);
-                    
+
                     return (
                       <div key={category} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                         <div className="flex items-center justify-between mb-2">

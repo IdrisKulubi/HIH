@@ -10,7 +10,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "../../../auth";
 import { revalidatePath } from "next/cache";
-import { ScoringConfigurationData, DEFAULT_KCIC_SCORING_CONFIG } from "../types/scoring";
+import { ScoringConfigurationData, DEFAULT_BIRE_SCORING_CONFIG } from "../types/scoring";
 
 /**
  * Create a new scoring configuration
@@ -45,15 +45,10 @@ export async function createScoringConfiguration(configData: ScoringConfiguratio
       const criteriaToInsert = configData.criteria.map((criteria) => ({
         configId: config.id,
         category: criteria.category,
-        criteriaName: criteria.name, // Mapped name -> criteriaName
-        // description: criteria.description, // Not in schema
-        weight: criteria.maxPoints, // Mapped maxPoints -> weight
-        // weightage: criteria.weightage, // Not in schema
-        track: 'foundation' as const, // Defaulting to foundation, strict enum required.
+        criteriaName: criteria.name,
+        weight: criteria.maxPoints,
+        track: (criteria as any).track || 'foundation', // Use track if provided, default to foundation
         scoringLogic: JSON.stringify(criteria.scoringLevels),
-        // evaluationType: criteria.evaluationType, // Not in schema
-        // sortOrder: criteria.sortOrder, // Not in schema
-        // isRequired: criteria.isRequired, // Not in schema
       }));
 
       await db.insert(scoringCriteria).values(criteriaToInsert);
@@ -299,7 +294,7 @@ function calculateBasicScore(application: any, config: any): number {
 }
 
 /**
- * Initialize the default KCIC scoring configuration
+ * Initialize the default BIRE Programme scoring configuration
  */
 export async function initializeDefaultScoringConfig() {
   try {
@@ -310,15 +305,15 @@ export async function initializeDefaultScoringConfig() {
 
     // Check if default config already exists
     const existingConfig = await db.query.scoringConfigurations.findFirst({
-      where: eq(scoringConfigurations.name, DEFAULT_KCIC_SCORING_CONFIG.name),
+      where: eq(scoringConfigurations.name, DEFAULT_BIRE_SCORING_CONFIG.name),
     });
 
     if (existingConfig) {
-      return { success: false, error: "Default KCIC configuration already exists" };
+      return { success: false, error: "BIRE Programme scoring configuration already exists" };
     }
 
     // Create the default configuration
-    const result = await createScoringConfiguration(DEFAULT_KCIC_SCORING_CONFIG);
+    const result = await createScoringConfiguration(DEFAULT_BIRE_SCORING_CONFIG);
 
     if (result.success && result.data) {
       // Activate it as the default

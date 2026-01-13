@@ -16,6 +16,7 @@ export interface ScoringCriteriaData {
   evaluationType?: 'manual' | 'auto' | 'hybrid';
   sortOrder?: number;
   isRequired?: boolean;
+  track?: 'foundation' | 'acceleration';
 }
 
 export interface ScoringConfigurationData {
@@ -51,7 +52,8 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       ],
       evaluationType: "manual",
       sortOrder: 1,
-      isRequired: true
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Commercial Viability",
@@ -65,7 +67,22 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       ],
       evaluationType: "manual",
       sortOrder: 2,
-      isRequired: true
+      isRequired: true,
+      track: "foundation"
+    },
+    {
+      category: "Commercial Viability",
+      name: "External Fundraising (Received)",
+      description: "Has the business received external funding",
+      maxPoints: 10,
+      scoringLevels: [
+        { level: "Yes", points: 10, description: "Has received external funding" },
+        { level: "No", points: 5, description: "No external funding received" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 3,
+      isRequired: true,
+      track: "foundation"
     },
 
     // Business Model (10 Marks)
@@ -80,8 +97,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "Existing", points: 2, description: "Traditional/existing business model" }
       ],
       evaluationType: "manual",
-      sortOrder: 3,
-      isRequired: true
+      sortOrder: 4,
+      isRequired: true,
+      track: "foundation"
     },
 
     // Market Potential (30 Marks)
@@ -96,8 +114,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "Higher", points: 1, description: "Priced higher than competitors" }
       ],
       evaluationType: "manual",
-      sortOrder: 4,
-      isRequired: true
+      sortOrder: 5,
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Market Potential",
@@ -110,8 +129,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "Existing", points: 2, description: "Similar to existing products" }
       ],
       evaluationType: "manual",
-      sortOrder: 5,
-      isRequired: true
+      sortOrder: 6,
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Market Potential",
@@ -124,8 +144,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "High", points: 0, description: "Many substitutes available" }
       ],
       evaluationType: "manual",
-      sortOrder: 6,
-      isRequired: true
+      sortOrder: 7,
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Market Potential",
@@ -138,8 +159,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "High", points: 1, description: "Easy for competitors to enter" }
       ],
       evaluationType: "manual",
-      sortOrder: 7,
-      isRequired: true
+      sortOrder: 8,
+      isRequired: true,
+      track: "foundation"
     },
 
     // Social Impact (40 Marks)
@@ -154,8 +176,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "Not Defined", points: 5, description: "No clear environmental consideration" }
       ],
       evaluationType: "manual",
-      sortOrder: 8,
-      isRequired: true
+      sortOrder: 9,
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Social Impact",
@@ -168,8 +191,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "5 employees", points: 5, description: "5 from special groups" }
       ],
       evaluationType: "manual",
-      sortOrder: 9,
-      isRequired: true
+      sortOrder: 10,
+      isRequired: true,
+      track: "foundation"
     },
     {
       category: "Social Impact",
@@ -182,8 +206,9 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
         { level: "Not Clear", points: 1, description: "Compliance status unclear" }
       ],
       evaluationType: "manual",
-      sortOrder: 10,
-      isRequired: true
+      sortOrder: 11,
+      isRequired: true,
+      track: "foundation"
     }
   ]
 };
@@ -428,13 +453,32 @@ export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
       ],
       evaluationType: "manual",
       sortOrder: 16,
-      isRequired: true
+      isRequired: true,
+      track: "acceleration"
     }
   ]
 };
 
-// Default config - use Foundation for backward compatibility
-export const DEFAULT_KCIC_SCORING_CONFIG = FOUNDATION_SCORING_CONFIG;
+// =============================================================================
+// COMBINED DEFAULT CONFIGURATION
+// =============================================================================
+export const COMBINED_DEFAULT_CONFIG: ScoringConfigurationData = {
+  name: "BIRE Programme - Scoring Config v1",
+  description: "Standard scoring configuration for both Foundation and Acceleration tracks",
+  version: "1.0",
+  totalMaxScore: 100,
+  passThreshold: 70,
+  criteria: [
+    ...FOUNDATION_SCORING_CONFIG.criteria.map(c => ({ ...c, track: "foundation" as const })),
+    ...ACCELERATION_SCORING_CONFIG.criteria.map(c => ({ ...c, track: "acceleration" as const }))
+  ]
+};
+
+// Default BIRE Programme scoring configuration
+export const DEFAULT_BIRE_SCORING_CONFIG = COMBINED_DEFAULT_CONFIG;
+
+// Backwards compatibility alias (deprecated - use DEFAULT_BIRE_SCORING_CONFIG)
+export const DEFAULT_KCIC_SCORING_CONFIG = DEFAULT_BIRE_SCORING_CONFIG;
 
 // Helper to get config by track
 export function getScoringConfigByTrack(track: 'foundation' | 'acceleration'): ScoringConfigurationData {
