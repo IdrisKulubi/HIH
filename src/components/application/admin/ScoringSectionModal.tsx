@@ -69,7 +69,7 @@ function generateScoringOptions(maxWeight: number): { score: number; label: stri
     }
 }
 
-// Mapping of criteria keywords to application data fields
+// Mapping of criteria names to application data fields based on BIRE scoring criteria
 //eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRelevantData(criteriaName: string, category: string, app: any): { label: string; value: string }[] {
     if (!app) return [];
@@ -77,62 +77,152 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
     const name = criteriaName.toLowerCase();
     const cat = category.toLowerCase();
     const results: { label: string; value: string }[] = [];
+    const business = app.business;
 
-    // Innovation / Climate
-    if (name.includes('innovation') || name.includes('climate') || name.includes('adaptation') || cat.includes('innovation')) {
-        if (app.business?.climateAdaptationContribution) results.push({ label: "Climate Contribution", value: app.business.climateAdaptationContribution });
-        if (app.business?.problemSolved) results.push({ label: "Problem Solved", value: app.business.problemSolved });
-        if (app.business?.businessModelUniquenessDescription) results.push({ label: "Uniqueness", value: app.business.businessModelUniquenessDescription });
+    // === FOUNDATION TRACK: COMMERCIAL VIABILITY ===
+    if (name.includes('proof of sales') || name.includes('revenue') && cat.includes('commercial')) {
+        if (business?.revenueLastYear) results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+        if (business?.salesEvidenceUrl) results.push({ label: "Sales Evidence", value: "Document uploaded ✓" });
     }
 
-    // Market / Demand
-    if (name.includes('market') || name.includes('demand') || name.includes('customer')) {
-        if (app.business?.targetCustomers) results.push({ label: "Target Customers", value: app.business.targetCustomers });
-        if (app.business?.marketSize) results.push({ label: "Market Size", value: app.business.marketSize });
-        if (app.business?.competitiveAdvantage) results.push({ label: "Competitive Advantage", value: app.business.competitiveAdvantage });
+    if (name.includes('number of customers') || name.includes('customer')) {
+        if (business?.customerCount) results.push({ label: "Customer Count", value: String(business.customerCount) });
     }
 
-    // Business / Financial / Viability
-    if (name.includes('business') || name.includes('viability') || name.includes('financial') || name.includes('revenue') || cat.includes('viability')) {
-        if (app.business?.revenueLastTwoYears) results.push({ label: "Revenue (Last 2 Years)", value: `KES ${Number(app.business.revenueLastTwoYears).toLocaleString()}` });
-        if (app.business?.unitPrice) results.push({ label: "Unit Price", value: `KES ${Number(app.business.unitPrice).toLocaleString()}` });
-        if (app.revenues?.revenueLastYear) results.push({ label: "Revenue Last Year", value: `KES ${Number(app.revenues.revenueLastYear).toLocaleString()}` });
-        if (app.business?.growthHistory || app.revenues?.growthHistory) results.push({ label: "Growth History", value: app.business?.growthHistory || app.revenues?.growthHistory });
+    if (name.includes('external fundraising') || name.includes('funding') && !name.includes('funds raised')) {
+        if (business?.hasExternalFunding !== undefined) results.push({ label: "Has External Funding", value: business.hasExternalFunding ? "Yes" : "No" });
+        if (business?.externalFundingDetails) results.push({ label: "Funding Details", value: business.externalFundingDetails });
     }
 
-    // Management / Team / Capacity
-    if (name.includes('management') || name.includes('capacity') || name.includes('team') || name.includes('entrepreneur')) {
-        if (app.applicant?.highestEducation) results.push({ label: "Education", value: app.applicant.highestEducation });
-        if (app.impactPotential?.fullTimeEmployeesTotal) results.push({ label: "Full-Time Employees", value: String(app.impactPotential.fullTimeEmployeesTotal) });
-        if (app.business?.isRegistered !== undefined) results.push({ label: "Registered Business", value: app.business.isRegistered ? "Yes" : "No" });
+    // === FOUNDATION TRACK: BUSINESS MODEL ===
+    if (name.includes('business model') && cat.includes('business model')) {
+        if (business?.businessModelInnovation) results.push({ label: "Business Model Innovation", value: business.businessModelInnovation });
+        if (business?.businessModelDescription) results.push({ label: "Model Description", value: business.businessModelDescription });
     }
 
-    // Social Impact / Environmental
-    if (name.includes('social') || name.includes('environment') || name.includes('impact')) {
-        if (app.socialImpact?.environmentalImpact) results.push({ label: "Environmental Impact", value: app.socialImpact.environmentalImpact });
-        if (app.socialImpact?.socialImpactContribution) results.push({ label: "Social Impact", value: app.socialImpact.socialImpactContribution });
-        if (app.impactPotential?.fullTimeEmployeesWomen) results.push({ label: "Women Employed", value: String(app.impactPotential.fullTimeEmployeesWomen) });
-        if (app.impactPotential?.fullTimeEmployeesYouth) results.push({ label: "Youth Employed", value: String(app.impactPotential.fullTimeEmployeesYouth) });
+    // === FOUNDATION TRACK: MARKET POTENTIAL ===
+    if (name.includes('relative pricing') || name.includes('pricing')) {
+        if (business?.relativePricing) results.push({ label: "Relative Pricing", value: business.relativePricing });
+        if (business?.competitorOverview) results.push({ label: "Competitor Overview", value: business.competitorOverview });
     }
 
-    // Sector / Alignment / Strategic
-    if (name.includes('sector') || name.includes('alignment') || name.includes('strategic') || cat.includes('alignment')) {
-        if (app.business?.sector) results.push({ label: "Sector", value: app.business.sector });
-        if (app.business?.county) results.push({ label: "County", value: app.business.county });
-        if (app.business?.description) results.push({ label: "Business Description", value: app.business.description });
+    if (name.includes('product differentiation') || name.includes('differentiation') && !name.includes('market')) {
+        if (business?.productDifferentiation) results.push({ label: "Product Differentiation", value: business.productDifferentiation });
     }
 
-    // Organization / Partnerships
-    if (name.includes('organization') || name.includes('partner') || name.includes('governance')) {
-        if (app.business?.isRegistered !== undefined) results.push({ label: "Registered", value: app.business.isRegistered ? "Yes" : "No" });
-        if (app.business?.registrationNumber) results.push({ label: "Registration Number", value: app.business.registrationNumber });
-        if (app.business?.startDate) results.push({ label: "Founded", value: new Date(app.business.startDate).toLocaleDateString() });
+    if (name.includes('threat of substitutes') || name.includes('substitutes')) {
+        if (business?.threatOfSubstitutes) results.push({ label: "Threat of Substitutes", value: business.threatOfSubstitutes });
     }
 
-    // Fallback: show general info if no specific match
+    if (name.includes('ease of market entry') || name.includes('market entry')) {
+        if (business?.easeOfMarketEntry) results.push({ label: "Ease of Market Entry", value: business.easeOfMarketEntry });
+    }
+
+    // === FOUNDATION TRACK: SOCIAL IMPACT ===
+    if (name.includes('environmental impact') || (name.includes('environmental') && cat.includes('social'))) {
+        if (business?.environmentalImpact) results.push({ label: "Environmental Impact Level", value: business.environmentalImpact });
+        if (business?.environmentalImpactDescription) results.push({ label: "Environmental Impact Details", value: business.environmentalImpactDescription });
+    }
+
+    if (name.includes('special groups') || name.includes('women') || name.includes('youth') || name.includes('pwd')) {
+        if (business?.fullTimeEmployeesTotal) results.push({ label: "Total Full-Time Employees", value: String(business.fullTimeEmployeesTotal) });
+        if (business?.fullTimeEmployeesWomen) results.push({ label: "Women Employed", value: String(business.fullTimeEmployeesWomen) });
+        if (business?.fullTimeEmployeesYouth) results.push({ label: "Youth Employed", value: String(business.fullTimeEmployeesYouth) });
+        if (business?.fullTimeEmployeesPwd) results.push({ label: "PWD Employed", value: String(business.fullTimeEmployeesPwd) });
+    }
+
+    if (name.includes('business compliance') || name.includes('compliance')) {
+        if (business?.businessCompliance) results.push({ label: "Compliance Status", value: business.businessCompliance });
+        if (business?.complianceDocumentsUrl) results.push({ label: "Compliance Documents", value: "Document uploaded ✓" });
+        if (business?.isRegistered !== undefined) results.push({ label: "Business Registered", value: business.isRegistered ? "Yes" : "No" });
+    }
+
+    // === ACCELERATION TRACK: REVENUES & GROWTH ===
+    if (cat.includes('revenues') || cat.includes('growth')) {
+        if (name.includes('revenue') && !name.includes('growth')) {
+            if (business?.revenueLastYear) results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+        }
+        if (name.includes('years of operation') || name.includes('operational')) {
+            if (business?.yearsOperational) results.push({ label: "Years Operational", value: String(business.yearsOperational) });
+        }
+        if (name.includes('future') || name.includes('potential sales growth')) {
+            if (business?.futureSalesGrowth) results.push({ label: "Future Growth Potential", value: business.futureSalesGrowth });
+            if (business?.futureSalesGrowthReason) results.push({ label: "Growth Reason", value: business.futureSalesGrowthReason });
+        }
+        if (name.includes('funds raised')) {
+            if (business?.hasExternalFunding !== undefined) results.push({ label: "Has Raised Funds", value: business.hasExternalFunding ? "Yes" : "No" });
+            if (business?.externalFundingDetails) results.push({ label: "Funding Details", value: business.externalFundingDetails });
+        }
+    }
+
+    // === ACCELERATION TRACK: IMPACT POTENTIAL ===
+    if (cat.includes('impact potential')) {
+        if (name.includes('current') || name.includes('employed')) {
+            if (business?.fullTimeEmployeesTotal) results.push({ label: "Total Employees", value: String(business.fullTimeEmployeesTotal) });
+            if (business?.fullTimeEmployeesWomen) results.push({ label: "Women Employed", value: String(business.fullTimeEmployeesWomen) });
+            if (business?.fullTimeEmployeesYouth) results.push({ label: "Youth Employed", value: String(business.fullTimeEmployeesYouth) });
+            if (business?.fullTimeEmployeesPwd) results.push({ label: "PWD Employed", value: String(business.fullTimeEmployeesPwd) });
+        }
+        if (name.includes('potential') || name.includes('create new jobs')) {
+            if (business?.jobCreationPotential) results.push({ label: "Job Creation Potential", value: business.jobCreationPotential });
+            if (business?.projectedInclusion) results.push({ label: "Projected Inclusion", value: business.projectedInclusion });
+        }
+    }
+
+    // === ACCELERATION TRACK: SCALABILITY ===
+    if (cat.includes('scalability')) {
+        if (name.includes('market differentiation')) {
+            if (business?.marketDifferentiation) results.push({ label: "Market Differentiation", value: business.marketDifferentiation });
+            if (business?.marketDifferentiationDescription) results.push({ label: "Differentiation Details", value: business.marketDifferentiationDescription });
+        }
+        if (name.includes('competitive advantage') && !name.includes('strength')) {
+            if (business?.competitiveAdvantage) results.push({ label: "Competitive Advantage", value: business.competitiveAdvantage });
+            if (business?.competitiveAdvantageSource) results.push({ label: "Advantage Source", value: business.competitiveAdvantageSource });
+        }
+        if (name.includes('offering focus')) {
+            if (business?.scalabilityPlan) results.push({ label: "Scalability Plan", value: business.scalabilityPlan });
+        }
+        if (name.includes('sales') && name.includes('marketing')) {
+            if (business?.salesMarketingIntegration) results.push({ label: "Sales/Marketing Integration", value: business.salesMarketingIntegration });
+            if (business?.salesMarketingApproach) results.push({ label: "Approach", value: business.salesMarketingApproach });
+        }
+    }
+
+    // === ACCELERATION TRACK: SOCIAL & ENVIRONMENTAL IMPACT ===
+    if (cat.includes('social') && cat.includes('environmental')) {
+        if (name.includes('social impact') || name.includes('household')) {
+            if (business?.socialImpactContribution) results.push({ label: "Social Impact Level", value: business.socialImpactContribution });
+            if (business?.socialImpactContributionDescription) results.push({ label: "Social Impact Details", value: business.socialImpactContributionDescription });
+        }
+        if (name.includes('supplier')) {
+            if (business?.supplierInvolvement) results.push({ label: "Supplier Involvement", value: business.supplierInvolvement });
+            if (business?.supplierSupportDescription) results.push({ label: "Supplier Support", value: business.supplierSupportDescription });
+        }
+        if (name.includes('environmental')) {
+            if (business?.environmentalImpact) results.push({ label: "Environmental Impact", value: business.environmentalImpact });
+            if (business?.environmentalImpactDescription) results.push({ label: "Environmental Details", value: business.environmentalImpactDescription });
+        }
+    }
+
+    // === ACCELERATION TRACK: BUSINESS MODEL ===
+    if (cat.includes('business model') && !cat.includes('commercial')) {
+        if (name.includes('uniqueness')) {
+            if (business?.businessModelUniqueness) results.push({ label: "Business Model Uniqueness", value: business.businessModelUniqueness });
+            if (business?.businessModelUniquenessDescription) results.push({ label: "Uniqueness Details", value: business.businessModelUniquenessDescription });
+        }
+        if (name.includes('customer value') || name.includes('proposition')) {
+            if (business?.customerValueProposition) results.push({ label: "Customer Value Proposition", value: business.customerValueProposition });
+        }
+        if (name.includes('competitive advantage strength') || (name.includes('strength') && name.includes('competitive'))) {
+            if (business?.competitiveAdvantageStrength) results.push({ label: "Competitive Advantage Strength", value: business.competitiveAdvantageStrength });
+            if (business?.competitiveAdvantageBarriers) results.push({ label: "Barriers to Competition", value: business.competitiveAdvantageBarriers });
+        }
+    }
+
+    // Fallback: If no specific match found, show basic business info
     if (results.length === 0) {
-        if (app.business?.description) results.push({ label: "Business Description", value: app.business.description });
-        if (app.business?.problemSolved) results.push({ label: "Problem Solved", value: app.business.problemSolved });
+        if (business?.description) results.push({ label: "Business Description", value: business.description });
+        if (business?.problemSolved) results.push({ label: "Problem Solved", value: business.problemSolved });
     }
 
     return results;
