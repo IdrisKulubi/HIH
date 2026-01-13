@@ -8,6 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -493,66 +501,59 @@ export function EnhancedAnalyticsCharts({
 
         {/* Geography Tab */}
         <TabsContent value="geography" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Country Distribution Bar Chart */}
-            <Card className="shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-blue-600" />
-                  County Distribution
-                </CardTitle>
-                <CardDescription>Applications by county (Kenya)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={countyChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {countyChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Country Distribution Pie Chart */}
-            <Card className="shadow-lg border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChartIcon className="h-5 w-5 text-blue-600" />
-                  Geographic Distribution
-                </CardTitle>
-                <CardDescription>Proportional country view</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={countyChartData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name} (${value})`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {countyChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomPieTooltip />} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="shadow-lg border-0">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-blue-600" />
+                County Distribution
+              </CardTitle>
+              <CardDescription>
+                Breakdown of applications by county (Sorted by number of applications)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border max-h-[400px] overflow-y-auto custom-scrollbar">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">#</TableHead>
+                      <TableHead>County</TableHead>
+                      <TableHead className="text-right">Applications</TableHead>
+                      <TableHead className="text-right">Percentage</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {countyChartData.length > 0 ? (
+                      countyChartData
+                        .sort((a, b) => b.value - a.value)
+                        .map((county, index) => (
+                          <TableRow key={county.name}>
+                            <TableCell className="font-medium text-gray-500">
+                              {index + 1}
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              {county.name}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-blue-600">
+                              {county.value}
+                            </TableCell>
+                            <TableCell className="text-right text-gray-600">
+                              {county.percentage}%
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          No county data available.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
