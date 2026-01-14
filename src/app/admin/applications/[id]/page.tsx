@@ -5,17 +5,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
 import { Badge } from "@/components/ui/badge";
 import { getApplicationById } from "@/lib/actions";
 import { downloadEnhancedApplicationDOCX } from "@/lib/actions/enhanced-export";
@@ -337,77 +327,6 @@ export default function ApplicationDetail({
     }
   };
 
-  const handleApproveApplication = async () => {
-    if (!applicationId || updating) return;
-
-    setUpdating(true);
-    try {
-      const result = await updateApplicationStatus(
-        applicationId,
-        "approved",
-        "Application approved by admin"
-      );
-      if (result.success) {
-        // Update local state immediately
-        setApplication((prev) =>
-          prev
-            ? {
-              ...prev,
-              status: "approved",
-            }
-            : null
-        );
-        // Small delay to allow UI to update
-        setTimeout(() => {
-          toast.success("Application approved successfully!");
-        }, 100);
-      } else {
-        console.error("Failed to approve application:", result.error);
-        toast.error(`Failed to approve application: ${result.error}`);
-      }
-    } catch (error) {
-      console.error("Error approving application:", error);
-      toast.error("Failed to approve application. Please try again.");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleRejectApplication = async () => {
-    if (!applicationId || updating) return;
-
-    setUpdating(true);
-    try {
-      const result = await updateApplicationStatus(
-        applicationId,
-        "rejected",
-        "Application rejected by admin"
-      );
-      if (result.success) {
-        // Update local state immediately
-        setApplication((prev) =>
-          prev
-            ? {
-              ...prev,
-              status: "rejected",
-            }
-            : null
-        );
-        // Small delay to allow UI to update
-        setTimeout(() => {
-          toast.success("Application rejected successfully!");
-        }, 100);
-      } else {
-        console.error("Failed to reject application:", result.error);
-        toast.error(`Failed to reject application: ${result.error}`);
-      }
-    } catch (error) {
-      console.error("Error rejecting application:", error);
-      toast.error("Failed to reject application. Please try again.");
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   // Get category totals directly from stored DB values (no reconstruction needed!)
   const totals = {
@@ -470,74 +389,7 @@ export default function ApplicationDetail({
                 </Button>
               </Link>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-200 font-medium"
-                    disabled={updating}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Reject</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <XCircle className="h-5 w-5 text-red-600" />
-                      Reject Application?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will mark the application as rejected. This action can be undone later if needed, but will notify the applicant.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={updating}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-red-600 hover:bg-red-700 text-white border-0"
-                      onClick={handleRejectApplication}
-                      disabled={updating}
-                    >
-                      {updating ? "Processing..." : "Confirm Rejection"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border-0 font-medium"
-                    disabled={updating}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Approve</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-emerald-600" />
-                      Approve Application?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will mark the application as approved and move it to the next stage. PROCEED WITH CAUTION.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={updating}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
-                      onClick={handleApproveApplication}
-                      disabled={updating}
-                    >
-                      {updating ? "Processing..." : "Confirm Approval"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+             
             </div>
           </div>
         </div>
@@ -786,9 +638,9 @@ export default function ApplicationDetail({
                     <Target className="h-4 w-4 text-blue-600" weight="fill" />
                     System Score
                   </h3>
-                  {application.eligibility?.systemScore != null && (
+                  {(application.eligibility?.systemScore ?? application.eligibility?.totalScore) != null && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      Score: {application.eligibility?.systemScore}
+                      Score: {application.eligibility?.systemScore ?? application.eligibility?.totalScore}
                     </Badge>
                   )}
                 </div>
@@ -796,10 +648,10 @@ export default function ApplicationDetail({
                   <div className="relative inline-flex items-center justify-center">
                     <svg className="w-32 h-32 transform -rotate-90">
                       <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
-                      <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={351.86} strokeDashoffset={351.86 - (351.86 * (application.eligibility?.systemScore || 0)) / 100} className="text-blue-600 transition-all duration-1000 ease-out" strokeLinecap="round" />
+                      <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={351.86} strokeDashoffset={351.86 - (351.86 * (application.eligibility?.systemScore ?? application.eligibility?.totalScore ?? 0)) / 100} className="text-blue-600 transition-all duration-1000 ease-out" strokeLinecap="round" />
                     </svg>
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                      <span className="text-3xl font-bold text-gray-900 tracking-tighter">{application.eligibility?.systemScore || 0}</span>
+                      <span className="text-3xl font-bold text-gray-900 tracking-tighter">{application.eligibility?.systemScore ?? application.eligibility?.totalScore ?? 0}</span>
                       <span className="block text-xs text-gray-500 font-medium uppercase tracking-wide">Points</span>
                     </div>
                   </div>

@@ -134,7 +134,7 @@ export async function checkEligibility(applicationId: number) {
           revenueGrowthScore: String(scoreMapping.managementCapacityScore),
           scalabilityScore: String(scoreMapping.jobCreationScore),
           totalScore: String(trackScore.totalScore),
-          systemScore: String(trackScore.totalScore), // Preserve initial system score
+          // NOTE: systemScore is intentionally NOT updated here to preserve the initial value
           // Category totals for direct UI display
           innovationTotal: String(innovationTotal),
           viabilityTotal: String(viabilityTotal),
