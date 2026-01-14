@@ -19,16 +19,28 @@ interface FinalDecisionModalProps {
     onClose: () => void;
     onConfirm: (verdict: 'pass' | 'fail', reason: string) => Promise<void>;
     isSaving: boolean;
+    existingVerdict?: 'pass' | 'fail' | null;
+    existingReason?: string | null;
 }
 
 export function FinalDecisionModal({
     isOpen,
     onClose,
     onConfirm,
-    isSaving
+    isSaving,
+    existingVerdict,
+    existingReason
 }: FinalDecisionModalProps) {
-    const [verdict, setVerdict] = useState<'pass' | 'fail'>('pass');
-    const [reason, setReason] = useState("");
+    const [verdict, setVerdict] = useState<'pass' | 'fail'>(existingVerdict || 'pass');
+    const [reason, setReason] = useState(existingReason || "");
+
+    // Reset state when modal opens with new existing data
+    React.useEffect(() => {
+        if (isOpen) {
+            setVerdict(existingVerdict || 'pass');
+            setReason(existingReason || "");
+        }
+    }, [isOpen, existingVerdict, existingReason]);
 
     const handleConfirm = async () => {
         if (!reason || reason.trim().length < 10) return;

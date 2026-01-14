@@ -211,6 +211,7 @@ export async function updateDueDiligenceStatus(
 
 export async function saveDueDiligenceFinalDecision(
     applicationId: number,
+    phase: DueDiligencePhase,
     verdict: 'pass' | 'fail',
     reason: string
 ) {
@@ -230,12 +231,22 @@ export async function saveDueDiligenceFinalDecision(
 
         if (!record) return { success: false, message: "Due diligence record not found" };
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updateData: any = {
+            finalVerdict: verdict,
+            finalReason: reason,
+            updatedAt: new Date()
+        };
+
+        // Also mark the specific phase as completed
+        if (phase === 'phase1') {
+            updateData.phase1Status = 'completed';
+        } else {
+            updateData.phase2Status = 'completed';
+        }
+
         await db.update(dueDiligenceRecords)
-            .set({
-                finalVerdict: verdict,
-                finalReason: reason,
-                updatedAt: new Date()
-            })
+            .set(updateData)
             .where(eq(dueDiligenceRecords.id, record.id));
 
         revalidatePath(`/admin/applications/${applicationId}`);

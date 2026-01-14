@@ -49,6 +49,8 @@ interface DueDiligenceFormProps {
     phase: 'phase1' | 'phase2';
     config: PhaseConfig;
     existingItems: DueDiligenceItem[];
+    existingVerdict?: 'pass' | 'fail' | null;
+    existingReason?: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onUpdate?: () => void;
 }
@@ -58,6 +60,8 @@ export function DueDiligenceForm({
     phase,
     config,
     existingItems,
+    existingVerdict,
+    existingReason,
     onUpdate
 }: DueDiligenceFormProps) {
     const [saving, setSaving] = useState<string | null>(null); // criterion name being saved
@@ -149,7 +153,7 @@ export function DueDiligenceForm({
     const handleConfirmDecision = async (verdict: 'pass' | 'fail', reason: string) => {
         setIsDecisionSaving(true);
         try {
-            const result = await saveDueDiligenceFinalDecision(applicationId, verdict, reason);
+            const result = await saveDueDiligenceFinalDecision(applicationId, phase, verdict, reason);
             if (result.success) {
                 toast.success(result.message);
                 setIsModalOpen(false);
@@ -220,7 +224,7 @@ export function DueDiligenceForm({
                         className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-6 h-12 font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 gap-2"
                     >
                         <FloppyDisk size={20} weight="bold" />
-                        Save Score
+                        {existingVerdict ? "Update Decision" : "Save Score"}
                     </Button>
                 </div>
             </div>
@@ -336,6 +340,8 @@ export function DueDiligenceForm({
                 onClose={() => setIsModalOpen(false)}
                 onConfirm={handleConfirmDecision}
                 isSaving={isDecisionSaving}
+                existingVerdict={existingVerdict}
+                existingReason={existingReason}
             />
         </div>
     );

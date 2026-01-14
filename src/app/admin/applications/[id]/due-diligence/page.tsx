@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, CheckCircle, Clock } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default async function DueDiligencePage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -42,10 +43,19 @@ export default async function DueDiligencePage({ params }: { params: Promise<{ i
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200">
-                            <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-                            <span className="text-xs font-semibold text-slate-700">
-                                {record.phase2Status === 'completed' ? 'Completed' : 'In Progress'}
+                        <div className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                            record.phase1Status === 'completed' && record.phase2Status === 'completed'
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : "bg-orange-50 border-orange-200 text-orange-700"
+                        )}>
+                            {record.phase1Status === 'completed' && record.phase2Status === 'completed' ? (
+                                <CheckCircle weight="fill" className="w-4 h-4 text-emerald-500" />
+                            ) : (
+                                <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                            )}
+                            <span className="text-xs font-semibold">
+                                {record.phase1Status === 'completed' && record.phase2Status === 'completed' ? 'Done' : 'In Progress'}
                             </span>
                         </div>
                     </div>
@@ -61,6 +71,7 @@ export default async function DueDiligencePage({ params }: { params: Promise<{ i
                         >
                             <span className="font-semibold">Phase 1: Phone / Desk</span>
                             {(record.phase1Score ?? 0) > 0 && <span className="text-xs opacity-80 bg-white/20 px-1.5 py-0.5 rounded-md">{record.phase1Score} pts</span>}
+                            {record.phase1Status === 'completed' && <CheckCircle weight="fill" className="w-4 h-4 text-emerald-400" />}
                         </TabsTrigger>
                         <TabsTrigger
                             value="phase2"
@@ -68,6 +79,7 @@ export default async function DueDiligencePage({ params }: { params: Promise<{ i
                         >
                             <span className="font-semibold">Phase 2: Physical Visit</span>
                             {(record.phase2Score ?? 0) > 0 && <span className="text-xs opacity-80 bg-white/20 px-1.5 py-0.5 rounded-md">{record.phase2Score} pts</span>}
+                            {record.phase2Status === 'completed' && <CheckCircle weight="fill" className="w-4 h-4 text-emerald-400" />}
                         </TabsTrigger>
                     </TabsList>
 
@@ -77,15 +89,28 @@ export default async function DueDiligencePage({ params }: { params: Promise<{ i
                             phase="phase1"
                             config={PHASE_1_CONFIG}
                             existingItems={record.items}
+                            existingVerdict={record.finalVerdict as any}
+                            existingReason={record.finalReason}
                         />
 
-                        {/* Phase 1 Summary / Actions (Mockup for now) */}
-                        <div className="mt-8 p-6 bg-purple-50 rounded-2xl border border-purple-100 flex items-start gap-4">
-                            <Clock className="w-6 h-6 text-purple-600 mt-1" />
+                        {/* Phase 1 Summary / Actions */}
+                        <div className={cn(
+                            "mt-8 p-6 rounded-2xl border flex items-start gap-4 transition-colors",
+                            record.phase1Status === 'completed' ? "bg-emerald-50 border-emerald-100" : "bg-purple-50 border-purple-100"
+                        )}>
+                            {record.phase1Status === 'completed' ? (
+                                <CheckCircle className="w-6 h-6 text-emerald-600 mt-1" />
+                            ) : (
+                                <Clock className="w-6 h-6 text-purple-600 mt-1" />
+                            )}
                             <div>
-                                <h4 className="font-semibold text-purple-900">Phase 1 Status: {record.phase1Status}</h4>
-                                <p className="text-sm text-purple-700 mt-1">
-                                    Scores are saved automatically. Once all criteria are evaluated, the status will move to complete.
+                                <h4 className={cn("font-semibold", record.phase1Status === 'completed' ? "text-emerald-900" : "text-purple-900")}>
+                                    Phase 1 Status: {record.phase1Status === 'completed' ? 'Completed' : record.phase1Status}
+                                </h4>
+                                <p className={cn("text-sm mt-1", record.phase1Status === 'completed' ? "text-emerald-700" : "text-purple-700")}>
+                                    {record.phase1Status === 'completed'
+                                        ? "Final decision for this phase has been recorded. You can still update it if necessary."
+                                        : "Scores are saved automatically. Once all criteria are evaluated, the status will move to complete."}
                                 </p>
                             </div>
                         </div>
@@ -97,13 +122,26 @@ export default async function DueDiligencePage({ params }: { params: Promise<{ i
                             phase="phase2"
                             config={PHASE_2_CONFIG}
                             existingItems={record.items}
+                            existingVerdict={record.finalVerdict as any}
+                            existingReason={record.finalReason}
                         />
-                        <div className="mt-8 p-6 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-4">
-                            <Clock className="w-6 h-6 text-blue-600 mt-1" />
+                        <div className={cn(
+                            "mt-8 p-6 rounded-2xl border flex items-start gap-4 transition-colors",
+                            record.phase2Status === 'completed' ? "bg-emerald-50 border-emerald-100" : "bg-blue-50 border-blue-100"
+                        )}>
+                            {record.phase2Status === 'completed' ? (
+                                <CheckCircle className="w-6 h-6 text-emerald-600 mt-1" />
+                            ) : (
+                                <Clock className="w-6 h-6 text-blue-600 mt-1" />
+                            )}
                             <div>
-                                <h4 className="font-semibold text-blue-900">Phase 2 Status: {record.phase2Status}</h4>
-                                <p className="text-sm text-blue-700 mt-1">
-                                    Physical verification requires site visit. Ensure photos are uploaded in the main application view if needed.
+                                <h4 className={cn("font-semibold", record.phase2Status === 'completed' ? "text-emerald-900" : "text-blue-900")}>
+                                    Phase 2 Status: {record.phase2Status === 'completed' ? 'Completed' : record.phase2Status}
+                                </h4>
+                                <p className={cn("text-sm mt-1", record.phase2Status === 'completed' ? "text-emerald-700" : "text-blue-700")}>
+                                    {record.phase2Status === 'completed'
+                                        ? "Final decision for the physical visit has been recorded. You can still update it if necessary."
+                                        : "Physical verification requires site visit. Ensure photos are uploaded in the main application view if needed."}
                                 </p>
                             </div>
                         </div>
