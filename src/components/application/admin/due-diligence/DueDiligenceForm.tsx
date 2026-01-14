@@ -174,10 +174,16 @@ export function DueDiligenceForm({
         .filter(i => i.phase === phase)
         .reduce((sum, i) => sum + (i.score || 0), 0);
 
-    // Calculate max possible score
+    // Calculate max possible score dynamically
     const totalCriteria = config.reduce((count, cat) => count + cat.criteria.length, 0);
-    const maxScore = totalCriteria * 5;
-    const progress = (currentTotal / maxScore) * 100;
+    const maxScore = config.reduce((total, cat) => {
+        return total + cat.criteria.reduce((catTotal, criterion) => {
+            const maxCriteriaScore = Math.max(...criterion.options.map(o => o.score));
+            return catTotal + maxCriteriaScore;
+        }, 0);
+    }, 0);
+
+    const progress = maxScore > 0 ? (currentTotal / maxScore) * 100 : 0;
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
