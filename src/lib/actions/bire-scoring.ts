@@ -372,7 +372,7 @@ export function scoreAccelerationTrack(business: {
     // "Social & Environmental" is likely Section E? (Wait, in form list it was Social Model?)
     // In `foundation-social-form` it's Section F.
     // In Acceleration, let's assume it maps to "Social & Env Impact" category.
-    // Logic: Social(6) + Supplier(6) + Env(6) = 18 + 2 buffer = 20.
+    // Logic: Social(7) + Supplier(6) + Env(7) = 20.
     // I will keep this existing logic as I didn't see explicit changes to re-weight this part, 
     // unless "Social Model" form (Section E/F) changed?
     // User said "Updated acceleration-social-model-form.tsx... Added fields for social and business model aspects."
@@ -384,15 +384,15 @@ export function scoreAccelerationTrack(business: {
 
     const socialDetails: { criterion: string; points: number; maxPoints: number }[] = [];
 
-    // Social Impact: High (6), Moderate (4), None (0)
+    // Social Impact: High (7), Moderate (4), None (0)
     let householdScore = 0;
     const socialImpactVal = business.socialImpactContribution || business.socialImpactHousehold;
     switch (socialImpactVal) {
-        case "high": householdScore = 6; break;
+        case "high": householdScore = 7; break;
         case "moderate": householdScore = 4; break;
         case "none": householdScore = 0; break;
     }
-    socialDetails.push({ criterion: "Social Impact Score", points: householdScore, maxPoints: 6 });
+    socialDetails.push({ criterion: "Social Impact Score", points: householdScore, maxPoints: 7 });
 
     // Supplier Involvement: Direct (6), Network (3), None (1)
     let supplierScore = 0;
@@ -404,24 +404,23 @@ export function scoreAccelerationTrack(business: {
     }
     socialDetails.push({ criterion: "Supplier Involvement", points: supplierScore, maxPoints: 6 });
 
-    // Environmental Impact: High (6), Moderate (4), Low (0)
+    // Environmental Impact: High (7), Moderate (4), Low (0)
     let envScore = 0;
     switch (business.environmentalImpact) {
         case "high":
-        case "clearly_defined": envScore = 6; break;
+        case "clearly_defined": envScore = 7; break;
         case "moderate":
         case "minimal": envScore = 4; break;
         case "low":
         case "not_defined": envScore = 0; break;
     }
-    socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 6 });
+    socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 7 });
 
     const socialTotal = householdScore + supplierScore + envScore;
-    const adjustedSocialTotal = Math.min(socialTotal + (socialTotal >= 18 ? 2 : 0), 20); // Scale to 20
     breakdown.push({
         category: "Social & Environmental Impact",
         maxPoints: 20,
-        earnedPoints: adjustedSocialTotal,
+        earnedPoints: socialTotal,
         details: socialDetails
     });
 

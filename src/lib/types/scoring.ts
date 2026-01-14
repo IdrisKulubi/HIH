@@ -373,9 +373,9 @@ export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
       category: "Social & Environmental Impact",
       name: "Social Impact (Household Income)",
       description: "Evaluate impact on household income improvement",
-      maxPoints: 6,
+      maxPoints: 7,
       scoringLevels: [
-        { level: "High", points: 6, description: "Significant income improvement" },
+        { level: "High", points: 7, description: "Significant income improvement" },
         { level: "Moderate", points: 4, description: "Some income improvement" },
         { level: "None", points: 0, description: "No measurable impact" }
       ],
@@ -401,9 +401,9 @@ export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
       category: "Social & Environmental Impact",
       name: "Environmental Impact",
       description: "Evaluate environmental sustainability",
-      maxPoints: 6,
+      maxPoints: 7,
       scoringLevels: [
-        { level: "High", points: 6, description: "Strong positive environmental impact" },
+        { level: "High", points: 7, description: "Strong positive environmental impact" },
         { level: "Moderate", points: 4, description: "Some environmental consideration" },
         { level: "Low", points: 0, description: "Minimal environmental focus" }
       ],

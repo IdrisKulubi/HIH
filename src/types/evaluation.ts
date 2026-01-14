@@ -295,9 +295,9 @@ export const ACCELERATION_SCORING_SECTIONS: ScoringSection[] = [
       {
         id: 'socialImpact',
         name: 'Social Impact (Household income improvement)',
-        maxPoints: 6,
+        maxPoints: 7,
         options: [
-          { value: 6, label: 'High', description: 'Significant income improvement' },
+          { value: 7, label: 'High', description: 'Significant income improvement' },
           { value: 4, label: 'Moderate', description: 'Some income improvement' },
           { value: 0, label: 'None', description: 'No measurable impact' }
         ]
@@ -315,9 +315,9 @@ export const ACCELERATION_SCORING_SECTIONS: ScoringSection[] = [
       {
         id: 'environmentalImpactAcc',
         name: 'Environmental Impact',
-        maxPoints: 6,
+        maxPoints: 7,
         options: [
-          { value: 6, label: 'High', description: 'Strong positive environmental impact' },
+          { value: 7, label: 'High', description: 'Strong positive environmental impact' },
           { value: 4, label: 'Moderate', description: 'Some environmental consideration' },
           { value: 0, label: 'Low', description: 'Minimal environmental focus' }
         ]
