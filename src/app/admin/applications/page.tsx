@@ -247,13 +247,7 @@ function ApplicationsContent() {
             })}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 rounded-xl border-gray-200 text-gray-600 hover:bg-gray-50">
-              <DownloadSimple className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-          </div>
+         
         </div>
 
         {/* Filters Row */}

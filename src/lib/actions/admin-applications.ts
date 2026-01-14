@@ -180,6 +180,13 @@ export interface DetailedApplication extends ApplicationListItem {
         };
         mandatoryCriteria?: any;
         evaluationScores?: any;
+        reviewer1Score?: number | null;
+        reviewer1Notes?: string | null;
+        reviewer1At?: string | null;
+        reviewer2Score?: number | null;
+        reviewer2Notes?: string | null;
+        reviewer2At?: string | null;
+        adminOversightComment?: string | null;
     } | null;
 }
 
@@ -545,6 +552,13 @@ export async function getApplicationById(
                         businessPlanEligible: applicationData.eligibilityResults[0].businessPlanEligible,
                         impactEligible: applicationData.eligibilityResults[0].impactEligible,
                     },
+                    reviewer1Score: applicationData.eligibilityResults[0].reviewer1Score ? Number(applicationData.eligibilityResults[0].reviewer1Score) : null,
+                    reviewer1Notes: applicationData.eligibilityResults[0].reviewer1Notes,
+                    reviewer1At: applicationData.eligibilityResults[0].reviewer1At?.toISOString() ?? null,
+                    reviewer2Score: applicationData.eligibilityResults[0].reviewer2Score ? Number(applicationData.eligibilityResults[0].reviewer2Score) : null,
+                    reviewer2Notes: applicationData.eligibilityResults[0].reviewer2Notes,
+                    reviewer2At: applicationData.eligibilityResults[0].reviewer2At?.toISOString() ?? null,
+                    adminOversightComment: applicationData.eligibilityResults[0].adminOversightComment,
                 }
                 : null,
         };
@@ -659,5 +673,118 @@ export async function saveEvaluation(
     } catch (error) {
         console.error("Error saving evaluation:", error);
         return errorResponse("Failed to save evaluation");
+    }
+}
+
+// =============================================================================
+// ADMIN OVERSIGHT (ADMIN REVIEW SECTION)
+// =============================================================================
+
+export async function getReviewedApplications(): Promise<ActionResponse<ApplicationListItem[]>> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return errorResponse("Unauthorized. Admin access only.");
+        }
+
+        // Fetch applications that have at least one reviewer score
+        const allApplications = await db.query.applications.findMany({
+            orderBy: [desc(applications.updatedAt)],
+            with: {
+                business: {
+                    with: {
+                        applicant: true,
+                    },
+                },
+                eligibilityResults: {
+                    limit: 1,
+                    with: {
+                        evaluator: {
+                            with: {
+                                userProfile: true
+                            }
+                        }
+                    }
+                },
+            },
+        });
+
+        // Filter for those that have been reviewed (either R1 or R2)
+        const reviewedApplications = allApplications.filter(app => {
+            const result = app.eligibilityResults[0];
+            return result && (result.reviewer1Score !== null || result.reviewer2Score !== null);
+        });
+
+        // Map to ApplicationListItem
+        const mappedData: ApplicationListItem[] = reviewedApplications.map((app) => ({
+            id: app.id,
+            status: app.status,
+            track: app.track,
+            submittedAt: app.submittedAt?.toISOString() ?? null,
+            business: {
+                name: app.business.name,
+                sector: app.business.sector,
+                county: app.business.county,
+                city: app.business.city,
+                country: app.business.country,
+                applicant: {
+                    firstName: app.business.applicant.firstName,
+                    lastName: app.business.applicant.lastName,
+                }
+            },
+            applicant: {
+                firstName: app.business.applicant.firstName,
+                lastName: app.business.applicant.lastName,
+                email: app.business.applicant.email,
+                gender: app.business.applicant.gender,
+            },
+            eligibilityResults: app.eligibilityResults.map(er => ({
+                id: er.id,
+                isEligible: er.isEligible,
+                totalScore: er.totalScore ? Number(er.totalScore) : null,
+                systemScore: er.systemScore ? Number(er.systemScore) : null,
+                ageEligible: er.ageEligible,
+                registrationEligible: er.registrationEligible,
+                revenueEligible: er.revenueEligible,
+                businessPlanEligible: er.businessPlanEligible,
+                impactEligible: er.impactEligible,
+                evaluatedAt: er.evaluatedAt?.toISOString() ?? null,
+                evaluatedBy: er.evaluatedBy,
+                evaluator: er.evaluator
+            }))
+        }));
+
+        return successResponse(mappedData);
+    } catch (error) {
+        console.error("Error fetching reviewed applications:", error);
+        return errorResponse("Failed to fetch reviewed applications");
+    }
+}
+
+export async function saveAdminOversightComment(
+    applicationId: number,
+    comment: string
+): Promise<ActionResponse<void>> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return errorResponse("Unauthorized. Admin access only.");
+        }
+
+        await db
+            .update(eligibilityResults)
+            .set({
+                adminOversightComment: comment,
+                updatedAt: new Date(),
+            })
+            .where(eq(eligibilityResults.applicationId, applicationId));
+
+        revalidatePath(`/admin/review/${applicationId}`);
+        revalidatePath("/admin/review");
+
+        return successResponse(undefined, "Oversight comment saved successfully");
+    } catch (error) {
+        console.error("Error saving oversight comment:", error);
+        return errorResponse("Failed to save oversight comment");
     }
 }

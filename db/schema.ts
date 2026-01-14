@@ -481,6 +481,9 @@ export const eligibilityResults = pgTable('eligibility_results', {
   lockedAt: timestamp('locked_at'),
   lockReason: text('lock_reason'), // "Reviewing", "Auditing", etc.
 
+  // Admin Oversight
+  adminOversightComment: text('admin_oversight_comment'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });

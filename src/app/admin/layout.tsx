@@ -53,6 +53,11 @@ export default async function AdminLayout({
                   </Link>
                 </li>
                 <li>
+                  <Link href="/admin/review" className="text-white/80 hover:text-white transition-colors">
+                    Review
+                  </Link>
+                </li>
+                <li>
                   <Link href="/" className="text-white/80 hover:text-white transition-colors">
                     Back to Site
                   </Link>
