@@ -199,6 +199,7 @@ async function submitAsReviewer2(
     const isApproved = averageScore >= PASSING_THRESHOLD;
 
     // Update eligibility result with second review
+    // IMPORTANT: Do NOT overwrite systemScore - that preserves the initial automated score
     await db
         .update(eligibilityResults)
         .set({
@@ -207,7 +208,8 @@ async function submitAsReviewer2(
             reviewer2Notes: input.notes ?? null,
             reviewer2At: new Date(),
             reviewer2OverrodeReviewer1: false, // No override in blind system
-            totalScore: String(averageScore.toFixed(2)),
+            totalScore: String(averageScore.toFixed(2)), // Average of reviewers' scores
+            // systemScore is NOT updated - it preserves the initial automated score
             isEligible: isApproved,
             updatedAt: new Date(),
         })

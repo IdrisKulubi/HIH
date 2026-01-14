@@ -46,6 +46,7 @@ export interface ApplicationListItem {
         id: number;
         isEligible: boolean;
         totalScore: number | null;
+        systemScore: number | null; // Initial automated score (preserved)
         // Granular flags for "Failure Insights"
         ageEligible: boolean;
         registrationEligible: boolean;
@@ -124,6 +125,7 @@ export interface DetailedApplication extends ApplicationListItem {
         id: number;
         isEligible: boolean;
         totalScore: number | null;
+        systemScore: number | null; // Initial automated score (preserved)
         evaluationNotes: string | null;
         evaluatedAt: string | null;
         evaluatedBy: string | null;

@@ -443,6 +443,7 @@ export const eligibilityResults = pgTable('eligibility_results', {
   businessPlanEligible: boolean('business_plan_eligible').notNull(),
   impactEligible: boolean('impact_eligible').notNull(),
   totalScore: decimal('total_score', { precision: 5, scale: 2 }).default("0"),
+  systemScore: decimal('system_score', { precision: 5, scale: 2 }), // Preserved initial automated score
 
   // Auto-calculated score breakdown
   commercialViabilityScore: decimal('commercial_viability_score', { precision: 5, scale: 2 }),

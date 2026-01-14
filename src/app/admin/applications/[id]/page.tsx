@@ -785,9 +785,9 @@ export default function ApplicationDetail({
                     <Target className="h-4 w-4 text-blue-600" weight="fill" />
                     System Score
                   </h3>
-                  {application.eligibility?.totalScore != null && (
+                  {application.eligibility?.systemScore != null && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      Score: {application.eligibility?.totalScore}
+                      Score: {application.eligibility?.systemScore}
                     </Badge>
                   )}
                 </div>
@@ -795,10 +795,10 @@ export default function ApplicationDetail({
                   <div className="relative inline-flex items-center justify-center">
                     <svg className="w-32 h-32 transform -rotate-90">
                       <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
-                      <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={351.86} strokeDashoffset={351.86 - (351.86 * (application.eligibility?.totalScore || 0)) / 100} className="text-blue-600 transition-all duration-1000 ease-out" strokeLinecap="round" />
+                      <circle cx="64" cy="64" r="56" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={351.86} strokeDashoffset={351.86 - (351.86 * (application.eligibility?.systemScore || 0)) / 100} className="text-blue-600 transition-all duration-1000 ease-out" strokeLinecap="round" />
                     </svg>
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                      <span className="text-3xl font-bold text-gray-900 tracking-tighter">{application.eligibility?.totalScore || 0}</span>
+                      <span className="text-3xl font-bold text-gray-900 tracking-tighter">{application.eligibility?.systemScore || 0}</span>
                       <span className="block text-xs text-gray-500 font-medium uppercase tracking-wide">Points</span>
                     </div>
                   </div>
