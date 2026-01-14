@@ -251,7 +251,7 @@ export const ACCELERATION_SCORING_SECTIONS: ScoringSection[] = [
         maxPoints: 5,
         options: [
           { value: 5, label: 'Truly Unique', description: 'One-of-a-kind offering' },
-          { value: 3, label: 'Provably Better', description: 'Better than competitors' },
+          { value: 3, label: 'Probably Better', description: 'Better than competitors' },
           { value: 1, label: 'Undifferentiated', description: 'Similar to competitors' }
         ]
       },

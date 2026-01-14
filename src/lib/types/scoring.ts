@@ -318,7 +318,7 @@ export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
       maxPoints: 5,
       scoringLevels: [
         { level: "Truly Unique", points: 5, description: "One-of-a-kind offering" },
-        { level: "Provably Better", points: 3, description: "Better than competitors" },
+        { level: "Probably Better", points: 3, description: "Better than competitors" },
         { level: "Undifferentiated", points: 1, description: "Similar to competitors" }
       ],
       evaluationType: "manual",

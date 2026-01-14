@@ -285,7 +285,7 @@ export function AccelerationScalabilityForm({ form }: AccelerationScalabilityFor
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="truly_unique">Truly unique</SelectItem>
-                                        <SelectItem value="provably_better">Provably better than competition</SelectItem>
+                                        <SelectItem value="probably_better">Probably better than competition</SelectItem>
                                         <SelectItem value="undifferentiated">Undifferentiated / similar</SelectItem>
                                     </SelectContent>
                                 </Select>

@@ -194,7 +194,7 @@ export const accelerationImpactPotentialSchema = z.object({
 // D3: Technology Integration (5 marks), D4: Sales & Marketing Integration (5 marks)
 export const accelerationScalabilitySchema = z.object({
     // D1. Market Differentiation (5 marks)
-    marketDifferentiation: z.enum(["truly_unique", "provably_better", "undifferentiated"], {
+    marketDifferentiation: z.enum(["truly_unique", "probably_better", "undifferentiated"], {
         required_error: "Select how differentiated your product/service is",
     }),
     marketDifferentiationDescription: z.string().min(10, "Explain your key competitive strengths (min 10 chars)"),

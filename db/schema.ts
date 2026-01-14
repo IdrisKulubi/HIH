@@ -377,7 +377,7 @@ export const businesses = pgTable('businesses', {
   // === ACCELERATION TRACK: SCALABILITY (20 marks) ===
   scalabilityPlan: text('scalability_plan'), // Added for scoring
   marketScalePotential: text('market_scale_potential'), // Added for scoring
-  marketDifferentiation: text('market_differentiation'), // Truly unique, Provably better, Undifferentiated
+  marketDifferentiation: text('market_differentiation'), // Truly unique, Probably better, Undifferentiated
   marketDifferentiationDescription: text('market_differentiation_description'), // Describe competitive strengths
   competitiveAdvantage: text('competitive_advantage'), // High, Moderate, Low
   competitiveAdvantageSource: text('competitive_advantage_source'), // Describe sources
