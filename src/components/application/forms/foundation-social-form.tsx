@@ -46,7 +46,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                 <div className="w-16 h-16 bg-brand-green/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <LeafIcon className="w-8 h-8 text-brand-green" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL ECONOMIC IMPACT CONTRIBUTION</h2>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION E: SOCIAL ECONOMIC IMPACT CONTRIBUTION (30 MARKS)</h2>
                 <p className="text-slate-500 mt-2">D1 - D3: Environment, Inclusion, Compliance</p>
             </div>
 
@@ -58,7 +58,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <LeafIcon className="w-5 h-5 text-green-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">E1. Environmental Conservation</CardTitle>
+                            <CardTitle className="text-lg">E1. Environmental Conservation (10 Marks)</CardTitle>
                             <CardDescription>To what level does your business conserve the environment?</CardDescription>
                         </div>
                     </div>
@@ -118,7 +118,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <UsersThreeIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">E2. Inclusion of Special Groups</CardTitle>
+                            <CardTitle className="text-lg">E2. Inclusion of Special Groups (10 Marks)</CardTitle>
                             <CardDescription>How many women, youth and PWD employees do you currently employ?</CardDescription>
                         </div>
                     </div>
@@ -141,7 +141,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                                         />
                                     </FormControl>
                                     <FormDescription>
-                                        Scoring Guide: &gt;10, 6-9, 1-5
+                                        How many from special groups (Women, Youth, PWD) are employed?
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>
@@ -222,7 +222,7 @@ export function FoundationSocialImpactForm({ form }: FoundationSocialImpactFormP
                             <ShieldCheckIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">E3. Business Compliance</CardTitle>
+                            <CardTitle className="text-lg">E3. Business Compliance (10 Marks)</CardTitle>
                             <CardDescription>What is your regulatory and legal compliance status?</CardDescription>
                         </div>
                     </div>

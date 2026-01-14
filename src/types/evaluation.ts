@@ -51,10 +51,19 @@ export const FOUNDATION_SCORING_SECTIONS: ScoringSection[] = [
       {
         id: 'externalFunding',
         name: 'External Fundraising (Received loans/grants)',
-        maxPoints: 10,
+        maxPoints: 5,
         options: [
-          { value: 10, label: 'Yes', description: 'Has received external funding' },
-          { value: 5, label: 'No', description: 'No external funding received' }
+          { value: 5, label: 'Yes', description: 'Has received external funding' },
+          { value: 1, label: 'No', description: 'No external funding received' }
+        ]
+      },
+      {
+        id: 'digitization',
+        name: 'Digitization',
+        maxPoints: 5,
+        options: [
+          { value: 5, label: 'Yes', description: 'Uses digital tools for information/marketing' },
+          { value: 1, label: 'No', description: 'No digital tools used' }
         ]
       }
     ]
@@ -126,26 +135,26 @@ export const FOUNDATION_SCORING_SECTIONS: ScoringSection[] = [
   {
     id: 'social-impact',
     name: 'Social Impact',
-    maxPoints: 40,
+    maxPoints: 30,
     criteria: [
       {
         id: 'environmentalImpact',
         name: 'Environmental Impact',
-        maxPoints: 15,
+        maxPoints: 10,
         options: [
-          { value: 15, label: 'Clearly Defined', description: 'Strong positive environmental impact' },
-          { value: 10, label: 'Neutral', description: 'Minimal environmental impact' },
-          { value: 5, label: 'Not Defined', description: 'No clear environmental consideration' }
+          { value: 10, label: 'Clearly Defined', description: 'Strong positive environmental impact' },
+          { value: 5, label: 'Neutral', description: 'Minimal environmental impact' },
+          { value: 0, label: 'Not Defined', description: 'No clear environmental consideration' }
         ]
       },
       {
         id: 'specialGroupsEmployed',
         name: 'Special Groups Employed (Women, Youth, PWD)',
-        maxPoints: 15,
+        maxPoints: 10,
         options: [
-          { value: 15, label: '> 10 employees', description: 'More than 10 from special groups' },
-          { value: 10, label: '6 - 9 employees', description: '6-9 from special groups' },
-          { value: 5, label: '5 employees', description: '5 from special groups' }
+          { value: 10, label: '> 10 employees', description: 'More than 10 from special groups' },
+          { value: 6, label: '6 - 9 employees', description: '6-9 from special groups' },
+          { value: 3, label: '5 employees', description: '5 from special groups' }
         ]
       },
       {
@@ -154,7 +163,7 @@ export const FOUNDATION_SCORING_SECTIONS: ScoringSection[] = [
         maxPoints: 10,
         options: [
           { value: 10, label: 'Fully Compliant', description: 'All regulatory requirements met' },
-          { value: 3, label: 'Partially Compliant', description: 'Some compliance gaps' },
+          { value: 5, label: 'Partially Compliant', description: 'Some compliance gaps' },
           { value: 1, label: 'Not clear', description: 'Compliance status unclear' }
         ]
       }

@@ -52,7 +52,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                 <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendUpIcon className="w-8 h-8 text-emerald-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION C: COMMERCIAL VIABILITY</h2>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION C: COMMERCIAL VIABILITY (30 MARKS)</h2>
                 <p className="text-slate-500 mt-2">Proof of Sales, Customer Base, Fundraising, Digitization</p>
             </div>
 
@@ -64,7 +64,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <CurrencyDollarIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">C1. Proof of Sales — Revenue Level</CardTitle>
+                            <CardTitle className="text-lg">C1. Proof of Sales (10 Marks)</CardTitle>
                             <CardDescription>What was your total revenue for the last financial year?</CardDescription>
                         </div>
                     </div>
@@ -89,7 +89,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         />
                                     </div>
                                 </FormControl>
-                                
+
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -105,7 +105,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <UsersIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">C2. Customer Base</CardTitle>
+                            <CardTitle className="text-lg">C2. Customer Base (10 Marks)</CardTitle>
                             <CardDescription>How many customers did you serve in the past 12 months?</CardDescription>
                         </div>
                     </div>
@@ -127,7 +127,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                     />
                                 </FormControl>
-                              
+
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -161,7 +161,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <HandCoinsIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">C3. External Fundraising/Access to Financial Services</CardTitle>
+                            <CardTitle className="text-lg">C3. External Fundraising (5 Marks)</CardTitle>
                             <CardDescription>Has your business received external funding (loans, grants, equity financing etc)?</CardDescription>
                         </div>
                     </div>
@@ -193,7 +193,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                             <FormLabel className="font-normal">
                                                 No
                                             </FormLabel>
-                                            
+
                                         </FormItem>
                                     </RadioGroup>
                                 </FormControl>
@@ -240,7 +240,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                             <DevicesIcon className="w-5 h-5 text-indigo-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">C4. DIGITIZATION</CardTitle>
+                            <CardTitle className="text-lg">C4. DIGITIZATION (5 Marks)</CardTitle>
                             <CardDescription>Does the business use digital tools and platforms (e.g., social media, e-commerce) to access information and market its products or services?</CardDescription>
                         </div>
                     </div>
@@ -270,7 +270,7 @@ export function FoundationCommercialViabilityForm({ form }: FoundationCommercial
                                                 <RadioGroupItem value="false" />
                                             </FormControl>
                                             <FormLabel className="font-normal">
-                                                No 
+                                                No
                                             </FormLabel>
                                         </FormItem>
                                     </RadioGroup>
@@ -328,13 +328,13 @@ export function FoundationBusinessModelForm({ form }: FoundationBusinessModelFor
                 <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendUpIcon className="w-8 h-8 text-indigo-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION B: BUSINESS MODEL</h2>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION B: BUSINESS MODEL (10 MARKS)</h2>
                 <p className="text-slate-500 mt-2">B1. Business Model Maturity</p>
             </div>
 
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">B1. Business Model Maturity</CardTitle>
+                    <CardTitle className="text-lg">B1. Business Model Maturity (10 Marks)</CardTitle>
                     <CardDescription>
                         Describe your business model. (How does the business make money.)
                     </CardDescription>

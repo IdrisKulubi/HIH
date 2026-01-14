@@ -111,6 +111,11 @@ function generateFoundationSections(formData: FoundationApplicationFormData): Pa
     sections.push(...createQuestionAnswer("Has Financial Records", formatValue(formData.business?.hasFinancialRecords)));
     sections.push(...createQuestionAnswer("Financial Records", formData.business?.financialRecordsUrl ? "Uploaded" : "Not provided"));
 
+    // Business Model
+    sections.push(createSectionHeader("Business Model", "💡"));
+    sections.push(...createQuestionAnswer("Business Model Uniqueness", formatValue(formData.businessModel?.businessModelInnovation)));
+    sections.push(...createQuestionAnswer("Description", formatValue(formData.businessModel?.businessModelDescription)));
+
     // Commercial Viability
     sections.push(createSectionHeader("Commercial Viability", "💰"));
     sections.push(...createQuestionAnswer("Revenue (Last Year)", formatCurrency(formData.commercialViability?.revenueLastYear)));
@@ -118,6 +123,10 @@ function generateFoundationSections(formData: FoundationApplicationFormData): Pa
     sections.push(...createQuestionAnswer("External Funding", formatValue(formData.commercialViability?.hasExternalFunding)));
     if (formData.commercialViability?.hasExternalFunding) {
         sections.push(...createQuestionAnswer("External Funding Details", formatValue(formData.commercialViability?.externalFundingDetails)));
+    }
+    sections.push(...createQuestionAnswer("Digitization (Uses Digital Tools)", formatValue(formData.commercialViability?.digitizationLevel)));
+    if (formData.commercialViability?.digitizationLevel === false) {
+        sections.push(...createQuestionAnswer("Digitization Reason (If No)", formatValue(formData.commercialViability?.digitizationReason)));
     }
 
     // Market Potential

@@ -45,6 +45,7 @@ export function scoreFoundationTrack(business: {
     revenueLastYear?: string | number | null;
     customerCount?: number | null;
     hasExternalFunding?: boolean | null;
+    digitizationLevel?: boolean | null;
     businessModelInnovation?: string | null;
     relativePricing?: string | null;
     productDifferentiation?: string | null;
@@ -80,15 +81,19 @@ export function scoreFoundationTrack(business: {
     else if (customers >= 1) customerScore = 2;
     commercialDetails.push({ criterion: "Number of Customers", points: customerScore, maxPoints: 10 });
 
-    // External funding: Yes (10), No (5) - Note: Having external funding shows investor confidence
-    const fundingScore = business.hasExternalFunding ? 10 : 5;
-    commercialDetails.push({ criterion: "External Funding Received", points: fundingScore, maxPoints: 10 });
+    // External funding: Yes (5), No (1)
+    const fundingScore = business.hasExternalFunding ? 5 : 1;
+    commercialDetails.push({ criterion: "External Funding Received", points: fundingScore, maxPoints: 5 });
 
-    const commercialTotal = revenueScore + customerScore + fundingScore;
+    // Digitization: Yes (5), No (1)
+    const digitizationScore = business.digitizationLevel ? 5 : 1;
+    commercialDetails.push({ criterion: "Digitization", points: digitizationScore, maxPoints: 5 });
+
+    const commercialTotal = revenueScore + customerScore + fundingScore + digitizationScore;
     breakdown.push({
         category: "Commercial Viability",
-        maxPoints: 20,
-        earnedPoints: Math.min(commercialTotal, 20), // Cap at 20
+        maxPoints: 30,
+        earnedPoints: commercialTotal,
         details: commercialDetails
     });
 
@@ -161,37 +166,36 @@ export function scoreFoundationTrack(business: {
         details: marketDetails
     });
 
-    // === SOCIAL IMPACT (40 pts) ===
+    // === SOCIAL IMPACT (30 pts) ===
     const socialDetails: { criterion: string; points: number; maxPoints: number }[] = [];
 
-    // Environmental Impact: Clearly Defined (15), Neutral (10), Not Defined (5)
+    // Environmental Impact: Clearly Defined (10), Neutral (5), Not Defined (0)
     let envScore = 0;
     switch (business.environmentalImpact) {
-        case "clearly_defined": envScore = 15; break;
+        case "clearly_defined": envScore = 10; break;
         case "neutral":
-        case "minimal": envScore = 10; break;
-        case "not_defined": envScore = 5; break;
+        case "minimal": envScore = 5; break;
+        case "not_defined": envScore = 0; break;
     }
-    socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 15 });
+    socialDetails.push({ criterion: "Environmental Impact", points: envScore, maxPoints: 10 });
 
-    // Special Groups Employed: >10 (15), 6-9 (10), 5 (5)
-    // Calculate from components if available, else default to specialGroupsEmployed (legacy)
+    // Special Groups Employed: >10 (10), 6-9 (6), 5 (3)
     const breakdownSum = (business.fullTimeEmployeesWomen ?? 0) +
         (business.fullTimeEmployeesYouth ?? 0) +
         (business.fullTimeEmployeesPwd ?? 0);
     const specialGroups = breakdownSum > 0 ? breakdownSum : (business.specialGroupsEmployed ?? 0);
 
     let groupsScore = 0;
-    if (specialGroups > 10) groupsScore = 15;
-    else if (specialGroups >= 6) groupsScore = 10;
-    else if (specialGroups >= 5) groupsScore = 5;
-    socialDetails.push({ criterion: "Special Groups Employed (Women/Youth/PWD)", points: groupsScore, maxPoints: 15 });
+    if (specialGroups > 10) groupsScore = 10;
+    else if (specialGroups >= 6) groupsScore = 6;
+    else if (specialGroups >= 5) groupsScore = 3;
+    socialDetails.push({ criterion: "Special Groups Employed (Women/Youth/PWD)", points: groupsScore, maxPoints: 10 });
 
-    // Business Compliance: Fully Compliant (10), Partially Compliant (3), Not clear (1)
+    // Business Compliance: Fully Compliant (10), Partially Compliant (5), Not clear (1)
     let complianceScore = 0;
     switch (business.businessCompliance) {
         case "fully_compliant": complianceScore = 10; break;
-        case "partially_compliant": complianceScore = 3; break;
+        case "partially_compliant": complianceScore = 5; break;
         case "not_clear": complianceScore = 1; break;
     }
     socialDetails.push({ criterion: "Business Compliance", points: complianceScore, maxPoints: 10 });
@@ -199,7 +203,7 @@ export function scoreFoundationTrack(business: {
     const socialTotal = envScore + groupsScore + complianceScore;
     breakdown.push({
         category: "Social Impact",
-        maxPoints: 40,
+        maxPoints: 30,
         earnedPoints: socialTotal,
         details: socialDetails
     });

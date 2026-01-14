@@ -74,13 +74,27 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       category: "Commercial Viability",
       name: "External Fundraising (Received)",
       description: "Has the business received external funding",
-      maxPoints: 10,
+      maxPoints: 5,
       scoringLevels: [
-        { level: "Yes", points: 10, description: "Has received external funding" },
-        { level: "No", points: 5, description: "No external funding received" }
+        { level: "Yes", points: 5, description: "Has received external funding" },
+        { level: "No", points: 1, description: "No external funding received" }
       ],
       evaluationType: "manual",
       sortOrder: 3,
+      isRequired: true,
+      track: "foundation"
+    },
+    {
+      category: "Commercial Viability",
+      name: "Digitization",
+      description: "Use of digital tools and platforms",
+      maxPoints: 5,
+      scoringLevels: [
+        { level: "Yes", points: 5, description: "Uses digital tools for information/marketing" },
+        { level: "No", points: 1, description: "No digital tools used" }
+      ],
+      evaluationType: "manual",
+      sortOrder: 3.5,
       isRequired: true,
       track: "foundation"
     },
@@ -164,16 +178,16 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       track: "foundation"
     },
 
-    // Social Impact (40 Marks)
+    // Social Impact (30 Marks)
     {
       category: "Social Impact",
       name: "Environmental Impact",
       description: "Evaluate environmental sustainability focus",
-      maxPoints: 15,
+      maxPoints: 10,
       scoringLevels: [
-        { level: "Clearly Defined", points: 15, description: "Strong positive environmental impact" },
-        { level: "Neutral", points: 10, description: "Minimal environmental impact" },
-        { level: "Not Defined", points: 5, description: "No clear environmental consideration" }
+        { level: "Clearly Defined", points: 10, description: "Strong positive environmental impact" },
+        { level: "Neutral", points: 5, description: "Minimal environmental impact" },
+        { level: "Not Defined", points: 0, description: "No clear environmental consideration" }
       ],
       evaluationType: "manual",
       sortOrder: 9,
@@ -184,11 +198,11 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       category: "Social Impact",
       name: "Special Groups Employed (Women, Youth, PWD)",
       description: "Number of women, youth, or persons with disabilities employed",
-      maxPoints: 15,
+      maxPoints: 10,
       scoringLevels: [
-        { level: "> 10 employees", points: 15, description: "More than 10 from special groups" },
-        { level: "6 - 9 employees", points: 10, description: "6-9 from special groups" },
-        { level: "5 employees", points: 5, description: "5 from special groups" }
+        { level: "> 10 employees", points: 10, description: "More than 10 from special groups" },
+        { level: "6 - 9 employees", points: 6, description: "6-9 from special groups" },
+        { level: "5 employees", points: 3, description: "5 from special groups" }
       ],
       evaluationType: "manual",
       sortOrder: 10,
@@ -202,7 +216,7 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
       maxPoints: 10,
       scoringLevels: [
         { level: "Fully Compliant", points: 10, description: "All regulatory requirements met" },
-        { level: "Partially Compliant", points: 3, description: "Some compliance gaps" },
+        { level: "Partially Compliant", points: 5, description: "Some compliance gaps" },
         { level: "Not Clear", points: 1, description: "Compliance status unclear" }
       ],
       evaluationType: "manual",

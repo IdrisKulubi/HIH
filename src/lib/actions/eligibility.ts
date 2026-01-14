@@ -63,9 +63,9 @@ export async function checkEligibility(applicationId: number) {
     // 
     // FOUNDATION TRACK (100 pts total):
     //   - Business Model (10 pts) -> Innovation (creativity/uniqueness of business model)
-    //   - Commercial Viability (20 pts) -> Viability (revenue, customers, funding)
+    //   - Commercial Viability (30 pts) -> Viability (revenue, customers, funding, digitization)
     //   - Market Potential (30 pts) -> Alignment (market fit, differentiation, competitive position)
-    //   - Social Impact (40 pts) -> Org. Capacity (environmental impact, employment, compliance)
+    //   - Social Impact (30 pts) -> Org. Capacity (environmental impact, employment, compliance)
     //
     // ACCELERATION TRACK (100 pts total):
     //   - Revenues & Growth (20 pts) -> Viability

@@ -98,6 +98,11 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
         if (business?.externalFundingDetails) results.push({ label: "Funding Details", value: business.externalFundingDetails });
     }
 
+    if (name.includes('digitization')) {
+        if (business?.digitizationLevel !== undefined) results.push({ label: "Uses Digital Tools", value: business.digitizationLevel ? "Yes" : "No" });
+        if (business?.digitizationReason) results.push({ label: "Reason (If No)", value: business.digitizationReason });
+    }
+
     // === FOUNDATION TRACK: BUSINESS MODEL ===
     if (name.includes('business model') && cat.includes('business model')) {
         if (business?.businessModelInnovation) results.push({ label: "Business Model Innovation", value: business.businessModelInnovation });

@@ -47,7 +47,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TargetIcon className="w-8 h-8 text-orange-600" weight="duotone" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">SECTION D: MARKET POTENTIAL</h2>
+                <h2 className="text-2xl font-bold text-slate-900">SECTION D: MARKET POTENTIAL (30 MARKS)</h2>
                 <p className="text-slate-500 mt-2">D1 - D4: Pricing, Differentiation, Substitutes, Entry Barriers</p>
             </div>
 
@@ -59,7 +59,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <ScalesIcon className="w-5 h-5 text-emerald-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D1. Relative Pricing</CardTitle>
+                            <CardTitle className="text-lg">D1. Relative Pricing (7 Marks)</CardTitle>
                             <CardDescription>How is your product/service priced vs. competitors?</CardDescription>
                         </div>
                     </div>
@@ -119,7 +119,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <SparkleIcon className="w-5 h-5 text-purple-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D2. Product Differentiation</CardTitle>
+                            <CardTitle className="text-lg">D2. Product Differentiation (8 Marks)</CardTitle>
                             <CardDescription>How unique is your product or service compared to what is currently available?</CardDescription>
                         </div>
                     </div>
@@ -176,7 +176,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <ShieldCheckIcon className="w-5 h-5 text-red-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D3. Threat of Substitutes</CardTitle>
+                            <CardTitle className="text-lg">D3. Threat of Substitutes (7 Marks)</CardTitle>
                             <CardDescription>Are there other products/services that can easily replace yours?</CardDescription>
                         </div>
                     </div>
@@ -233,7 +233,7 @@ export function FoundationMarketPotentialForm({ form }: FoundationMarketPotentia
                             <TargetIcon className="w-5 h-5 text-blue-600" weight="duotone" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg">D4. Ease of Market Entry</CardTitle>
+                            <CardTitle className="text-lg">D4. Ease of Market Entry (8 Marks)</CardTitle>
                             <CardDescription>How easy is it for new competitors to start a similar business?</CardDescription>
                         </div>
                     </div>
