@@ -204,3 +204,47 @@ export async function updateDueDiligenceStatus(
         return { success: false, message: "Failed to update status" };
     }
 }
+
+// -----------------------------------------------------------------------------
+// FINAL DECISION
+// -----------------------------------------------------------------------------
+
+export async function saveDueDiligenceFinalDecision(
+    applicationId: number,
+    verdict: 'pass' | 'fail',
+    reason: string
+) {
+    try {
+        const session = await auth();
+        if (!session?.user || session.user.role !== "admin") {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        if (!reason || reason.trim().length < 10) {
+            return { success: false, message: "Please provide a detailed reason (at least 10 characters)." };
+        }
+
+        const record = await db.query.dueDiligenceRecords.findFirst({
+            where: eq(dueDiligenceRecords.applicationId, applicationId)
+        });
+
+        if (!record) return { success: false, message: "Due diligence record not found" };
+
+        await db.update(dueDiligenceRecords)
+            .set({
+                finalVerdict: verdict,
+                finalReason: reason,
+                updatedAt: new Date()
+            })
+            .where(eq(dueDiligenceRecords.id, record.id));
+
+        revalidatePath(`/admin/applications/${applicationId}`);
+        revalidatePath(`/admin/applications/${applicationId}/due-diligence`);
+
+        return { success: true, message: `Final decision (${verdict.toUpperCase()}) saved successfully.` };
+
+    } catch (error) {
+        console.error("Error saving final decision:", error);
+        return { success: false, message: "Failed to save final decision" };
+    }
+}

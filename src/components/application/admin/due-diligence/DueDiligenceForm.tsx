@@ -21,9 +21,11 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { saveDueDiligenceItem } from "@/lib/actions/due-diligence";
+import { saveDueDiligenceItem, saveDueDiligenceFinalDecision } from "@/lib/actions/due-diligence";
 import { toast } from "sonner";
 import { DueDiligenceItem } from "../../../../../db/schema";
+import { FinalDecisionModal } from "./FinalDecisionModal";
+import { FloppyDisk } from "@phosphor-icons/react";
 
 interface ScoringCriterion {
     name: string;
@@ -110,6 +112,59 @@ export function DueDiligenceForm({
         }
     };
 
+    // --- Final Decision Logic ---
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDecisionSaving, setIsDecisionSaving] = useState(false);
+
+    const checkScoringCompletion = () => {
+        const missingCriteria: string[] = [];
+        config.forEach(category => {
+            category.criteria.forEach(criterion => {
+                const item = getItem(criterion.name);
+                if (!item || item.score === null || item.score === undefined) {
+                    missingCriteria.push(criterion.name);
+                }
+            });
+        });
+
+        if (missingCriteria.length > 0) {
+            toast.error(
+                <div>
+                    <p className="font-bold mb-1">Incomplete Scoring</p>
+                    <p className="text-xs">Please score all criteria before saving. Missing: {missingCriteria.join(", ")}</p>
+                </div>,
+                { duration: 5000 }
+            );
+            return false;
+        }
+        return true;
+    };
+
+    const handleOpenModal = () => {
+        if (checkScoringCompletion()) {
+            setIsModalOpen(true);
+        }
+    };
+
+    const handleConfirmDecision = async (verdict: 'pass' | 'fail', reason: string) => {
+        setIsDecisionSaving(true);
+        try {
+            const result = await saveDueDiligenceFinalDecision(applicationId, verdict, reason);
+            if (result.success) {
+                toast.success(result.message);
+                setIsModalOpen(false);
+                if (onUpdate) onUpdate();
+            } else {
+                toast.error(result.message);
+            }
+        } catch (error) {
+            toast.error("An error occurred while saving decision");
+        } finally {
+            setIsDecisionSaving(false);
+        }
+    };
+
+
     // Calculate total score for display
     const currentTotal = existingItems
         .filter(i => i.phase === phase)
@@ -157,6 +212,16 @@ export function DueDiligenceForm({
                         </svg>
                         <span className="absolute text-[10px] font-bold text-slate-700">{Math.round(progress)}%</span>
                     </div>
+
+                    <div className="h-8 w-px bg-slate-200" />
+
+                    <Button
+                        onClick={handleOpenModal}
+                        className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-6 h-12 font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 gap-2"
+                    >
+                        <FloppyDisk size={20} weight="bold" />
+                        Save Score
+                    </Button>
                 </div>
             </div>
 
@@ -265,6 +330,13 @@ export function DueDiligenceForm({
                     </AccordionItem>
                 ))}
             </Accordion>
+
+            <FinalDecisionModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onConfirm={handleConfirmDecision}
+                isSaving={isDecisionSaving}
+            />
         </div>
     );
 }

@@ -852,6 +852,10 @@ export const dueDiligenceRecords = pgTable('due_diligence_records', {
   phase2Status: text('phase2_status').default('pending'), // pending, ready, in_progress, completed, skipped
   phase2Notes: text('phase2_notes'),
 
+  // Final Decision
+  finalVerdict: text('final_verdict'), // pass, fail
+  finalReason: text('final_reason'),
+
   reviewerId: text('reviewer_id'), // User ID of the staff member
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
