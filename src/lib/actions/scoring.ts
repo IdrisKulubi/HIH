@@ -295,8 +295,9 @@ function calculateBasicScore(application: any, config: any): number {
 
 /**
  * Initialize the default BIRE Programme scoring configuration
+ * If force=true, deletes existing config before recreating
  */
-export async function initializeDefaultScoringConfig() {
+export async function initializeDefaultScoringConfig(force: boolean = false) {
   try {
     const session = await auth();
     if (!session?.user?.id || session.user.role !== "admin") {
@@ -309,7 +310,14 @@ export async function initializeDefaultScoringConfig() {
     });
 
     if (existingConfig) {
-      return { success: false, error: "BIRE Programme scoring configuration already exists" };
+      if (!force) {
+        return { success: false, error: "BIRE Programme scoring configuration already exists. Use force=true to reinitialize." };
+      }
+
+      // Delete existing criteria first (foreign key constraint)
+      await db.delete(scoringCriteria).where(eq(scoringCriteria.configId, existingConfig.id));
+      // Delete the config
+      await db.delete(scoringConfigurations).where(eq(scoringConfigurations.id, existingConfig.id));
     }
 
     // Create the default configuration
@@ -320,6 +328,7 @@ export async function initializeDefaultScoringConfig() {
       await activateScoringConfiguration(result.data.id);
     }
 
+    revalidatePath("/admin");
     return result;
   } catch (error) {
     console.error("Error initializing default scoring config:", error);

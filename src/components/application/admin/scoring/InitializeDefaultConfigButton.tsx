@@ -14,10 +14,11 @@ export function InitializeDefaultConfigButton() {
   const handleInitialize = async () => {
     setIsInitializing(true);
     try {
-      const result = await initializeDefaultScoringConfig();
+      // Pass true to force-reinitialize with updated scoring weights
+      const result = await initializeDefaultScoringConfig(true);
 
       if (result.success) {
-        toast.success("BIRE Programme scoring configuration initialized successfully!");
+        toast.success("BIRE Programme scoring configuration updated successfully!");
         router.refresh();
       } else {
         toast.error(result.error || "Failed to initialize default configuration");

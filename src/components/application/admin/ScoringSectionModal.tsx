@@ -305,7 +305,12 @@ export function ScoringSectionModal({
 
     const currentTotal = criteria.reduce((sum, c) => sum + (scores[c.id] || 0), 0);
     const maxTotal = criteria.reduce((sum, c) => sum + c.weight, 0);
-    const completedCount = criteria.filter(c => scores[c.id] !== undefined && scores[c.id] > 0).length;
+    const completedCount = criteria.filter(c => scores[c.id] !== undefined).length;
+    const isSectionComplete = criteria.every(c =>
+        scores[c.id] !== undefined &&
+        notes[c.id] &&
+        notes[c.id].trim().length > 0
+    );
 
     const handleSave = () => {
         onSave(scores, notes);
@@ -345,6 +350,7 @@ export function ScoringSectionModal({
                             : generateScoringOptions(c.weight || c.maxPoints || 10);
                         const currentScore = scores[c.id];
                         const isScored = currentScore !== undefined;
+                        const isNoteMissing = isScored && (!notes[c.id] || notes[c.id].trim() === "");
 
                         return (
                             <div key={c.id} className={cn(
@@ -442,16 +448,29 @@ export function ScoringSectionModal({
 
                                 {/* Comments */}
                                 <div className="space-y-2">
-                                    <Label htmlFor={`note-${c.id}`} className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                        Comments (Optional)
+                                    <Label htmlFor={`note-${c.id}`} className={cn(
+                                        "text-xs font-semibold uppercase tracking-wide flex items-center gap-1",
+                                        isNoteMissing ? "text-red-600" : "text-gray-500"
+                                    )}>
+                                        Comments (Mandatory)
+                                        {isNoteMissing && <span className="text-red-500">*</span>}
                                     </Label>
                                     <Textarea
                                         id={`note-${c.id}`}
-                                        placeholder="Add observations..."
-                                        className="resize-none h-20 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
+                                        placeholder="Explain your reasoning for this score..."
+                                        className={cn(
+                                            "resize-none h-20 bg-gray-50 border-gray-200 focus:bg-white transition-all",
+                                            isNoteMissing && "border-red-300 bg-red-50/10 focus:border-red-500"
+                                        )}
                                         value={notes[c.id] || ""}
                                         onChange={(e) => handleNoteChange(c.id, e.target.value)}
+                                        required
                                     />
+                                    {isNoteMissing && (
+                                        <p className="text-[10px] font-medium text-red-500 italic mt-0.5">
+                                            Please provide a reason for this score
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -460,9 +479,16 @@ export function ScoringSectionModal({
 
                 <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
+                    <Button
+                        onClick={handleSave}
+                        disabled={!isSectionComplete}
+                        className={cn(
+                            "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20",
+                            !isSectionComplete && "opacity-50 cursor-not-allowed grayscale"
+                        )}
+                    >
                         <CheckCircle className="mr-2 h-4 w-4" />
-                        Save Section
+                        {isSectionComplete ? "Save Section" : "Complete All Comments"}
                     </Button>
                 </div>
             </DialogContent>

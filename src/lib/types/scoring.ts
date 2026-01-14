@@ -39,7 +39,7 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
   totalMaxScore: 100,
   passThreshold: 70,
   criteria: [
-    // Commercial Viability (20 Marks)
+    // Commercial Viability (30 Marks)
     {
       category: "Commercial Viability",
       name: "Proof of Sales (Last 1 year revenue)",

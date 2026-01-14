@@ -206,9 +206,10 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
     const handleInitializeConfig = async () => {
         setInitializing(true);
         try {
-            const result = await initializeDefaultScoringConfig();
+            // Force reinitialize to apply updated scoring weights
+            const result = await initializeDefaultScoringConfig(true);
             if (result.success) {
-                toast.success("Default scoring configuration initialized!");
+                toast.success("Scoring configuration updated!");
                 loadData(); // Reload data
             } else {
                 toast.error(result.error || "Failed to initialize config");

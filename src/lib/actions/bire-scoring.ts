@@ -36,10 +36,10 @@ export interface TrackScore {
  * Score a Foundation Track application
  * 
  * Categories:
- * - Commercial Viability: 20 pts
+ * - Commercial Viability: 30 pts
  * - Business Model: 10 pts  
  * - Market Potential: 30 pts
- * - Social Impact: 40 pts
+ * - Social Impact: 30 pts
  */
 export function scoreFoundationTrack(business: {
     revenueLastYear?: string | number | null;
@@ -60,7 +60,7 @@ export function scoreFoundationTrack(business: {
 }): TrackScore {
     const breakdown: ScoringBreakdown[] = [];
 
-    // === COMMERCIAL VIABILITY (20 pts) ===
+    // === COMMERCIAL VIABILITY (30 pts) ===
     const commercialDetails: { criterion: string; points: number; maxPoints: number }[] = [];
 
     // Revenue scoring: >2M (10), 1M-2M (5), 500k-1M (2)
