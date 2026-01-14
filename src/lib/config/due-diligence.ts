@@ -59,24 +59,14 @@ export const PHASE_1_CONFIG: PhaseConfig = [
         title: "Operational Fit (20 Points)",
         criteria: [
             {
-                name: "Sector Alignment",
-                options: [
-                    { score: 5, label: "Direct Alignment", description: "Agric, Waste, Services." },
-                    { score: 3, label: "Indirect", description: "Relevant but tangential." },
-                    { score: 1, label: "Weak Link", description: "Borderline relevance." },
-                    { score: 0, label: "Misaligned", description: "Completely outside scope." },
-                ],
-                guidelines: "5: Direct alignment with BIRE sectors (agriculture, waste, services). 3: Indirect relevance but still within program scope. 1: Weak or borderline link. 0: Completely outside program scope."
-            },
-            {
                 name: "Business Model Clarity",
                 options: [
-                    { score: 5, label: "Clear Model", description: "Value, delivery, & revenue clear." },
-                    { score: 3, label: "Understandable", description: "Missing some details." },
+                    { score: 10, label: "Clear Model", description: "Value, delivery, & revenue clear." },
+                    { score: 5, label: "Understandable", description: "Missing some details." },
                     { score: 1, label: "Unclear", description: "Scattered explanations." },
                     { score: 0, label: "Incoherent", description: "No coherent model." },
                 ],
-                guidelines: "5: Applicant clearly explains value creation, delivery, and revenue generation. 3: Understandable but missing details (pricing, customers, delivery). 1: Very unclear; scattered explanations. 0: No coherent model."
+                guidelines: "10: Applicant clearly explains value creation, delivery, and revenue generation. 5: Understandable but missing details (pricing, customers, delivery). 1: Very unclear; scattered explanations. 0: No coherent model."
             },
             {
                 name: "Operational Capacity",
