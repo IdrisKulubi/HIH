@@ -134,6 +134,38 @@ export function TwoTierReviewPanel({
             </CardHeader>
 
             <CardContent className="p-6 space-y-8">
+                {/* Final Score Summary - Show when both reviews complete */}
+                {reviewStatus?.reviewer1 && reviewStatus?.reviewer2 && (
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Reviewer Average Score */}
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200 text-center">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-1">Final Score</p>
+                            <p className="text-3xl font-bold text-green-600">
+                                {reviewStatus.finalScore?.toFixed(1) || ((Number(reviewStatus.reviewer1.score) + Number(reviewStatus.reviewer2.score)) / 2).toFixed(1)}
+                            </p>
+                            <p className="text-[10px] text-green-600/70 mt-1">(R1 + R2) ÷ 2</p>
+                        </div>
+                        {/* Score Breakdown */}
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Reviewer 1</span>
+                                <span className="font-semibold text-blue-600">{reviewStatus.reviewer1.score}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Reviewer 2</span>
+                                <span className="font-semibold text-purple-600">{reviewStatus.reviewer2.score}</span>
+                            </div>
+                            <div className="h-px bg-gray-200 my-1" />
+                            <div className="flex justify-between text-sm font-medium">
+                                <span className="text-gray-700">Average</span>
+                                <span className="text-green-600 font-bold">
+                                    {reviewStatus.finalScore?.toFixed(1) || ((Number(reviewStatus.reviewer1.score) + Number(reviewStatus.reviewer2.score)) / 2).toFixed(1)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Locked Alert */}
                 {isLocked && (
                     <Alert className="border-red-100 bg-red-50 rounded-lg">
