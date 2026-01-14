@@ -119,7 +119,7 @@ export async function createAdminUser(
     email: string,
     firstName: string,
     lastName: string,
-    role: "admin" | "technical_reviewer" = "admin"
+    role: "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2" = "admin"
 ): Promise<{ success: boolean; data?: { userId: string }; error?: string }> {
     try {
         await verifyAdminAccess();
@@ -178,7 +178,7 @@ export async function createAdminUser(
 // Update user role
 export async function updateUserRole(
     userId: string,
-    newRole: "applicant" | "admin" | "technical_reviewer"
+    newRole: "applicant" | "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2"
 ): Promise<{ success: boolean; error?: string }> {
     try {
         await verifyAdminAccess();

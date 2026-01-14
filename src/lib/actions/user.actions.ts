@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 // Types for user management
-export type UserRole = 'applicant' | 'admin' | 'technical_reviewer';
+export type UserRole = 'applicant' | 'admin' | 'technical_reviewer' | 'reviewer_1' | 'reviewer_2';
 
 export interface CreateUserProfileData {
   firstName: string;
@@ -36,7 +36,27 @@ export interface UpdateUserProfileData {
 export async function getCurrentUser() {
   try {
     const session = await auth();
-    return session?.user || null;
+    if (!session?.user?.id) {
+      return null;
+    }
+
+    // Fetch the full profile from the database
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, session.user.id)
+    });
+
+    if (!profile) {
+      return session.user;
+    }
+
+    return {
+      ...session.user,
+      ...profile,
+      // Ensure firstName/lastName are available if they exist in profile
+      id: session.user.id,
+      email: profile.email || session.user.email,
+      name: profile.firstName ? `${profile.firstName} ${profile.lastName}` : session.user.name,
+    };
   } catch (error) {
     console.error("Error getting current user:", error);
     return null;

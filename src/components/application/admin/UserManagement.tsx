@@ -43,6 +43,8 @@ const ROLES = [
     { value: "applicant", label: "Applicant", color: "bg-gray-100 text-gray-700" },
     { value: "admin", label: "Admin", color: "bg-blue-100 text-blue-700" },
     { value: "technical_reviewer", label: "Technical Reviewer", color: "bg-purple-100 text-purple-700" },
+    { value: "reviewer_1", label: "Reviewer 1", color: "bg-cyan-100 text-cyan-700" },
+    { value: "reviewer_2", label: "Reviewer 2", color: "bg-amber-100 text-amber-700" },
 ];
 
 export function UserManagement() {
@@ -57,7 +59,7 @@ export function UserManagement() {
     const [newUserEmail, setNewUserEmail] = useState("");
     const [newUserFirstName, setNewUserFirstName] = useState("");
     const [newUserLastName, setNewUserLastName] = useState("");
-    const [newUserRole, setNewUserRole] = useState<"admin" | "technical_reviewer">("admin");
+    const [newUserRole, setNewUserRole] = useState<"admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2">("admin");
 
     // Debounced search function
     const performSearch = useCallback(async (query: string) => {
@@ -213,7 +215,7 @@ export function UserManagement() {
                                     <Select
                                         value={newUserRole}
                                         onValueChange={(value) =>
-                                            setNewUserRole(value as "admin" | "technical_reviewer")
+                                            setNewUserRole(value as "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2")
                                         }
                                     >
                                         <SelectTrigger>
@@ -223,6 +225,12 @@ export function UserManagement() {
                                             <SelectItem value="admin">Admin</SelectItem>
                                             <SelectItem value="technical_reviewer">
                                                 Technical Reviewer
+                                            </SelectItem>
+                                            <SelectItem value="reviewer_1">
+                                                Reviewer 1
+                                            </SelectItem>
+                                            <SelectItem value="reviewer_2">
+                                                Reviewer 2
                                             </SelectItem>
                                         </SelectContent>
                                     </Select>

@@ -11,6 +11,7 @@ import {
     lockApplication,
     getReviewStatus,
 } from "@/lib/actions";
+import { getCurrentUserProfile } from "@/lib/actions/user.actions";
 import { toast } from "sonner";
 import {
     User,
@@ -26,6 +27,7 @@ interface TwoTierReviewPanelProps {
     applicationId: number;
     currentStatus: string;
     isAdmin?: boolean;
+    userRole?: string; // User's role: admin, reviewer_1, reviewer_2, etc.
 }
 
 interface ReviewStatus {
@@ -57,20 +59,31 @@ export function TwoTierReviewPanel({
     applicationId,
     currentStatus,
     isAdmin = false,
+    userRole: initialUserRole = "admin",
 }: TwoTierReviewPanelProps) {
     const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
     const [loading, setLoading] = useState(true);
+    const [userRole, setUserRole] = useState(initialUserRole);
 
     // Lock Form
     const [lockReason, setLockReason] = useState("");
     const [locking, setLocking] = useState(false);
 
-    // Fetch review status
+    // Fetch review status and user role
     async function fetchStatus() {
         try {
-            const result = await getReviewStatus(applicationId);
+            const [result, profile] = await Promise.all([
+                getReviewStatus(applicationId),
+                getCurrentUserProfile()
+            ]);
+
             if (result.success && result.data) {
                 setReviewStatus(result.data);
+            }
+
+            // Set user role from profile
+            if (profile?.role) {
+                setUserRole(profile.role);
             }
         } catch (error) {
             console.error("Error fetching review status:", error);
@@ -115,9 +128,20 @@ export function TwoTierReviewPanel({
         );
     }
 
-    // Determine state
-    const canReview1 = currentStatus === "submitted" || currentStatus === "under_review";
-    const canReview2 = currentStatus === "pending_senior_review" && isAdmin;
+    // Determine state based on user role
+    // Reviewer 1 can only do the first review, Reviewer 2 can only do the second
+    const isReviewer1Role = userRole === "reviewer_1";
+    const isReviewer2Role = userRole === "reviewer_2";
+    const hasFullAccess = userRole === "admin" || userRole === "technical_reviewer";
+
+    const canReview1 =
+        (currentStatus === "submitted" || currentStatus === "under_review") &&
+        (hasFullAccess || isReviewer1Role);
+
+    const canReview2 =
+        currentStatus === "pending_senior_review" &&
+        (hasFullAccess || isReviewer2Role);
+
     const isComplete = currentStatus === "approved" || currentStatus === "rejected";
     const isLocked = reviewStatus?.isLocked ?? false;
 

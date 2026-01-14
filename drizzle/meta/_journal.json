@@ -57,6 +57,13 @@
       "when": 1765786849157,
       "tag": "0007_bouncy_agent_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1768384060803,
+      "tag": "0008_chilly_ricochet",
+      "breakpoints": true
     }
   ]
 }

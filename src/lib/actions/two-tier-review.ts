@@ -62,7 +62,8 @@ export async function submitReview(input: ReviewInput): Promise<ReviewResult> {
             where: eq(userProfiles.userId, userId),
         });
 
-        if (!userProfile || (userProfile.role !== "admin" && userProfile.role !== "technical_reviewer")) {
+        const allowedRoles = ["admin", "technical_reviewer", "reviewer_1", "reviewer_2"];
+        if (!userProfile || !allowedRoles.includes(userProfile.role)) {
             return { success: false, error: "You don't have permission to review applications" };
         }
 
@@ -91,6 +92,15 @@ export async function submitReview(input: ReviewInput): Promise<ReviewResult> {
 
         if (alreadyReviewed) {
             return { success: false, error: "You have already reviewed this application" };
+        }
+
+        // Role-based validation: reviewer_1 can only do first review, reviewer_2 can only do second
+        if (userProfile.role === "reviewer_2" && isReviewer1Slot) {
+            return { success: false, error: "Reviewer 2 cannot perform the first review. Wait for Reviewer 1 to complete their review." };
+        }
+
+        if (userProfile.role === "reviewer_1" && isReviewer2Slot) {
+            return { success: false, error: "Reviewer 1 cannot perform the second review. Only Reviewer 2 can complete this step." };
         }
 
         // Reviewer 1 cannot be the same as the person who will be Reviewer 2

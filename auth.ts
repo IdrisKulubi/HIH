@@ -14,6 +14,10 @@ declare module "next-auth" {
       id: string;
       email: string;
       role?: string;
+      firstName?: string;
+      lastName?: string;
+      phoneNumber?: string;
+      organization?: string;
       profileCompleted?: boolean;
       hasProfile: boolean;
     } & DefaultSession["user"];
@@ -142,6 +146,13 @@ export const {
           session.user.hasProfile = !!profile;
           session.user.role = profile?.role || 'applicant';
           session.user.profileCompleted = profile?.isCompleted || false;
+
+          if (profile) {
+            session.user.firstName = profile.firstName;
+            session.user.lastName = profile.lastName;
+            session.user.phoneNumber = profile.phoneNumber || undefined;
+            session.user.organization = profile.organization || undefined;
+          }
         } catch (error) {
           console.error("Session callback error:", error);
           session.user.hasProfile = false;

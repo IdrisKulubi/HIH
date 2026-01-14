@@ -38,7 +38,9 @@ export const countryEnum = pgEnum('country', [
 export const userRoleEnum = pgEnum('user_role', [
   'applicant',
   'admin',
-  'technical_reviewer'
+  'technical_reviewer',
+  'reviewer_1',
+  'reviewer_2'
 ]);
 
 export const fundingSourceEnum = pgEnum('funding_source', [
