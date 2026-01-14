@@ -81,12 +81,16 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
 
     // === FOUNDATION TRACK: COMMERCIAL VIABILITY ===
     if (name.includes('proof of sales') || name.includes('revenue') && cat.includes('commercial')) {
-        if (business?.revenueLastYear) results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+        if (business?.revenueLastYear !== undefined && business?.revenueLastYear !== null) {
+            results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+        }
         if (business?.salesEvidenceUrl) results.push({ label: "Sales Evidence", value: "Document uploaded ✓" });
     }
 
     if (name.includes('number of customers') || name.includes('customer')) {
-        if (business?.customerCount) results.push({ label: "Customer Count", value: String(business.customerCount) });
+        if (business?.customerCount !== undefined && business?.customerCount !== null) {
+            results.push({ label: "Customer Count", value: String(business.customerCount) });
+        }
     }
 
     if (name.includes('external fundraising') || name.includes('funding') && !name.includes('funds raised')) {
@@ -106,7 +110,7 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
         if (business?.competitorOverview) results.push({ label: "Competitor Overview", value: business.competitorOverview });
     }
 
-    if (name.includes('product differentiation') || name.includes('differentiation') && !name.includes('market')) {
+    if (name.includes('product differentiation') || (name.includes('differentiation') && !cat.includes('scalability'))) {
         if (business?.productDifferentiation) results.push({ label: "Product Differentiation", value: business.productDifferentiation });
     }
 
@@ -125,10 +129,16 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
     }
 
     if (name.includes('special groups') || name.includes('women') || name.includes('youth') || name.includes('pwd')) {
-        if (business?.fullTimeEmployeesTotal) results.push({ label: "Total Full-Time Employees", value: String(business.fullTimeEmployeesTotal) });
-        if (business?.fullTimeEmployeesWomen) results.push({ label: "Women Employed", value: String(business.fullTimeEmployeesWomen) });
-        if (business?.fullTimeEmployeesYouth) results.push({ label: "Youth Employed", value: String(business.fullTimeEmployeesYouth) });
-        if (business?.fullTimeEmployeesPwd) results.push({ label: "PWD Employed", value: String(business.fullTimeEmployeesPwd) });
+        const emp = business?.employees;
+        const total = emp?.fullTimeTotal ?? business?.fullTimeEmployeesTotal;
+        const women = emp?.fullTimeFemale ?? business?.fullTimeEmployeesWomen;
+        const youth = emp?.fullTimeYouth ?? business?.fullTimeEmployeesYouth;
+        const pwd = emp?.fullTimePwd ?? business?.fullTimeEmployeesPwd;
+
+        if (total !== undefined && total !== null) results.push({ label: "Total Employees", value: String(total) });
+        if (women !== undefined && women !== null) results.push({ label: "Women Employed", value: String(women) });
+        if (youth !== undefined && youth !== null) results.push({ label: "Youth Employed", value: String(youth) });
+        if (pwd !== undefined && pwd !== null) results.push({ label: "PWD Employed", value: String(pwd) });
     }
 
     if (name.includes('business compliance') || name.includes('compliance')) {
@@ -140,10 +150,14 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
     // === ACCELERATION TRACK: REVENUES & GROWTH ===
     if (cat.includes('revenues') || cat.includes('growth')) {
         if (name.includes('revenue') && !name.includes('growth')) {
-            if (business?.revenueLastYear) results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+            if (business?.revenueLastYear !== undefined && business?.revenueLastYear !== null) {
+                results.push({ label: "Revenue (Last Year)", value: `KES ${Number(business.revenueLastYear).toLocaleString()}` });
+            }
         }
         if (name.includes('years of operation') || name.includes('operational')) {
-            if (business?.yearsOperational) results.push({ label: "Years Operational", value: String(business.yearsOperational) });
+            if (business?.yearsOperational !== undefined && business?.yearsOperational !== null) {
+                results.push({ label: "Years Operational", value: `${business.yearsOperational} years` });
+            }
         }
         if (name.includes('future') || name.includes('potential sales growth')) {
             if (business?.futureSalesGrowth) results.push({ label: "Future Growth Potential", value: business.futureSalesGrowth });
@@ -158,10 +172,16 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
     // === ACCELERATION TRACK: IMPACT POTENTIAL ===
     if (cat.includes('impact potential')) {
         if (name.includes('current') || name.includes('employed')) {
-            if (business?.fullTimeEmployeesTotal) results.push({ label: "Total Employees", value: String(business.fullTimeEmployeesTotal) });
-            if (business?.fullTimeEmployeesWomen) results.push({ label: "Women Employed", value: String(business.fullTimeEmployeesWomen) });
-            if (business?.fullTimeEmployeesYouth) results.push({ label: "Youth Employed", value: String(business.fullTimeEmployeesYouth) });
-            if (business?.fullTimeEmployeesPwd) results.push({ label: "PWD Employed", value: String(business.fullTimeEmployeesPwd) });
+            const emp = business?.employees;
+            const total = emp?.fullTimeTotal ?? business?.fullTimeEmployeesTotal;
+            const women = emp?.fullTimeFemale ?? business?.fullTimeEmployeesWomen;
+            const youth = emp?.fullTimeYouth ?? business?.fullTimeEmployeesYouth;
+            const pwd = emp?.fullTimePwd ?? business?.fullTimeEmployeesPwd;
+
+            if (total !== undefined && total !== null) results.push({ label: "Total Employees", value: String(total) });
+            if (women !== undefined && women !== null) results.push({ label: "Women Employed", value: String(women) });
+            if (youth !== undefined && youth !== null) results.push({ label: "Youth Employed", value: String(youth) });
+            if (pwd !== undefined && pwd !== null) results.push({ label: "PWD Employed", value: String(pwd) });
         }
         if (name.includes('potential') || name.includes('create new jobs')) {
             if (business?.jobCreationPotential) results.push({ label: "Job Creation Potential", value: business.jobCreationPotential });
@@ -171,7 +191,7 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
 
     // === ACCELERATION TRACK: SCALABILITY ===
     if (cat.includes('scalability')) {
-        if (name.includes('market differentiation')) {
+        if (name.includes('market differentiation') || name.includes('differentiation')) {
             if (business?.marketDifferentiation) results.push({ label: "Market Differentiation", value: business.marketDifferentiation });
             if (business?.marketDifferentiationDescription) results.push({ label: "Differentiation Details", value: business.marketDifferentiationDescription });
         }
@@ -180,11 +200,22 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
             if (business?.competitiveAdvantageSource) results.push({ label: "Advantage Source", value: business.competitiveAdvantageSource });
         }
         if (name.includes('offering focus')) {
+            // "Offering Focus" in scoring maps strictly to D3 "Technology Integration / Focus" in form
+            if (business?.technologyIntegration) results.push({ label: "Tech/Innovation Level", value: business.technologyIntegration });
+            if (business?.technologyIntegrationDescription) results.push({ label: "How technology/innovation is used", value: business.technologyIntegrationDescription });
+        }
+        if (name.includes('scalability') && !name.includes('offering focus')) {
             if (business?.scalabilityPlan) results.push({ label: "Scalability Plan", value: business.scalabilityPlan });
+            if (business?.marketScalePotential) results.push({ label: "Market Scale Potential", value: business.marketScalePotential });
         }
         if (name.includes('sales') && name.includes('marketing')) {
             if (business?.salesMarketingIntegration) results.push({ label: "Sales/Marketing Integration", value: business.salesMarketingIntegration });
-            if (business?.salesMarketingApproach) results.push({ label: "Approach", value: business.salesMarketingApproach });
+            if (business?.salesMarketingApproach) results.push({ label: "Sales/Marketing Approach", value: business.salesMarketingApproach });
+        }
+        if (name.includes('technology') || name.includes('digitization')) {
+            if (business?.technologyIntegration) results.push({ label: "Tech Integration Level", value: business.technologyIntegration });
+            if (business?.technologyIntegrationDescription) results.push({ label: "Tech Details", value: business.technologyIntegrationDescription });
+            if (business?.digitizationLevel !== undefined) results.push({ label: "Digitized", value: business.digitizationLevel ? "Yes" : "No" });
         }
     }
 
@@ -210,12 +241,17 @@ function getRelevantData(criteriaName: string, category: string, app: any): { la
             if (business?.businessModelUniqueness) results.push({ label: "Business Model Uniqueness", value: business.businessModelUniqueness });
             if (business?.businessModelUniquenessDescription) results.push({ label: "Uniqueness Details", value: business.businessModelUniquenessDescription });
         }
-        if (name.includes('customer value') || name.includes('proposition')) {
+        if (name.includes('value proposition') || name.includes('proposition')) {
             if (business?.customerValueProposition) results.push({ label: "Customer Value Proposition", value: business.customerValueProposition });
         }
         if (name.includes('competitive advantage strength') || (name.includes('strength') && name.includes('competitive'))) {
-            if (business?.competitiveAdvantageStrength) results.push({ label: "Competitive Advantage Strength", value: business.competitiveAdvantageStrength });
+            if (business?.competitiveAdvantageStrength) results.push({ label: "Advantage Strength", value: business.competitiveAdvantageStrength });
             if (business?.competitiveAdvantageBarriers) results.push({ label: "Barriers to Competition", value: business.competitiveAdvantageBarriers });
+        }
+        // Fallback for any other business model criteria
+        if (results.length === 0) {
+            if (business?.businessModelInnovation) results.push({ label: "Model Innovation", value: business.businessModelInnovation });
+            if (business?.businessModelDescription) results.push({ label: "Model Description", value: business.businessModelDescription });
         }
     }
 

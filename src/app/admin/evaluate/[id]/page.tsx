@@ -430,7 +430,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                                     </div>
                                     <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
                                         <p className="text-xs text-blue-600 font-medium">Revenue</p>
-                                        <p className="text-xl font-bold text-blue-900">${application.business.revenue?.toLocaleString()}</p>
+                                        <p className="text-xl font-bold text-blue-900">KES {application.business.revenueLastYear ? Number(application.business.revenueLastYear).toLocaleString() : '0'}</p>
                                     </div>
                                 </div>
                             </TabsContent>

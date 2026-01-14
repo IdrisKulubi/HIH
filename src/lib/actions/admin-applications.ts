@@ -438,6 +438,7 @@ export async function getApplicationById(
                 problemSolved: applicationData.business.problemSolved,
                 hasFinancialRecords: applicationData.business.hasFinancialRecords,
                 hasAuditedAccounts: applicationData.business.hasAuditedAccounts,
+                yearsOperational: applicationData.business.yearsOperational,
                 revenueLastYear: applicationData.business.revenueLastYear,
                 customerCount: applicationData.business.customerCount,
                 hasExternalFunding: applicationData.business.hasExternalFunding,
