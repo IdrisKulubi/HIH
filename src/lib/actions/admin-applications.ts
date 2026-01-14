@@ -98,11 +98,54 @@ export interface DetailedApplication extends ApplicationListItem {
         };
         specialGroupsEmployed: number | null;
         environmentalImpact: string | null;
+        environmentalImpactDescription?: string | null;
         businessCompliance: string | null;
+        externalFundingDetails?: string | null;
+        businessModelInnovation?: string | null;
+        businessModelDescription?: string | null;
+        digitizationLevel?: boolean | null;
+        digitizationReason?: string | null;
+        relativePricing?: string | null;
+        productDifferentiation?: string | null;
+        threatOfSubstitutes?: string | null;
+        competitorOverview?: string | null;
+        easeOfMarketEntry?: string | null;
+        averageAnnualRevenueGrowth?: string | null;
+        scalabilityPlan?: string | null;
+        marketScalePotential?: string | null;
+        marketDifferentiation?: string | null;
+        marketDifferentiationDescription?: string | null;
+        competitiveAdvantage?: string | null;
+        competitiveAdvantageSource?: string | null;
+        technologyIntegration?: string | null;
+        technologyIntegrationDescription?: string | null;
+        salesMarketingIntegration?: string | null;
+        salesMarketingApproach?: string | null;
+        socialImpactContribution?: string | null;
+        socialImpactContributionDescription?: string | null;
+        jobCreationPotential?: string | null;
+        projectedInclusion?: string | null;
+        supplierInvolvement?: string | null;
+        supplierSupportDescription?: string | null;
+        businessModelUniqueness?: string | null;
+        businessModelUniquenessDescription?: string | null;
+        customerValueProposition?: string | null;
+        competitiveAdvantageStrength?: string | null;
+        competitiveAdvantageBarriers?: string | null;
+        hasSocialSafeguarding?: boolean | null;
+        declarationName?: string | null;
+        declarationDate?: string | null;
         growthHistory?: string | null;
         futureSalesGrowth?: string | null;
         futureSalesGrowthReason?: string | null;
-        externalFundingDetails?: string | null;
+        // Document URLs
+        registrationType: string | null;
+        salesEvidenceUrl?: string | null;
+        photosUrl?: string | null;
+        taxComplianceUrl?: string | null;
+        financialRecordsUrl?: string | null;
+        auditedAccountsUrl?: string | null;
+        complianceDocumentsUrl?: string | null;
         applicant: { // Inherited/Overridden for Detail View consistency if needed
             firstName: string;
             lastName: string;
@@ -308,6 +351,7 @@ export async function getApplications(
                 id: er.id,
                 isEligible: er.isEligible,
                 totalScore: er.totalScore ? Number(er.totalScore) : null,
+                systemScore: er.systemScore ? Number(er.systemScore) : null,
                 // Map granular flags
                 ageEligible: er.ageEligible,
                 registrationEligible: er.registrationEligible,
@@ -395,11 +439,54 @@ export async function getApplicationById(
                     (applicationData.business.fullTimeEmployeesYouth || 0) +
                     (applicationData.business.fullTimeEmployeesPwd || 0),
                 environmentalImpact: applicationData.business.environmentalImpact,
+                environmentalImpactDescription: applicationData.business.environmentalImpactDescription,
                 businessCompliance: applicationData.business.businessCompliance,
                 growthHistory: applicationData.business.growthHistory,
                 futureSalesGrowth: applicationData.business.futureSalesGrowth,
                 futureSalesGrowthReason: applicationData.business.futureSalesGrowthReason,
                 externalFundingDetails: applicationData.business.externalFundingDetails,
+                businessModelInnovation: applicationData.business.businessModelInnovation,
+                businessModelDescription: applicationData.business.businessModelDescription,
+                digitizationLevel: applicationData.business.digitizationLevel,
+                digitizationReason: applicationData.business.digitizationReason,
+                relativePricing: applicationData.business.relativePricing,
+                productDifferentiation: applicationData.business.productDifferentiation,
+                threatOfSubstitutes: applicationData.business.threatOfSubstitutes,
+                competitorOverview: applicationData.business.competitorOverview,
+                easeOfMarketEntry: applicationData.business.easeOfMarketEntry,
+                averageAnnualRevenueGrowth: applicationData.business.averageAnnualRevenueGrowth,
+                scalabilityPlan: applicationData.business.scalabilityPlan,
+                marketScalePotential: applicationData.business.marketScalePotential,
+                marketDifferentiation: applicationData.business.marketDifferentiation,
+                marketDifferentiationDescription: applicationData.business.marketDifferentiationDescription,
+                competitiveAdvantage: applicationData.business.competitiveAdvantage,
+                competitiveAdvantageSource: applicationData.business.competitiveAdvantageSource,
+                technologyIntegration: applicationData.business.technologyIntegration,
+                technologyIntegrationDescription: applicationData.business.technologyIntegrationDescription,
+                salesMarketingIntegration: applicationData.business.salesMarketingIntegration,
+                salesMarketingApproach: applicationData.business.salesMarketingApproach,
+                socialImpactContribution: applicationData.business.socialImpactContribution,
+                socialImpactContributionDescription: applicationData.business.socialImpactContributionDescription,
+                jobCreationPotential: applicationData.business.jobCreationPotential,
+                projectedInclusion: applicationData.business.projectedInclusion,
+                supplierInvolvement: applicationData.business.supplierInvolvement,
+                supplierSupportDescription: applicationData.business.supplierSupportDescription,
+                businessModelUniqueness: applicationData.business.businessModelUniqueness,
+                businessModelUniquenessDescription: applicationData.business.businessModelUniquenessDescription,
+                customerValueProposition: applicationData.business.customerValueProposition,
+                competitiveAdvantageStrength: applicationData.business.competitiveAdvantageStrength,
+                competitiveAdvantageBarriers: applicationData.business.competitiveAdvantageBarriers,
+                hasSocialSafeguarding: applicationData.business.hasSocialSafeguarding,
+                declarationName: applicationData.business.declarationName,
+                declarationDate: applicationData.business.declarationDate?.toISOString() ?? null,
+                // Document URLs
+                registrationType: applicationData.business.registrationType,
+                salesEvidenceUrl: applicationData.business.salesEvidenceUrl,
+                photosUrl: applicationData.business.photosUrl,
+                taxComplianceUrl: applicationData.business.taxComplianceUrl,
+                financialRecordsUrl: applicationData.business.financialRecordsUrl,
+                auditedAccountsUrl: applicationData.business.auditedAccountsUrl,
+                complianceDocumentsUrl: applicationData.business.complianceDocumentsUrl,
                 // Manually map employee breakdown
                 employees: {
                     fullTimeTotal: applicationData.business.fullTimeEmployeesTotal ?? 0,
@@ -425,6 +512,7 @@ export async function getApplicationById(
                 id: er.id,
                 isEligible: er.isEligible,
                 totalScore: er.totalScore ? Number(er.totalScore) : null,
+                systemScore: er.systemScore ? Number(er.systemScore) : null,
                 // Granular flags
                 ageEligible: er.ageEligible,
                 registrationEligible: er.registrationEligible,
@@ -439,6 +527,7 @@ export async function getApplicationById(
                     id: applicationData.eligibilityResults[0].id,
                     isEligible: applicationData.eligibilityResults[0].isEligible,
                     totalScore: applicationData.eligibilityResults[0].totalScore ? Number(applicationData.eligibilityResults[0].totalScore) : null,
+                    systemScore: applicationData.eligibilityResults[0].systemScore ? Number(applicationData.eligibilityResults[0].systemScore) : null,
                     evaluationNotes: applicationData.eligibilityResults[0].evaluationNotes,
                     evaluatedAt: applicationData.eligibilityResults[0].evaluatedAt?.toISOString() ?? null,
                     evaluatedBy: applicationData.eligibilityResults[0].evaluatedBy,

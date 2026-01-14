@@ -231,11 +231,12 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     sections.push(...createQuestionAnswer("Location", `${business.city || 'N/A'}, ${business.county?.replace(/_/g, ' ') || ''}, ${(business.country || '').toUpperCase()}`));
     sections.push(...createQuestionAnswer("Years Operational", formatValue(business.yearsOperational)));
     sections.push(...createQuestionAnswer("Is Registered?", formatValue(business.isRegistered)));
-    if (business.registrationType) {
-      sections.push(...createQuestionAnswer("Registration Type", formatValue(business.registrationType?.replace(/_/g, ' '))));
-    }
+    sections.push(...createQuestionAnswer("Registration Type", formatValue(business.registrationType?.replace(/_/g, ' '))));
     sections.push(...createQuestionAnswer("Business Description", formatValue(business.description)));
     sections.push(...createQuestionAnswer("Problem Solved", formatValue(business.problemSolved)));
+    if (business.businessModelDescription) {
+      sections.push(...createQuestionAnswer("Business Model Description", formatValue(business.businessModelDescription)));
+    }
 
     // =====================
     // SECTION 3: FINANCIAL INFO
@@ -268,6 +269,12 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     sections.push(...createQuestionAnswer("Threat of Substitutes", formatValue(business.threatOfSubstitutes)));
     sections.push(...createQuestionAnswer("Competitor Overview", formatValue(business.competitorOverview)));
     sections.push(...createQuestionAnswer("Ease of Market Entry", formatValue(business.easeOfMarketEntry)));
+    if (business.marketDifferentiation) {
+      sections.push(...createQuestionAnswer("Market Differentiation", formatValue(business.marketDifferentiation?.replace(/_/g, ' '))));
+    }
+    if (business.marketDifferentiationDescription) {
+      sections.push(...createQuestionAnswer("Differentiation Description", formatValue(business.marketDifferentiationDescription)));
+    }
 
     // =====================
     // SECTION 6: BUSINESS MODEL
@@ -287,6 +294,12 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     if (business.competitiveAdvantageSource) {
       sections.push(...createQuestionAnswer("Competitive Advantage Source", formatValue(business.competitiveAdvantageSource)));
     }
+    if (business.competitiveAdvantageStrength) {
+      sections.push(...createQuestionAnswer("Competitive Advantage Strength", formatValue(business.competitiveAdvantageStrength)));
+    }
+    if (business.competitiveAdvantageBarriers) {
+      sections.push(...createQuestionAnswer("Competitive Advantage Barriers", formatValue(business.competitiveAdvantageBarriers)));
+    }
 
     // =====================
     // SECTION 7: GROWTH & SCALABILITY
@@ -301,7 +314,13 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
     sections.push(...createQuestionAnswer("Scalability Plan", formatValue(business.scalabilityPlan)));
     sections.push(...createQuestionAnswer("Market Scale Potential", formatValue(business.marketScalePotential)));
     sections.push(...createQuestionAnswer("Technology Integration", formatValue(business.technologyIntegration)));
+    if (business.technologyIntegrationDescription) {
+      sections.push(...createQuestionAnswer("Tech Integration Details", formatValue(business.technologyIntegrationDescription)));
+    }
     sections.push(...createQuestionAnswer("Sales & Marketing Integration", formatValue(business.salesMarketingIntegration)));
+    if (business.salesMarketingApproach) {
+      sections.push(...createQuestionAnswer("Sales & Marketing Approach", formatValue(business.salesMarketingApproach)));
+    }
 
     // =====================
     // SECTION 8: SOCIAL & ENVIRONMENTAL IMPACT
@@ -312,10 +331,16 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
       sections.push(...createQuestionAnswer("Environmental Impact Description", formatValue(business.environmentalImpactDescription)));
     }
     sections.push(...createQuestionAnswer("Social Impact Contribution", formatValue(business.socialImpactContribution)));
+    if (business.socialImpactContributionDescription) {
+      sections.push(...createQuestionAnswer("Social Impact Details", formatValue(business.socialImpactContributionDescription)));
+    }
     sections.push(...createQuestionAnswer("Business Compliance", formatValue(business.businessCompliance)));
     sections.push(...createQuestionAnswer("Job Creation Potential", formatValue(business.jobCreationPotential)));
     sections.push(...createQuestionAnswer("Projected Inclusion (Women/Youth/PWD)", formatValue(business.projectedInclusion)));
     sections.push(...createQuestionAnswer("Supplier Involvement", formatValue(business.supplierInvolvement)));
+    if (business.supplierSupportDescription) {
+      sections.push(...createQuestionAnswer("Supplier Support Description", formatValue(business.supplierSupportDescription)));
+    }
 
     // =====================
     // SECTION 9: DOCUMENTS
@@ -343,6 +368,14 @@ export async function downloadEnhancedApplicationDOCX(applicationId: number) {
         sections.push(...createQuestionAnswer("Revenue Eligible", application.eligibility.mandatoryCriteria.revenueEligible ? "✅ Yes" : "❌ No"));
       }
     }
+
+    // =====================
+    // SECTION 11: DECLARATIONS
+    // =====================
+    sections.push(createSectionHeader("Declarations", "✍️"));
+    sections.push(...createQuestionAnswer("Social Safeguarding?", formatValue(business.hasSocialSafeguarding)));
+    sections.push(...createQuestionAnswer("Declarant Name", formatValue(business.declarationName)));
+    sections.push(...createQuestionAnswer("Declaration Date", business.declarationDate ? format(new Date(business.declarationDate), "PPP") : "Not provided"));
 
     // Footer
     sections.push(

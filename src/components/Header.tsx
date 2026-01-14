@@ -141,7 +141,7 @@ export function Header() {
                 </Link>
               ))}
 
-             
+
 
               {/* Authentication Section */}
               {status === "loading" ? (
@@ -180,12 +180,16 @@ export function Header() {
                         <span>Profile</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/profile?tab=application" className="flex items-center">
-                        <FileText className="mr-2 h-4 w-4" />
-                        <span>My Application</span>
-                      </Link>
-                    </DropdownMenuItem>
+
+                    {/* Hide My Application for reviewers */}
+                    {!['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(session.user.role || '') && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/profile?tab=application" className="flex items-center">
+                          <FileText className="mr-2 h-4 w-4" />
+                          <span>My Application</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
 
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">

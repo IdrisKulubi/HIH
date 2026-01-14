@@ -35,6 +35,8 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { UserSupportTickets } from "@/components/support/UserSupportTickets";
+import { PasswordChangeForm } from "@/components/auth/PasswordChangeForm";
+import { ShieldCheck } from "lucide-react";
 
 // Helper function to get status color
 function getStatusColor(status: string) {
@@ -96,12 +98,15 @@ export default async function ProfilePage() {
 
   const application = applicationResult?.success ? applicationResult.data : null;
 
+  const isReviewer = ['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(userProfile.role || '');
+
   const profileFields = [
     userProfile.firstName,
     userProfile.lastName,
     userProfile.email,
     userProfile.phoneNumber,
     userProfile.country,
+    userProfile.organization
   ];
 
   const completedFields = profileFields.filter(field => field && field.toString().trim().length > 0);
@@ -162,23 +167,7 @@ export default async function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 w-full md:w-auto">
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 min-w-[200px]">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-slate-500">Profile Completion</span>
-                <span className="text-sm font-bold text-blue-600">{completionPercentage}%</span>
-              </div>
-              <Progress value={completionPercentage} className="h-2.5 bg-slate-200" />
-            </div>
-            {completionPercentage < 100 && (
-              <Button asChild className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-200/50">
-                <Link href="/profile/edit">
-                  <Edit className="w-4 h-4 mr-2" />
-                  Complete Profile
-                </Link>
-              </Button>
-            )}
-          </div>
+         
         </div>
 
         {/* Content Tabs */}
@@ -192,20 +181,33 @@ export default async function ProfilePage() {
                 <LayoutDashboard className="w-4 h-4 mr-2" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger
-                value="application"
-                className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                Application
-              </TabsTrigger>
-              <TabsTrigger
-                value="progress"
-                className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
-              >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Journey
-              </TabsTrigger>
+              {!isReviewer && (
+                <>
+                  <TabsTrigger
+                    value="application"
+                    className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Application
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="progress"
+                    className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+                  >
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    Journey
+                  </TabsTrigger>
+                </>
+              )}
+              {isReviewer && (
+                <TabsTrigger
+                  value="security"
+                  className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  Security
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="support"
                 className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
@@ -229,7 +231,7 @@ export default async function ProfilePage() {
                       </span>
                       Personal Information
                     </h3>
-                   
+
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
@@ -299,10 +301,10 @@ export default async function ProfilePage() {
                         </p>
                       </div>
 
-                    
+
                     </div>
                   </div>
-                ) : (
+                ) : !isReviewer ? (
                   <div className="bg-brand-blue     rounded-3xl p-8 text-center text-white shadow-xl shadow-blue-200">
                     <Sparkles className="w-12 h-12 mx-auto mb-4 text-blue-200" />
                     <h3 className="text-2xl font-bold mb-2">Start Your Application</h3>
@@ -313,43 +315,45 @@ export default async function ProfilePage() {
                       <Link href="/apply">Apply Now</Link>
                     </Button>
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* Right Column - Stats & Status */}
               <div className="space-y-6">
-                {/* Current Status Card */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Current Status</h4>
-                  <div className="text-center py-4">
-                    {application ? (
-                      <>
-                        <div className={`inline-flex p-4 rounded-full mb-4 ${application.status === 'submitted' ? 'bg-blue-50 text-blue-600' :
-                          application.status === 'approved' ? 'bg-green-50 text-green-600' :
-                            'bg-slate-50 text-slate-600'
-                          }`}>
-                          {application.status === 'submitted' ? <CheckCircle2 className="w-8 h-8" /> :
-                            application.status === 'approved' ? <Award className="w-8 h-8" /> :
-                              <Clock className="w-8 h-8" />}
-                        </div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-2 capitalize">
-                          {application.status.replace('_', ' ')}
-                        </h3>
-                        <p className="text-sm text-slate-500 leading-relaxed">
-                          {getStatusDescription(application.status)}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="inline-flex p-4 rounded-full bg-slate-50 text-slate-400 mb-4">
-                          <FileText className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-900 mb-1">Not Started</h3>
-                        <p className="text-sm text-slate-500">You haven't submitted an application yet.</p>
-                      </>
-                    )}
+                {/* Current Status Card - Hide for reviewers */}
+                {!isReviewer && (
+                  <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Current Status</h4>
+                    <div className="text-center py-4">
+                      {application ? (
+                        <>
+                          <div className={`inline-flex p-4 rounded-full mb-4 ${application.status === 'submitted' ? 'bg-blue-50 text-blue-600' :
+                            application.status === 'approved' ? 'bg-green-50 text-green-600' :
+                              'bg-slate-50 text-slate-600'
+                            }`}>
+                            {application.status === 'submitted' ? <CheckCircle2 className="w-8 h-8" /> :
+                              application.status === 'approved' ? <Award className="w-8 h-8" /> :
+                                <Clock className="w-8 h-8" />}
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-900 mb-2 capitalize">
+                            {application.status.replace('_', ' ')}
+                          </h3>
+                          <p className="text-sm text-slate-500 leading-relaxed">
+                            {getStatusDescription(application.status)}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="inline-flex p-4 rounded-full bg-slate-50 text-slate-400 mb-4">
+                            <FileText className="w-8 h-8" />
+                          </div>
+                          <h3 className="text-lg font-bold text-slate-900 mb-1">Not Started</h3>
+                          <p className="text-sm text-slate-500">You haven't submitted an application yet.</p>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Key Dates / Info */}
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
@@ -397,7 +401,7 @@ export default async function ProfilePage() {
                     </div>
 
                     <div className="space-y-6">
-                      
+
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -406,7 +410,7 @@ export default async function ProfilePage() {
                             {application.business?.name}
                           </p>
                         </div>
-                       
+
                       </div>
                     </div>
                   </div>
@@ -521,6 +525,15 @@ export default async function ProfilePage() {
           <TabsContent value="support" className="focus-visible:outline-none">
             <UserSupportTickets />
           </TabsContent>
+
+          {/* Security Tab - Reviewers Only */}
+          {isReviewer && (
+            <TabsContent value="security" className="focus-visible:outline-none">
+              <div className="max-w-2xl mx-auto">
+                <PasswordChangeForm />
+              </div>
+            </TabsContent>
+          )}
 
         </Tabs>
       </div>

@@ -170,6 +170,7 @@ export default function ApplicationDetail({
     eligibility?: {
       isEligible: boolean;
       totalScore: number;
+      systemScore: number | null;
       evaluatedAt?: string;
       mandatoryCriteria: {
         ageEligible: boolean;
