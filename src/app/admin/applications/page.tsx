@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   getApplications,
   ApplicationListItem,
   getApplicationStats,
 } from "@/lib/actions/admin-applications";
+import { getObservationStats } from "@/lib/actions/observation";
 import { DashboardStats } from "@/components/application/admin/DashboardStats";
 import { FeedbackDisplay } from "@/components/application/admin/FeedbackDisplay";
 import {
@@ -45,6 +47,7 @@ import {
   Briefcase,
   MapPin,
   Buildings,
+  Binoculars,
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -76,6 +79,7 @@ function ApplicationsContent() {
 
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [observationStats, setObservationStats] = useState<{ totalObservation: number } | null>(null);
   const [totalApplications, setTotalApplications] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
@@ -105,6 +109,12 @@ function ApplicationsContent() {
         }),
         getApplicationStats(),
       ]);
+
+      // Fetch observation stats
+      const obsStats = await getObservationStats();
+      if (obsStats.success && obsStats.data) {
+        setObservationStats(obsStats.data);
+      }
 
       if (data.success && data.data) {
         setApplications(data.data);
@@ -245,9 +255,27 @@ function ApplicationsContent() {
                 </button>
               );
             })}
+
+            {/* Observation Button */}
+            <Link href="/admin/observation">
+              <button
+                className={cn(
+                  "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5",
+                  "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                )}
+              >
+                <Binoculars className="h-3.5 w-3.5" weight="duotone" />
+                Observation
+                {observationStats?.totalObservation !== undefined && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {observationStats.totalObservation}
+                  </span>
+                )}
+              </button>
+            </Link>
           </div>
 
-         
+
         </div>
 
         {/* Filters Row */}

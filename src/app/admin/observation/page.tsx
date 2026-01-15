@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getObservationApplications, ObservationApplication } from "@/lib/actions/observation";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+    getObservationApplications,
+    getObservationStats,
+    markForRevisit,
+    unmarkForRevisit,
+    ObservationApplication,
+    ObservationStats,
+} from "@/lib/actions/observation";
 import {
     Table,
     TableBody,
@@ -13,32 +21,89 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Spinner, Eye, DownloadSimple, Binoculars, Buildings, MapPin, CurrencyCircleDollar } from "@phosphor-icons/react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Spinner,
+    Eye,
+    Binoculars,
+    Buildings,
+    MapPin,
+    CurrencyCircleDollar,
+    ArrowClockwise,
+    Check,
+    ArrowLeft,
+} from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
 
 export default function ObservationPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const currentTab = searchParams.get("tab") || "all";
+
     const [applications, setApplications] = useState<ObservationApplication[]>([]);
+    const [stats, setStats] = useState<ObservationStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState<number | null>(null);
+
+    const loadData = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const [appsResult, statsResult] = await Promise.all([
+                getObservationApplications(currentTab as "all" | "revisit"),
+                getObservationStats(),
+            ]);
+
+            if (appsResult.success && appsResult.data) {
+                setApplications(appsResult.data);
+            } else {
+                toast.error(appsResult.error || "Failed to load observation applications");
+            }
+
+            if (statsResult.success && statsResult.data) {
+                setStats(statsResult.data);
+            }
+        } catch {
+            toast.error("Failed to load data");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentTab]);
 
     useEffect(() => {
-        async function loadData() {
-            try {
-                const result = await getObservationApplications();
-                if (result.success && result.data) {
-                    setApplications(result.data);
-                } else {
-                    toast.error(result.error || "Failed to load observation applications");
-                }
-            } catch {
-                toast.error("Failed to load data");
-            } finally {
-                setIsLoading(false);
-            }
-        }
         loadData();
-    }, []);
+    }, [loadData]);
+
+    const handleTabChange = (tab: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (tab === "all") {
+            params.delete("tab");
+        } else {
+            params.set("tab", tab);
+        }
+        router.push(`?${params.toString()}`);
+    };
+
+    const handleMarkRevisit = async (appId: number, isCurrentlyMarked: boolean) => {
+        setActionLoading(appId);
+        try {
+            const result = isCurrentlyMarked
+                ? await unmarkForRevisit(appId)
+                : await markForRevisit(appId);
+
+            if (result.success) {
+                toast.success(isCurrentlyMarked ? "Removed from revisit" : "Marked for revisit");
+                loadData(); // Refresh data
+            } else {
+                toast.error(result.error || "Action failed");
+            }
+        } catch {
+            toast.error("Action failed");
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     const formatRevenue = (amount: string | null) => {
         if (!amount) return "N/A";
@@ -60,6 +125,16 @@ export default function ObservationPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-full"
+                        asChild
+                    >
+                        <Link href="/admin/applications">
+                            <ArrowLeft className="h-5 w-5" />
+                        </Link>
+                    </Button>
                     <div className="p-3 bg-amber-100 rounded-xl">
                         <Binoculars className="w-6 h-6 text-amber-700" weight="duotone" />
                     </div>
@@ -71,55 +146,87 @@ export default function ObservationPage() {
                     </div>
                 </div>
                 <Badge variant="secondary" className="px-4 py-2 text-lg">
-                    {applications.length} Applications
+                    {stats?.totalObservation || 0} Applications
                 </Badge>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card
+                    className={`cursor-pointer transition-all ${currentTab === "all" ? "ring-2 ring-amber-500" : "hover:shadow-md"}`}
+                    onClick={() => handleTabChange("all")}
+                >
                     <CardHeader className="pb-2">
                         <CardDescription>Total Observation</CardDescription>
-                        <CardTitle className="text-3xl">{applications.length}</CardTitle>
+                        <CardTitle className="text-3xl">{stats?.totalObservation || 0}</CardTitle>
+                    </CardHeader>
+                </Card>
+                <Card
+                    className={`cursor-pointer transition-all ${currentTab === "revisit" ? "ring-2 ring-blue-500" : "hover:shadow-md"}`}
+                    onClick={() => handleTabChange("revisit")}
+                >
+                    <CardHeader className="pb-2">
+                        <CardDescription className="flex items-center gap-1">
+                            <ArrowClockwise className="w-4 h-4" />
+                            Marked for Revisit
+                        </CardDescription>
+                        <CardTitle className="text-3xl text-blue-600">{stats?.totalRevisit || 0}</CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardDescription>Average Revenue</CardDescription>
                         <CardTitle className="text-3xl">
-                            {applications.length > 0
-                                ? formatRevenue(
-                                    String(
-                                        applications.reduce((sum, app) => sum + (parseFloat(app.business.revenueLastYear || "0")), 0) / applications.length
-                                    )
-                                )
-                                : "N/A"}
+                            {stats ? formatRevenue(String(Math.round(stats.averageRevenue))) : "N/A"}
                         </CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardDescription>Unique Sectors</CardDescription>
-                        <CardTitle className="text-3xl">
-                            {new Set(applications.map(a => a.business.sector).filter(Boolean)).size}
-                        </CardTitle>
+                        <CardTitle className="text-3xl">{stats?.uniqueSectors || 0}</CardTitle>
                     </CardHeader>
                 </Card>
             </div>
 
+            {/* Tabs */}
+            <Tabs value={currentTab} onValueChange={handleTabChange}>
+                <TabsList>
+                    <TabsTrigger value="all">All Observation ({stats?.totalObservation || 0})</TabsTrigger>
+                    <TabsTrigger value="revisit">
+                        <ArrowClockwise className="w-4 h-4 mr-1" />
+                        Revisit ({stats?.totalRevisit || 0})
+                    </TabsTrigger>
+                </TabsList>
+            </Tabs>
+
             {/* Applications Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>All Observation Applications</CardTitle>
+                    <CardTitle>
+                        {currentTab === "revisit" ? "Applications Marked for Revisit" : "All Observation Applications"}
+                    </CardTitle>
                     <CardDescription>
-                        These applicants are tracked for data collection purposes. They are not eligible for scoring or review.
+                        {currentTab === "revisit"
+                            ? "These applications have been flagged for future review and follow-up."
+                            : "These applicants are tracked for data collection purposes. They are not eligible for scoring or review."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {applications.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
-                            <Binoculars className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                            <p>No observation applications yet</p>
+                            {currentTab === "revisit" ? (
+                                <>
+                                    <ArrowClockwise className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                    <p>No applications marked for revisit yet</p>
+                                    <p className="text-sm mt-2">Click the &quot;Mark for Revisit&quot; button on any observation application</p>
+                                </>
+                            ) : (
+                                <>
+                                    <Binoculars className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                    <p>No observation applications yet</p>
+                                </>
+                            )}
                         </div>
                     ) : (
                         <Table>
@@ -141,7 +248,15 @@ export default function ObservationPage() {
                                             <div className="flex items-center gap-2">
                                                 <Buildings className="w-4 h-4 text-gray-400" />
                                                 <div>
-                                                    <div className="font-medium">{app.business.name}</div>
+                                                    <div className="font-medium flex items-center gap-2">
+                                                        {app.business.name}
+                                                        {app.markedForRevisit && (
+                                                            <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+                                                                <ArrowClockwise className="w-3 h-3 mr-1" />
+                                                                Revisit
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <div className="text-sm text-gray-500">
                                                         {app.business.sector?.replace(/_/g, " ") || "N/A"}
                                                     </div>
@@ -179,12 +294,35 @@ export default function ObservationPage() {
                                                 : "N/A"}
                                         </TableCell>
                                         <TableCell>
-                                            <Link href={`/admin/applications/${app.id}`}>
-                                                <Button variant="ghost" size="sm">
-                                                    <Eye className="w-4 h-4 mr-1" />
-                                                    View
+                                            <div className="flex items-center gap-2">
+                                                <Link href={`/admin/applications/${app.id}`}>
+                                                    <Button variant="ghost" size="sm">
+                                                        <Eye className="w-4 h-4 mr-1" />
+                                                        View
+                                                    </Button>
+                                                </Link>
+                                                <Button
+                                                    variant={app.markedForRevisit ? "outline" : "default"}
+                                                    size="sm"
+                                                    onClick={() => handleMarkRevisit(app.id, app.markedForRevisit)}
+                                                    disabled={actionLoading === app.id}
+                                                    className={app.markedForRevisit ? "text-gray-600" : "bg-blue-600 hover:bg-blue-700"}
+                                                >
+                                                    {actionLoading === app.id ? (
+                                                        <Spinner className="w-4 h-4 animate-spin" />
+                                                    ) : app.markedForRevisit ? (
+                                                        <>
+                                                            <Check className="w-4 h-4 mr-1" />
+                                                            Marked
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <ArrowClockwise className="w-4 h-4 mr-1" />
+                                                            Revisit
+                                                        </>
+                                                    )}
                                                 </Button>
-                                            </Link>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}

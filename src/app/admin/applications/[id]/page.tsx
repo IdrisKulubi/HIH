@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { getApplicationById } from "@/lib/actions";
 import { downloadEnhancedApplicationDOCX } from "@/lib/actions/enhanced-export";
 import { updateApplicationStatus } from "@/lib/actions/application-status";
+import { markForRevisit, unmarkForRevisit } from "@/lib/actions/observation";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -36,7 +37,9 @@ import {
   Files,
   ShieldCheck,
   Target,
-  Clock
+  Clock,
+  ArrowClockwise,
+  Binoculars,
 } from "@phosphor-icons/react";
 import { TwoTierReviewPanel } from "@/components/application/admin/TwoTierReviewPanel";
 import { DocumentViewerModal } from "@/components/application/admin/DocumentViewerModal";
@@ -97,6 +100,8 @@ export default function ApplicationDetail({
     | "scoring_phase"
     | "finalist";
     submittedAt: string | null;
+    isObservationOnly?: boolean;
+    markedForRevisit?: boolean;
     business: {
       name: string;
       city: string;
@@ -193,6 +198,7 @@ export default function ApplicationDetail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [revisitLoading, setRevisitLoading] = useState(false);
 
   // Document Viewer State
   const [docViewerOpen, setDocViewerOpen] = useState(false);
@@ -327,6 +333,28 @@ export default function ApplicationDetail({
     }
   };
 
+  const handleRevisit = async () => {
+    if (!applicationId || !application) return;
+
+    setRevisitLoading(true);
+    try {
+      const result = application.markedForRevisit
+        ? await unmarkForRevisit(applicationId)
+        : await markForRevisit(applicationId);
+
+      if (result.success) {
+        toast.success(application.markedForRevisit ? "Removed from revisit" : "Marked for revisit");
+        // Update local state
+        setApplication(prev => prev ? { ...prev, markedForRevisit: !prev.markedForRevisit } : null);
+      } else {
+        toast.error(result.error || "Action failed");
+      }
+    } catch {
+      toast.error("Failed to update revisit status");
+    } finally {
+      setRevisitLoading(false);
+    }
+  };
 
   // Get category totals directly from stored DB values (no reconstruction needed!)
   const totals = {
@@ -389,7 +417,33 @@ export default function ApplicationDetail({
                 </Button>
               </Link>
 
-             
+              {/* Revisit Button - Only for Observation Applications */}
+              {application.isObservationOnly && (
+                <Button
+                  variant={application.markedForRevisit ? "outline" : "default"}
+                  size="sm"
+                  className={cn(
+                    "h-9 font-medium",
+                    application.markedForRevisit
+                      ? "bg-white text-blue-600 border-blue-200 hover:bg-blue-50"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                  onClick={handleRevisit}
+                  disabled={revisitLoading}
+                >
+                  {revisitLoading ? (
+                    <Spinner className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ArrowClockwise className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">
+                        {application.markedForRevisit ? "Marked for Revisit" : "Mark for Revisit"}
+                      </span>
+                    </>
+                  )}
+                </Button>
+              )}
+
             </div>
           </div>
         </div>

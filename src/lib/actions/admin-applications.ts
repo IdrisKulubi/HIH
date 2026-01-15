@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import db from "../../../db/drizzle";
 import { applications, eligibilityResults } from "../../../db/schema";
-import { eq, desc, and, count as drizzleCount } from "drizzle-orm";
+import { eq, desc, and, count as drizzleCount, not } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, successResponse, errorResponse, PaginatedResponse, paginatedResponse } from "./types";
 
@@ -25,6 +25,8 @@ export interface ApplicationListItem {
     status: string;
     track: string | null;
     submittedAt: string | null;
+    isObservationOnly: boolean;
+    markedForRevisit: boolean;
     business: {
         name: string;
         sector: string | null;
@@ -196,34 +198,47 @@ export interface DetailedApplication extends ApplicationListItem {
 
 export async function getApplicationStats(): Promise<ActionResponse<ApplicationStats>> {
     try {
-        // Total applications (all applications)
+        // Total applications (excluding observation-only)
         const totalResult = await db.select({ count: drizzleCount() })
-            .from(applications);
+            .from(applications)
+            .where(not(eq(applications.isObservationOnly, true)));
         const totalApplications = totalResult[0]?.count ?? 0;
 
-        // Foundation track count
+        // Foundation track count (excluding observation-only)
         const foundationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.track, "foundation"));
+            .where(and(
+                eq(applications.track, "foundation"),
+                not(eq(applications.isObservationOnly, true))
+            ));
         const foundationTrack = foundationResult[0]?.count ?? 0;
 
-        // Acceleration track count
+        // Acceleration track count (excluding observation-only)
         const accelerationResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.track, "acceleration"));
+            .where(and(
+                eq(applications.track, "acceleration"),
+                not(eq(applications.isObservationOnly, true))
+            ));
         const accelerationTrack = accelerationResult[0]?.count ?? 0;
 
-        // Eligible applications
+        // Eligible applications (excluding observation-only)
         const eligibleResult = await db.select({ count: drizzleCount() })
             .from(eligibilityResults)
             .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
-            .where(eq(eligibilityResults.isEligible, true));
+            .where(and(
+                eq(eligibilityResults.isEligible, true),
+                not(eq(applications.isObservationOnly, true))
+            ));
         const eligibleApplications = eligibleResult[0]?.count ?? 0;
 
-        // Pending review
+        // Pending review (excluding observation-only)
         const pendingResult = await db.select({ count: drizzleCount() })
             .from(applications)
-            .where(eq(applications.status, "submitted"));
+            .where(and(
+                eq(applications.status, "submitted"),
+                not(eq(applications.isObservationOnly, true))
+            ));
         const pendingReview = pendingResult[0]?.count ?? 0;
 
         return successResponse({
@@ -273,6 +288,8 @@ export async function getApplications(
         // Apply filters
         let filteredData = allApplications;
 
+        // EXCLUDE observation-only applications from main dashboard
+        filteredData = filteredData.filter(app => !app.isObservationOnly);
 
         // Status filter
         if (filters.status && filters.status !== "all") {
@@ -337,6 +354,8 @@ export async function getApplications(
             status: app.status,
             track: app.track,
             submittedAt: app.submittedAt?.toISOString() ?? null,
+            isObservationOnly: app.isObservationOnly,
+            markedForRevisit: app.markedForRevisit,
             business: {
                 name: app.business.name,
                 sector: app.business.sector,
@@ -419,6 +438,8 @@ export async function getApplicationById(
             status: applicationData.status,
             track: applicationData.track,
             submittedAt: applicationData.submittedAt?.toISOString() ?? null,
+            isObservationOnly: applicationData.isObservationOnly,
+            markedForRevisit: applicationData.markedForRevisit,
             business: {
                 id: applicationData.business.id,
                 name: applicationData.business.name,

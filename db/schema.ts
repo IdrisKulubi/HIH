@@ -425,6 +425,9 @@ export const applications = pgTable('applications', {
   track: applicationTrackEnum('track'),
   status: applicationStatusEnum('status').default('submitted').notNull(),
   isObservationOnly: boolean('is_observation_only').default(false).notNull(), // Kenya applicants with revenue < 500k
+  markedForRevisit: boolean('marked_for_revisit').default(false).notNull(), // Observation apps flagged for future review
+  revisitMarkedAt: timestamp('revisit_marked_at'),
+  revisitMarkedBy: text('revisit_marked_by').references(() => users.id),
   referralSource: varchar('referral_source', { length: 100 }),
   referralSourceOther: varchar('referral_source_other', { length: 100 }),
   submittedAt: timestamp('submitted_at'),

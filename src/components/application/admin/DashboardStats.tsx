@@ -1,13 +1,17 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
     Files,
     CheckCircle,
     XCircle,
     TrendUp,
-    Users
+    Users,
+    Binoculars,
+    ArrowClockwise,
 } from "@phosphor-icons/react";
+import { getObservationStats, ObservationStats } from "@/lib/actions/observation";
 
 interface StatusStats {
     totalApplications: number;
@@ -18,6 +22,18 @@ interface StatusStats {
 }
 
 export function DashboardStats({ stats }: { stats: StatusStats | null }) {
+    const [observationStats, setObservationStats] = useState<ObservationStats | null>(null);
+
+    useEffect(() => {
+        async function loadObservationStats() {
+            const result = await getObservationStats();
+            if (result.success && result.data) {
+                setObservationStats(result.data);
+            }
+        }
+        loadObservationStats();
+    }, []);
+
     if (!stats) return null;
 
     const total = stats.totalApplications || 0;
@@ -29,7 +45,7 @@ export function DashboardStats({ stats }: { stats: StatusStats | null }) {
     const passRate = total > 0 ? ((eligible / total) * 100).toFixed(0) : "0";
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pb-2">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 pb-2">
             {/* Card 1: Total Volume */}
             <div className="relative group overflow-hidden rounded-3xl bg-white border border-gray-100 p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)]">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -79,7 +95,7 @@ export function DashboardStats({ stats }: { stats: StatusStats | null }) {
                 </div>
             </div>
 
-            {/* Card 4: Detailed Review */}
+            {/* Card 4: Pending Review */}
             <div className="relative group overflow-hidden rounded-3xl bg-white border border-gray-100 p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)]">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <Users size={80} weight="fill" className="text-blue-600" />
@@ -99,6 +115,42 @@ export function DashboardStats({ stats }: { stats: StatusStats | null }) {
                     </div>
                 </div>
             </div>
+
+            {/* Card 5: Observation */}
+            <Link href="/admin/observation" className="block">
+                <div className="relative group overflow-hidden rounded-3xl bg-white border border-amber-200 p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] hover:border-amber-300 cursor-pointer h-full">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Binoculars size={80} weight="fill" className="text-amber-600" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-amber-700 mb-1">Observation</span>
+                        <span className="text-3xl font-bold text-amber-700 tracking-tight">
+                            {observationStats?.totalObservation?.toLocaleString() || "—"}
+                        </span>
+                        <div className="mt-2 text-xs text-amber-600">
+                            Click to view →
+                        </div>
+                    </div>
+                </div>
+            </Link>
+
+            {/* Card 6: Revisit */}
+            <Link href="/admin/observation?tab=revisit" className="block">
+                <div className="relative group overflow-hidden rounded-3xl bg-white border border-blue-200 p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)] hover:border-blue-300 cursor-pointer h-full">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <ArrowClockwise size={80} weight="fill" className="text-blue-600" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-blue-700 mb-1">Revisit</span>
+                        <span className="text-3xl font-bold text-blue-700 tracking-tight">
+                            {observationStats?.totalRevisit?.toLocaleString() || "0"}
+                        </span>
+                        <div className="mt-2 text-xs text-blue-600">
+                            Flagged for review →
+                        </div>
+                    </div>
+                </div>
+            </Link>
         </div>
     );
 }
