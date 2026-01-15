@@ -800,7 +800,7 @@ export async function exportScoringReport(filters?: {
     const trackFilter = filters?.track || "all";
 
     // Create DOCX document
-    const createTableCell = (text: string, options: { bold?: boolean; color?: string; bg?: string; align?: any } = {}) => {
+    const createTableCell = (text: string, options: { bold?: boolean; color?: string; bg?: string; align?: any; width?: number; colSpan?: number } = {}) => {
       return new TableCell({
         children: [
           new Paragraph({
@@ -809,15 +809,24 @@ export async function exportScoringReport(filters?: {
                 text,
                 bold: options.bold,
                 color: options.color || "000000",
-                size: 20
+                size: 24 // Increased font size for readability
               })
             ],
-            alignment: options.align || AlignmentType.LEFT
+            alignment: options.align || AlignmentType.LEFT,
+            spacing: { before: 120, after: 120 } // Increased spacing
           })
         ],
+        width: options.width ? { size: options.width, type: WidthType.DXA } : undefined,
+        columnSpan: options.colSpan,
         shading: options.bg ? { fill: options.bg, type: ShadingType.CLEAR } : undefined,
         verticalAlign: AlignmentType.CENTER,
-        margins: { top: 100, bottom: 100, left: 100, right: 100 }
+        margins: { top: 144, bottom: 144, left: 144, right: 144 }, // ~0.1 inch margin
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+          bottom: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+          left: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+          right: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+        }
       });
     };
 
@@ -826,9 +835,9 @@ export async function exportScoringReport(filters?: {
     const createTableRow = (label: string, value: string | number, percent?: string) => {
       return new TableRow({
         children: [
-          createTableCell(label, { bold: true }),
-          createTableCell(String(value), { align: AlignmentType.CENTER }),
-          createTableCell(percent || "-", { align: AlignmentType.CENTER })
+          createTableCell(label, { bold: true, width: 5000 }), // ~3.5 inches
+          createTableCell(String(value), { align: AlignmentType.CENTER, width: 2000 }), // ~1.4 inches
+          createTableCell(percent || "-", { align: AlignmentType.CENTER, width: 2000 }) // ~1.4 inches
         ]
       });
     };
@@ -850,9 +859,9 @@ export async function exportScoringReport(filters?: {
           rows: [
             new TableRow({
               children: [
-                createHeaderCell("Metric"),
-                createHeaderCell("Count"),
-                createHeaderCell("Percentage")
+                createTableCell("Metric", { bold: true, color: "FFFFFF", bg: "1D4ED8", align: AlignmentType.CENTER, width: 5000 }),
+                createTableCell("Count", { bold: true, color: "FFFFFF", bg: "1D4ED8", align: AlignmentType.CENTER, width: 2000 }),
+                createTableCell("Percentage", { bold: true, color: "FFFFFF", bg: "1D4ED8", align: AlignmentType.CENTER, width: 2000 })
               ]
             }),
             createTableRow("Total Applications", trackStats.total, "100%"),
@@ -882,28 +891,43 @@ export async function exportScoringReport(filters?: {
       })
     );
 
-    // Filter Info
+    // Filter Info - Stacked vertically for better space usage
     sections.push(
       new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9000, type: WidthType.DXA }, // Fixed overall width
         rows: [
           new TableRow({
             children: [
-              createTableCell("Date From:", { bold: true }),
-              createTableCell(dateFrom),
-              createTableCell("Date To:", { bold: true }),
-              createTableCell(dateTo)
+              createTableCell("Report Configuration", { bold: true, bg: "F3F4F6", colSpan: 2, align: AlignmentType.CENTER, width: 9000 })
             ]
           }),
           new TableRow({
             children: [
-              createTableCell("Track Filter:", { bold: true }),
-              createTableCell(trackFilter.charAt(0).toUpperCase() + trackFilter.slice(1)),
-              createTableCell("Generated:", { bold: true }),
-              createTableCell(new Date().toLocaleDateString())
+              createTableCell("Date Range:", { bold: true, width: 3000 }),
+              createTableCell(`${dateFrom} - ${dateTo}`, { width: 6000 })
+            ]
+          }),
+          new TableRow({
+            children: [
+              createTableCell("Track:", { bold: true, width: 3000 }),
+              createTableCell(trackFilter.charAt(0).toUpperCase() + trackFilter.slice(1), { width: 6000 })
+            ]
+          }),
+          new TableRow({
+            children: [
+              createTableCell("Generated On:", { bold: true, width: 3000 }),
+              createTableCell(new Date().toLocaleDateString(), { width: 6000 })
             ]
           })
-        ]
+        ],
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 2, color: "9CA3AF" },
+          bottom: { style: BorderStyle.SINGLE, size: 2, color: "9CA3AF" },
+          left: { style: BorderStyle.SINGLE, size: 2, color: "9CA3AF" },
+          right: { style: BorderStyle.SINGLE, size: 2, color: "9CA3AF" },
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+          insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "E5E7EB" },
+        }
       })
     );
 
