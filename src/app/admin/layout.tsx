@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { AdminRoleGuard } from "@/components/admin/AdminRoleGuard";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | BIRE Programme",
@@ -25,6 +26,8 @@ export default async function AdminLayout({
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground ">
+      {/* Periodic role check runs every hour */}
+      <AdminRoleGuard />
       <header className="sticky top-16 z-40 border-b bg-slate-800 text-white shadow-md">
         <div className="container mx-auto py-4 px-4 flex justify-between items-center">
           <Link href="/admin" className="font-bold text-xl">
