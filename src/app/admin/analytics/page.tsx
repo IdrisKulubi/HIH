@@ -15,8 +15,12 @@ import {
   getAnalyticsDashboardData,
   getScoringAnalytics,
   getEvaluatorPerformance,
+  getScoringProgressStats,
+  exportScoringReport,
+  ScoringProgressStats,
 } from "@/lib/actions/analytics";
 import { EnhancedAnalyticsCharts } from "@/components/application/admin/EnhancedAnalyticsCharts";
+import { ScoringStatsSection } from "@/components/application/admin/ScoringStatsSection";
 import {
   Users,
   Target,
@@ -27,7 +31,23 @@ import {
   CheckCircle,
   Clock,
   UserCheck,
+  Download,
+  Filter,
+  BarChart3,
+  ArrowRight,
+  Layers,
+  Zap,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Define type locally since it's inferred in actions
 interface Evaluator {
@@ -169,7 +189,7 @@ async function AnalyticsDashboard() {
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <div className="flex justify-center">
-            <TabsList className="grid w-full max-w-md grid-cols-3  text-gray-600">
+            <TabsList className="grid w-full max-w-lg grid-cols-3 text-gray-600">
               <TabsTrigger
                 value="overview"
                 className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
@@ -181,6 +201,12 @@ async function AnalyticsDashboard() {
                 className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
               >
                 Scoring
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+              >
+                Stats
               </TabsTrigger>
             </TabsList>
           </div>
@@ -293,6 +319,11 @@ async function AnalyticsDashboard() {
                 </Card>
               )}
             </div>
+          </TabsContent>
+
+          {/* Stats Tab */}
+          <TabsContent value="stats" className="space-y-6">
+            <ScoringStatsSection />
           </TabsContent>
 
           {/* Evaluators Tab */}

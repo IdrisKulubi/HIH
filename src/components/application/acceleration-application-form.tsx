@@ -28,15 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Progress } from "@/components/ui/progress";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { cn } from "@/lib/utils";
 
 // Form sections
@@ -131,7 +123,6 @@ export function AccelerationApplicationForm() {
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [isAutoSaving, setIsAutoSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
-    const [disqualifiedReason, setDisqualifiedReason] = useState<string | null>(null);
 
     const form = useForm<AccelerationApplicationFormData>({
         resolver: zodResolver(accelerationApplicationSchema) as any,

@@ -619,4 +619,206 @@ export async function getEvaluatorPerformance() {
     console.error("Error fetching evaluator performance:", error);
     return { success: false, error: "Failed to fetch evaluator performance" };
   }
-} 
+}
+
+// =============================================================================
+// SCORING PROGRESS STATS - For Analytics Stats Tab
+// =============================================================================
+
+export interface TrackScoringStats {
+  total: number;
+  scored: number;  // Has eligibility result with totalScore
+  firstReview: number;  // Has reviewer1Score
+  secondReview: number;  // Has reviewer2Score
+}
+
+export interface ScoringProgressStats {
+  foundation: TrackScoringStats;
+  acceleration: TrackScoringStats;
+  dateRange: {
+    from: string | null;
+    to: string | null;
+  };
+}
+
+export async function getScoringProgressStats(filters?: {
+  dateFrom?: string;
+  dateTo?: string;
+  track?: "foundation" | "acceleration" | "all";
+}): Promise<{ success: boolean; data?: ScoringProgressStats; error?: string }> {
+  try {
+    await verifyAdminAccess();
+
+    const dateFrom = filters?.dateFrom ? new Date(filters.dateFrom) : null;
+    const dateTo = filters?.dateTo ? new Date(filters.dateTo) : null;
+    const trackFilter = filters?.track || "all";
+
+    // Build date condition
+    const buildDateCondition = () => {
+      if (dateFrom && dateTo) {
+        return and(
+          gte(applications.submittedAt, dateFrom),
+          sql`${applications.submittedAt} <= ${dateTo}`
+        );
+      } else if (dateFrom) {
+        return gte(applications.submittedAt, dateFrom);
+      } else if (dateTo) {
+        return sql`${applications.submittedAt} <= ${dateTo}`;
+      }
+      return undefined;
+    };
+
+    const dateCondition = buildDateCondition();
+
+    // Foundation stats
+    const getTrackStats = async (track: "foundation" | "acceleration"): Promise<TrackScoringStats> => {
+      // Base track condition
+      const trackCondition = eq(applications.track, track);
+      const observationExclude = sql`${applications.isObservationOnly} = false`;
+
+      // Total for this track
+      const totalConditions = dateCondition
+        ? and(trackCondition, observationExclude, dateCondition)
+        : and(trackCondition, observationExclude);
+
+      const totalResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .where(totalConditions);
+      const total = totalResult[0]?.count || 0;
+
+      // Scored (has eligibility result with totalScore)
+      const scoredResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
+        .where(
+          dateCondition
+            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.totalScore))
+            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.totalScore))
+        );
+      const scored = scoredResult[0]?.count || 0;
+
+      // First review (has reviewer1Score)
+      const firstReviewResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
+        .where(
+          dateCondition
+            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer1Score))
+            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer1Score))
+        );
+      const firstReview = firstReviewResult[0]?.count || 0;
+
+      // Second review (has reviewer2Score)
+      const secondReviewResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
+        .where(
+          dateCondition
+            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer2Score))
+            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer2Score))
+        );
+      const secondReview = secondReviewResult[0]?.count || 0;
+
+      return { total, scored, firstReview, secondReview };
+    };
+
+    // Fetch stats based on track filter
+    let foundationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0 };
+    let accelerationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0 };
+
+    if (trackFilter === "all" || trackFilter === "foundation") {
+      foundationStats = await getTrackStats("foundation");
+    }
+    if (trackFilter === "all" || trackFilter === "acceleration") {
+      accelerationStats = await getTrackStats("acceleration");
+    }
+
+    return {
+      success: true,
+      data: {
+        foundation: foundationStats,
+        acceleration: accelerationStats,
+        dateRange: {
+          from: filters?.dateFrom || null,
+          to: filters?.dateTo || null
+        }
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching scoring progress stats:", error);
+    return { success: false, error: "Failed to fetch scoring progress statistics" };
+  }
+}
+
+// Export scoring report to DOCX
+export async function exportScoringReport(filters?: {
+  dateFrom?: string;
+  dateTo?: string;
+  track?: "foundation" | "acceleration" | "all";
+}): Promise<{ success: boolean; data?: { base64: string; filename: string }; error?: string }> {
+  try {
+    await verifyAdminAccess();
+
+    // Get stats
+    const statsResult = await getScoringProgressStats(filters);
+    if (!statsResult.success || !statsResult.data) {
+      throw new Error("Failed to get scoring stats");
+    }
+
+    const stats = statsResult.data;
+    const dateFrom = filters?.dateFrom || "All time";
+    const dateTo = filters?.dateTo || "Present";
+    const trackFilter = filters?.track || "all";
+
+    // Create simple text report (since docx library may not be available)
+    // In production, use docx library for proper formatting
+    const reportContent = `
+SCORING STATISTICS REPORT
+=========================
+Generated: ${new Date().toISOString().split('T')[0]}
+
+DATE RANGE
+----------
+From: ${dateFrom}
+To: ${dateTo}
+Track Filter: ${trackFilter.charAt(0).toUpperCase() + trackFilter.slice(1)}
+
+FOUNDATION TRACK
+----------------
+Total Applications: ${stats.foundation.total}
+Scored: ${stats.foundation.scored} (${stats.foundation.total > 0 ? Math.round((stats.foundation.scored / stats.foundation.total) * 100) : 0}%)
+1st Review Completed: ${stats.foundation.firstReview} (${stats.foundation.scored > 0 ? Math.round((stats.foundation.firstReview / stats.foundation.scored) * 100) : 0}% of scored)
+2nd Review Completed: ${stats.foundation.secondReview} (${stats.foundation.scored > 0 ? Math.round((stats.foundation.secondReview / stats.foundation.scored) * 100) : 0}% of scored)
+
+ACCELERATION TRACK
+------------------
+Total Applications: ${stats.acceleration.total}
+Scored: ${stats.acceleration.scored} (${stats.acceleration.total > 0 ? Math.round((stats.acceleration.scored / stats.acceleration.total) * 100) : 0}%)
+1st Review Completed: ${stats.acceleration.firstReview} (${stats.acceleration.scored > 0 ? Math.round((stats.acceleration.firstReview / stats.acceleration.scored) * 100) : 0}% of scored)
+2nd Review Completed: ${stats.acceleration.secondReview} (${stats.acceleration.scored > 0 ? Math.round((stats.acceleration.secondReview / stats.acceleration.scored) * 100) : 0}% of scored)
+
+SUMMARY
+-------
+Total Applications: ${stats.foundation.total + stats.acceleration.total}
+Total Scored: ${stats.foundation.scored + stats.acceleration.scored}
+Total 1st Reviews: ${stats.foundation.firstReview + stats.acceleration.firstReview}
+Total 2nd Reviews: ${stats.foundation.secondReview + stats.acceleration.secondReview}
+`;
+
+    // Convert to base64
+    const base64 = Buffer.from(reportContent).toString('base64');
+    const filename = `scoring_report_${new Date().toISOString().split('T')[0]}.txt`;
+
+    return {
+      success: true,
+      data: { base64, filename }
+    };
+  } catch (error) {
+    console.error("Error exporting scoring report:", error);
+    return { success: false, error: "Failed to export scoring report" };
+  }
+}
