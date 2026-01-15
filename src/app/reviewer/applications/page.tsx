@@ -320,7 +320,7 @@ function ReviewerApplicationsContent() {
                                                 className="bg-slate-900 text-white hover:bg-slate-800 transition-colors"
                                                 asChild
                                             >
-                                                <Link href={`/admin/evaluate/${app.id}`}>
+                                                <Link href={`/reviewer/applications/${app.id}`}>
                                                     Review
                                                     <ArrowRight className="h-4 w-4 ml-2" />
                                                 </Link>
