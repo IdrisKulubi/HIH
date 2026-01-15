@@ -742,6 +742,8 @@ export async function getReviewedApplications(): Promise<ActionResponse<Applicat
             status: app.status,
             track: app.track,
             submittedAt: app.submittedAt?.toISOString() ?? null,
+            isObservationOnly: app.isObservationOnly,
+            markedForRevisit: app.markedForRevisit,
             business: {
                 name: app.business.name,
                 sector: app.business.sector,
