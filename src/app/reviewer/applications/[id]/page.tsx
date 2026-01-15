@@ -29,7 +29,8 @@ import {
     ShieldCheck,
     Target,
     Clock,
-    Briefcase
+    Briefcase,
+    FileText
 } from "@phosphor-icons/react";
 import { TwoTierReviewPanel } from "@/components/application/admin/TwoTierReviewPanel";
 import { DocumentViewerModal } from "@/components/application/admin/DocumentViewerModal";
@@ -381,9 +382,12 @@ export default function ReviewerApplicationDetail({
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {([
                                             { url: application.business?.registrationCertificateUrl, name: "Registration Certificate", icon: <ShieldCheck className="h-5 w-5 text-emerald-600" /> },
-                                            { url: application.business?.businessOverviewUrl, name: "Business Overview", icon: <Files className="h-5 w-5 text-blue-600" /> },
+                                            { url: application.business?.taxComplianceUrl, name: "Tax Compliance", icon: <Buildings className="h-5 w-5 text-indigo-600" /> },
                                             { url: application.business?.auditedAccountsUrl, name: "Audited Accounts", icon: <Money className="h-5 w-5 text-amber-600" /> },
-                                            { url: application.business?.taxComplianceUrl, name: "Tax Compliance", icon: <Buildings className="h-5 w-5 text-indigo-600" /> }
+                                            { url: application.business?.financialRecordsUrl, name: "Financial Records", icon: <FileText className="h-5 w-5 text-blue-600" /> },
+                                            { url: application.business?.salesEvidenceUrl, name: "Sales Evidence", icon: <TrendUp className="h-5 w-5 text-orange-600" /> },
+                                            { url: application.business?.photosUrl, name: "Business Photos", icon: <Files className="h-5 w-5 text-purple-600" /> },
+                                            { url: application.business?.complianceDocumentsUrl, name: "Compliance Documents", icon: <ShieldCheck className="h-5 w-5 text-teal-600" /> },
                                         ].filter(d => d.url)).map((doc, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 hover:bg-white hover:shadow-md hover:border-blue-100 transition-all group">
                                                 <div className="flex items-center gap-3">
@@ -410,9 +414,15 @@ export default function ReviewerApplicationDetail({
                                                 </div>
                                             </div>
                                         ))}
-                                        {(!application.business?.registrationCertificateUrl && !application.business?.businessOverviewUrl) && (
-                                            <div className="col-span-full py-8 text-center text-gray-500">No documents uploaded.</div>
-                                        )}
+                                        {!application.business?.registrationCertificateUrl &&
+                                            !application.business?.taxComplianceUrl &&
+                                            !application.business?.auditedAccountsUrl &&
+                                            !application.business?.financialRecordsUrl &&
+                                            !application.business?.salesEvidenceUrl &&
+                                            !application.business?.photosUrl &&
+                                            !application.business?.complianceDocumentsUrl && (
+                                                <div className="col-span-full py-8 text-center text-gray-500">No documents uploaded.</div>
+                                            )}
                                     </div>
                                 </div>
                             </TabsContent>

@@ -12,6 +12,7 @@ import {
 } from "../../../db/schema";
 import { eq, desc, sql, count, avg, sum, gte, isNotNull, or, and } from "drizzle-orm";
 import { auth } from "@/auth";
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, ShadingType } from "docx";
 
 // Simple helper to ensure admin access
 async function verifyAdminAccess() {
@@ -630,6 +631,8 @@ export interface TrackScoringStats {
   scored: number;  // Has eligibility result with totalScore
   firstReview: number;  // Has reviewer1Score
   secondReview: number;  // Has reviewer2Score
+  passed: number; // status is 'finalist' or 'approved'
+  rejected: number; // status is 'rejected'
 }
 
 export interface ScoringProgressStats {
@@ -685,7 +688,7 @@ export async function getScoringProgressStats(filters?: {
         .select({ count: count() })
         .from(applications)
         .where(totalConditions);
-      const total = totalResult[0]?.count || 0;
+      const total = Number(totalResult[0]?.count || 0);
 
       // Scored (has eligibility result with totalScore)
       const scoredResult = await db
@@ -697,7 +700,7 @@ export async function getScoringProgressStats(filters?: {
             ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.totalScore))
             : and(trackCondition, observationExclude, isNotNull(eligibilityResults.totalScore))
         );
-      const scored = scoredResult[0]?.count || 0;
+      const scored = Number(scoredResult[0]?.count || 0);
 
       // First review (has reviewer1Score)
       const firstReviewResult = await db
@@ -709,7 +712,7 @@ export async function getScoringProgressStats(filters?: {
             ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer1Score))
             : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer1Score))
         );
-      const firstReview = firstReviewResult[0]?.count || 0;
+      const firstReview = Number(firstReviewResult[0]?.count || 0);
 
       // Second review (has reviewer2Score)
       const secondReviewResult = await db
@@ -721,14 +724,36 @@ export async function getScoringProgressStats(filters?: {
             ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer2Score))
             : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer2Score))
         );
-      const secondReview = secondReviewResult[0]?.count || 0;
+      const secondReview = Number(secondReviewResult[0]?.count || 0);
 
-      return { total, scored, firstReview, secondReview };
+      // Passed (status 'finalist' or 'approved')
+      const passedResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .where(
+          dateCondition
+            ? and(trackCondition, observationExclude, dateCondition, or(eq(applications.status, 'finalist'), eq(applications.status, 'approved')))
+            : and(trackCondition, observationExclude, or(eq(applications.status, 'finalist'), eq(applications.status, 'approved')))
+        );
+      const passed = Number(passedResult[0]?.count || 0);
+
+      // Rejected (status 'rejected')
+      const rejectedResult = await db
+        .select({ count: count() })
+        .from(applications)
+        .where(
+          dateCondition
+            ? and(trackCondition, observationExclude, dateCondition, eq(applications.status, 'rejected'))
+            : and(trackCondition, observationExclude, eq(applications.status, 'rejected'))
+        );
+      const rejected = Number(rejectedResult[0]?.count || 0);
+
+      return { total, scored, firstReview, secondReview, passed, rejected };
     };
 
     // Fetch stats based on track filter
-    let foundationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0 };
-    let accelerationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0 };
+    let foundationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0, passed: 0, rejected: 0 };
+    let accelerationStats: TrackScoringStats = { total: 0, scored: 0, firstReview: 0, secondReview: 0, passed: 0, rejected: 0 };
 
     if (trackFilter === "all" || trackFilter === "foundation") {
       foundationStats = await getTrackStats("foundation");
@@ -774,44 +799,153 @@ export async function exportScoringReport(filters?: {
     const dateTo = filters?.dateTo || "Present";
     const trackFilter = filters?.track || "all";
 
-    // Create simple text report (since docx library may not be available)
-    // In production, use docx library for proper formatting
-    const reportContent = `
-SCORING STATISTICS REPORT
-=========================
-Generated: ${new Date().toISOString().split('T')[0]}
+    // Create DOCX document
+    const createTableCell = (text: string, options: { bold?: boolean; color?: string; bg?: string; align?: any } = {}) => {
+      return new TableCell({
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text,
+                bold: options.bold,
+                color: options.color || "000000",
+                size: 20
+              })
+            ],
+            alignment: options.align || AlignmentType.LEFT
+          })
+        ],
+        shading: options.bg ? { fill: options.bg, type: ShadingType.CLEAR } : undefined,
+        verticalAlign: AlignmentType.CENTER,
+        margins: { top: 100, bottom: 100, left: 100, right: 100 }
+      });
+    };
 
-DATE RANGE
-----------
-From: ${dateFrom}
-To: ${dateTo}
-Track Filter: ${trackFilter.charAt(0).toUpperCase() + trackFilter.slice(1)}
+    const createHeaderCell = (text: string) => createTableCell(text, { bold: true, color: "FFFFFF", bg: "1D4ED8", align: AlignmentType.CENTER });
 
-FOUNDATION TRACK
-----------------
-Total Applications: ${stats.foundation.total}
-Scored: ${stats.foundation.scored} (${stats.foundation.total > 0 ? Math.round((stats.foundation.scored / stats.foundation.total) * 100) : 0}%)
-1st Review Completed: ${stats.foundation.firstReview} (${stats.foundation.scored > 0 ? Math.round((stats.foundation.firstReview / stats.foundation.scored) * 100) : 0}% of scored)
-2nd Review Completed: ${stats.foundation.secondReview} (${stats.foundation.scored > 0 ? Math.round((stats.foundation.secondReview / stats.foundation.scored) * 100) : 0}% of scored)
+    const createTableRow = (label: string, value: string | number, percent?: string) => {
+      return new TableRow({
+        children: [
+          createTableCell(label, { bold: true }),
+          createTableCell(String(value), { align: AlignmentType.CENTER }),
+          createTableCell(percent || "-", { align: AlignmentType.CENTER })
+        ]
+      });
+    };
 
-ACCELERATION TRACK
-------------------
-Total Applications: ${stats.acceleration.total}
-Scored: ${stats.acceleration.scored} (${stats.acceleration.total > 0 ? Math.round((stats.acceleration.scored / stats.acceleration.total) * 100) : 0}%)
-1st Review Completed: ${stats.acceleration.firstReview} (${stats.acceleration.scored > 0 ? Math.round((stats.acceleration.firstReview / stats.acceleration.scored) * 100) : 0}% of scored)
-2nd Review Completed: ${stats.acceleration.secondReview} (${stats.acceleration.scored > 0 ? Math.round((stats.acceleration.secondReview / stats.acceleration.scored) * 100) : 0}% of scored)
+    const createTrackTable = (trackName: string, trackStats: TrackScoringStats) => {
+      const scoredPercent = trackStats.total > 0 ? `${Math.round((trackStats.scored / trackStats.total) * 100)}%` : "0%";
+      const firstReviewPercent = trackStats.scored > 0 ? `${Math.round((trackStats.firstReview / trackStats.scored) * 100)}%` : "0%";
+      const secondReviewPercent = trackStats.scored > 0 ? `${Math.round((trackStats.secondReview / trackStats.scored) * 100)}%` : "0%";
+      const passedPercent = trackStats.secondReview > 0 ? `${Math.round((trackStats.passed / trackStats.secondReview) * 100)}%` : "0%";
+      const rejectedPercent = trackStats.secondReview > 0 ? `${Math.round((trackStats.rejected / trackStats.secondReview) * 100)}%` : "0%";
 
-SUMMARY
--------
-Total Applications: ${stats.foundation.total + stats.acceleration.total}
-Total Scored: ${stats.foundation.scored + stats.acceleration.scored}
-Total 1st Reviews: ${stats.foundation.firstReview + stats.acceleration.firstReview}
-Total 2nd Reviews: ${stats.foundation.secondReview + stats.acceleration.secondReview}
-`;
+      return [
+        new Paragraph({
+          children: [new TextRun({ text: trackName, bold: true, size: 28, color: "1D4ED8" })],
+          spacing: { before: 400, after: 200 }
+        }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [
+                createHeaderCell("Metric"),
+                createHeaderCell("Count"),
+                createHeaderCell("Percentage")
+              ]
+            }),
+            createTableRow("Total Applications", trackStats.total, "100%"),
+            createTableRow("Scored Applications", trackStats.scored, scoredPercent),
+            createTableRow("1st Review Completed", trackStats.firstReview, firstReviewPercent),
+            createTableRow("2nd Review Completed", trackStats.secondReview, secondReviewPercent),
+            createTableRow("Passed (Approved/Finalist)", trackStats.passed, passedPercent),
+            createTableRow("Rejected", trackStats.rejected, rejectedPercent)
+          ]
+        })
+      ];
+    };
 
-    // Convert to base64
-    const base64 = Buffer.from(reportContent).toString('base64');
-    const filename = `scoring_report_${new Date().toISOString().split('T')[0]}.txt`;
+    const sections = [];
+
+    // Header
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: "BIRE 2026 Programme", bold: true, size: 48, color: "1D4ED8" })],
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.TITLE
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: "Scoring Statistics Report", bold: true, size: 32, color: "6B7280" })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 }
+      })
+    );
+
+    // Filter Info
+    sections.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              createTableCell("Date From:", { bold: true }),
+              createTableCell(dateFrom),
+              createTableCell("Date To:", { bold: true }),
+              createTableCell(dateTo)
+            ]
+          }),
+          new TableRow({
+            children: [
+              createTableCell("Track Filter:", { bold: true }),
+              createTableCell(trackFilter.charAt(0).toUpperCase() + trackFilter.slice(1)),
+              createTableCell("Generated:", { bold: true }),
+              createTableCell(new Date().toLocaleDateString())
+            ]
+          })
+        ]
+      })
+    );
+
+    // Track Sections
+    if (trackFilter === "all" || trackFilter === "foundation") {
+      sections.push(...createTrackTable("Foundation Track", stats.foundation));
+    }
+    if (trackFilter === "all" || trackFilter === "acceleration") {
+      sections.push(...createTrackTable("Acceleration Track", stats.acceleration));
+    }
+
+    // Overall Summary
+    const totalStats = {
+      total: stats.foundation.total + stats.acceleration.total,
+      scored: stats.foundation.scored + stats.acceleration.scored,
+      firstReview: stats.foundation.firstReview + stats.acceleration.firstReview,
+      secondReview: stats.foundation.secondReview + stats.acceleration.secondReview,
+      passed: stats.foundation.passed + stats.acceleration.passed,
+      rejected: stats.foundation.rejected + stats.acceleration.rejected,
+    };
+
+    sections.push(...createTrackTable("Overall Summary", totalStats));
+
+    // Footer
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: "— End of Report —", size: 18, italics: true, color: "9CA3AF" })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 800 }
+      })
+    );
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: sections
+      }]
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    const base64 = (buffer as Buffer).toString('base64');
+    const filename = `scoring_report_${new Date().toISOString().split('T')[0]}.docx`;
 
     return {
       success: true,

@@ -428,20 +428,7 @@ async function AnalyticsDashboard() {
           </TabsContent>
         </Tabs>
 
-        {/* Error States */}
-        {(!dashboardData || !scoringData || !evaluatorData) && (
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <Clock className="h-5 w-5" />
-                <p>
-                  Some analytics data is currently unavailable. Please try
-                  refreshing the page.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+       
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Download, Filter, Layers, Zap, ChevronRight, RefreshCw } from "lucide-react";
+import { Download, Filter, Layers, Zap, ChevronRight, RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { getScoringProgressStats, exportScoringReport, ScoringProgressStats } from "@/lib/actions/analytics";
 import { toast } from "sonner";
 
@@ -25,6 +25,8 @@ interface TrackCardProps {
         scored: number;
         firstReview: number;
         secondReview: number;
+        passed: number;
+        rejected: number;
     };
     color: "teal" | "blue";
 }
@@ -53,6 +55,8 @@ function TrackStatsCard({ title, stats, color }: TrackCardProps) {
     const scoredPercent = stats.total > 0 ? Math.round((stats.scored / stats.total) * 100) : 0;
     const firstReviewPercent = stats.scored > 0 ? Math.round((stats.firstReview / stats.scored) * 100) : 0;
     const secondReviewPercent = stats.scored > 0 ? Math.round((stats.secondReview / stats.scored) * 100) : 0;
+    const passedPercent = (stats.secondReview > 0 && stats.passed !== undefined) ? Math.round(((stats.passed || 0) / stats.secondReview) * 100) : 0;
+    const rejectedPercent = (stats.secondReview > 0 && stats.rejected !== undefined) ? Math.round(((stats.rejected || 0) / stats.secondReview) * 100) : 0;
 
     return (
         <Card className={`shadow-lg border-0 ${colors.bg} ${colors.border}`}>
@@ -112,6 +116,34 @@ function TrackStatsCard({ title, stats, color }: TrackCardProps) {
                             <Progress value={secondReviewPercent} className="h-2" />
                         </div>
                     </div>
+
+                    {/* Results: Pass/Reject */}
+                    <div className="ml-8 border-l-2 border-dashed border-gray-200 pl-4 space-y-3 pt-1">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center">
+                                    <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
+                                    <span className="font-medium text-gray-700">Passed (Approved/Finalist)</span>
+                                </div>
+                                <span className="font-semibold text-green-600">
+                                    {stats.passed} ({passedPercent}%)
+                                </span>
+                            </div>
+                            <Progress value={passedPercent} className="h-1.5 bg-green-100" />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center">
+                                    <XCircle className="h-3 w-3 mr-1 text-red-500" />
+                                    <span className="font-medium text-gray-700">Rejected</span>
+                                </div>
+                                <span className="font-semibold text-red-600">
+                                    {stats.rejected} ({rejectedPercent}%)
+                                </span>
+                            </div>
+                            <Progress value={rejectedPercent} className="h-1.5 bg-red-100" />
+                        </div>
+                    </div>
                 </div>
             </CardContent>
         </Card>
@@ -168,7 +200,12 @@ export function ScoringStatsSection() {
 
             if (result.success && result.data) {
                 // Download the file
-                const blob = new Blob([atob(result.data.base64)], { type: "text/plain" });
+                const binaryString = window.atob(result.data.base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
@@ -310,25 +347,25 @@ export function ScoringStatsSection() {
                                 <div className="text-2xl font-bold text-gray-800">
                                     {stats.foundation.total + stats.acceleration.total}
                                 </div>
-                                <p className="text-sm text-gray-600">Total Applications</p>
-                            </div>
-                            <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                                <div className="text-2xl font-bold text-green-600">
-                                    {stats.foundation.scored + stats.acceleration.scored}
-                                </div>
-                                <p className="text-sm text-gray-600">Total Scored by System</p>
+                                <p className="text-sm text-gray-600">Total Apps</p>
                             </div>
                             <div className="text-center p-4 bg-white rounded-lg shadow-sm">
                                 <div className="text-2xl font-bold text-blue-600">
-                                    {stats.foundation.firstReview + stats.acceleration.firstReview}
+                                    {stats.foundation.firstReview + stats.acceleration.firstReview + stats.foundation.secondReview + stats.acceleration.secondReview}
                                 </div>
-                                <p className="text-sm text-gray-600">1st Reviews Done</p>
+                                <p className="text-sm text-gray-600">Total Reviews</p>
                             </div>
-                            <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                                <div className="text-2xl font-bold text-purple-600">
-                                    {stats.foundation.secondReview + stats.acceleration.secondReview}
+                            <div className="text-center p-4 bg-white rounded-lg shadow-sm border-b-4 border-green-500">
+                                <div className="text-2xl font-bold text-green-600">
+                                    {stats.foundation.passed + stats.acceleration.passed}
                                 </div>
-                                <p className="text-sm text-gray-600">2nd Reviews Done</p>
+                                <p className="text-sm text-gray-600">Total Passed</p>
+                            </div>
+                            <div className="text-center p-4 bg-white rounded-lg shadow-sm border-b-4 border-red-500">
+                                <div className="text-2xl font-bold text-red-600">
+                                    {stats.foundation.rejected + stats.acceleration.rejected}
+                                </div>
+                                <p className="text-sm text-gray-600">Total Rejected</p>
                             </div>
                         </div>
                     </CardContent>
