@@ -1,46 +1,175 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/actions/user.actions";
-import { getApplications, type ApplicationListItem } from "@/lib/actions/admin-applications";
+"use client";
+
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Eye, Buildings, MapPin, CalendarBlank, ArrowRight } from "@phosphor-icons/react/dist/ssr";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    ArrowLeft,
+    Eye,
+    Buildings,
+    MapPin,
+    CalendarBlank,
+    ArrowRight,
+    MagnifyingGlass,
+    Funnel,
+    Spinner,
+    CaretLeft,
+    CaretRight,
+} from "@phosphor-icons/react";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import {
+    getApplications,
+    type ApplicationListItem,
+} from "@/lib/actions/admin-applications";
+import { getCurrentUser } from "@/lib/actions/user.actions";
 
-export default async function ReviewerApplicationsPage() {
-    const user = await getCurrentUser();
+const ITEMS_PER_PAGE = 20;
 
-    if (!user) {
-        redirect("/auth/login");
-    }
+// Loading fallback for Suspense
+function ReviewerApplicationsLoading() {
+    return (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <Spinner className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+    );
+}
 
-    // Only allow reviewer_1, reviewer_2, admin, and technical_reviewer
-    const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer"];
-    if (!allowedRoles.includes(user.role || "")) {
-        redirect("/");
-    }
+export default function ReviewerApplicationsPage() {
+    return (
+        <Suspense fallback={<ReviewerApplicationsLoading />}>
+            <ReviewerApplicationsContent />
+        </Suspense>
+    );
+}
 
-    // Fetch applications
-    const result = await getApplications({
-        page: 1,
-        limit: 100,
-    });
+function ReviewerApplicationsContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
-    const applications: ApplicationListItem[] = result.success && result.data ? result.data : [];
+    const [applications, setApplications] = useState<ApplicationListItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [totalCount, setTotalCount] = useState(0);
 
-    // Filter applications based on role
-    const filteredApplications = applications.filter((app: ApplicationListItem) => {
-        if (user.role === "reviewer_1") {
-            // R1 sees applications needing first review
-            return app.status === "submitted" || app.status === "under_review";
-        } else if (user.role === "reviewer_2") {
-            // R2 sees applications needing second review
-            return app.status === "pending_senior_review";
+    // Filters and pagination from URL
+    const currentSearch = searchParams.get("search") || "";
+    const currentTrack = searchParams.get("track") || "all";
+    const currentPage = Number(searchParams.get("page")) || 1;
+
+    // Load user and applications
+    const loadData = useCallback(async () => {
+        try {
+            setIsLoading(true);
+
+            // Get current user
+            const user = await getCurrentUser();
+            if (!user) {
+                router.push("/auth/login");
+                return;
+            }
+
+            const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer"];
+            if (!allowedRoles.includes(user.role || "")) {
+                router.push("/");
+                return;
+            }
+
+            setUserRole(user.role || null);
+
+            // Determine status filter based on role
+            let statusFilter: string | undefined;
+            if (user.role === "reviewer_1") {
+                statusFilter = "submitted"; // R1 primarily sees submitted
+            } else if (user.role === "reviewer_2") {
+                statusFilter = "pending_senior_review";
+            }
+
+            // Fetch applications with pagination
+            const result = await getApplications({
+                page: currentPage,
+                limit: ITEMS_PER_PAGE,
+                track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
+                search: currentSearch || undefined,
+                status: statusFilter,
+            });
+
+            if (result.success && result.data) {
+                // For R1, also include under_review status (client-side filter for combined statuses)
+                let filtered = result.data;
+                if (user.role === "reviewer_1") {
+                    // Re-fetch without status filter to get both submitted and under_review
+                    const allResult = await getApplications({
+                        page: currentPage,
+                        limit: ITEMS_PER_PAGE,
+                        track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
+                        search: currentSearch || undefined,
+                    });
+                    if (allResult.success && allResult.data) {
+                        filtered = allResult.data.filter((app: ApplicationListItem) =>
+                            app.status === "submitted" || app.status === "under_review"
+                        );
+                        setTotalCount(allResult.pagination.total);
+                    }
+                } else if (user.role === "reviewer_2") {
+                    setTotalCount(result.pagination.total);
+                } else {
+                    // Admin sees all
+                    setTotalCount(result.pagination.total);
+                }
+
+                setApplications(filtered);
+            } else {
+                toast.error("Failed to load applications");
+            }
+        } catch (error) {
+            console.error("Error loading data:", error);
+            toast.error("An error occurred while loading data");
+        } finally {
+            setIsLoading(false);
         }
-        // Admin and technical_reviewer see all
-        return true;
-    });
+    }, [router, currentSearch, currentTrack, currentPage]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    // Update URL params
+    const updateParams = (updates: Record<string, string | null>) => {
+        const params = new URLSearchParams(searchParams.toString());
+        Object.entries(updates).forEach(([key, value]) => {
+            if (value === null || value === "all") {
+                params.delete(key);
+            } else {
+                params.set(key, value);
+            }
+        });
+        router.push(`?${params.toString()}`);
+    };
+
+    const handleSearch = (term: string) => {
+        updateParams({ search: term || null, page: "1" }); // Reset to page 1 on search
+    };
+
+    const handleTrackFilter = (track: string) => {
+        updateParams({ track: track === "all" ? null : track, page: "1" }); // Reset to page 1
+    };
+
+    const handlePageChange = (page: number) => {
+        updateParams({ page: page.toString() });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
 
     const getStatusBadge = (status: string) => {
         const statusConfig: Record<string, { label: string; color: string }> = {
@@ -56,9 +185,20 @@ export default async function ReviewerApplicationsPage() {
         return <Badge className={config.color}>{config.label}</Badge>;
     };
 
+    const getRoleDescription = () => {
+        if (userRole === "reviewer_1") return "Applications awaiting your first review";
+        if (userRole === "reviewer_2") return "Applications awaiting your second review";
+        return "All applications pending review";
+    };
+
+    // Pagination calculations
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+    const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+    const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalCount);
+
     return (
         <div className="min-h-screen bg-[#F5F5F7] text-slate-900 font-sans">
-            <div className="max-w-6xl mx-auto px-6 py-12 md:py-16 space-y-8">
+            <div className="max-w-6xl mx-auto px-6 py-12 md:py-16 space-y-6">
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <Button
@@ -76,23 +216,69 @@ export default async function ReviewerApplicationsPage() {
                             Applications
                         </h1>
                         <p className="text-slate-500 text-sm">
-                            {user.role === "reviewer_1" && "Applications awaiting your first review"}
-                            {user.role === "reviewer_2" && "Applications awaiting your second review"}
-                            {(user.role === "admin" || user.role === "technical_reviewer") && "All applications"}
+                            {getRoleDescription()}
                         </p>
                     </div>
                 </div>
 
+                {/* Search and Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                    {/* Search */}
+                    <div className="relative w-full sm:w-[320px]">
+                        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                            placeholder="Search business name..."
+                            className="pl-9 h-10 bg-gray-50/50 border-transparent focus:bg-white focus:border-blue-500 transition-all rounded-xl"
+                            defaultValue={currentSearch}
+                            onKeyDown={(e) =>
+                                e.key === "Enter" &&
+                                handleSearch((e.currentTarget as HTMLInputElement).value)
+                            }
+                        />
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Track Filter */}
+                        <Select value={currentTrack} onValueChange={handleTrackFilter}>
+                            <SelectTrigger className="h-9 w-[140px] rounded-xl border-gray-200 bg-white text-xs font-medium focus:ring-1 focus:ring-blue-500">
+                                <Funnel className="mr-2 h-4 w-4 text-gray-500" />
+                                <SelectValue placeholder="Track" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Tracks</SelectItem>
+                                <SelectItem value="foundation">Foundation</SelectItem>
+                                <SelectItem value="acceleration">Acceleration</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {/* Results Count */}
+                <div className="text-sm text-gray-500">
+                    {totalCount > 0 ? (
+                        <>Showing <span className="font-semibold text-gray-900">{startItem}-{endItem}</span> of <span className="font-semibold text-gray-900">{totalCount}</span> applications</>
+                    ) : (
+                        <>Showing <span className="font-semibold text-gray-900">{applications.length}</span> applications</>
+                    )}
+                </div>
+
                 {/* Applications List */}
-                {filteredApplications.length === 0 ? (
+                {isLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Spinner className="w-8 h-8 animate-spin text-blue-600" />
+                    </div>
+                ) : applications.length === 0 ? (
                     <Card className="border-gray-100 shadow-sm">
                         <CardContent className="py-12 text-center">
-                            <p className="text-gray-500">No applications found matching your review queue.</p>
+                            <MagnifyingGlass className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500 font-medium">No applications found</p>
+                            <p className="text-gray-400 text-sm">Try adjusting your filters or search term</p>
                         </CardContent>
                     </Card>
                 ) : (
                     <div className="space-y-4">
-                        {filteredApplications.map((app: ApplicationListItem) => (
+                        {applications.map((app: ApplicationListItem) => (
                             <Card key={app.id} className="border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between">
@@ -116,18 +302,24 @@ export default async function ReviewerApplicationsPage() {
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <CalendarBlank className="h-4 w-4" />
-                                                    {app.submittedAt ? format(new Date(app.submittedAt), "MMM d, yyyy") : "Not submitted"}
+                                                    {app.submittedAt
+                                                        ? format(new Date(app.submittedAt), "MMM d, yyyy")
+                                                        : "Not submitted"}
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/admin/applications/${app.id}`}>
+                                                <Link href={`/reviewer/applications/${app.id}`}>
                                                     <Eye className="h-4 w-4 mr-2" />
                                                     View Details
                                                 </Link>
                                             </Button>
-                                            <Button size="sm" asChild>
+                                            <Button
+                                                size="sm"
+                                                className="bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                                                asChild
+                                            >
                                                 <Link href={`/admin/evaluate/${app.id}`}>
                                                     Review
                                                     <ArrowRight className="h-4 w-4 ml-2" />
@@ -138,6 +330,80 @@ export default async function ReviewerApplicationsPage() {
                                 </CardContent>
                             </Card>
                         ))}
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-6">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage <= 1}
+                            className="h-9 px-3"
+                        >
+                            <CaretLeft className="h-4 w-4 mr-1" />
+                            Previous
+                        </Button>
+
+                        <div className="flex items-center gap-1">
+                            {/* First page */}
+                            {currentPage > 3 && (
+                                <>
+                                    <Button
+                                        variant={currentPage === 1 ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handlePageChange(1)}
+                                        className="h-9 w-9 p-0"
+                                    >
+                                        1
+                                    </Button>
+                                    {currentPage > 4 && <span className="px-2 text-gray-400">...</span>}
+                                </>
+                            )}
+
+                            {/* Page numbers around current */}
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(page => page >= currentPage - 2 && page <= currentPage + 2)
+                                .map(page => (
+                                    <Button
+                                        key={page}
+                                        variant={currentPage === page ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handlePageChange(page)}
+                                        className="h-9 w-9 p-0"
+                                    >
+                                        {page}
+                                    </Button>
+                                ))}
+
+                            {/* Last page */}
+                            {currentPage < totalPages - 2 && (
+                                <>
+                                    {currentPage < totalPages - 3 && <span className="px-2 text-gray-400">...</span>}
+                                    <Button
+                                        variant={currentPage === totalPages ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handlePageChange(totalPages)}
+                                        className="h-9 w-9 p-0"
+                                    >
+                                        {totalPages}
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage >= totalPages}
+                            className="h-9 px-3"
+                        >
+                            Next
+                            <CaretRight className="h-4 w-4 ml-1" />
+                        </Button>
                     </div>
                 )}
             </div>

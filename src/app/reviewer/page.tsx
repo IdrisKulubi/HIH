@@ -73,10 +73,10 @@ export default async function ReviewerDashboard() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button asChild className="w-full">
+                            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm transition-all py-6 text-base font-medium">
                                 <Link href="/reviewer/applications">
-                                    Go to Applications
-                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                    View Applications
+                                    <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>
                             </Button>
                         </CardContent>
