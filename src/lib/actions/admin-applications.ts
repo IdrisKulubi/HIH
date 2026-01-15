@@ -62,7 +62,8 @@ export interface ApplicationListItem {
 }
 
 export interface ApplicationStats {
-    totalApplications: number;
+    grandTotal: number; // Total including observation apps
+    totalApplications: number; // Filtered total (excluding observation)
     foundationTrack: number;
     accelerationTrack: number;
     eligibleApplications: number;
@@ -198,6 +199,11 @@ export interface DetailedApplication extends ApplicationListItem {
 
 export async function getApplicationStats(): Promise<ActionResponse<ApplicationStats>> {
     try {
+        // Grand total - ALL applications (including observation-only)
+        const grandTotalResult = await db.select({ count: drizzleCount() })
+            .from(applications);
+        const grandTotal = grandTotalResult[0]?.count ?? 0;
+
         // Total applications (excluding observation-only)
         const totalResult = await db.select({ count: drizzleCount() })
             .from(applications)
@@ -242,6 +248,7 @@ export async function getApplicationStats(): Promise<ActionResponse<ApplicationS
         const pendingReview = pendingResult[0]?.count ?? 0;
 
         return successResponse({
+            grandTotal,
             totalApplications,
             foundationTrack,
             accelerationTrack,

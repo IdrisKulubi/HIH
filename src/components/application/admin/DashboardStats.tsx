@@ -14,6 +14,7 @@ import {
 import { getObservationStats, ObservationStats } from "@/lib/actions/observation";
 
 interface StatusStats {
+    grandTotal: number;
     totalApplications: number;
     foundationTrack: number;
     accelerationTrack: number;
@@ -36,12 +37,13 @@ export function DashboardStats({ stats }: { stats: StatusStats | null }) {
 
     if (!stats) return null;
 
-    const total = stats.totalApplications || 0;
+    const grandTotal = stats.grandTotal || 0; // All apps including observation
+    const total = stats.totalApplications || 0; // Filtered apps (excluding observation)
     const eligible = stats.eligibleApplications || 0;
-    const ineligible = total - eligible;
+    const ineligible = total - eligible; // Use filtered total for ineligible calculation
     const pendingReview = stats.pendingReview || 0;
 
-    // Calculate pass rate
+    // Calculate pass rate based on filtered total
     const passRate = total > 0 ? ((eligible / total) * 100).toFixed(0) : "0";
 
     return (
@@ -54,7 +56,7 @@ export function DashboardStats({ stats }: { stats: StatusStats | null }) {
                 <div className="flex flex-col">
                     <span className="text-sm font-medium text-gray-500 mb-1">Total Applications</span>
                     <span className="text-3xl font-bold text-gray-900 tracking-tight">
-                        {total.toLocaleString()}
+                        {grandTotal.toLocaleString()}
                     </span>
                     <div className="mt-2 flex items-center text-xs font-medium text-green-600 bg-green-50 w-fit px-2 py-0.5 rounded-full">
                         <TrendUp className="mr-1" />
