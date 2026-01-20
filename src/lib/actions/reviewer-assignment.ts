@@ -6,6 +6,7 @@ import {
     reviewerAssignmentQueue,
     users,
     applications,
+    userProfiles,
 } from "../../../db/schema";
 import { eq, and, asc, ne, isNull, sql, count } from "drizzle-orm";
 import { auth } from "@/auth";
@@ -50,12 +51,12 @@ export async function initializeReviewerQueue(): Promise<{ success: boolean; mes
             return { success: false, message: "Unauthorized" };
         }
 
-        // Get all users with reviewer roles
+        // Get all users with reviewer roles from userProfiles table
         const reviewers = await db
-            .select({ id: users.id, role: users.role })
-            .from(users)
+            .select({ userId: userProfiles.userId, role: userProfiles.role })
+            .from(userProfiles)
             .where(
-                sql`${users.role} IN ('reviewer_1', 'reviewer_2')`
+                sql`${userProfiles.role} IN ('reviewer_1', 'reviewer_2')`
             );
 
         let added = 0;
@@ -64,12 +65,12 @@ export async function initializeReviewerQueue(): Promise<{ success: boolean; mes
             const existing = await db
                 .select()
                 .from(reviewerAssignmentQueue)
-                .where(eq(reviewerAssignmentQueue.reviewerId, reviewer.id))
+                .where(eq(reviewerAssignmentQueue.reviewerId, reviewer.userId))
                 .limit(1);
 
             if (existing.length === 0) {
                 await db.insert(reviewerAssignmentQueue).values({
-                    reviewerId: reviewer.id,
+                    reviewerId: reviewer.userId,
                     reviewerRole: reviewer.role as "reviewer_1" | "reviewer_2",
                     assignmentCount: 0,
                     isActive: true,
