@@ -15,6 +15,31 @@ import { auth } from "@/auth";
 // =============================================================================
 
 /**
+ * Toggle a reviewer's active status (enable/disable from receiving assignments)
+ */
+export async function toggleReviewerActive(
+    reviewerId: string,
+    isActive: boolean
+): Promise<{ success: boolean; message: string }> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        await db
+            .update(reviewerAssignmentQueue)
+            .set({ isActive })
+            .where(eq(reviewerAssignmentQueue.reviewerId, reviewerId));
+
+        return { success: true, message: `Reviewer ${isActive ? "activated" : "deactivated"}` };
+    } catch (error) {
+        console.error("Error toggling reviewer status:", error);
+        return { success: false, message: "Failed to update reviewer status" };
+    }
+}
+
+/**
  * Initialize reviewer queue entries for all active reviewers
  * Call this once to set up the queue, or when new reviewers are added
  */
@@ -147,10 +172,17 @@ export async function bulkAssignApplicationsToReviewers(): Promise<{
         }
 
         // Get all unassigned eligibility results (where assignedReviewer1Id is null)
+        // Exclude observation applications - they are not scored
         const unassigned = await db
             .select({ id: eligibilityResults.id })
             .from(eligibilityResults)
-            .where(isNull(eligibilityResults.assignedReviewer1Id));
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    isNull(eligibilityResults.assignedReviewer1Id),
+                    eq(applications.isObservationOnly, false)
+                )
+            );
 
         if (unassigned.length === 0) {
             return { success: true, assigned: 0, message: "No unassigned applications found" };
@@ -375,26 +407,48 @@ export async function getAssignmentStats(): Promise<{
             return { success: false, error: "Unauthorized" };
         }
 
-        // Get total counts
-        const totalResult = await db.select({ count: count() }).from(eligibilityResults);
+        // Get total counts (excluding observation applications)
+        const totalResult = await db
+            .select({ count: count() })
+            .from(eligibilityResults)
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(eq(applications.isObservationOnly, false));
         const total = Number(totalResult[0]?.count || 0);
 
         const assigned1Result = await db
             .select({ count: count() })
             .from(eligibilityResults)
-            .where(sql`${eligibilityResults.assignedReviewer1Id} IS NOT NULL`);
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    sql`${eligibilityResults.assignedReviewer1Id} IS NOT NULL`,
+                    eq(applications.isObservationOnly, false)
+                )
+            );
         const assignedToReviewer1 = Number(assigned1Result[0]?.count || 0);
 
         const assigned2Result = await db
             .select({ count: count() })
             .from(eligibilityResults)
-            .where(sql`${eligibilityResults.assignedReviewer2Id} IS NOT NULL`);
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    sql`${eligibilityResults.assignedReviewer2Id} IS NOT NULL`,
+                    eq(applications.isObservationOnly, false)
+                )
+            );
         const assignedToReviewer2 = Number(assigned2Result[0]?.count || 0);
 
         const unassignedResult = await db
             .select({ count: count() })
             .from(eligibilityResults)
-            .where(isNull(eligibilityResults.assignedReviewer1Id));
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    isNull(eligibilityResults.assignedReviewer1Id),
+                    eq(applications.isObservationOnly, false)
+                )
+            );
         const unassigned = Number(unassignedResult[0]?.count || 0);
 
         // Get reviewer stats from queue

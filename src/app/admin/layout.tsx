@@ -66,6 +66,11 @@ export default async function AdminLayout({
                 </Link>
               </li>
               <li>
+                <Link href="/admin/assignments" className="text-purple-400 hover:text-purple-300 transition-colors">
+                  Assignments
+                </Link>
+              </li>
+              <li>
                 <Link href="/" className="text-white/80 hover:text-white transition-colors">
                   Back to Site
                 </Link>
