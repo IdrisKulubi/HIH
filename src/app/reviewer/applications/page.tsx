@@ -34,6 +34,7 @@ import {
     type ApplicationListItem,
 } from "@/lib/actions/admin-applications";
 import { getCurrentUser } from "@/lib/actions/user.actions";
+import { getAssignedApplications } from "@/lib/actions/reviewer-assignment";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -88,50 +89,57 @@ function ReviewerApplicationsContent() {
 
             setUserRole(user.role || null);
 
-            // Determine status filter based on role
-            let statusFilter: string | undefined;
-            if (user.role === "reviewer_1") {
-                statusFilter = "submitted"; // R1 primarily sees submitted
-            } else if (user.role === "reviewer_2") {
-                statusFilter = "pending_senior_review";
-            }
+            // For reviewers, use assignment-based filtering
+            if (user.role === "reviewer_1" || user.role === "reviewer_2") {
+                // First, get the list of assigned application IDs
+                const assignedResult = await getAssignedApplications({
+                    page: 1,
+                    limit: 1000, // Get all assigned IDs
+                    track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
+                });
 
-            // Fetch applications with pagination
-            const result = await getApplications({
-                page: currentPage,
-                limit: ITEMS_PER_PAGE,
-                track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
-                search: currentSearch || undefined,
-                status: statusFilter,
-            });
+                if (assignedResult.success && assignedResult.data) {
+                    const assignedIds = assignedResult.data.applications.map(a => a.applicationId);
 
-            if (result.success && result.data) {
-                // For R1, also include under_review status (client-side filter for combined statuses)
-                let filtered = result.data;
-                if (user.role === "reviewer_1") {
-                    // Re-fetch without status filter to get both submitted and under_review
-                    const allResult = await getApplications({
-                        page: currentPage,
-                        limit: ITEMS_PER_PAGE,
-                        track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
-                        search: currentSearch || undefined,
-                    });
-                    if (allResult.success && allResult.data) {
-                        filtered = allResult.data.filter((app: ApplicationListItem) =>
-                            app.status === "submitted" || app.status === "under_review"
-                        );
-                        setTotalCount(allResult.pagination.total);
+                    if (assignedIds.length === 0) {
+                        // No applications assigned yet
+                        setApplications([]);
+                        setTotalCount(0);
+                    } else {
+                        // Fetch all applications and filter by assigned IDs
+                        const result = await getApplications({
+                            page: currentPage,
+                            limit: ITEMS_PER_PAGE,
+                            track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
+                        });
+
+                        if (result.success && result.data) {
+                            // Filter to only show assigned applications
+                            const filteredApps = result.data.filter(app => assignedIds.includes(app.id));
+                            setApplications(filteredApps);
+                            setTotalCount(assignedResult.data.total);
+                        } else {
+                            toast.error("Failed to load applications");
+                        }
                     }
-                } else if (user.role === "reviewer_2") {
+                } else {
+                    toast.error("Failed to load assigned applications");
+                }
+            } else {
+                // Admin/technical reviewers see all applications
+                const result = await getApplications({
+                    page: currentPage,
+                    limit: ITEMS_PER_PAGE,
+                    track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
+                    search: currentSearch || undefined,
+                });
+
+                if (result.success && result.data) {
+                    setApplications(result.data);
                     setTotalCount(result.pagination.total);
                 } else {
-                    // Admin sees all
-                    setTotalCount(result.pagination.total);
+                    toast.error("Failed to load applications");
                 }
-
-                setApplications(filtered);
-            } else {
-                toast.error("Failed to load applications");
             }
         } catch (error) {
             console.error("Error loading data:", error);

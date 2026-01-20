@@ -67,7 +67,7 @@ export function HeroSection() {
             variants={itemVariants}
             className="inline-flex items-center gap-2 bg-red-500/90 backdrop-blur-sm border border-red-400 rounded-full px-4 py-2 mb-2 hover:bg-red-600/90 transition cursor-pointer"
           >
-            <span className="text-sm font-bold text-white">📅 Application Deadline: 15th January 2026 </span>
+            <span className="text-sm font-bold text-white">📅 Application Deadline: 30th January 2026 </span>
           </motion.a>
 
           <motion.h1

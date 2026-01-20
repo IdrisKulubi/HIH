@@ -484,11 +484,28 @@ export const eligibilityResults = pgTable('eligibility_results', {
   lockedAt: timestamp('locked_at'),
   lockReason: text('lock_reason'), // "Reviewing", "Auditing", etc.
 
+  // Pre-assignment fields (assigned before review starts)
+  assignedReviewer1Id: text('assigned_reviewer1_id').references(() => users.id),
+  assignedReviewer1At: timestamp('assigned_reviewer1_at'),
+  assignedReviewer2Id: text('assigned_reviewer2_id').references(() => users.id),
+  assignedReviewer2At: timestamp('assigned_reviewer2_at'),
+
   // Admin Oversight
   adminOversightComment: text('admin_oversight_comment'),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Reviewer Assignment Queue - tracks round-robin assignment state
+export const reviewerAssignmentQueue = pgTable('reviewer_assignment_queue', {
+  id: serial('id').primaryKey(),
+  reviewerId: text('reviewer_id').notNull().references(() => users.id),
+  reviewerRole: userRoleEnum('reviewer_role').notNull(), // reviewer_1 or reviewer_2
+  assignmentCount: integer('assignment_count').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  lastAssignedAt: timestamp('last_assigned_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 // Scoring Configuration (Cohorts/Cycles)

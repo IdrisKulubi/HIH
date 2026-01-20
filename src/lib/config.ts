@@ -4,6 +4,6 @@ export const APP_CONFIG = {
   applicationsOpen: true,
 
   // Application deadline information
-  applicationDeadline: "August, 2025",
+  applicationDeadline: "January, 2026",
   nextApplicationPeriod: "2026",
 } as const;

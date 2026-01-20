@@ -5,8 +5,9 @@ import { applications, eligibilityResults, userProfiles } from "../../../db/sche
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { auth } from "../../../auth";
 import { revalidatePath } from "next/cache";
+import { autoAssignNewApplication } from "./reviewer-assignment";
 
-export type ApplicationStatus = 
+export type ApplicationStatus =
   | 'submitted'
   | 'under_review'
   | 'scoring_phase'
@@ -42,7 +43,7 @@ export async function updateApplicationStatus(applicationId: number, status: App
     // Update application status
     await db
       .update(applications)
-      .set({ 
+      .set({
         status,
         updatedAt: new Date()
       })
@@ -116,12 +117,12 @@ export async function bulkUpdateApplicationStatus(updates: ApplicationStatusUpda
     }
 
     const now = new Date();
-    
+
     // Update each application
     for (const update of updates) {
       await db
         .update(applications)
-        .set({ 
+        .set({
           status: update.status,
           updatedAt: now
         })
@@ -180,8 +181,8 @@ export async function bulkUpdateApplicationStatus(updates: ApplicationStatusUpda
  * Get applications by status with pagination
  */
 export async function getApplicationsByStatus(
-  status?: ApplicationStatus | ApplicationStatus[], 
-  page: number = 1, 
+  status?: ApplicationStatus | ApplicationStatus[],
+  page: number = 1,
   limit: number = 10
 ) {
   try {
@@ -226,8 +227,8 @@ export async function getApplicationsByStatus(
         .then(result => result[0]?.count || 0)
     ]);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         applications: applicationsData,
         pagination: {
@@ -267,8 +268,8 @@ export async function getApplicationStatusStats() {
       return acc;
     }, {} as Record<string, number>);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: {
         totalApplications: stats.reduce((sum, stat) => sum + Number(stat.count), 0),
         submitted: statusCounts.submitted || 0,
@@ -308,7 +309,7 @@ export async function shortlistApplications(applicationIds: number[], notes?: st
     // Update applications to shortlisted status
     await db
       .update(applications)
-      .set({ 
+      .set({
         status: 'scoring_phase',
         updatedAt: new Date()
       })
@@ -328,10 +329,16 @@ export async function shortlistApplications(applicationIds: number[], notes?: st
       impactEligible: false,
     }));
 
-    await db.insert(eligibilityResults).values(eligibilityInserts);
+    const insertedResults = await db.insert(eligibilityResults).values(eligibilityInserts).returning({ id: eligibilityResults.id });
+
+    // Auto-assign each new eligibility result to a reviewer
+    for (const result of insertedResults) {
+      await autoAssignNewApplication(result.id);
+    }
 
     revalidatePath("/admin");
     revalidatePath("/admin/applications");
+    revalidatePath("/reviewer");
     return { success: true, count: applicationIds.length };
   } catch (error) {
     console.error("Error shortlisting applications:", error);
@@ -361,7 +368,7 @@ export async function moveToScoringPhase(applicationIds: number[], notes?: strin
     // Only move shortlisted applications
     await db
       .update(applications)
-      .set({ 
+      .set({
         status: 'scoring_phase',
         updatedAt: new Date()
       })
