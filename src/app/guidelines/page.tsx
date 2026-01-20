@@ -31,7 +31,7 @@ export default function GuidelinesPage() {
                         </h1>
                         <div className="inline-flex items-center gap-2 bg-red-100 text-red-700 px-4 py-2 rounded-full font-semibold">
                             <Calendar className="w-5 h-5" />
-                            Deadline for submission: 15th January 2026
+                            Deadline for submission: 30th January 2026
                         </div>
                     </div>
 
