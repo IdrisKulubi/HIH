@@ -311,6 +311,124 @@ export async function assignSecondReviewer(
 }
 
 /**
+ * Bulk assign second reviewers to all applications that need them
+ * This assigns R2s to apps where R1 review is complete but R2 is not assigned
+ * Admin-only function
+ */
+export async function bulkAssignSecondReviewers(): Promise<{
+    success: boolean;
+    assigned: number;
+    message: string;
+}> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return { success: false, assigned: 0, message: "Unauthorized" };
+        }
+
+        // Find all eligibility results where:
+        // 1. R1 has reviewed (reviewer1Id is set)
+        // 2. R2 is not yet assigned (assignedReviewer2Id is null)
+        // 3. Not an observation application
+        const needsR2 = await db
+            .select({ id: eligibilityResults.id })
+            .from(eligibilityResults)
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    sql`${eligibilityResults.reviewer1Id} IS NOT NULL`,
+                    isNull(eligibilityResults.assignedReviewer2Id),
+                    eq(applications.isObservationOnly, false)
+                )
+            );
+
+        if (needsR2.length === 0) {
+            return { success: true, assigned: 0, message: "No applications need second reviewer assignment" };
+        }
+
+        let assignedCount = 0;
+
+        for (const result of needsR2) {
+            const assignResult = await assignSecondReviewer(result.id);
+            if (assignResult.success) {
+                assignedCount++;
+            }
+        }
+
+        return {
+            success: true,
+            assigned: assignedCount,
+            message: `Assigned second reviewers to ${assignedCount} of ${needsR2.length} applications`,
+        };
+    } catch (error) {
+        console.error("Error bulk assigning second reviewers:", error);
+        return { success: false, assigned: 0, message: "Failed to bulk assign second reviewers" };
+    }
+}
+
+/**
+ * Redistribute second reviewer assignments evenly
+ * Clears existing R2 assignments and reassigns based on current active reviewers
+ * Admin-only function
+ */
+export async function redistributeSecondReviewers(): Promise<{
+    success: boolean;
+    redistributed: number;
+    message: string;
+}> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return { success: false, redistributed: 0, message: "Unauthorized" };
+        }
+
+        // Step 1: Clear all existing R2 assignments (only for non-observation apps)
+        const allWithR2 = await db
+            .select({ id: eligibilityResults.id })
+            .from(eligibilityResults)
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(
+                and(
+                    sql`${eligibilityResults.assignedReviewer2Id} IS NOT NULL`,
+                    eq(applications.isObservationOnly, false)
+                )
+            );
+
+        for (const result of allWithR2) {
+            await db
+                .update(eligibilityResults)
+                .set({
+                    assignedReviewer2Id: null,
+                    assignedReviewer2At: null,
+                    updatedAt: new Date(),
+                })
+                .where(eq(eligibilityResults.id, result.id));
+        }
+
+        // Step 2: Reset assignment counts for all active reviewer_2 users
+        await db
+            .update(reviewerAssignmentQueue)
+            .set({
+                assignmentCount: 0,
+                lastAssignedAt: null,
+            })
+            .where(eq(reviewerAssignmentQueue.reviewerRole, "reviewer_2"));
+
+        // Step 3: Re-assign all applications that need R2
+        const bulkResult = await bulkAssignSecondReviewers();
+
+        return {
+            success: true,
+            redistributed: bulkResult.assigned,
+            message: `Redistributed ${bulkResult.assigned} second reviewer assignments evenly`,
+        };
+    } catch (error) {
+        console.error("Error redistributing second reviewers:", error);
+        return { success: false, redistributed: 0, message: "Failed to redistribute second reviewers" };
+    }
+}
+
+/**
  * Get applications assigned to the current reviewer
  * Filters by assignedReviewer1Id or assignedReviewer2Id based on role
  */

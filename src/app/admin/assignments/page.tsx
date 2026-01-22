@@ -12,8 +12,10 @@ import {
     getAssignmentStats,
     toggleReviewerActive,
     redistributeAssignments,
+    bulkAssignSecondReviewers,
+    redistributeSecondReviewers,
 } from "@/lib/actions/reviewer-assignment";
-import { Spinner, Users, CheckCircle, XCircle, ArrowsClockwise } from "@phosphor-icons/react";
+import { Spinner, Users, CheckCircle, XCircle, ArrowsClockwise, UserCirclePlus } from "@phosphor-icons/react";
 
 interface ReviewerStat {
     reviewerId: string;
@@ -28,6 +30,8 @@ export default function AssignmentManagementPage() {
     const [isInitializing, setIsInitializing] = useState(false);
     const [isAssigning, setIsAssigning] = useState(false);
     const [isRedistributing, setIsRedistributing] = useState(false);
+    const [isAssigningR2, setIsAssigningR2] = useState(false);
+    const [isRedistributingR2, setIsRedistributingR2] = useState(false);
     const [stats, setStats] = useState<{
         totalApplications: number;
         assignedToReviewer1: number;
@@ -88,6 +92,33 @@ export default function AssignmentManagementPage() {
             toast.error(result.message);
         }
         setIsRedistributing(false);
+    };
+
+    const handleBulkAssignR2 = async () => {
+        setIsAssigningR2(true);
+        const result = await bulkAssignSecondReviewers();
+        if (result.success) {
+            toast.success(result.message);
+            loadStats();
+        } else {
+            toast.error(result.message);
+        }
+        setIsAssigningR2(false);
+    };
+
+    const handleRedistributeR2 = async () => {
+        if (!confirm("This will clear all R2 assignments and redistribute evenly among active second reviewers. Are you sure?")) {
+            return;
+        }
+        setIsRedistributingR2(true);
+        const result = await redistributeSecondReviewers();
+        if (result.success) {
+            toast.success(result.message);
+            loadStats();
+        } else {
+            toast.error(result.message);
+        }
+        setIsRedistributingR2(false);
     };
 
     const handleToggleReviewer = async (reviewerId: string, currentActive: boolean) => {
@@ -192,11 +223,51 @@ export default function AssignmentManagementPage() {
                         ) : (
                             <ArrowsClockwise className="w-4 h-4 mr-2" />
                         )}
-                        Redistribute Evenly
+                        Redistribute R1
                     </Button>
                     <Button variant="ghost" onClick={loadStats}>
                         <ArrowsClockwise className="w-4 h-4 mr-2" />
                         Refresh
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* R2 Actions Card */}
+            <Card className="mb-8 border-blue-200 bg-blue-50/30">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Badge className="bg-blue-100 text-blue-800">R2</Badge>
+                        Second Reviewer Actions
+                    </CardTitle>
+                    <CardDescription>
+                        Assign or redistribute second reviewer assignments for applications that have completed first review.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex gap-4 flex-wrap">
+                    <Button
+                        onClick={handleBulkAssignR2}
+                        disabled={isAssigningR2}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
+                        {isAssigningR2 ? (
+                            <Spinner className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <UserCirclePlus className="w-4 h-4 mr-2" />
+                        )}
+                        Assign R2s to Reviewed Apps
+                    </Button>
+                    <Button
+                        onClick={handleRedistributeR2}
+                        disabled={isRedistributingR2 || (stats?.assignedToReviewer2 || 0) === 0}
+                        variant="destructive"
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        {isRedistributingR2 ? (
+                            <Spinner className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <ArrowsClockwise className="w-4 h-4 mr-2" />
+                        )}
+                        Redistribute R2 Evenly
                     </Button>
                 </CardContent>
             </Card>
