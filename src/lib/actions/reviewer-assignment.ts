@@ -210,6 +210,63 @@ export async function bulkAssignApplicationsToReviewers(): Promise<{
 }
 
 /**
+ * Redistribute all assignments evenly among active reviewers
+ * Clears existing R1 assignments and reassigns based on current active reviewers
+ * Admin-only function
+ */
+export async function redistributeAssignments(): Promise<{
+    success: boolean;
+    redistributed: number;
+    message: string;
+}> {
+    try {
+        const session = await auth();
+        if (session?.user?.role !== "admin") {
+            return { success: false, redistributed: 0, message: "Unauthorized" };
+        }
+
+        // Step 1: Clear all existing R1 assignments (only for non-observation apps)
+        const allAssignable = await db
+            .select({ id: eligibilityResults.id })
+            .from(eligibilityResults)
+            .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id))
+            .where(eq(applications.isObservationOnly, false));
+
+        for (const result of allAssignable) {
+            await db
+                .update(eligibilityResults)
+                .set({
+                    assignedReviewer1Id: null,
+                    assignedReviewer1At: null,
+                    updatedAt: new Date(),
+                })
+                .where(eq(eligibilityResults.id, result.id));
+        }
+
+        // Step 2: Reset assignment counts for all active reviewer_1 users
+        await db
+            .update(reviewerAssignmentQueue)
+            .set({
+                assignmentCount: 0,
+                lastAssignedAt: null,
+            })
+            .where(eq(reviewerAssignmentQueue.reviewerRole, "reviewer_1"));
+
+        // Step 3: Re-assign all applications using the existing bulk assign logic
+        const bulkResult = await bulkAssignApplicationsToReviewers();
+
+        return {
+            success: true,
+            redistributed: bulkResult.assigned,
+            message: `Redistributed ${bulkResult.assigned} applications evenly among active reviewers`,
+        };
+    } catch (error) {
+        console.error("Error redistributing assignments:", error);
+        return { success: false, redistributed: 0, message: "Failed to redistribute assignments" };
+    }
+}
+
+/**
  * Assign second reviewer after first review is completed
  * Called when reviewer_1 submits their review
  */

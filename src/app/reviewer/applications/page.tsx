@@ -106,18 +106,24 @@ function ReviewerApplicationsContent() {
                         setApplications([]);
                         setTotalCount(0);
                     } else {
-                        // Fetch all applications and filter by assigned IDs
+                        // Fetch ALL applications (high limit) to properly filter by assigned IDs
+                        // This ensures we get all assigned apps regardless of their position in the list
                         const result = await getApplications({
-                            page: currentPage,
-                            limit: ITEMS_PER_PAGE,
+                            page: 1,
+                            limit: 2000, // Fetch enough to cover all applications
                             track: currentTrack !== "all" ? (currentTrack as "foundation" | "acceleration") : undefined,
                         });
 
                         if (result.success && result.data) {
                             // Filter to only show assigned applications
                             const filteredApps = result.data.filter(app => assignedIds.includes(app.id));
-                            setApplications(filteredApps);
-                            setTotalCount(assignedResult.data.total);
+
+                            // Apply client-side pagination
+                            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                            const paginatedApps = filteredApps.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+                            setApplications(paginatedApps);
+                            setTotalCount(filteredApps.length);
                         } else {
                             toast.error("Failed to load applications");
                         }

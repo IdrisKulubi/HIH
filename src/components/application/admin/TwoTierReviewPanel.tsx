@@ -134,6 +134,15 @@ export function TwoTierReviewPanel({
     const isReviewer2Role = userRole === "reviewer_2";
     const hasFullAccess = userRole === "admin" || userRole === "technical_reviewer";
 
+    // Determine the correct evaluate URL based on user role
+    const getEvaluateUrl = () => {
+        if (userRole === "admin" || userRole === "technical_reviewer") {
+            return `/admin/evaluate/${applicationId}`;
+        }
+        // Reviewers use the reviewer route
+        return `/reviewer/evaluate/${applicationId}`;
+    };
+
     const canReview1 =
         (currentStatus === "submitted" || currentStatus === "under_review") &&
         (hasFullAccess || isReviewer1Role);
@@ -248,7 +257,7 @@ export function TwoTierReviewPanel({
                                 asChild
                                 className={reviewStatus?.reviewer1 ? "border-blue-200 text-blue-700 hover:bg-blue-50" : "bg-blue-600 hover:bg-blue-700 text-white shadow-md"}
                             >
-                                <Link href={`/admin/evaluate/${applicationId}`}>
+                                <Link href={getEvaluateUrl()}>
                                     {reviewStatus?.reviewer1 ? (
                                         <>
                                             <PencilSimple className="h-4 w-4 mr-2" />
@@ -303,7 +312,7 @@ export function TwoTierReviewPanel({
                                 asChild
                                 className={reviewStatus?.reviewer2 ? "border-purple-200 text-purple-700 hover:bg-purple-50" : "bg-purple-600 hover:bg-purple-700 text-white shadow-md"}
                             >
-                                <Link href={`/admin/evaluate/${applicationId}`}>
+                                <Link href={getEvaluateUrl()}>
                                     {reviewStatus?.reviewer2 ? (
                                         <>
                                             <PencilSimple className="h-4 w-4 mr-2" />

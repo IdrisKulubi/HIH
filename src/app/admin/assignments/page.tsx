@@ -11,6 +11,7 @@ import {
     bulkAssignApplicationsToReviewers,
     getAssignmentStats,
     toggleReviewerActive,
+    redistributeAssignments,
 } from "@/lib/actions/reviewer-assignment";
 import { Spinner, Users, CheckCircle, XCircle, ArrowsClockwise } from "@phosphor-icons/react";
 
@@ -26,6 +27,7 @@ export default function AssignmentManagementPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isInitializing, setIsInitializing] = useState(false);
     const [isAssigning, setIsAssigning] = useState(false);
+    const [isRedistributing, setIsRedistributing] = useState(false);
     const [stats, setStats] = useState<{
         totalApplications: number;
         assignedToReviewer1: number;
@@ -71,6 +73,21 @@ export default function AssignmentManagementPage() {
             toast.error(result.message);
         }
         setIsAssigning(false);
+    };
+
+    const handleRedistribute = async () => {
+        if (!confirm("This will clear all current assignments and redistribute evenly among active reviewers. Are you sure?")) {
+            return;
+        }
+        setIsRedistributing(true);
+        const result = await redistributeAssignments();
+        if (result.success) {
+            toast.success(result.message);
+            loadStats();
+        } else {
+            toast.error(result.message);
+        }
+        setIsRedistributing(false);
     };
 
     const handleToggleReviewer = async (reviewerId: string, currentActive: boolean) => {
@@ -163,6 +180,19 @@ export default function AssignmentManagementPage() {
                             <ArrowsClockwise className="w-4 h-4 mr-2" />
                         )}
                         Bulk Assign {stats?.unassigned || 0} Apps
+                    </Button>
+                    <Button
+                        onClick={handleRedistribute}
+                        disabled={isRedistributing || (stats?.totalApplications || 0) === 0}
+                        variant="destructive"
+                        className="bg-purple-600 hover:bg-purple-700"
+                    >
+                        {isRedistributing ? (
+                            <Spinner className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <ArrowsClockwise className="w-4 h-4 mr-2" />
+                        )}
+                        Redistribute Evenly
                     </Button>
                     <Button variant="ghost" onClick={loadStats}>
                         <ArrowsClockwise className="w-4 h-4 mr-2" />
