@@ -442,11 +442,17 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                                     {[
                                         { url: application.business.registrationCertificateUrl, name: "Registration Certificate" },
                                         //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        { url: (application.business as any).businessOverviewUrl, name: "Business Overview" },
+                                        { url: (application.business as any).taxComplianceUrl, name: "Tax Compliance" },
                                         //eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         { url: (application.business as any).auditedAccountsUrl, name: "Audited Accounts" },
                                         //eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        { url: (application.business as any).taxComplianceUrl, name: "Tax Compliance" }
+                                        { url: (application.business as any).financialRecordsUrl, name: "Financial Records" },
+                                        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        { url: (application.business as any).salesEvidenceUrl, name: "Sales Evidence" },
+                                        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        { url: (application.business as any).photosUrl, name: "Business Photos" },
+                                        //eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        { url: (application.business as any).complianceDocumentsUrl, name: "Compliance Documents" },
                                     ].filter(d => d.url).map((doc, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all group">
                                             <div className="flex items-center gap-3 text-sm font-medium text-gray-700">
