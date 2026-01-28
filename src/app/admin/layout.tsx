@@ -17,8 +17,8 @@ export default async function AdminLayout({
   const session = await auth();
   const userRole = session?.user?.role || "";
 
-  // Block non-admin users from accessing admin pages
-  if (userRole !== "admin") {
+  // Block non-admin users from accessing admin pages (except oversight)
+  if (userRole !== "admin" && userRole !== "oversight") {
     // Redirect reviewers to their dashboard, others to home
     const isReviewer = ["reviewer_1", "reviewer_2", "technical_reviewer"].includes(userRole);
     redirect(isReviewer ? "/reviewer" : "/");
@@ -48,6 +48,11 @@ export default async function AdminLayout({
               <li>
                 <Link href="/admin/observation" className="text-amber-400 hover:text-amber-300 transition-colors">
                   Observation
+                </Link>
+              </li>
+              <li>
+                <Link href="/admin/due-diligence" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                  Due Diligence
                 </Link>
               </li>
               <li>

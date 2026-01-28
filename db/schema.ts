@@ -40,7 +40,8 @@ export const userRoleEnum = pgEnum('user_role', [
   'admin',
   'technical_reviewer',
   'reviewer_1',
-  'reviewer_2'
+  'reviewer_2',
+  'oversight'
 ]);
 
 export const fundingSourceEnum = pgEnum('funding_source', [
@@ -493,6 +494,11 @@ export const eligibilityResults = pgTable('eligibility_results', {
   // Admin Oversight
   adminOversightComment: text('admin_oversight_comment'),
 
+  // === DUE DILIGENCE QUALIFICATION ===
+  qualifiesForDueDiligence: boolean('qualifies_for_due_diligence').default(false), // ≥60% aggregate score
+  ddRecommendedByOversight: boolean('dd_recommended_by_oversight').default(false), // Flagged by oversight admin
+  scoreDisparity: integer('score_disparity'), // Absolute difference between R1 and R2 scores (>10 triggers warning)
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
@@ -876,7 +882,31 @@ export const dueDiligenceRecords = pgTable('due_diligence_records', {
   finalVerdict: text('final_verdict'), // pass, fail
   finalReason: text('final_reason'),
 
-  reviewerId: text('reviewer_id'), // User ID of the staff member
+  // === TWO-REVIEWER WORKFLOW ===
+  // Primary Reviewer (conducts the assessment)
+  primaryReviewerId: text('primary_reviewer_id'),
+  primaryReviewedAt: timestamp('primary_reviewed_at'),
+
+  // Validator Reviewer (approves/queries the assessment)
+  validatorReviewerId: text('validator_reviewer_id'),
+  validatorAction: text('validator_action'), // 'approved', 'queried', null
+  validatorComments: text('validator_comments'),
+  validatorActionAt: timestamp('validator_action_at'),
+
+  // Approval Workflow
+  ddStatus: text('dd_status').default('pending'), // 'pending', 'in_progress', 'awaiting_approval', 'approved', 'queried', 'auto_reassigned'
+  approvalDeadline: timestamp('approval_deadline'), // 12 hours from primary submission
+
+  // === OVERSIGHT ADMINISTRATION ===
+  isOversightInitiated: boolean('is_oversight_initiated').default(false),
+  oversightJustification: text('oversight_justification'),
+  oversightAdminId: text('oversight_admin_id'),
+  oversightFlaggedAt: timestamp('oversight_flagged_at'),
+
+  // Score disparity tracking
+  scoreDisparity: integer('score_disparity'), // Absolute difference between R1 and R2 scores
+
+  reviewerId: text('reviewer_id'), // Legacy - User ID of the staff member
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

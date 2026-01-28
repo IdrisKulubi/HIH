@@ -11,6 +11,7 @@ import {
     lockApplication,
     getReviewStatus,
 } from "@/lib/actions";
+import { recommendForDueDiligence, calculateScoreDisparity } from "@/lib/actions/due-diligence";
 import { getCurrentUserProfile } from "@/lib/actions/user.actions";
 import { toast } from "sonner";
 import {
@@ -20,7 +21,9 @@ import {
     Lock,
     PencilSimple,
     ArrowRight,
-    Spinner
+    Spinner,
+    Lightning,
+    Warning
 } from "@phosphor-icons/react";
 
 interface TwoTierReviewPanelProps {
@@ -69,6 +72,11 @@ export function TwoTierReviewPanel({
     const [lockReason, setLockReason] = useState("");
     const [locking, setLocking] = useState(false);
 
+    // DD Recommendation (Oversight)
+    const [ddJustification, setDdJustification] = useState("");
+    const [recommending, setRecommending] = useState(false);
+    const [scoreDisparity, setScoreDisparity] = useState<number | null>(null);
+
     // Fetch review status and user role
     async function fetchStatus() {
         try {
@@ -79,6 +87,15 @@ export function TwoTierReviewPanel({
 
             if (result.success && result.data) {
                 setReviewStatus(result.data);
+
+                // Calculate disparity if both reviews complete
+                if (result.data.reviewer1 && result.data.reviewer2 &&
+                    result.data.reviewer1.score !== null && result.data.reviewer2.score !== null) {
+                    const disparityResult = await calculateScoreDisparity(applicationId);
+                    if (disparityResult.success && disparityResult.disparity !== undefined) {
+                        setScoreDisparity(disparityResult.disparity);
+                    }
+                }
             }
 
             // Set user role from profile
@@ -117,6 +134,33 @@ export function TwoTierReviewPanel({
             setLocking(false);
         }
     };
+
+    // Oversight: Recommend for Due Diligence
+    const handleRecommendDD = async () => {
+        if (!ddJustification || ddJustification.trim().length < 20) {
+            toast.error("Please provide justification (at least 20 characters)");
+            return;
+        }
+
+        setRecommending(true);
+        try {
+            const result = await recommendForDueDiligence(applicationId, ddJustification);
+            if (result.success) {
+                toast.success(result.message);
+                setDdJustification("");
+            } else {
+                toast.error(result.message);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to recommend for DD");
+        } finally {
+            setRecommending(false);
+        }
+    };
+
+    // Check if user has oversight privileges
+    const isOversight = userRole === "oversight" || userRole === "admin";
 
     if (loading) {
         return (
@@ -381,6 +425,58 @@ export function TwoTierReviewPanel({
                                     className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                                 >
                                     {locking ? <Spinner className="h-4 w-4 animate-spin" /> : "Confirm Lock"}
+                                </Button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* Score Disparity Warning */}
+                {scoreDisparity !== null && scoreDisparity > 10 && (
+                    <Alert className="border-amber-200 bg-amber-50">
+                        <Warning className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-amber-800">
+                            <strong>Score Disparity Detected:</strong> There is a {scoreDisparity} point
+                            difference between Reviewer 1 and Reviewer 2 scores. This may indicate
+                            the need for further investigation or due diligence.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                {/* DD Recommendation Section (Oversight) */}
+                {isOversight && reviewStatus?.reviewer1 && reviewStatus?.reviewer2 && (
+                    <>
+                        <div className="h-px bg-gray-100" />
+                        <div className="bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-medium text-purple-900 flex items-center gap-2">
+                                    <Lightning className="h-4 w-4" weight="fill" />
+                                    Recommend for Due Diligence
+                                </h3>
+                            </div>
+                            <p className="text-sm text-purple-700 mb-3">
+                                Flag this application for on-site verification visit.
+                            </p>
+                            <div className="space-y-3">
+                                <Textarea
+                                    value={ddJustification}
+                                    onChange={(e) => setDdJustification(e.target.value)}
+                                    placeholder="Justification for DD recommendation (min. 20 characters)..."
+                                    rows={2}
+                                    className="bg-white text-sm border-purple-200 focus-visible:ring-purple-500"
+                                />
+                                <Button
+                                    onClick={handleRecommendDD}
+                                    disabled={recommending || ddJustification.length < 20}
+                                    size="sm"
+                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+                                >
+                                    {recommending ? <Spinner className="h-4 w-4 animate-spin" /> : (
+                                        <>
+                                            <Lightning className="h-4 w-4 mr-2" />
+                                            Recommend for DD
+                                        </>
+                                    )}
                                 </Button>
                             </div>
                         </div>
