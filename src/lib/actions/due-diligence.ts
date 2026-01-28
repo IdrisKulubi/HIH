@@ -29,7 +29,8 @@ const APPROVAL_WINDOW_HOURS = 12; // Hours for validator to approve
 export async function getDueDiligence(applicationId: number) {
     try {
         const session = await auth();
-        if (!session?.user || session.user.role !== "admin") {
+        // Allow admin, oversight, and reviewer_1 to access DD
+        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -66,6 +67,55 @@ export async function getDueDiligence(applicationId: number) {
     } catch (error) {
         console.error("Error fetching due diligence:", error);
         return { success: false, message: "Failed to load due diligence data" };
+    }
+}
+
+/**
+ * Get eligibility scores breakdown for DD review
+ * Returns R1 and R2 scores and category totals
+ */
+export async function getEligibilityScoresForDD(applicationId: number) {
+    try {
+        const session = await auth();
+        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        const eligibility = await db.query.eligibilityResults.findFirst({
+            where: eq(eligibilityResults.applicationId, applicationId)
+        });
+
+        if (!eligibility) {
+            return { success: false, message: "No eligibility record found" };
+        }
+
+        const r1Score = eligibility.reviewer1Score ? parseFloat(eligibility.reviewer1Score) : 0;
+        const r2Score = eligibility.reviewer2Score ? parseFloat(eligibility.reviewer2Score) : 0;
+        const aggregateScore = (r1Score + r2Score) / 2;
+
+        return {
+            success: true,
+            data: {
+                applicationId,
+                reviewer1Score: r1Score,
+                reviewer2Score: r2Score,
+                aggregateScore: Math.round(aggregateScore * 10) / 10,
+                reviewer1Notes: eligibility.reviewer1Notes || null,
+                reviewer2Notes: eligibility.reviewer2Notes || null,
+                // Category totals
+                innovationTotal: eligibility.innovationTotal ? parseFloat(eligibility.innovationTotal) : 0,
+                viabilityTotal: eligibility.viabilityTotal ? parseFloat(eligibility.viabilityTotal) : 0,
+                alignmentTotal: eligibility.alignmentTotal ? parseFloat(eligibility.alignmentTotal) : 0,
+                orgCapacityTotal: eligibility.orgCapacityTotal ? parseFloat(eligibility.orgCapacityTotal) : 0,
+                // Total score
+                totalScore: eligibility.totalScore ? parseFloat(eligibility.totalScore) : 0,
+                // Score disparity
+                scoreDisparity: eligibility.scoreDisparity || 0,
+            }
+        };
+    } catch (error) {
+        console.error("Error getting eligibility scores:", error);
+        return { success: false, message: "Failed to load eligibility scores" };
     }
 }
 

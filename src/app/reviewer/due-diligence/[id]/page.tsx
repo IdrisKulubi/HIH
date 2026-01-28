@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import {
     getDueDiligence,
     submitPrimaryDDReview,
-    getAvailableValidators
+    getAvailableValidators,
+    getEligibilityScoresForDD,
+    selectValidatorReviewer
 } from "@/lib/actions/due-diligence";
 import { getApplicationById } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -34,9 +37,16 @@ import {
     Lightning,
     PaperPlaneTilt,
     ShieldCheck,
-    UserCheck
+    UserCheck,
+    ChartBar,
+    Warning,
+    Lightbulb,
+    TrendUp,
+    Target,
+    Users,
+    Info,
+    PencilSimple
 } from "@phosphor-icons/react";
-import { selectValidatorReviewer } from "@/lib/actions/due-diligence";
 
 type DDRecord = {
     id: number;
@@ -54,11 +64,36 @@ type DDRecord = {
     primaryReviewedAt: Date | null;
 };
 
+type EligibilityScores = {
+    applicationId: number;
+    reviewer1Score: number;
+    reviewer2Score: number;
+    aggregateScore: number;
+    reviewer1Notes: string | null;
+    reviewer2Notes: string | null;
+    innovationTotal: number;
+    viabilityTotal: number;
+    alignmentTotal: number;
+    orgCapacityTotal: number;
+    totalScore: number;
+    scoreDisparity: number;
+};
+
 type Validator = {
     id: string;
     name: string;
     email: string;
 };
+
+// Category configuration
+const CATEGORIES = [
+    { id: 'innovation', name: 'Innovation & Climate', max: 35, icon: Lightbulb, color: 'emerald' },
+    { id: 'viability', name: 'Business Viability', max: 31, icon: TrendUp, color: 'blue' },
+    { id: 'alignment', name: 'Strategic Alignment', max: 20, icon: Target, color: 'purple' },
+    { id: 'orgCapacity', name: 'Org Capacity', max: 14, icon: Users, color: 'amber' },
+] as const;
+
+type CategoryId = typeof CATEGORIES[number]['id'];
 
 export default function ReviewerDDReviewPage() {
     const params = useParams();
@@ -68,13 +103,28 @@ export default function ReviewerDDReviewPage() {
     const [ddRecord, setDDRecord] = useState<DDRecord | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [application, setApplication] = useState<any>(null);
+    const [eligibilityScores, setEligibilityScores] = useState<EligibilityScores | null>(null);
     const [validators, setValidators] = useState<Validator[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
-    // Form state
-    const [score, setScore] = useState<number>(0);
-    const [notes, setNotes] = useState("");
+    // DD Reviewer's adjusted scores and justifications
+    const [adjustedScores, setAdjustedScores] = useState<Record<CategoryId, number>>({
+        innovation: 0,
+        viability: 0,
+        alignment: 0,
+        orgCapacity: 0,
+    });
+    const [scoreJustifications, setScoreJustifications] = useState<Record<CategoryId, string>>({
+        innovation: '',
+        viability: '',
+        alignment: '',
+        orgCapacity: '',
+    });
+    const [editingCategory, setEditingCategory] = useState<CategoryId | null>(null);
+
+    // General comments and validator
+    const [generalComments, setGeneralComments] = useState("");
     const [selectedValidator, setSelectedValidator] = useState("");
 
     const loadData = async () => {
@@ -83,13 +133,24 @@ export default function ReviewerDDReviewPage() {
         const ddResult = await getDueDiligence(applicationId);
         if (ddResult.success && ddResult.data) {
             setDDRecord(ddResult.data as unknown as DDRecord);
-            setScore(ddResult.data.phase1Score || 0);
-            setNotes(ddResult.data.phase1Notes || "");
+            setGeneralComments(ddResult.data.phase1Notes || "");
         }
 
         const appResult = await getApplicationById(applicationId);
         if (appResult.success && appResult.data) {
             setApplication(appResult.data);
+        }
+
+        const scoresResult = await getEligibilityScoresForDD(applicationId);
+        if (scoresResult.success && scoresResult.data) {
+            setEligibilityScores(scoresResult.data);
+            // Initialize adjusted scores with original scores
+            setAdjustedScores({
+                innovation: scoresResult.data.innovationTotal || 0,
+                viability: scoresResult.data.viabilityTotal || 0,
+                alignment: scoresResult.data.alignmentTotal || 0,
+                orgCapacity: scoresResult.data.orgCapacityTotal || 0,
+            });
         }
 
         const validatorResult = await getAvailableValidators(applicationId);
@@ -106,38 +167,75 @@ export default function ReviewerDDReviewPage() {
         }
     }, [applicationId]);
 
-    const handleSubmitReview = async () => {
-        if (score < 0 || score > 100) {
-            toast.error("Score must be between 0 and 100");
-            return;
-        }
-        if (!notes || notes.trim().length < 10) {
-            toast.error("Please provide detailed notes (at least 10 characters)");
-            return;
-        }
-
-        setSubmitting(true);
-        const result = await submitPrimaryDDReview(applicationId, score, notes);
-        if (result.success) {
-            toast.success(result.message);
-            loadData();
-        } else {
-            toast.error(result.message);
-        }
-        setSubmitting(false);
+    // Calculate final DD score based on adjusted scores
+    const calculateFinalScore = () => {
+        const totalMax = CATEGORIES.reduce((sum, cat) => sum + cat.max, 0);
+        const totalAdjusted = Object.values(adjustedScores).reduce((sum, score) => sum + score, 0);
+        return Math.round((totalAdjusted / totalMax) * 100 * 10) / 10;
     };
 
-    const handleSendForApproval = async () => {
+    const handleScoreChange = (categoryId: CategoryId, newScore: number, max: number) => {
+        const clampedScore = Math.min(Math.max(0, newScore), max);
+        setAdjustedScores(prev => ({ ...prev, [categoryId]: clampedScore }));
+    };
+
+    const handleJustificationChange = (categoryId: CategoryId, justification: string) => {
+        setScoreJustifications(prev => ({ ...prev, [categoryId]: justification }));
+    };
+
+    const hasScoreChanged = (categoryId: CategoryId) => {
+        if (!eligibilityScores) return false;
+        const originalMap: Record<CategoryId, number> = {
+            innovation: eligibilityScores.innovationTotal || 0,
+            viability: eligibilityScores.viabilityTotal || 0,
+            alignment: eligibilityScores.alignmentTotal || 0,
+            orgCapacity: eligibilityScores.orgCapacityTotal || 0,
+        };
+        return adjustedScores[categoryId] !== originalMap[categoryId];
+    };
+
+    const handleSubmitReview = async () => {
+        // Check if any changed score lacks justification
+        for (const cat of CATEGORIES) {
+            if (hasScoreChanged(cat.id) && !scoreJustifications[cat.id].trim()) {
+                toast.error(`Please provide a reason for changing the ${cat.name} score`);
+                return;
+            }
+        }
+
+        if (!generalComments || generalComments.trim().length < 10) {
+            toast.error("Please provide general DD comments (at least 10 characters)");
+            return;
+        }
+
         if (!selectedValidator) {
-            toast.error("Please select an approver");
+            toast.error("Please select an oversight approver");
             return;
         }
 
         setSubmitting(true);
-        const result = await selectValidatorReviewer(applicationId, selectedValidator);
+
+        // Build notes with justifications
+        const adjustmentNotes = CATEGORIES
+            .filter(cat => hasScoreChanged(cat.id))
+            .map(cat => `${cat.name}: ${scoreJustifications[cat.id]}`)
+            .join('\n');
+
+        const fullNotes = adjustmentNotes
+            ? `${generalComments}\n\n--- Score Adjustments ---\n${adjustmentNotes}`
+            : generalComments;
+
+        const finalScore = calculateFinalScore();
+        const result = await submitPrimaryDDReview(applicationId, finalScore, fullNotes);
+
         if (result.success) {
-            toast.success("Sent for final approval!");
-            loadData();
+            const validatorResult = await selectValidatorReviewer(applicationId, selectedValidator);
+            if (validatorResult.success) {
+                toast.success("Assessment submitted and sent for approval!");
+                loadData();
+            } else {
+                toast.error(validatorResult.message);
+            }
         } else {
             toast.error(result.message);
         }
@@ -145,8 +243,7 @@ export default function ReviewerDDReviewPage() {
     };
 
     const canReview = ddRecord?.ddStatus === 'pending' || ddRecord?.ddStatus === 'queried' || ddRecord?.ddStatus === 'auto_reassigned';
-    const canSendForApproval = ddRecord?.ddStatus === 'awaiting_approval' && !ddRecord?.validatorReviewerId;
-    const isAwaitingApproval = ddRecord?.ddStatus === 'awaiting_approval' && ddRecord?.validatorReviewerId;
+    const isAwaitingApproval = ddRecord?.ddStatus === 'awaiting_approval';
 
     if (loading) {
         return (
@@ -160,9 +257,20 @@ export default function ReviewerDDReviewPage() {
         );
     }
 
+    const getOriginalScore = (categoryId: CategoryId): number => {
+        if (!eligibilityScores) return 0;
+        const map: Record<CategoryId, number> = {
+            innovation: eligibilityScores.innovationTotal || 0,
+            viability: eligibilityScores.viabilityTotal || 0,
+            alignment: eligibilityScores.alignmentTotal || 0,
+            orgCapacity: eligibilityScores.orgCapacityTotal || 0,
+        };
+        return map[categoryId];
+    };
+
     return (
         <div className="min-h-screen bg-[#F5F5F7] text-slate-900 font-sans">
-            <div className="max-w-5xl mx-auto px-6 py-12 md:py-16 space-y-8">
+            <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
                 {/* Header */}
                 <div className="space-y-4">
                     <Button variant="ghost" asChild>
@@ -171,21 +279,21 @@ export default function ReviewerDDReviewPage() {
                             Back to DD Queue
                         </Link>
                     </Button>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-center gap-3">
                             <Buildings className="h-7 w-7 text-emerald-600" weight="duotone" />
                             <div>
                                 <h1 className="text-2xl font-semibold text-gray-900">
                                     {application?.business?.name || "DD Review"}
                                 </h1>
-                                <p className="text-gray-500">Application #{applicationId}</p>
+                                <p className="text-gray-500">Application #{applicationId} • Due Diligence Review</p>
                             </div>
                         </div>
                         <div className="flex gap-2">
                             {ddRecord?.isOversightInitiated && (
                                 <Badge variant="secondary" className="bg-purple-100 text-purple-700">
                                     <Lightning className="h-4 w-4 mr-1" />
-                                    Oversight
+                                    Oversight Recommended
                                 </Badge>
                             )}
                             <Badge variant={ddRecord?.ddStatus === 'approved' ? 'default' : 'secondary'}>
@@ -195,150 +303,398 @@ export default function ReviewerDDReviewPage() {
                     </div>
                 </div>
 
-                {/* Oversight Justification */}
+                {/* Alerts */}
                 {ddRecord?.isOversightInitiated && ddRecord?.oversightJustification && (
                     <Card className="border-purple-200 bg-purple-50">
-                        <CardHeader>
-                            <CardTitle className="text-purple-800 flex items-center gap-2">
-                                <Lightning className="h-5 w-5" />
-                                Oversight Recommendation
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-purple-900">{ddRecord.oversightJustification}</p>
+                        <CardContent className="py-4">
+                            <div className="flex items-start gap-3">
+                                <Lightning className="h-5 w-5 text-purple-600 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-purple-800">Oversight Recommendation</p>
+                                    <p className="text-purple-700">{ddRecord.oversightJustification}</p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
 
-                {/* Queried Message */}
                 {ddRecord?.ddStatus === 'queried' && ddRecord?.validatorComments && (
                     <Card className="border-red-200 bg-red-50">
-                        <CardHeader>
-                            <CardTitle className="text-red-800">Query from Approver</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-red-900">{ddRecord.validatorComments}</p>
-                            <p className="text-sm text-red-600 mt-2">Please address the concerns and resubmit.</p>
+                        <CardContent className="py-4">
+                            <div className="flex items-start gap-3">
+                                <Warning className="h-5 w-5 text-red-600 mt-0.5" weight="fill" />
+                                <div>
+                                    <p className="font-medium text-red-800">Query from Approver</p>
+                                    <p className="text-red-700">{ddRecord.validatorComments}</p>
+                                    <p className="text-sm text-red-600 mt-1">Please address the concerns and resubmit.</p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Main Form */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* DD Review Form */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                                    Due Diligence Assessment
-                                </CardTitle>
-                                <CardDescription>
-                                    Conduct the on-site/phone verification and provide your assessment
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>DD Score (0-100)</Label>
-                                    <Input
-                                        type="number"
-                                        min={0}
-                                        max={100}
-                                        value={score}
-                                        onChange={(e) => setScore(parseInt(e.target.value) || 0)}
-                                        disabled={!canReview}
-                                        className="max-w-[200px]"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Assessment Notes</Label>
-                                    <Textarea
-                                        placeholder="Document your findings from the DD visit...
-- Business location verification
-- Revenue/financial documentation review
-- Team interviews
-- Customer validation
-- Risks identified"
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        rows={8}
-                                        disabled={!canReview}
-                                    />
-                                </div>
-
-                                {canReview && (
-                                    <Button
-                                        onClick={handleSubmitReview}
-                                        disabled={submitting}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-700"
-                                    >
-                                        <PaperPlaneTilt className="h-4 w-4 mr-2" />
-                                        {submitting ? "Saving..." : "Save Assessment"}
-                                    </Button>
-                                )}
-
-                                {ddRecord?.primaryReviewedAt && (
-                                    <p className="text-sm text-gray-500">
-                                        Last saved: {format(new Date(ddRecord.primaryReviewedAt), "PPP 'at' p")}
+                {eligibilityScores && eligibilityScores.scoreDisparity > 10 && (
+                    <Card className="border-amber-300 bg-amber-50">
+                        <CardContent className="py-4">
+                            <div className="flex items-center gap-3">
+                                <Warning className="h-5 w-5 text-amber-600" weight="fill" />
+                                <div>
+                                    <p className="font-medium text-amber-800">Score Disparity Detected</p>
+                                    <p className="text-sm text-amber-600">
+                                        R1 and R2 scores differ by {eligibilityScores.scoreDisparity} points. Review carefully.
                                     </p>
-                                )}
-                            </CardContent>
-                        </Card>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
-                        {/* Send for Approval */}
-                        {canSendForApproval && (
-                            <Card className="border-blue-200 bg-blue-50">
+                <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                    {/* Main Content */}
+                    <div className="xl:col-span-3 space-y-6">
+                        <Tabs defaultValue="scoring" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="scoring">Scoring Review</TabsTrigger>
+                                <TabsTrigger value="application">Application Details</TabsTrigger>
+                            </TabsList>
+
+                            {/* Scoring Review Tab */}
+                            <TabsContent value="scoring" className="space-y-6">
+                                {/* Score Summary Header */}
+                                <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-blue-50">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <ChartBar className="h-5 w-5 text-emerald-600" weight="duotone" />
+                                            Score Overview
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-4 gap-4 text-center">
+                                            <div className="p-3 bg-white rounded-lg shadow-sm">
+                                                <p className="text-xs text-gray-500 mb-1">Reviewer 1</p>
+                                                <p className="text-2xl font-bold text-blue-600">
+                                                    {eligibilityScores?.reviewer1Score || 0}%
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-white rounded-lg shadow-sm">
+                                                <p className="text-xs text-gray-500 mb-1">Reviewer 2</p>
+                                                <p className="text-2xl font-bold text-purple-600">
+                                                    {eligibilityScores?.reviewer2Score || 0}%
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-white rounded-lg shadow-sm">
+                                                <p className="text-xs text-gray-500 mb-1">Original Avg</p>
+                                                <p className="text-2xl font-bold text-gray-600">
+                                                    {eligibilityScores?.aggregateScore || 0}%
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-emerald-100 rounded-lg shadow-sm border-2 border-emerald-300">
+                                                <p className="text-xs text-emerald-700 mb-1 font-medium">Your Final</p>
+                                                <p className="text-2xl font-bold text-emerald-700">
+                                                    {calculateFinalScore()}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Category Scoring Cards */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                                        <PencilSimple className="h-5 w-5" />
+                                        Review & Adjust Scores
+                                    </h3>
+                                    <p className="text-sm text-gray-500">
+                                        Review each category. Keep the score if you agree, or adjust it and provide a reason.
+                                    </p>
+
+                                    {CATEGORIES.map((category) => {
+                                        const Icon = category.icon;
+                                        const original = getOriginalScore(category.id);
+                                        const current = Math.min(adjustedScores[category.id], category.max);
+                                        const changed = hasScoreChanged(category.id);
+
+                                        // Map colors explicitly to avoid Tailwind purging dynamic classes
+                                        const colorClasses: Record<string, { bgIcon: string, textIcon: string, bgBar: string }> = {
+                                            emerald: { bgIcon: 'bg-emerald-100', textIcon: 'text-emerald-600', bgBar: 'bg-emerald-500' },
+                                            blue: { bgIcon: 'bg-blue-100', textIcon: 'text-blue-600', bgBar: 'bg-blue-500' },
+                                            purple: { bgIcon: 'bg-purple-100', textIcon: 'text-purple-600', bgBar: 'bg-purple-500' },
+                                            amber: { bgIcon: 'bg-amber-100', textIcon: 'text-amber-600', bgBar: 'bg-amber-500' }
+                                        };
+                                        const colors = colorClasses[category.color];
+
+                                        return (
+                                            <Card
+                                                key={category.id}
+                                                className={`transition-all ${changed ? 'border-amber-300 bg-amber-50/30' : ''}`}
+                                            >
+                                                <CardContent className="py-4">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className={`p-3 rounded-lg ${colors.bgIcon}`}>
+                                                            <Icon className={`h-6 w-6 ${colors.textIcon}`} weight="duotone" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between mb-3">
+                                                                <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                                                                <div className="flex items-center gap-4">
+                                                                    <span className="text-sm text-gray-500">
+                                                                        Original: <strong>{getOriginalScore(category.id)}</strong> / {category.max}
+                                                                    </span>
+                                                                    {changed && (
+                                                                        <Badge variant="outline" className="bg-amber-100 text-amber-700">
+                                                                            Modified
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Label className="text-sm whitespace-nowrap">Your Score:</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={category.max}
+                                                                        value={adjustedScores[category.id]}
+                                                                        onChange={(e) => handleScoreChange(category.id, parseInt(e.target.value) || 0, category.max)}
+                                                                        className="w-20"
+                                                                        disabled={!canReview}
+                                                                    />
+                                                                    <span className="text-sm text-gray-500">/ {category.max}</span>
+                                                                </div>
+
+                                                                <div className="flex-1">
+                                                                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                                                        <div
+                                                                            className={`h-2 rounded-full transition-all ${changed ? 'bg-amber-500' : colors.bgBar}`}
+                                                                            style={{ width: `${Math.min(100, (adjustedScores[category.id] / category.max) * 100)}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Justification required if changed */}
+                                                            {changed && canReview && (
+                                                                <div className="mt-3">
+                                                                    <Label className="text-sm text-amber-700 font-medium">
+                                                                        Reason for change *
+                                                                    </Label>
+                                                                    <Textarea
+                                                                        placeholder={`Why did you change the ${category.name} score?`}
+                                                                        value={scoreJustifications[category.id]}
+                                                                        onChange={(e) => handleJustificationChange(category.id, e.target.value)}
+                                                                        rows={2}
+                                                                        className="mt-1"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Reviewer Notes */}
+                                {(eligibilityScores?.reviewer1Notes || eligibilityScores?.reviewer2Notes) && (
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="text-base">Previous Reviewer Notes</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            {eligibilityScores?.reviewer1Notes && (
+                                                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                                    <p className="text-xs text-blue-700 font-medium mb-1">Reviewer 1:</p>
+                                                    <p className="text-sm text-gray-700">{eligibilityScores.reviewer1Notes}</p>
+                                                </div>
+                                            )}
+                                            {eligibilityScores?.reviewer2Notes && (
+                                                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                                    <p className="text-xs text-purple-700 font-medium mb-1">Reviewer 2:</p>
+                                                    <p className="text-sm text-gray-700">{eligibilityScores.reviewer2Notes}</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </TabsContent>
+
+                            {/* Application Details Tab */}
+                            <TabsContent value="application" className="space-y-6">
+                                {application?.business && (
+                                    <>
+                                        {/* Business Info */}
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Buildings className="h-5 w-5" weight="duotone" />
+                                                    Business Information
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div>
+                                                        <span className="text-gray-500">Name:</span>
+                                                        <p className="font-medium">{application.business.name}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Sector:</span>
+                                                        <p className="font-medium">{application.business.sector || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">County:</span>
+                                                        <p className="font-medium">{application.business.county || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Years Operating:</span>
+                                                        <p className="font-medium">{application.business.yearsOperational || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Registered:</span>
+                                                        <p className="font-medium">{application.business.isRegistered ? 'Yes' : 'No'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Revenue Last Year:</span>
+                                                        <p className="font-medium">{application.business.revenueLastYear || '-'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4">
+                                                    <span className="text-gray-500 text-sm">Description:</span>
+                                                    <p className="text-sm mt-1">{application.business.description || '-'}</p>
+                                                </div>
+                                                <div className="mt-4">
+                                                    <span className="text-gray-500 text-sm">Problem Solved:</span>
+                                                    <p className="text-sm mt-1">{application.business.problemSolved || '-'}</p>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* Employees */}
+                                        {application.business.employees && (
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="flex items-center gap-2">
+                                                        <Users className="h-5 w-5" weight="duotone" />
+                                                        Employee Information
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <div className="grid grid-cols-3 gap-4 text-sm">
+                                                        <div>
+                                                            <span className="text-gray-500">Full-Time Total:</span>
+                                                            <p className="font-medium">{application.business.employees.fullTimeTotal || 0}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Full-Time Female:</span>
+                                                            <p className="font-medium">{application.business.employees.fullTimeFemale || 0}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-500">Full-Time Youth:</span>
+                                                            <p className="font-medium">{application.business.employees.fullTimeYouth || 0}</p>
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
+                                        {/* Environmental Impact */}
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Lightbulb className="h-5 w-5" weight="duotone" />
+                                                    Innovation & Impact
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-4 text-sm">
+                                                <div>
+                                                    <span className="text-gray-500">Environmental Impact:</span>
+                                                    <p className="mt-1">{application.business.environmentalImpact || '-'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-500">Business Model Innovation:</span>
+                                                    <p className="mt-1">{application.business.businessModelInnovation || '-'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-500">Scalability Plan:</span>
+                                                    <p className="mt-1">{application.business.scalabilityPlan || '-'}</p>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </>
+                                )}
+
+                                <Button variant="outline" asChild className="w-full">
+                                    <Link href={`/reviewer/applications/${applicationId}`}>
+                                        View Complete Application
+                                    </Link>
+                                </Button>
+                            </TabsContent>
+                        </Tabs>
+
+                        {/* Submit Section */}
+                        {canReview && (
+                            <Card className="border-2 border-emerald-200">
                                 <CardHeader>
-                                    <CardTitle className="text-blue-800 flex items-center gap-2">
-                                        <UserCheck className="h-5 w-5" />
-                                        Send for Final Approval
+                                    <CardTitle className="flex items-center gap-2">
+                                        <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                                        Submit DD Assessment
                                     </CardTitle>
                                     <CardDescription>
-                                        Select an oversight approver to review and approve your assessment
+                                        Your final score: <strong className="text-emerald-600">{calculateFinalScore()}%</strong>
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <Select value={selectedValidator} onValueChange={setSelectedValidator}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select an approver..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {validators.map(v => (
-                                                <SelectItem key={v.id} value={v.id}>
-                                                    {v.name} ({v.email})
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="space-y-2">
+                                        <Label>General DD Comments *</Label>
+                                        <Textarea
+                                            placeholder="Document your overall DD findings...
+- Did you verify the business exists?
+- Did you validate their claims?
+- Any concerns or risks?"
+                                            value={generalComments}
+                                            onChange={(e) => setGeneralComments(e.target.value)}
+                                            rows={4}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Select Oversight Approver *</Label>
+                                        <Select value={selectedValidator} onValueChange={setSelectedValidator}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Choose approver..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {validators.map(v => (
+                                                    <SelectItem key={v.id} value={v.id}>
+                                                        {v.name} ({v.email})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
                                     <Button
-                                        onClick={handleSendForApproval}
-                                        disabled={submitting || !selectedValidator}
-                                        className="w-full"
+                                        onClick={handleSubmitReview}
+                                        disabled={submitting || !generalComments.trim() || !selectedValidator}
+                                        className="w-full bg-emerald-600 hover:bg-emerald-700"
                                     >
                                         <PaperPlaneTilt className="h-4 w-4 mr-2" />
-                                        {submitting ? "Sending..." : "Send for Approval"}
+                                        {submitting ? "Submitting..." : "Submit & Send for Approval"}
                                     </Button>
                                 </CardContent>
                             </Card>
                         )}
 
-                        {/* Awaiting Approval Status */}
+                        {/* Awaiting Approval */}
                         {isAwaitingApproval && (
                             <Card className="border-blue-200 bg-blue-50">
                                 <CardContent className="py-8 text-center">
                                     <Clock className="h-12 w-12 mx-auto mb-4 text-blue-500" weight="duotone" />
                                     <h3 className="text-lg font-medium text-blue-800">Awaiting Final Approval</h3>
                                     <p className="text-blue-600 mt-2">
-                                        Your assessment has been sent for approval.
-                                        You&apos;ll be notified once it&apos;s reviewed.
+                                        Your assessment has been sent. You&apos;ll be notified once reviewed.
                                     </p>
-                                    {ddRecord.approvalDeadline && (
-                                        <p className="text-sm text-blue-500 mt-4">
-                                            Deadline: {format(new Date(ddRecord.approvalDeadline), "MMM d 'at' h:mm a")}
-                                        </p>
-                                    )}
                                 </CardContent>
                             </Card>
                         )}
@@ -346,47 +702,66 @@ export default function ReviewerDDReviewPage() {
 
                     {/* Sidebar */}
                     <div className="space-y-4">
-                        {/* Status Card */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="text-sm">Review Status</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Assessment</span>
+                                    <span className="text-gray-600 text-sm">DD Assessment</span>
                                     {ddRecord?.primaryReviewedAt ? (
-                                        <Badge variant="outline" className="bg-green-50 text-green-700">
-                                            <Check className="h-3 w-3 mr-1" /> Complete
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
+                                            <Check className="h-3 w-3 mr-1" /> Done
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline">Pending</Badge>
+                                        <Badge variant="outline" className="text-xs">Pending</Badge>
                                     )}
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Sent for Approval</span>
+                                    <span className="text-gray-600 text-sm">Sent for Approval</span>
                                     {ddRecord?.validatorReviewerId ? (
-                                        <Badge variant="outline" className="bg-green-50 text-green-700">
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
                                             <Check className="h-3 w-3 mr-1" /> Yes
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline">No</Badge>
+                                        <Badge variant="outline" className="text-xs">No</Badge>
                                     )}
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Approved</span>
+                                    <span className="text-gray-600 text-sm">Final Approval</span>
                                     {ddRecord?.validatorAction === 'approved' ? (
-                                        <Badge className="bg-emerald-600">Yes</Badge>
+                                        <Badge className="bg-emerald-600 text-xs">Approved</Badge>
                                     ) : (
-                                        <Badge variant="outline">Pending</Badge>
+                                        <Badge variant="outline" className="text-xs">Pending</Badge>
                                     )}
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* View Application Link */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-sm">Quick Info</CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-sm space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Track</span>
+                                    <Badge variant="outline">{application?.track || '-'}</Badge>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Sector</span>
+                                    <span className="font-medium">{application?.business?.sector || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">County</span>
+                                    <span className="font-medium">{application?.business?.county || '-'}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         <Button variant="outline" asChild className="w-full">
                             <Link href={`/reviewer/applications/${applicationId}`}>
-                                View Full Application
+                                <Info className="h-4 w-4 mr-2" />
+                                Full Application
                             </Link>
                         </Button>
                     </div>
