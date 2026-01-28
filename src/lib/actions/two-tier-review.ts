@@ -211,6 +211,7 @@ async function submitAsReviewer2(
             totalScore: String(averageScore.toFixed(2)), // Average of reviewers' scores
             // systemScore is NOT updated - it preserves the initial automated score
             isEligible: isApproved,
+            qualifiesForDueDiligence: averageScore >= 60, // Set the DD qualification flag
             updatedAt: new Date(),
         })
         .where(eq(eligibilityResults.id, existingResult.id));

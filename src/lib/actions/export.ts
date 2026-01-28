@@ -21,7 +21,7 @@ const formatExportValue = (value: unknown): string => {
 
 // Export data function for bulk exports
 export async function exportData(params: {
-  type: "applications" | "applicants" | "eligibility";
+  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified";
   format: "csv" | "json" | "xlsx";
   filters: {
     status?: string[];
@@ -49,7 +49,7 @@ export async function exportData(params: {
       conditions.push(
         inArray(
           applications.status,
-          params.filters.status as ("submitted" | "under_review" | "pending_senior_review" | "approved" | "rejected" | "scoring_phase"  | "finalist")[]
+          params.filters.status as ("submitted" | "under_review" | "pending_senior_review" | "approved" | "rejected" | "scoring_phase" | "finalist")[]
         )
       );
     }
@@ -370,6 +370,78 @@ export async function exportData(params: {
         }));
 
         fileName = `BIRE_eligibility_export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "due_diligence_qualified": {
+        // For DD qualified, we want to ignore the 'status' and some other filters
+        // to find all applicants who scored >= 60%
+        const ddConditions: SQL[] = [];
+        if (params.filters.track && params.filters.track.length > 0) {
+          ddConditions.push(inArray(applications.track, params.filters.track as ("foundation" | "acceleration")[]));
+        }
+        if (params.filters.submittedAfter) ddConditions.push(gte(applications.submittedAt, params.filters.submittedAfter));
+        if (params.filters.submittedBefore) ddConditions.push(lte(applications.submittedAt, params.filters.submittedBefore));
+
+        // Fetch applications
+        const ddQualifiedData = await db.query.applications.findMany({
+          where: ddConditions.length ? and(...ddConditions) : undefined,
+          orderBy: [desc(applications.createdAt)],
+          with: {
+            business: {
+              with: {
+                applicant: true,
+              },
+            },
+            eligibilityResults: true,
+          },
+        });
+
+        // Apply filters and check for score >= 60%
+        let filteredDD = ddQualifiedData.filter(app => {
+          const res = app.eligibilityResults?.[0];
+          if (!res) return false;
+
+          // Check various score sources to be robust
+          const totalScore = res.totalScore ? parseFloat(res.totalScore) : 0;
+          const r1 = res.reviewer1Score ? parseFloat(res.reviewer1Score) : 0;
+          const r2 = res.reviewer2Score ? parseFloat(res.reviewer2Score) : 0;
+          const avgScore = (r1 > 0 && r2 > 0) ? (r1 + r2) / 2 : 0;
+
+          return res.qualifiesForDueDiligence === true || totalScore >= 60 || avgScore >= 60;
+        });
+
+        // Filter by county
+        if (params.filters.county && params.filters.county.length > 0) {
+          filteredDD = filteredDD.filter(app =>
+            params.filters.county!.includes(app.business?.county || "")
+          );
+        }
+
+        // Filter by track
+        if (params.filters.track && params.filters.track.length > 0) {
+          filteredDD = filteredDD.filter(app =>
+            params.filters.track!.includes(app.track || "")
+          );
+        }
+
+        data = filteredDD.map(app => {
+          const eligibility = app.eligibilityResults?.[0];
+          return {
+            "Application ID": app.id,
+            "Business Name": app.business?.name || "",
+            "Applicant Name": `${app.business?.applicant?.firstName || ""} ${app.business?.applicant?.lastName || ""}`.trim(),
+            "Email": app.business?.applicant?.email || "",
+            "Phone": app.business?.applicant?.phoneNumber || "",
+            "County": app.business?.county?.replace(/_/g, " ").toUpperCase() || "N/A",
+            "Track": app.track ? app.track.charAt(0).toUpperCase() + app.track.slice(1) : "N/A",
+            "Total Score": formatExportValue(eligibility?.totalScore),
+            "Status": app.status.replace(/_/g, " ").toUpperCase(),
+            "Submitted At": formatExportValue(app.submittedAt),
+          };
+        });
+
+        fileName = `BIRE_DD_Qualified_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
         break;
       }
 
