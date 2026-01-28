@@ -443,6 +443,11 @@ export async function recommendForDueDiligence(
 
 /**
  * Get all applications queued for DD
+ * Applications qualify if:
+ * 1. They have both R1 and R2 scores completed
+ * 2. Their aggregate score (R1 + R2) / 2 >= 60%
+ * OR
+ * 3. They've been recommended by oversight
  */
 export async function getDDQueue(): Promise<{
     success: boolean;
@@ -462,16 +467,16 @@ export async function getDDQueue(): Promise<{
 }> {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight"].includes(session.user.role || "")) {
+        // Allow admin, oversight, and reviewer_1 to access the queue
+        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
-        // Get all eligible applications
-        const eligibleApps = await db
+        // Get all eligibility results that have BOTH reviewer scores
+        const allEligibleApps = await db
             .select({
                 eligibilityId: eligibilityResults.id,
                 applicationId: eligibilityResults.applicationId,
-                qualifiesForDD: eligibilityResults.qualifiesForDueDiligence,
                 oversightRecommended: eligibilityResults.ddRecommendedByOversight,
                 r1Score: eligibilityResults.reviewer1Score,
                 r2Score: eligibilityResults.reviewer2Score,
@@ -479,15 +484,24 @@ export async function getDDQueue(): Promise<{
             })
             .from(eligibilityResults)
             .where(
-                or(
-                    eq(eligibilityResults.qualifiesForDueDiligence, true),
-                    eq(eligibilityResults.ddRecommendedByOversight, true)
+                and(
+                    isNotNull(eligibilityResults.reviewer1Score),
+                    isNotNull(eligibilityResults.reviewer2Score)
                 )
             );
 
         const queueItems = [];
 
-        for (const app of eligibleApps) {
+        for (const app of allEligibleApps) {
+            const r1 = app.r1Score ? parseFloat(app.r1Score) : 0;
+            const r2 = app.r2Score ? parseFloat(app.r2Score) : 0;
+            const aggregateScore = (r1 + r2) / 2;
+
+            // Check if qualifies: aggregate >= 60% OR oversight recommended
+            const qualifies = aggregateScore >= DD_THRESHOLD_PERCENTAGE || app.oversightRecommended;
+
+            if (!qualifies) continue;
+
             // Get DD record if exists
             const ddRecord = await db.query.dueDiligenceRecords.findFirst({
                 where: eq(dueDiligenceRecords.applicationId, app.applicationId)
@@ -501,10 +515,6 @@ export async function getDDQueue(): Promise<{
 
             if (!appDetails) continue;
 
-            const r1 = app.r1Score ? parseFloat(app.r1Score) : 0;
-            const r2 = app.r2Score ? parseFloat(app.r2Score) : 0;
-            const aggregateScore = (r1 + r2) / 2;
-
             queueItems.push({
                 id: ddRecord?.id || 0,
                 applicationId: app.applicationId,
@@ -512,7 +522,7 @@ export async function getDDQueue(): Promise<{
                 aggregateScore: Math.round(aggregateScore * 10) / 10,
                 isOversightInitiated: app.oversightRecommended || false,
                 ddStatus: ddRecord?.ddStatus || 'pending',
-                scoreDisparity: app.scoreDisparity,
+                scoreDisparity: app.scoreDisparity ? Number(app.scoreDisparity) : null,
                 primaryReviewerId: ddRecord?.primaryReviewerId || null,
                 validatorReviewerId: ddRecord?.validatorReviewerId || null,
                 approvalDeadline: ddRecord?.approvalDeadline || null,

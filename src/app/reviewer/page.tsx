@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Files, ArrowRight, User, UserCheck } from "@phosphor-icons/react/dist/ssr";
+import { Files, ArrowRight, User, UserCheck, ClipboardText, ShieldCheck } from "@phosphor-icons/react/dist/ssr";
 
 export default async function ReviewerDashboard() {
     const user = await getCurrentUser();
@@ -13,10 +13,15 @@ export default async function ReviewerDashboard() {
         redirect("/auth/login");
     }
 
-    // Only allow reviewer_1, reviewer_2, admin, and technical_reviewer
-    const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer"];
+    // Only allow reviewer_1, reviewer_2, admin, technical_reviewer, and oversight
+    const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer", "oversight"];
     if (!allowedRoles.includes(user.role || "")) {
         redirect("/");
+    }
+
+    // Redirect oversight users to their dedicated dashboard
+    if (user.role === "oversight") {
+        redirect("/oversight");
     }
 
     // Determine role display
@@ -53,7 +58,7 @@ export default async function ReviewerDashboard() {
                         </Badge>
                     </div>
                     <p className="text-slate-500">
-                        {user.role === "reviewer_1" && "You are assigned to perform initial reviews on applications."}
+                        {user.role === "reviewer_1" && "You are assigned to perform initial reviews and due diligence assessments."}
                         {user.role === "reviewer_2" && "You are assigned to perform second reviews after Reviewer 1 completes their assessment."}
                         {(user.role === "admin" || user.role === "technical_reviewer") && "You have full access to review applications."}
                     </p>
@@ -82,6 +87,29 @@ export default async function ReviewerDashboard() {
                         </CardContent>
                     </Card>
 
+                    {/* Due Diligence Card - Only for Reviewer 1 */}
+                    {user.role === "reviewer_1" && (
+                        <Card className="border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-emerald-50/30">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <ClipboardText className="h-5 w-5 text-emerald-600" weight="duotone" />
+                                    Due Diligence
+                                </CardTitle>
+                                <CardDescription>
+                                    On-site verification for qualified applications (≥60%)
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Button asChild className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all py-6 text-base font-medium">
+                                    <Link href="/reviewer/due-diligence">
+                                        View DD Queue
+                                        <ArrowRight className="ml-2 h-5 w-5" />
+                                    </Link>
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Role Info Card */}
                     <Card className="border-gray-100 shadow-sm">
                         <CardHeader>
@@ -98,6 +126,7 @@ export default async function ReviewerDashboard() {
                                 <>
                                     <p>✓ You can perform the <strong>first review</strong> on applications</p>
                                     <p>✓ Score applications based on scoring criteria</p>
+                                    <p>✓ Conduct <strong>Due Diligence</strong> assessments for qualified apps</p>
                                     <p>✗ You cannot perform the second review</p>
                                 </>
                             )}
@@ -123,3 +152,4 @@ export default async function ReviewerDashboard() {
         </div>
     );
 }
+
