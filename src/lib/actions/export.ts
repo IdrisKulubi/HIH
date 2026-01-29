@@ -398,17 +398,20 @@ export async function exportData(params: {
         });
 
         // Apply filters and check for score >= 60%
+        // IMPORTANT: Only include applications that have completed BOTH reviews
         let filteredDD = ddQualifiedData.filter(app => {
           const res = app.eligibilityResults?.[0];
           if (!res) return false;
 
-          // Check various score sources to be robust
-          const totalScore = res.totalScore ? parseFloat(res.totalScore) : 0;
+          // Check that BOTH reviewers have scored (completed two-tier review)
           const r1 = res.reviewer1Score ? parseFloat(res.reviewer1Score) : 0;
           const r2 = res.reviewer2Score ? parseFloat(res.reviewer2Score) : 0;
-          const avgScore = (r1 > 0 && r2 > 0) ? (r1 + r2) / 2 : 0;
 
-          return res.qualifiesForDueDiligence === true || totalScore >= 60 || avgScore >= 60;
+          // Must have both reviewer scores to be considered DD-qualified
+          if (r1 <= 0 || r2 <= 0) return false;
+
+          const avgScore = (r1 + r2) / 2;
+          return avgScore >= 60;
         });
 
         // Filter by county

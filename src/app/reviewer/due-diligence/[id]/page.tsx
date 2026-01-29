@@ -25,6 +25,13 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -45,7 +52,8 @@ import {
     Target,
     Users,
     Info,
-    PencilSimple
+    PencilSimple,
+    Eye
 } from "@phosphor-icons/react";
 
 type DDRecord = {
@@ -192,6 +200,88 @@ export default function ReviewerDDReviewPage() {
             orgCapacity: eligibilityScores.orgCapacityTotal || 0,
         };
         return adjustedScores[categoryId] !== originalMap[categoryId];
+    };
+
+    // Helper to get relevant application data for each scoring category
+    const getCategoryApplicationData = (categoryId: CategoryId): { label: string; value: string }[] => {
+        if (!application) return [];
+        const business = application?.business;
+        const appApplicant = application?.applicant;
+
+        switch (categoryId) {
+            case 'innovation':
+                return [
+                    { label: 'Problem Solved', value: business?.problemSolved || 'Not provided' },
+                    { label: 'Business Description', value: business?.description || 'Not provided' },
+                    { label: 'Sector', value: business?.sector?.replace(/_/g, ' ') || 'Not provided' },
+                    { label: 'Environmental Impact', value: business?.environmentalImpact || 'Not provided' },
+                    { label: 'Environmental Impact Description', value: business?.environmentalImpactDescription || 'Not provided' },
+                    { label: 'Business Model Innovation', value: business?.businessModelInnovation || 'Not provided' },
+                    { label: 'Business Model Description', value: business?.businessModelDescription || 'Not provided' },
+                    { label: 'Technology Integration', value: business?.technologyIntegration || 'Not provided' },
+                    { label: 'Technology Description', value: business?.technologyIntegrationDescription || 'Not provided' },
+                    { label: 'Digitization Level', value: business?.digitizationLevel === true ? 'Yes' : business?.digitizationLevel === false ? 'No' : 'Not provided' },
+                    { label: 'Digitization Reason', value: business?.digitizationReason || 'Not provided' },
+                    { label: 'Business Model Uniqueness', value: business?.businessModelUniqueness || 'Not provided' },
+                    { label: 'Business Model Uniqueness Description', value: business?.businessModelUniquenessDescription || 'Not provided' },
+                ];
+            case 'viability':
+                return [
+                    { label: 'Revenue Last Year (KES)', value: business?.revenueLastYear || 'Not provided' },
+                    { label: 'Customer Count', value: business?.customerCount?.toString() || 'Not provided' },
+                    { label: 'Has Financial Records', value: business?.hasFinancialRecords ? 'Yes' : 'No' },
+                    { label: 'Has Audited Accounts', value: business?.hasAuditedAccounts ? 'Yes' : 'No' },
+                    { label: 'Growth History', value: business?.growthHistory || 'Not provided' },
+                    { label: 'Average Annual Revenue Growth', value: business?.averageAnnualRevenueGrowth || 'Not provided' },
+                    { label: 'Future Sales Growth', value: business?.futureSalesGrowth || 'Not provided' },
+                    { label: 'Future Growth Reason', value: business?.futureSalesGrowthReason || 'Not provided' },
+                    { label: 'Relative Pricing', value: business?.relativePricing || 'Not provided' },
+                    { label: 'Product Differentiation', value: business?.productDifferentiation || 'Not provided' },
+                    { label: 'Threat of Substitutes', value: business?.threatOfSubstitutes || 'Not provided' },
+                    { label: 'Competitor Overview', value: business?.competitorOverview || 'Not provided' },
+                    { label: 'Ease of Market Entry', value: business?.easeOfMarketEntry || 'Not provided' },
+                    { label: 'Scalability Plan', value: business?.scalabilityPlan || 'Not provided' },
+                    { label: 'Market Scale Potential', value: business?.marketScalePotential || 'Not provided' },
+                    { label: 'Customer Value Proposition', value: business?.customerValueProposition || 'Not provided' },
+                ];
+            case 'alignment':
+                return [
+                    { label: 'Social Impact Contribution', value: business?.socialImpactContribution || 'Not provided' },
+                    { label: 'Social Impact Description', value: business?.socialImpactContributionDescription || 'Not provided' },
+                    { label: 'Job Creation Potential', value: business?.jobCreationPotential || 'Not provided' },
+                    { label: 'Projected Inclusion', value: business?.projectedInclusion || 'Not provided' },
+                    { label: 'Supplier Involvement', value: business?.supplierInvolvement || 'Not provided' },
+                    { label: 'Supplier Support Description', value: business?.supplierSupportDescription || 'Not provided' },
+                    { label: 'Market Differentiation', value: business?.marketDifferentiation || 'Not provided' },
+                    { label: 'Market Differentiation Description', value: business?.marketDifferentiationDescription || 'Not provided' },
+                    { label: 'Sales & Marketing Integration', value: business?.salesMarketingIntegration || 'Not provided' },
+                    { label: 'Sales & Marketing Approach', value: business?.salesMarketingApproach || 'Not provided' },
+                    { label: 'Has Social Safeguarding', value: business?.hasSocialSafeguarding ? 'Yes' : 'No' },
+                    { label: 'Business Compliance', value: business?.businessCompliance || 'Not provided' },
+                ];
+            case 'orgCapacity':
+                return [
+                    { label: 'Founder Name', value: `${appApplicant?.firstName || ''} ${appApplicant?.lastName || ''}`.trim() || 'Not provided' },
+                    { label: 'Phone Number', value: appApplicant?.phoneNumber || 'Not provided' },
+                    { label: 'Email', value: appApplicant?.email || 'Not provided' },
+                    { label: 'Years Operational', value: business?.yearsOperational?.toString() || 'Not provided' },
+                    { label: 'Is Registered', value: business?.isRegistered ? 'Yes' : 'No' },
+                    { label: 'Registration Type', value: business?.registrationType?.replace(/_/g, ' ') || 'Not provided' },
+                    { label: 'Full-Time Employees (Total)', value: business?.employees?.fullTimeTotal?.toString() || 'Not provided' },
+                    { label: 'Full-Time Women', value: business?.employees?.fullTimeFemale?.toString() || 'Not provided' },
+                    { label: 'Full-Time Youth', value: business?.employees?.fullTimeYouth?.toString() || 'Not provided' },
+                    { label: 'Full-Time PWD', value: business?.employees?.fullTimePwd?.toString() || 'Not provided' },
+                    { label: 'Special Groups Employed', value: business?.specialGroupsEmployed?.toString() || 'Not provided' },
+                    { label: 'Has External Funding', value: business?.hasExternalFunding ? 'Yes' : 'No' },
+                    { label: 'External Funding Details', value: business?.externalFundingDetails || 'Not provided' },
+                    { label: 'Competitive Advantage', value: business?.competitiveAdvantage || 'Not provided' },
+                    { label: 'Competitive Advantage Source', value: business?.competitiveAdvantageSource || 'Not provided' },
+                    { label: 'Competitive Advantage Strength', value: business?.competitiveAdvantageStrength || 'Not provided' },
+                    { label: 'Competitive Advantage Barriers', value: business?.competitiveAdvantageBarriers || 'Not provided' },
+                ];
+            default:
+                return [];
+        }
     };
 
     const handleSubmitReview = async () => {
@@ -435,7 +525,35 @@ export default function ReviewerDDReviewPage() {
                                                         </div>
                                                         <div className="flex-1">
                                                             <div className="flex items-center justify-between mb-3">
-                                                                <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="font-semibold text-gray-900">{category.name}</h4>
+                                                                    <Dialog>
+                                                                        <DialogTrigger asChild>
+                                                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title={`View ${category.name} applicant data`}>
+                                                                                <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+                                                                            </Button>
+                                                                        </DialogTrigger>
+                                                                        <DialogContent className="max-w-lg">
+                                                                            <DialogHeader>
+                                                                                <DialogTitle className="flex items-center gap-2">
+                                                                                    <Icon className={`h-5 w-5 ${colors.textIcon}`} />
+                                                                                    {category.name} - Applicant Data
+                                                                                </DialogTitle>
+                                                                            </DialogHeader>
+                                                                            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                                                                                {getCategoryApplicationData(category.id).map((item, idx) => (
+                                                                                    <div key={idx} className="border-b pb-3 last:border-b-0">
+                                                                                        <Label className="text-sm font-medium text-gray-600">{item.label}</Label>
+                                                                                        <p className="mt-1 text-gray-900 whitespace-pre-wrap">{item.value}</p>
+                                                                                    </div>
+                                                                                ))}
+                                                                                {getCategoryApplicationData(category.id).length === 0 && (
+                                                                                    <p className="text-gray-500 italic">No application data available for this category.</p>
+                                                                                )}
+                                                                            </div>
+                                                                        </DialogContent>
+                                                                    </Dialog>
+                                                                </div>
                                                                 <div className="flex items-center gap-4">
                                                                     <span className="text-sm text-gray-500">
                                                                         Original: <strong>{getOriginalScore(category.id)}</strong> / {category.max}
