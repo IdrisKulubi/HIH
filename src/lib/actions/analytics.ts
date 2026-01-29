@@ -980,3 +980,71 @@ export async function exportScoringReport(filters?: {
     return { success: false, error: "Failed to export scoring report" };
   }
 }
+
+// =============================================================================
+// DD QUALIFICATION STATS
+// =============================================================================
+
+export interface DDQualifiedStats {
+  foundation: number;
+  acceleration: number;
+  total: number;
+}
+
+/**
+ * Get counts of applications that qualify for Due Diligence (≥60% score)
+ * broken down by Foundation and Acceleration tracks.
+ */
+export async function getDDQualifiedStats(): Promise<{
+  success: boolean;
+  data?: DDQualifiedStats;
+  error?: string;
+}> {
+  try {
+    // Fetch all eligibility results joined with applications to get track info
+    const allResults = await db
+      .select({
+        track: applications.track,
+        totalScore: eligibilityResults.totalScore,
+        reviewer1Score: eligibilityResults.reviewer1Score,
+        reviewer2Score: eligibilityResults.reviewer2Score,
+        qualifiesForDueDiligence: eligibilityResults.qualifiesForDueDiligence,
+      })
+      .from(eligibilityResults)
+      .innerJoin(applications, eq(eligibilityResults.applicationId, applications.id));
+
+    let foundationCount = 0;
+    let accelerationCount = 0;
+
+    for (const row of allResults) {
+      const r1 = row.reviewer1Score ? parseFloat(row.reviewer1Score) : 0;
+      const r2 = row.reviewer2Score ? parseFloat(row.reviewer2Score) : 0;
+
+      // Only count if BOTH reviewers have scored (review completed)
+      if (r1 > 0 && r2 > 0) {
+        const avgScore = (r1 + r2) / 2;
+
+        // Qualifies if average is >= 60%
+        if (avgScore >= 60) {
+          if (row.track === "foundation") {
+            foundationCount++;
+          } else if (row.track === "acceleration") {
+            accelerationCount++;
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        foundation: foundationCount,
+        acceleration: accelerationCount,
+        total: foundationCount + accelerationCount,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching DD qualified stats:", error);
+    return { success: false, error: "Failed to fetch DD qualified statistics" };
+  }
+}

@@ -14,8 +14,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Download, Filter, Layers, Zap, ChevronRight, RefreshCw, CheckCircle, XCircle } from "lucide-react";
-import { getScoringProgressStats, exportScoringReport, ScoringProgressStats } from "@/lib/actions/analytics";
+import { Download, Filter, Layers, Zap, ChevronRight, RefreshCw, CheckCircle, XCircle, Award } from "lucide-react";
+import { getScoringProgressStats, exportScoringReport, ScoringProgressStats, getDDQualifiedStats, DDQualifiedStats } from "@/lib/actions/analytics";
 import { toast } from "sonner";
 
 interface TrackCardProps {
@@ -152,6 +152,7 @@ function TrackStatsCard({ title, stats, color }: TrackCardProps) {
 
 export function ScoringStatsSection() {
     const [stats, setStats] = useState<ScoringProgressStats | null>(null);
+    const [ddStats, setDdStats] = useState<DDQualifiedStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
 
@@ -163,15 +164,21 @@ export function ScoringStatsSection() {
     const fetchStats = async () => {
         setLoading(true);
         try {
-            const result = await getScoringProgressStats({
-                dateFrom: dateFrom || undefined,
-                dateTo: dateTo || undefined,
-                track: trackFilter,
-            });
+            const [result, ddResult] = await Promise.all([
+                getScoringProgressStats({
+                    dateFrom: dateFrom || undefined,
+                    dateTo: dateTo || undefined,
+                    track: trackFilter,
+                }),
+                getDDQualifiedStats(),
+            ]);
             if (result.success && result.data) {
                 setStats(result.data);
             } else {
                 toast.error("Failed to load scoring stats");
+            }
+            if (ddResult.success && ddResult.data) {
+                setDdStats(ddResult.data);
             }
         } catch {
             toast.error("Error fetching stats");
@@ -366,6 +373,43 @@ export function ScoringStatsSection() {
                                     {stats.foundation.rejected + stats.acceleration.rejected}
                                 </div>
                                 <p className="text-sm text-gray-600">Total Rejected</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* DD Qualified Card */}
+            {ddStats && (
+                <Card className="shadow-lg border-0 bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <Award className="h-5 w-5 text-indigo-600" />
+                            DD Qualified (≥60% Passmark)
+                        </CardTitle>
+                        <CardDescription>
+                            Applications that meet the Due Diligence qualification threshold
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center p-4 bg-white rounded-lg shadow-sm border-b-4 border-indigo-500">
+                                <div className="text-3xl font-bold text-indigo-600">
+                                    {ddStats.total}
+                                </div>
+                                <p className="text-sm text-gray-600">Total DD Qualified</p>
+                            </div>
+                            <div className="text-center p-4 bg-white rounded-lg shadow-sm border-b-4 border-teal-500">
+                                <div className="text-2xl font-bold text-teal-600">
+                                    {ddStats.foundation}
+                                </div>
+                                <p className="text-sm text-gray-600">Foundation</p>
+                            </div>
+                            <div className="text-center p-4 bg-white rounded-lg shadow-sm border-b-4 border-blue-500">
+                                <div className="text-2xl font-bold text-blue-600">
+                                    {ddStats.acceleration}
+                                </div>
+                                <p className="text-sm text-gray-600">Acceleration</p>
                             </div>
                         </div>
                     </CardContent>
