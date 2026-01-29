@@ -399,7 +399,13 @@ export async function exportData(params: {
 
         // Apply filters and check for score >= 60%
         // IMPORTANT: Only include applications that have completed BOTH reviews
+        // AND have moved past the pending review stages
+        const validDDStatuses = ['scoring_phase', 'finalist', 'approved'];
+
         let filteredDD = ddQualifiedData.filter(app => {
+          // First check status - must have completed review process
+          if (!validDDStatuses.includes(app.status)) return false;
+
           const res = app.eligibilityResults?.[0];
           if (!res) return false;
 
