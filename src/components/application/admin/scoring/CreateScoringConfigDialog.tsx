@@ -222,7 +222,7 @@ export function CreateScoringConfigDialog({ children }: CreateScoringConfigDialo
                         • 11 Foundation criteria<br />
                         • 16 Acceleration criteria<br />
                         • Women/Youth/PWD focus<br />
-                        • 70% pass threshold
+                        • 60% pass threshold
                       </div>
                     </div>
                   </div>

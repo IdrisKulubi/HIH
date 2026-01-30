@@ -429,7 +429,7 @@ export type EvaluationScores = FoundationEvaluationScores | AccelerationEvaluati
 // CONSTANTS
 // =============================================================================
 
-export const PASS_THRESHOLD = 70; // Both tracks require minimum 70 marks
+export const PASS_THRESHOLD = 60; // Both tracks require minimum 60 marks
 export const TOTAL_MAX_SCORE = 100;
 
 // Helper to get sections by track

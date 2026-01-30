@@ -4,8 +4,8 @@
  * BIRE Programme Scoring Engine
  * 
  * Implements track-specific scoring based on BIRE selection criteria:
- * - Foundation Track: 100 pts (4 categories) - 70 pass mark
- * - Acceleration Track: 100 pts (5 categories) - 70 pass mark
+ * - Foundation Track: 100 pts (4 categories) - 60 pass mark
+ * - Acceleration Track: 100 pts (5 categories) - 60 pass mark
  */
 
 // ============================================================================
@@ -29,7 +29,7 @@ export interface TrackScore {
 }
 
 // ============================================================================
-// FOUNDATION TRACK SCORING (100 pts total, 70 pass mark)
+// FOUNDATION TRACK SCORING (100 pts total, 60 pass mark)
 // ============================================================================
 
 /**
@@ -211,7 +211,7 @@ export function scoreFoundationTrack(business: {
     // === CALCULATE TOTAL ===
     const totalScore = breakdown.reduce((sum, cat) => sum + cat.earnedPoints, 0);
     const maxScore = 100;
-    const passThreshold = 70;
+    const passThreshold = 60;
 
     return {
         track: "foundation",
@@ -224,7 +224,7 @@ export function scoreFoundationTrack(business: {
 }
 
 // ============================================================================
-// ACCELERATION TRACK SCORING (100 pts total, 70 pass mark)
+// ACCELERATION TRACK SCORING (100 pts total, 60 pass mark)
 // ============================================================================
 
 /**
@@ -469,7 +469,7 @@ export function scoreAccelerationTrack(business: {
     // === CALCULATE TOTAL ===
     const totalScore = breakdown.reduce((sum, cat) => sum + cat.earnedPoints, 0);
     const maxScore = 100;
-    const passThreshold = 70;
+    const passThreshold = 60;
 
     return {
         track: "acceleration",

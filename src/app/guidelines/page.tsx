@@ -165,7 +165,7 @@ export default function GuidelinesPage() {
                         {/* Scoring Criteria */}
                         <section className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8">
                             <h2 className="text-2xl font-bold text-brand-blue mt-0">4. Scoring Criteria</h2>
-                            <p>To proceed to the next stage of review, an application must score a <strong>minimum of 70 marks out of 100</strong>.</p>
+                            <p>To proceed to the next stage of review, an application must score a <strong>minimum of 60 marks out of 100</strong>.</p>
 
                             <div className="grid md:grid-cols-2 gap-6 mt-6">
                                 <div>

@@ -37,7 +37,7 @@ interface ReviewResult {
 }
 
 // Passing threshold for approval
-const PASSING_THRESHOLD = 70;
+const PASSING_THRESHOLD = 60;
 
 // ============================================================================
 // SUBMIT REVIEW (Works for both Reviewer 1 and Reviewer 2)

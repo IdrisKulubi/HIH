@@ -62,10 +62,10 @@ export function FeedbackDisplay({
     let colorClass = "bg-gray-50 text-gray-700 border-gray-200";
     let icon = <WarningCircle weight="fill" className="w-3.5 h-3.5 text-gray-400" />;
 
-    if (numericScore >= 70) {
+    if (numericScore >= 60) {
         colorClass = "bg-green-50 text-green-700 border-green-200";
         icon = <CheckCircle weight="fill" className="w-3.5 h-3.5 text-green-500" />;
-    } else if (numericScore >= 50) {
+    } else if (numericScore >= 40) {
         colorClass = "bg-amber-50 text-amber-700 border-amber-200";
         icon = <WarningCircle weight="fill" className="w-3.5 h-3.5 text-amber-500" />;
     } else {
@@ -91,8 +91,8 @@ export function FeedbackDisplay({
                 <div className="h-1.5 w-12 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
                     <div
                         className={cn("h-full rounded-full",
-                            numericScore >= 70 ? "bg-green-500" :
-                                numericScore >= 50 ? "bg-amber-500" : "bg-red-500"
+                            numericScore >= 60 ? "bg-green-500" :
+                                numericScore >= 40 ? "bg-amber-500" : "bg-red-500"
                         )}
                         style={{ width: `${Math.max(5, numericScore)}%` }}
                     />

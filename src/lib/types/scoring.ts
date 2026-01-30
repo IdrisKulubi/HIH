@@ -37,7 +37,7 @@ export const FOUNDATION_SCORING_CONFIG: ScoringConfigurationData = {
   description: "Scoring criteria for Foundation Phase - Early-stage ventures with revenues KES 500k-3M",
   version: "1.0",
   totalMaxScore: 100,
-  passThreshold: 70,
+  passThreshold: 60,
   criteria: [
     // Commercial Viability (30 Marks)
     {
@@ -235,7 +235,7 @@ export const ACCELERATION_SCORING_CONFIG: ScoringConfigurationData = {
   description: "Scoring criteria for Acceleration Phase - Ventures with revenues above KES 3M demonstrating growth traction",
   version: "1.0",
   totalMaxScore: 100,
-  passThreshold: 70,
+  passThreshold: 60,
   criteria: [
     // Revenues & Growth (20 Marks)
     {
@@ -481,7 +481,7 @@ export const COMBINED_DEFAULT_CONFIG: ScoringConfigurationData = {
   description: "Standard scoring configuration for both Foundation and Acceleration tracks",
   version: "1.0",
   totalMaxScore: 100,
-  passThreshold: 70,
+  passThreshold: 60,
   criteria: [
     ...FOUNDATION_SCORING_CONFIG.criteria.map(c => ({ ...c, track: "foundation" as const })),
     ...ACCELERATION_SCORING_CONFIG.criteria.map(c => ({ ...c, track: "acceleration" as const }))

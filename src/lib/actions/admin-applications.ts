@@ -326,9 +326,9 @@ export async function getApplications(
 
                 switch (filters.scoreRange) {
                     case "passing":
-                        return score !== null && score >= 70;
+                        return score !== null && score >= 60;
                     case "borderline":
-                        return score !== null && score >= 50 && score < 70;
+                        return score !== null && score >= 40 && score < 60;
                     case "below":
                         return score !== null && score < 50;
                     case "not_scored":

@@ -8,6 +8,7 @@ import {
   ApplicationListItem,
   getApplicationStats,
 } from "@/lib/actions/admin-applications";
+import { reconcileRejectedApplications } from "@/lib/actions/reconcile-applications";
 import { getObservationStats } from "@/lib/actions/observation";
 import { DashboardStats } from "@/components/application/admin/DashboardStats";
 import { FeedbackDisplay } from "@/components/application/admin/FeedbackDisplay";
@@ -48,6 +49,7 @@ import {
   MapPin,
   Buildings,
   Binoculars,
+  ArrowsCounterClockwise,
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -84,6 +86,7 @@ function ApplicationsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [isStatsLoading, setIsStatsLoading] = useState(true);
+  const [isReconciling, setIsReconciling] = useState(false);
 
   // Filters state
   const currentPage = Number(searchParams.get("page")) || 1;
@@ -167,6 +170,28 @@ function ApplicationsContent() {
 
   const handleTabChange = (tab: string) => {
     updateParams({ tab: tab === "all" ? null : tab, page: "1" });
+  };
+
+  const handleReconcile = async () => {
+    if (!confirm("This will find all 'Rejected' applications with a score >= 60% and move them to 'Approved' or 'Scoring Phase'. Continue?")) {
+      return;
+    }
+
+    setIsReconciling(true);
+    try {
+      const result = await reconcileRejectedApplications();
+      if (result.success) {
+        toast.success(result.message);
+        loadData(); // Refresh list and stats
+      } else {
+        toast.error(result.error || "Reconciliation failed");
+      }
+    } catch (error) {
+      console.error("Reconciliation error:", error);
+      toast.error("An unexpected error occurred during reconciliation");
+    } finally {
+      setIsReconciling(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -287,8 +312,8 @@ function ApplicationsContent() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Scores</SelectItem>
-              <SelectItem value="passing">Passing (70%+)</SelectItem>
-              <SelectItem value="borderline">Borderline (50-69%)</SelectItem>
+              <SelectItem value="passing">Passing (60%+)</SelectItem>
+              <SelectItem value="borderline">Borderline (40-59%)</SelectItem>
               <SelectItem value="below">Failed</SelectItem>
             </SelectContent>
           </Select>
@@ -305,6 +330,17 @@ function ApplicationsContent() {
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReconcile}
+            disabled={isReconciling}
+            className="h-9 rounded-xl border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-medium"
+          >
+            {isReconciling ? <Spinner className="mr-2 h-3 w-3 animate-spin" /> : <ArrowsCounterClockwise className="mr-2 h-3 w-3" />}
+            Fix Pass Marks
+          </Button>
         </div>
 
         {/* 3. Rich Table */}
