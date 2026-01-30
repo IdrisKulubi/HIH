@@ -16,17 +16,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, FileText, LogIn } from "lucide-react";
+import { User, LogOut, FileText, LogIn, Clock } from "lucide-react";
+import { areApplicationsOpen } from "@/lib/config";
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [applicationsOpen, setApplicationsOpen] = useState(true);
   const lastScrollY = useRef(0);
   const { data: session, status } = useSession();
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
   };
+
+  // Check application status
+  useEffect(() => {
+    const checkStatus = () => {
+      setApplicationsOpen(areApplicationsOpen());
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Scroll detection for hide/show header
   useEffect(() => {
@@ -207,12 +219,19 @@ export function Header() {
                   >
                     Log In
                   </Link>
-                  <Link
-                    href="/login?tab=signup"
-                    className="px-5 py-2.5 rounded-full font-bold text-sm bg-brand-blue text-white hover:bg-brand-blue/90 shadow-lg hover:shadow-xl transition-all duration-300"
-                  >
-                    Apply Now
-                  </Link>
+                  {applicationsOpen ? (
+                    <Link
+                      href="/login?tab=signup"
+                      className="px-5 py-2.5 rounded-full font-bold text-sm bg-brand-blue text-white hover:bg-brand-blue/90 shadow-lg hover:shadow-xl transition-all duration-300"
+                    >
+                      Apply Now
+                    </Link>
+                  ) : (
+                    <span className="px-5 py-2.5 rounded-full font-bold text-sm bg-gray-400 text-white flex items-center gap-2 cursor-not-allowed">
+                      <Clock className="w-4 h-4" />
+                      Closed
+                    </span>
+                  )}
                 </div>
               )}
             </motion.nav>
@@ -317,13 +336,20 @@ export function Header() {
                         <LogIn className="w-5 h-5" />
                         <span>Log In</span>
                       </Link>
-                      <Link
-                        href="/login?tab=signup"
-                        onClick={closeMobileMenu}
-                        className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-[#005EB8] text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-[#004a91] transition-all duration-300"
-                      >
-                        <span>Apply Today</span>
-                      </Link>
+                      {applicationsOpen ? (
+                        <Link
+                          href="/login?tab=signup"
+                          onClick={closeMobileMenu}
+                          className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-[#005EB8] text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-[#004a91] transition-all duration-300"
+                        >
+                          <span>Apply Today</span>
+                        </Link>
+                      ) : (
+                        <div className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-gray-400 text-white font-bold rounded-xl cursor-not-allowed">
+                          <Clock className="w-5 h-5" />
+                          <span>Applications Closed</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

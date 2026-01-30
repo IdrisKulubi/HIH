@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { APP_CONFIG } from "@/lib/config";
+import { areApplicationsOpen } from "@/lib/config";
 import { getUserApplication } from "@/lib/actions";
 
 export default async function ApplyPage() {
-  // Check if applications are open
-  if (!APP_CONFIG.applicationsOpen) {
+  // Check if applications are open (automatic deadline check)
+  if (!areApplicationsOpen()) {
     redirect('/apply/closed');
   }
 

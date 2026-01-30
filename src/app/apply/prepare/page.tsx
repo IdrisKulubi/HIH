@@ -2,9 +2,16 @@ import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { SignInIcon} from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { EligibilityScreening } from "@/components/application/eligibility-screening";
+import { areApplicationsOpen } from "@/lib/config";
 
 export default async function ApplicationPreparationPage() {
+  // Check if applications are still open
+  if (!areApplicationsOpen()) {
+    redirect('/apply/closed');
+  }
+
   const session = await auth();
 
   if (!session?.user) {

@@ -1,9 +1,24 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, CheckCircle } from "@phosphor-icons/react";
+import { ArrowRight, CheckCircle, Clock } from "@phosphor-icons/react";
+import { DeadlineBadge } from "./DeadlineBadge";
+import { areApplicationsOpen } from "@/lib/config";
+import { useEffect, useState } from "react";
 
 export function HeroSection() {
+  const [isOpen, setIsOpen] = useState(true);
+
+  useEffect(() => {
+    const checkStatus = () => {
+      setIsOpen(areApplicationsOpen());
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 1000);
+    return () => clearInterval(interval);
+  }, []);
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -61,14 +76,10 @@ export function HeroSection() {
             <span className="text-sm font-medium text-cyan-50">Hand in Hand Eastern Africa,Hand in Hand Sweden & Embassy of Sweden</span>
           </motion.div>
 
-          {/* Deadline Badge - Links to Guidelines */}
-          <motion.a
-           
-            variants={itemVariants}
-            className="inline-flex items-center gap-2 bg-red-500/90 backdrop-blur-sm border border-red-400 rounded-full px-4 py-2 mb-2 hover:bg-red-600/90 transition cursor-pointer"
-          >
-            <span className="text-sm font-bold text-white">📅 Application Deadline: 30th January 2026 </span>
-          </motion.a>
+          {/* Deadline Badge - Dynamic with countdown */}
+          <motion.div variants={itemVariants}>
+            <DeadlineBadge />
+          </motion.div>
 
           <motion.h1
             className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]"
@@ -89,16 +100,29 @@ export function HeroSection() {
             variants={itemVariants}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
           >
-            <Button
-              size="lg"
-              className="w-full sm:w-auto rounded-full bg-brand-blue text-white hover:bg-brand-blue/90 px-8 py-6 text-lg font-bold shadow-xl shadow-[#c91e26]/20 transition-all duration-300 transform hover:-translate-y-1"
-              asChild
-            >
-              <Link href="/apply" className="flex items-center gap-2">
-                Apply Now
-                <ArrowRight className="w-5 h-5" weight="bold" />
-              </Link>
-            </Button>
+            {isOpen ? (
+              <Button
+                size="lg"
+                className="w-full sm:w-auto rounded-full bg-brand-blue text-white hover:bg-brand-blue/90 px-8 py-6 text-lg font-bold shadow-xl shadow-[#c91e26]/20 transition-all duration-300 transform hover:-translate-y-1"
+                asChild
+              >
+                <Link href="/apply" className="flex items-center gap-2">
+                  Apply Now
+                  <ArrowRight className="w-5 h-5" weight="bold" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full sm:w-auto rounded-full bg-gray-600 text-white cursor-not-allowed px-8 py-6 text-lg font-bold"
+                disabled
+              >
+                <span className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" weight="bold" />
+                  Applications Closed
+                </span>
+              </Button>
+            )}
 
             <Button
               size="lg"

@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { SignIn as SignInIcon } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { areApplicationsOpen } from "@/lib/config";
 
 export const metadata = {
     title: "Foundation Track Application | BIRE Portal",
@@ -11,6 +13,11 @@ export const metadata = {
 };
 
 export default async function FoundationApplicationPage() {
+    // Check if applications are still open
+    if (!areApplicationsOpen()) {
+        redirect('/apply/closed');
+    }
+
     const session = await auth();
 
     if (!session?.user) {
