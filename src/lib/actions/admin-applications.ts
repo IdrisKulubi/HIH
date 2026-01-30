@@ -685,11 +685,11 @@ export async function saveEvaluation(
             });
         }
 
-        // Update application status
+        // Update application status - finalize it
         await db
             .update(applications)
             .set({
-                status: "under_review",
+                status: data.isEligible ? "approved" : "rejected",
                 updatedAt: new Date(),
             })
             .where(eq(applications.id, data.applicationId));

@@ -303,8 +303,8 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
 
     const getScoreColor = (s: number) => {
         const pct = (s / maxTotalScore) * 100;
-        if (pct >= 70) return "text-green-600";
-        if (pct >= 50) return "text-amber-600";
+        if (pct >= 60) return "text-green-600";
+        if (pct >= 40) return "text-amber-600";
         return "text-red-600";
     };
 
@@ -590,11 +590,11 @@ export default function EvaluatePage({ params }: { params: Promise<{ id: string 
                                         <div className="mt-3 text-xs text-blue-700 space-y-1">
                                             <div className="flex items-center gap-2">
                                                 <CheckCircle size={14} weight="fill" className="text-green-600" />
-                                                <span>Average ≥ 70: <strong>Approved</strong></span>
+                                                <span>Average ≥ 60: <strong>Approved</strong></span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <XCircle size={14} weight="fill" className="text-red-500" />
-                                                <span>Average &lt; 70: <strong>Rejected</strong></span>
+                                                <span>Average &lt; 60: <strong>Rejected</strong></span>
                                             </div>
                                         </div>
                                     </div>

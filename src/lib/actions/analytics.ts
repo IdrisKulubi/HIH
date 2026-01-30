@@ -10,7 +10,7 @@ import {
   applicants,
   eligibilityResults
 } from "../../../db/schema";
-import { eq, desc, sql, count, avg, sum, gte, isNotNull, or, and } from "drizzle-orm";
+import { eq, desc, sql, count, avg, sum, gte, isNotNull, or, and, ne, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, ShadingType } from "docx";
 
@@ -310,7 +310,9 @@ export async function getDemographicsBreakdown() {
       '36+': 0
     };
 
-    (ageResults as unknown as any[]).forEach((result: any) => {
+    // Handle both array and { rows: [] } response formats from Neon
+    const ageRows = Array.isArray(ageResults) ? ageResults : (ageResults as any).rows || [];
+    ageRows.forEach((result: any) => {
       if (result.age_group && result.age_group !== 'Unknown') {
         ageGroups[result.age_group] = Number(result.count);
       }
@@ -335,11 +337,11 @@ export async function getEvaluatorStats() {
   try {
     await verifyAdminAccess();
 
-    // Total evaluators
+    // Total evaluators (using actual roles from user_role enum)
     const totalEvaluatorsResult = await db
       .select({ count: count() })
       .from(userProfiles)
-      .where(sql`${userProfiles.role} IN ('technical_reviewer', 'jury_member', 'dragons_den_judge')`);
+      .where(sql`${userProfiles.role} IN ('technical_reviewer', 'reviewer_1', 'reviewer_2')`);
     const totalEvaluators = totalEvaluatorsResult[0]?.count || 0;
 
     // Active evaluators (evaluated in last 7 days)
@@ -353,7 +355,7 @@ export async function getEvaluatorStats() {
       FROM ${userProfiles} up
       LEFT JOIN ${eligibilityResults} er ON (up.user_id = er.reviewer1_id OR up.user_id = er.reviewer2_id)
       WHERE 
-        up.role IN ('technical_reviewer', 'jury_member', 'dragons_den_judge')
+        up.role IN ('technical_reviewer', 'reviewer_1', 'reviewer_2')
         AND (
           (er.reviewer1_id = up.user_id AND er.reviewer1_at >= ${oneWeekAgo})
           OR 
@@ -361,7 +363,9 @@ export async function getEvaluatorStats() {
         )
     `);
 
-    const activeEvaluators = Number((activeEvaluatorsResult as unknown as any[])[0]?.count || 0);
+    // Handle both array and { rows: [] } response formats from Neon
+    const activeRows = Array.isArray(activeEvaluatorsResult) ? activeEvaluatorsResult : (activeEvaluatorsResult as any).rows || [];
+    const activeEvaluators = Number(activeRows[0]?.count || 0);
 
     return {
       success: true,
@@ -493,12 +497,13 @@ export async function getEvaluatorPerformanceDetails() {
                 WHERE er.reviewer1_id = up.user_id OR er.reviewer2_id = up.user_id
             ) as "averageScore"
         FROM ${userProfiles} up
-        WHERE up.role IN ('technical_reviewer', 'jury_member', 'dragons_den_judge')
+        WHERE up.role IN ('technical_reviewer', 'reviewer_1', 'reviewer_2')
         ORDER BY "totalEvaluations" DESC
     `);
 
-    // Drizzle execute returns Rows. Map them.
-    const evaluators = (performanceResult as unknown as any[]).map((row: any) => ({
+    // Handle both array and { rows: [] } response formats from Neon
+    const performanceRows = Array.isArray(performanceResult) ? performanceResult : (performanceResult as any).rows || [];
+    const evaluators = performanceRows.map((row: any) => ({
       evaluatorId: row.evaluatorId,
       name: `${row.firstName} ${row.lastName}`,
       email: row.email,
@@ -690,61 +695,97 @@ export async function getScoringProgressStats(filters?: {
         .where(totalConditions);
       const total = Number(totalResult[0]?.count || 0);
 
-      // Scored (has eligibility result with totalScore)
+      // Scored (has at least one manual review or is finalized)
       const scoredResult = await db
         .select({ count: count() })
         .from(applications)
         .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
         .where(
-          dateCondition
-            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.totalScore))
-            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.totalScore))
+          and(
+            trackCondition,
+            observationExclude,
+            dateCondition || sql`TRUE`,
+            or(
+              isNotNull(eligibilityResults.reviewer1Score),
+              isNotNull(eligibilityResults.reviewer2Score),
+              isNotNull(eligibilityResults.evaluatedAt),
+              ne(applications.status, 'submitted'),
+              ne(applications.status, 'scoring_phase')
+            )
+          )
         );
       const scored = Number(scoredResult[0]?.count || 0);
 
-      // First review (has reviewer1Score)
+      // First review (has reviewer1Score or was reviewed by admin)
       const firstReviewResult = await db
         .select({ count: count() })
         .from(applications)
         .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
         .where(
-          dateCondition
-            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer1Score))
-            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer1Score))
+          and(
+            trackCondition,
+            observationExclude,
+            dateCondition || sql`TRUE`,
+            or(
+              isNotNull(eligibilityResults.reviewer1Score),
+              isNotNull(eligibilityResults.evaluatedBy),
+              inArray(applications.status, ['approved', 'rejected', 'finalist', 'pending_senior_review'])
+            )
+          )
         );
       const firstReview = Number(firstReviewResult[0]?.count || 0);
 
-      // Second review (has reviewer2Score)
+      // Second review (has reviewer2Score or was finalized by admin)
       const secondReviewResult = await db
         .select({ count: count() })
         .from(applications)
         .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
         .where(
-          dateCondition
-            ? and(trackCondition, observationExclude, dateCondition, isNotNull(eligibilityResults.reviewer2Score))
-            : and(trackCondition, observationExclude, isNotNull(eligibilityResults.reviewer2Score))
+          and(
+            trackCondition,
+            observationExclude,
+            dateCondition || sql`TRUE`,
+            or(
+              isNotNull(eligibilityResults.reviewer2Score),
+              inArray(applications.status, ['approved', 'rejected', 'finalist'])
+            )
+          )
         );
       const secondReview = Number(secondReviewResult[0]?.count || 0);
 
-      // Passed (status 'finalist' or 'approved')
+      // Passed (status 'finalist' or 'approved', or 'under_review' with high score)
       const passedResult = await db
         .select({ count: count() })
         .from(applications)
+        .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
         .where(
-          dateCondition
-            ? and(trackCondition, observationExclude, dateCondition, or(eq(applications.status, 'finalist'), eq(applications.status, 'approved')))
-            : and(trackCondition, observationExclude, or(eq(applications.status, 'finalist'), eq(applications.status, 'approved')))
+          and(
+            trackCondition,
+            observationExclude,
+            dateCondition || sql`TRUE`,
+            or(
+              inArray(applications.status, ['finalist', 'approved']),
+              and(eq(applications.status, 'under_review'), gte(eligibilityResults.totalScore, "60"))
+            )
+          )
         );
       const passed = Number(passedResult[0]?.count || 0);
 
-      // Rejected (status 'rejected')
+      // Rejected (status 'rejected', or 'under_review' with low score)
       const rejectedResult = await db
         .select({ count: count() })
         .from(applications)
+        .innerJoin(eligibilityResults, eq(applications.id, eligibilityResults.applicationId))
         .where(
-          dateCondition
-            ? and(trackCondition, observationExclude, dateCondition, eq(applications.status, 'rejected'))
-            : and(trackCondition, observationExclude, eq(applications.status, 'rejected'))
+          and(
+            trackCondition,
+            observationExclude,
+            dateCondition || sql`TRUE`,
+            or(
+              eq(applications.status, 'rejected'),
+              and(eq(applications.status, 'under_review'), sql`${eligibilityResults.totalScore} < 40`, isNotNull(eligibilityResults.evaluatedBy))
+            )
+          )
         );
       const rejected = Number(rejectedResult[0]?.count || 0);
 
