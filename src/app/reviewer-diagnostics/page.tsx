@@ -142,6 +142,7 @@ export default function ReviewerDiagnosticsPage() {
   // Initial fetch
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-refresh every 2 minutes
@@ -241,8 +242,8 @@ export default function ReviewerDiagnosticsPage() {
             <CardContent>
               <div className="text-2xl font-bold flex items-center">
                 <Users className="mr-2 h-5 w-5 text-blue-500" />
-18  
-            </div>
+                18
+              </div>
             </CardContent>
           </Card>
 
@@ -267,7 +268,7 @@ export default function ReviewerDiagnosticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{data.summary.totalR1Pending}</div>
+              <div className="text-2xl font-bold text-blue-600">{data.summary.totalR1Pending}</div>
             </CardContent>
           </Card>
 
@@ -278,10 +279,17 @@ export default function ReviewerDiagnosticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{data.summary.totalR2Pending}</div>
+              <div className="text-2xl font-bold text-purple-600">{data.summary.totalR2Pending}</div>
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Note about numbers */}
+      {data && (
+        <p className="text-xs text-muted-foreground mb-4">
+          Note: R1 + R2 may exceed Total Pending because some applications are awaiting both reviews.
+        </p>
       )}
 
       {/* Duplicate Warning */}

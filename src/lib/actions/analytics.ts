@@ -614,9 +614,9 @@ export async function getEvaluatorPerformance() {
         evaluators: evaluatorDetails.data,
         summary: {
           totalEvaluators: evaluatorDetails.data.length,
-          totalEvaluations: evaluatorDetails.data.reduce((sum, e) => sum + e.totalEvaluations, 0),
+          totalEvaluations: evaluatorDetails.data.reduce((sum: number, e: { totalEvaluations: number }) => sum + e.totalEvaluations, 0),
           averageScore: evaluatorDetails.data.length > 0
-            ? Math.round(evaluatorDetails.data.reduce((sum, e) => sum + e.averageScore, 0) / evaluatorDetails.data.length)
+            ? Math.round(evaluatorDetails.data.reduce((sum: number, e: { averageScore: number }) => sum + e.averageScore, 0) / evaluatorDetails.data.length)
             : 0
         }
       }

@@ -227,16 +227,18 @@ export async function GET() {
       .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
       .where(eq(userProfiles.role, "admin"));
 
-    // Calculate totals
+    // Calculate totals directly from pending applications
     const totalPending = pendingApps.length;
-    const totalR1Pending = reviewerStats.reduce(
-      (acc, r) => acc + r.r1.pending,
-      0
-    );
-    const totalR2Pending = reviewerStats.reduce(
-      (acc, r) => acc + r.r2.pending,
-      0
-    );
+    
+    // Count R1 pending: applications where R1 is assigned but no R1 score
+    const totalR1Pending = pendingApps.filter(
+      (app) => app.assignedR1Id && !app.r1Score
+    ).length;
+    
+    // Count R2 pending: applications where R2 is assigned but no R2 score
+    const totalR2Pending = pendingApps.filter(
+      (app) => app.assignedR2Id && !app.r2Score
+    ).length;
 
     return NextResponse.json({
       success: true,
