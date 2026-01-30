@@ -497,11 +497,7 @@ export default function ReviewerDiagnosticsPage() {
         </Card>
       )}
 
-      {/* Note */}
-      <p className="text-sm text-muted-foreground mt-6 text-center">
-        ⚠️ Note: The system does not track who created users. To identify who created duplicates,
-        check server logs around the creation timestamps shown above.
-      </p>
+     
     </div>
   );
 }
