@@ -59,7 +59,7 @@ export default async function ReviewerDashboard() {
                     </div>
                     <p className="text-slate-500">
                         {user.role === "reviewer_1" && "You are assigned to perform initial reviews and due diligence assessments."}
-                        {user.role === "reviewer_2" && "You are assigned to perform second reviews after Reviewer 1 completes their assessment."}
+                        {user.role === "reviewer_2" && "You are assigned to perform second reviews and due diligence assessments."}
                         {(user.role === "admin" || user.role === "technical_reviewer") && "You have full access to review applications."}
                     </p>
                 </div>
@@ -87,8 +87,8 @@ export default async function ReviewerDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* Due Diligence Card - Only for Reviewer 1 */}
-                    {user.role === "reviewer_1" && (
+                    {/* Due Diligence Card - For Reviewer 1 and Reviewer 2 */}
+                    {(user.role === "reviewer_1" || user.role === "reviewer_2") && (
                         <Card className="border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-emerald-50/30">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export default async function ReviewerDashboard() {
                                     <p>✓ You can perform the <strong>second review</strong> after Reviewer 1</p>
                                     <p>✓ Your review is blind - you won&apos;t see Reviewer 1&apos;s scores</p>
                                     <p>✓ Final score is the average of both reviews</p>
-                                    <p>✗ You cannot perform the first review</p>
+                                    <p>✓ Conduct <strong>Due Diligence</strong> assessments for qualified apps</p>
                                 </>
                             )}
                             {(user.role === "admin" || user.role === "technical_reviewer") && (

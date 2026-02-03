@@ -29,8 +29,8 @@ const APPROVAL_WINDOW_HOURS = 12; // Hours for validator to approve
 export async function getDueDiligence(applicationId: number) {
     try {
         const session = await auth();
-        // Allow admin, oversight, and reviewer_1 to access DD
-        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
+        // Allow admin, oversight, reviewer_1, and reviewer_2 to access DD
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -77,7 +77,7 @@ export async function getDueDiligence(applicationId: number) {
 export async function getEligibilityScoresForDD(applicationId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -133,7 +133,7 @@ export async function saveDueDiligenceItem(
 ) {
     try {
         const session = await auth();
-        if (!session?.user || session.user.role !== "admin") {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -226,7 +226,7 @@ export async function updateDueDiligenceStatus(
 ) {
     try {
         const session = await auth();
-        if (!session?.user || session.user.role !== "admin") {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -275,7 +275,7 @@ export async function saveDueDiligenceFinalDecision(
 ) {
     try {
         const session = await auth();
-        if (!session?.user || session.user.role !== "admin") {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -517,8 +517,8 @@ export async function getDDQueue(): Promise<{
 }> {
     try {
         const session = await auth();
-        // Allow admin, oversight, and reviewer_1 to access the queue
-        if (!session?.user || !["admin", "oversight", "reviewer_1"].includes(session.user.role || "")) {
+        // Allow admin, oversight, reviewer_1, and reviewer_2 to access the queue
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -596,7 +596,7 @@ export async function submitPrimaryDDReview(
 ): Promise<{ success: boolean; message: string }> {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -653,7 +653,7 @@ export async function selectValidatorReviewer(
 ): Promise<{ success: boolean; message: string }> {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -696,7 +696,7 @@ export async function submitValidatorAction(
 ): Promise<{ success: boolean; message: string }> {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 

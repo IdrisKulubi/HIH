@@ -82,7 +82,7 @@ export async function initializeReviewerQueue(): Promise<{ success: boolean; mes
         return { success: true, message: `Initialized queue. Added ${added} new reviewers.` };
     } catch (error) {
         console.error("Error initializing reviewer queue:", error);
-        return { success: false, message: "Failed to initialize queue" };
+        return { success: false, message: "Failed to  initialize queue" };
     }
 }
 
