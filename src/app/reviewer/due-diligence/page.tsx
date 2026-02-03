@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getDDQueue } from "@/lib/actions/due-diligence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -15,7 +16,9 @@ import {
     ArrowRight,
     ArrowLeft,
     Buildings,
-    Lightning
+    Lightning,
+    MagnifyingGlass,
+    X
 } from "@phosphor-icons/react";
 
 type DDQueueItem = {
@@ -48,28 +51,42 @@ function getStatusBadge(status: string) {
 export default function ReviewerDDPage() {
     const [queue, setQueue] = useState<DDQueueItem[]>([]);
     const [loading, setLoading] = useState(true);
-
-    const loadQueue = async () => {
-        setLoading(true);
-        const result = await getDDQueue();
-        if (result.success && result.data) {
-            setQueue(result.data);
-        } else {
-            toast.error(result.message || "Failed to load DD queue");
-        }
-        setLoading(false);
-    };
+    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
+        const loadQueue = async () => {
+            try {
+                const result = await getDDQueue();
+                if (result.success && result.data) {
+                    setQueue(result.data);
+                } else {
+                    toast.error(result.message || "Failed to load DD queue");
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+        
         loadQueue();
     }, []);
 
+    // Filter queue based on search query
+    const filteredQueue = useMemo(() => {
+        if (!searchQuery.trim()) return queue;
+        
+        const query = searchQuery.toLowerCase().trim();
+        return queue.filter(item => 
+            item.businessName.toLowerCase().includes(query) ||
+            item.applicationId.toString().includes(query)
+        );
+    }, [queue, searchQuery]);
+
     // Filter to show pending or queried items that Reviewer 1 should work on
-    const pendingForReview = queue.filter(q =>
+    const pendingForReview = filteredQueue.filter(q =>
         q.ddStatus === 'pending' || q.ddStatus === 'queried' || q.ddStatus === 'auto_reassigned'
     );
-    const awaitingApproval = queue.filter(q => q.ddStatus === 'awaiting_approval');
-    const completed = queue.filter(q => q.ddStatus === 'approved');
+    const awaitingApproval = filteredQueue.filter(q => q.ddStatus === 'awaiting_approval');
+    const completed = filteredQueue.filter(q => q.ddStatus === 'approved');
 
     return (
         <div className="min-h-screen bg-[#F5F5F7] text-slate-900 font-sans">
@@ -92,6 +109,43 @@ export default function ReviewerDDPage() {
                         Conduct on-site verification visits for applications that scored ≥60%
                     </p>
                 </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                        type="text"
+                        placeholder="Search by business name or application ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 pr-10 py-6 text-base bg-white border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                        >
+                            <X className="h-4 w-4 text-gray-400" />
+                        </button>
+                    )}
+                </div>
+
+                {/* Search Results Info */}
+                {searchQuery && (
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
+                        <p className="text-sm text-emerald-700">
+                            Found <span className="font-semibold">{filteredQueue.length}</span> application{filteredQueue.length !== 1 ? 's' : ''} matching &quot;{searchQuery}&quot;
+                        </p>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSearchQuery("")}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                        >
+                            Clear search
+                        </Button>
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
