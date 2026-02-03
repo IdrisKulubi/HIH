@@ -7,9 +7,10 @@ import {
     dueDiligenceItems,
     applications,
     eligibilityResults,
-    users
+    users,
+    userProfiles
 } from "../../../db/schema";
-import { eq, and, isNull, sql, or, lte, isNotNull } from "drizzle-orm";
+import { eq, and, isNull, sql, or, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Types derived from schema
@@ -35,7 +36,7 @@ export async function getDueDiligence(applicationId: number) {
         }
 
         // Fetch or create record
-        let record = await db.query.dueDiligenceRecords.findFirst({
+        const record = await db.query.dueDiligenceRecords.findFirst({
             where: eq(dueDiligenceRecords.applicationId, applicationId),
             with: {
                 items: true,
@@ -452,7 +453,7 @@ export async function recommendForDueDiligence(
             .where(eq(eligibilityResults.id, result.id));
 
         // Create DD record if not exists
-        let ddRecord = await db.query.dueDiligenceRecords.findFirst({
+        const ddRecord = await db.query.dueDiligenceRecords.findFirst({
             where: eq(dueDiligenceRecords.applicationId, applicationId)
         });
 
@@ -842,20 +843,20 @@ export async function getAvailableValidators(applicationId: number): Promise<{
         // Exclude the primary reviewer (or current user if no primary yet)
         const excludeId = record?.primaryReviewerId || session.user.id;
 
-        // Get all eligible validators: admin, oversight, reviewer_1, reviewer_2
+        // Get all eligible validators from userProfiles: admin, oversight, reviewer_1, reviewer_2
         // Exclude the primary reviewer to prevent self-validation
         const validators = await db
             .select({
-                id: users.id,
-                name: users.name,
-                email: users.email,
-                role: users.role
+                id: userProfiles.userId,
+                name: sql<string>`CONCAT(${userProfiles.firstName}, ' ', ${userProfiles.lastName})`,
+                email: userProfiles.email,
+                role: userProfiles.role
             })
-            .from(users)
+            .from(userProfiles)
             .where(
                 and(
-                    sql`${users.role} IN ('admin', 'oversight', 'reviewer_1', 'reviewer_2')`,
-                    sql`${users.id} != ${excludeId}`
+                    inArray(userProfiles.role, ['admin', 'oversight', 'reviewer_1', 'reviewer_2']),
+                    ne(userProfiles.userId, excludeId)
                 )
             );
 
@@ -881,7 +882,7 @@ export async function claimDDApplication(applicationId: number): Promise<{
         }
 
         // Check if DD record exists
-        let record = await db.query.dueDiligenceRecords.findFirst({
+        const record = await db.query.dueDiligenceRecords.findFirst({
             where: eq(dueDiligenceRecords.applicationId, applicationId)
         });
 
