@@ -72,7 +72,7 @@ function getStatusDescription(status: string) {
     case 'finalist':
       return 'Outstanding! You are now a finalist in the BIRE Program.';
     case 'approved':
-      return 'Congratulations! Your application has been approved for funding.';
+      return 'Congratulations! Your application has been approved wait for further communication.';
     case 'rejected':
       return 'Unfortunately, your application was not selected this time. Keep innovating!';
     default:
@@ -488,7 +488,7 @@ export default async function ProfilePage() {
                       { status: 'shortlisted', label: 'Shortlisted', desc: 'You made it to the shortlist!', completed: ['shortlisted', 'scoring_phase', 'dragons_den', 'finalist', 'approved'].includes(application.status) },
                       { status: 'scoring_phase', label: 'Detailed Scoring', desc: 'Experts are reviewing your detailed plan.', completed: ['scoring_phase', 'dragons_den', 'finalist', 'approved'].includes(application.status) },
                       { status: 'finalist', label: 'Finalist', desc: 'You are a finalist!', completed: ['finalist', 'approved'].includes(application.status) },
-                      { status: 'approved', label: 'Selected for Funding', desc: 'Congratulations! Funding approved.', completed: application.status === 'approved' }
+                      { status: 'approved', label: 'Selected for Funding', desc: 'Congratulations! Funding approved. Please wait for further communication.', completed: application.status === 'approved' }
                     ].map((step, index) => (
                       <div key={step.status} className={`flex gap-6 relative group ${!step.completed && application.status !== step.status ? 'opacity-50' : ''
                         }`}>
