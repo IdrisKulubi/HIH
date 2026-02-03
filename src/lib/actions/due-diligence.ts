@@ -510,7 +510,9 @@ export async function getDDQueue(): Promise<{
         ddStatus: string;
         scoreDisparity: number | null;
         primaryReviewerId: string | null;
+        primaryReviewerName: string | null;
         validatorReviewerId: string | null;
+        validatorReviewerName: string | null;
         approvalDeadline: Date | null;
     }>;
     message?: string;
@@ -565,6 +567,24 @@ export async function getDDQueue(): Promise<{
 
             if (!appDetails) continue;
 
+            // Get reviewer names if assigned
+            let primaryReviewerName: string | null = null;
+            let validatorReviewerName: string | null = null;
+
+            if (ddRecord?.primaryReviewerId) {
+                const primaryReviewer = await db.query.users.findFirst({
+                    where: eq(users.id, ddRecord.primaryReviewerId)
+                });
+                primaryReviewerName = primaryReviewer?.name || primaryReviewer?.email || null;
+            }
+
+            if (ddRecord?.validatorReviewerId) {
+                const validatorReviewer = await db.query.users.findFirst({
+                    where: eq(users.id, ddRecord.validatorReviewerId)
+                });
+                validatorReviewerName = validatorReviewer?.name || validatorReviewer?.email || null;
+            }
+
             queueItems.push({
                 id: ddRecord?.id || 0,
                 applicationId: app.applicationId,
@@ -574,7 +594,9 @@ export async function getDDQueue(): Promise<{
                 ddStatus: ddRecord?.ddStatus || 'pending',
                 scoreDisparity: app.scoreDisparity ? Number(app.scoreDisparity) : null,
                 primaryReviewerId: ddRecord?.primaryReviewerId || null,
+                primaryReviewerName,
                 validatorReviewerId: ddRecord?.validatorReviewerId || null,
+                validatorReviewerName,
                 approvalDeadline: ddRecord?.approvalDeadline || null,
             });
         }
@@ -800,10 +822,11 @@ export async function checkApprovalDeadlines(): Promise<{
 
 /**
  * Get list of available validators (excluding primary reviewer)
+ * Includes admin, oversight, reviewer_1, and reviewer_2
  */
 export async function getAvailableValidators(applicationId: number): Promise<{
     success: boolean;
-    data?: Array<{ id: string; name: string; email: string }>;
+    data?: Array<{ id: string; name: string; email: string; role: string }>;
     message?: string;
 }> {
     try {
@@ -816,26 +839,138 @@ export async function getAvailableValidators(applicationId: number): Promise<{
             where: eq(dueDiligenceRecords.applicationId, applicationId)
         });
 
+        // Exclude the primary reviewer (or current user if no primary yet)
         const excludeId = record?.primaryReviewerId || session.user.id;
 
-        // Get all admin/oversight users except primary reviewer
+        // Get all eligible validators: admin, oversight, reviewer_1, reviewer_2
+        // Exclude the primary reviewer to prevent self-validation
         const validators = await db
             .select({
                 id: users.id,
                 name: users.name,
-                email: users.email
+                email: users.email,
+                role: users.role
             })
             .from(users)
             .where(
                 and(
-                    sql`${users.role} IN ('admin', 'oversight')`,
+                    sql`${users.role} IN ('admin', 'oversight', 'reviewer_1', 'reviewer_2')`,
                     sql`${users.id} != ${excludeId}`
                 )
             );
 
-        return { success: true, data: validators as Array<{ id: string; name: string; email: string }> };
+        return { success: true, data: validators as Array<{ id: string; name: string; email: string; role: string }> };
     } catch (error) {
         console.error("Error getting validators:", error);
         return { success: false, message: "Failed to load validators" };
+    }
+}
+
+/**
+ * Claim a DD application as the primary reviewer
+ * This allows any eligible reviewer to "claim" an application for DD
+ */
+export async function claimDDApplication(applicationId: number): Promise<{
+    success: boolean;
+    message: string;
+}> {
+    try {
+        const session = await auth();
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        // Check if DD record exists
+        let record = await db.query.dueDiligenceRecords.findFirst({
+            where: eq(dueDiligenceRecords.applicationId, applicationId)
+        });
+
+        if (record) {
+            // Check if already claimed by someone else and in progress
+            if (record.primaryReviewerId && record.primaryReviewerId !== session.user.id) {
+                if (record.ddStatus === 'in_progress' || record.ddStatus === 'awaiting_approval') {
+                    return { 
+                        success: false, 
+                        message: "This application is already being reviewed by another team member" 
+                    };
+                }
+            }
+
+            // Update existing record to claim it
+            await db.update(dueDiligenceRecords)
+                .set({
+                    primaryReviewerId: session.user.id,
+                    ddStatus: 'in_progress',
+                    updatedAt: new Date()
+                })
+                .where(eq(dueDiligenceRecords.id, record.id));
+        } else {
+            // Create new record and claim it
+            await db.insert(dueDiligenceRecords)
+                .values({
+                    applicationId,
+                    primaryReviewerId: session.user.id,
+                    ddStatus: 'in_progress'
+                });
+        }
+
+        revalidatePath(`/reviewer/due-diligence/${applicationId}`);
+        revalidatePath('/reviewer/due-diligence');
+
+        return { success: true, message: "You have claimed this application for DD review" };
+    } catch (error) {
+        console.error("Error claiming DD application:", error);
+        return { success: false, message: "Failed to claim application" };
+    }
+}
+
+/**
+ * Release a claimed DD application (if not yet submitted)
+ * Allows a reviewer to unclaim an application they haven't completed
+ */
+export async function releaseDDApplication(applicationId: number): Promise<{
+    success: boolean;
+    message: string;
+}> {
+    try {
+        const session = await auth();
+        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        const record = await db.query.dueDiligenceRecords.findFirst({
+            where: eq(dueDiligenceRecords.applicationId, applicationId)
+        });
+
+        if (!record) {
+            return { success: false, message: "DD record not found" };
+        }
+
+        // Only allow release if current user is the primary reviewer
+        if (record.primaryReviewerId !== session.user.id) {
+            return { success: false, message: "You can only release applications you have claimed" };
+        }
+
+        // Only allow release if not yet submitted for approval
+        if (record.ddStatus === 'awaiting_approval' || record.ddStatus === 'approved') {
+            return { success: false, message: "Cannot release - review already submitted or approved" };
+        }
+
+        // Release the claim
+        await db.update(dueDiligenceRecords)
+            .set({
+                primaryReviewerId: null,
+                ddStatus: 'pending',
+                updatedAt: new Date()
+            })
+            .where(eq(dueDiligenceRecords.id, record.id));
+
+        revalidatePath(`/reviewer/due-diligence/${applicationId}`);
+        revalidatePath('/reviewer/due-diligence');
+
+        return { success: true, message: "Application released. Another reviewer can now claim it." };
+    } catch (error) {
+        console.error("Error releasing DD application:", error);
+        return { success: false, message: "Failed to release application" };
     }
 }

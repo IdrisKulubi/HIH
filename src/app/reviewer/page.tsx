@@ -78,12 +78,12 @@ export default async function ReviewerDashboard() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm transition-all py-6 text-base font-medium">
-                                <Link href="/reviewer/applications">
+                            <Link href="/reviewer/applications" className="block">
+                                <Button className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm transition-all py-6 text-base font-medium">
                                     View Applications
                                     <ArrowRight className="ml-2 h-5 w-5" />
-                                </Link>
-                            </Button>
+                                </Button>
+                            </Link>
                         </CardContent>
                     </Card>
 
@@ -100,12 +100,12 @@ export default async function ReviewerDashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Button asChild className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all py-6 text-base font-medium">
-                                    <Link href="/reviewer/due-diligence">
+                                <Link href="/reviewer/due-diligence" className="block">
+                                    <Button className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all py-6 text-base font-medium">
                                         View DD Queue
                                         <ArrowRight className="ml-2 h-5 w-5" />
-                                    </Link>
-                                </Button>
+                                    </Button>
+                                </Link>
                             </CardContent>
                         </Card>
                     )}

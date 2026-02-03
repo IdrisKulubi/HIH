@@ -7,7 +7,8 @@ import {
     submitPrimaryDDReview,
     getAvailableValidators,
     getEligibilityScoresForDD,
-    selectValidatorReviewer
+    selectValidatorReviewer,
+    claimDDApplication
 } from "@/lib/actions/due-diligence";
 import { getApplicationById } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,8 @@ import {
     Users,
     Info,
     PencilSimple,
-    Eye
+    Eye,
+    HandGrabbing
 } from "@phosphor-icons/react";
 
 type DDRecord = {
@@ -66,10 +68,12 @@ type DDRecord = {
     approvalDeadline: Date | null;
     isOversightInitiated: boolean | null;
     oversightJustification: string | null;
+    primaryReviewerId: string | null;
     validatorReviewerId: string | null;
     validatorAction: string | null;
     validatorComments: string | null;
     primaryReviewedAt: Date | null;
+    reviewer?: { name: string; email: string } | null;
 };
 
 type EligibilityScores = {
@@ -91,6 +95,7 @@ type Validator = {
     id: string;
     name: string;
     email: string;
+    role: string;
 };
 
 // Category configuration
@@ -134,14 +139,37 @@ export default function ReviewerDDReviewPage() {
     // General comments and validator
     const [generalComments, setGeneralComments] = useState("");
     const [selectedValidator, setSelectedValidator] = useState("");
+    const [isClaimed, setIsClaimed] = useState(false);
+    const [isMyReview, setIsMyReview] = useState(false);
+    const [isMyValidation, setIsMyValidation] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
 
         const ddResult = await getDueDiligence(applicationId);
         if (ddResult.success && ddResult.data) {
-            setDDRecord(ddResult.data as unknown as DDRecord);
-            setGeneralComments(ddResult.data.phase1Notes || "");
+            const record = ddResult.data as unknown as DDRecord;
+            setDDRecord(record);
+            setGeneralComments(record.phase1Notes || "");
+            
+            // Check claim status
+            const hasPrimaryReviewer = !!record.primaryReviewerId;
+            const isCurrentUserPrimary = record.primaryReviewerId === session?.user?.id;
+            const isCurrentUserValidator = record.validatorReviewerId === session?.user?.id;
+            
+            setIsClaimed(hasPrimaryReviewer);
+            setIsMyReview(isCurrentUserPrimary);
+            setIsMyValidation(isCurrentUserValidator);
+            
+            // Auto-claim if unclaimed and status is pending
+            if (!hasPrimaryReviewer && record.ddStatus === 'pending') {
+                const claimResult = await claimDDApplication(applicationId);
+                if (claimResult.success) {
+                    toast.success("You've claimed this application for DD review");
+                    setIsClaimed(true);
+                    setIsMyReview(true);
+                }
+            }
         }
 
         const appResult = await getApplicationById(applicationId);
@@ -170,10 +198,10 @@ export default function ReviewerDDReviewPage() {
     };
 
     useEffect(() => {
-        if (applicationId) {
+        if (applicationId && session?.user?.id) {
             loadData();
         }
-    }, [applicationId]);
+    }, [applicationId, session?.user?.id]);
 
     // Calculate final DD score based on adjusted scores
     const calculateFinalScore = () => {
@@ -393,6 +421,52 @@ export default function ReviewerDDReviewPage() {
                     </div>
                 </div>
 
+                {/* Role Status Banner */}
+                <Card className={`border-2 ${isMyReview ? 'border-emerald-300 bg-emerald-50' : isMyValidation ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <CardContent className="py-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <HandGrabbing className={`h-5 w-5 ${isMyReview ? 'text-emerald-600' : isMyValidation ? 'text-purple-600' : 'text-gray-500'}`} weight="duotone" />
+                                <div>
+                                    {isMyReview ? (
+                                        <div>
+                                            <p className="font-medium text-emerald-800">
+                                                👋 This is <span className="font-bold">your review</span> to complete
+                                            </p>
+                                            <p className="text-sm text-emerald-600">
+                                                Fill in your findings below, then send to a colleague for a second check
+                                            </p>
+                                        </div>
+                                    ) : isMyValidation ? (
+                                        <div>
+                                            <p className="font-medium text-purple-800">
+                                                👀 You&apos;ve been asked to <span className="font-bold">verify this review</span>
+                                            </p>
+                                            <p className="text-sm text-purple-600">
+                                                Check the work done by your colleague and approve or send back for changes
+                                            </p>
+                                        </div>
+                                    ) : ddRecord?.primaryReviewerId ? (
+                                        <p className="font-medium text-gray-700">
+                                            ℹ️ Being reviewed by: <span className="font-bold">{ddRecord?.reviewer?.name || 'Another team member'}</span>
+                                        </p>
+                                    ) : (
+                                        <p className="font-medium text-gray-600">
+                                            📋 This application is available to review
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            {isMyReview && (
+                                <Badge className="bg-emerald-600">Your Review</Badge>
+                            )}
+                            {isMyValidation && (
+                                <Badge className="bg-purple-600">Your Second Check</Badge>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Alerts */}
                 {ddRecord?.isOversightInitiated && ddRecord?.oversightJustification && (
                     <Card className="border-purple-200 bg-purple-50">
@@ -400,7 +474,7 @@ export default function ReviewerDDReviewPage() {
                             <div className="flex items-start gap-3">
                                 <Lightning className="h-5 w-5 text-purple-600 mt-0.5" />
                                 <div>
-                                    <p className="font-medium text-purple-800">Oversight Recommendation</p>
+                                    <p className="font-medium text-purple-800">⚡ Priority Review</p>
                                     <p className="text-purple-700">{ddRecord.oversightJustification}</p>
                                 </div>
                             </div>
@@ -414,9 +488,11 @@ export default function ReviewerDDReviewPage() {
                             <div className="flex items-start gap-3">
                                 <Warning className="h-5 w-5 text-red-600 mt-0.5" weight="fill" />
                                 <div>
-                                    <p className="font-medium text-red-800">Query from Approver</p>
-                                    <p className="text-red-700">{ddRecord.validatorComments}</p>
-                                    <p className="text-sm text-red-600 mt-1">Please address the concerns and resubmit.</p>
+                                    <p className="font-medium text-red-800">🔙 Sent Back For Changes</p>
+                                    <p className="text-red-700 mt-1">{ddRecord.validatorComments}</p>
+                                    <p className="text-sm text-red-600 mt-2 bg-red-100 p-2 rounded">
+                                        <strong>What to do:</strong> Please address the comments above and submit again.
+                                    </p>
                                 </div>
                             </div>
                         </CardContent>
@@ -429,9 +505,10 @@ export default function ReviewerDDReviewPage() {
                             <div className="flex items-center gap-3">
                                 <Warning className="h-5 w-5 text-amber-600" weight="fill" />
                                 <div>
-                                    <p className="font-medium text-amber-800">Score Disparity Detected</p>
+                                    <p className="font-medium text-amber-800">⚠️ Reviewers Disagreed on Score</p>
                                     <p className="text-sm text-amber-600">
-                                        R1 and R2 scores differ by {eligibilityScores.scoreDisparity} points. Review carefully.
+                                        The two reviewers gave very different scores ({eligibilityScores.scoreDisparity} points apart). 
+                                        Please pay extra attention during your site visit.
                                     </p>
                                 </div>
                             </div>
@@ -756,49 +833,73 @@ export default function ReviewerDDReviewPage() {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                                        Submit DD Assessment
+                                        Ready to Submit?
                                     </CardTitle>
                                     <CardDescription>
                                         Your final score: <strong className="text-emerald-600">{calculateFinalScore()}%</strong>
                                     </CardDescription>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
+                                <CardContent className="space-y-6">
                                     <div className="space-y-2">
-                                        <Label>General DD Comments *</Label>
+                                        <Label className="text-base font-semibold">Your Findings & Notes *</Label>
+                                        <p className="text-sm text-gray-500 mb-2">
+                                            Write down what you found during your site visit:
+                                        </p>
                                         <Textarea
-                                            placeholder="Document your overall DD findings...
-- Did you verify the business exists?
-- Did you validate their claims?
-- Any concerns or risks?"
+                                            placeholder="For example:
+• Did you visit the business in person?
+• Does it exist at the address given?
+• Did you meet the owner/staff?
+• Any concerns or things that don't match their application?"
                                             value={generalComments}
                                             onChange={(e) => setGeneralComments(e.target.value)}
-                                            rows={4}
+                                            rows={5}
                                         />
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>Select Oversight Approver *</Label>
+                                        <Label className="text-base font-semibold">Who Should Check Your Work? *</Label>
+                                        <p className="text-sm text-gray-500 mb-2">
+                                            Choose a colleague to review what you&apos;ve done. They&apos;ll give final approval.
+                                        </p>
                                         <Select value={selectedValidator} onValueChange={setSelectedValidator}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Choose approver..." />
+                                            <SelectTrigger className="h-12">
+                                                <SelectValue placeholder="👤 Select a colleague..." />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {validators.map(v => (
                                                     <SelectItem key={v.id} value={v.id}>
-                                                        {v.name} ({v.email})
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{v.name || v.email}</span>
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {v.role === 'reviewer_1' ? 'Reviewer 1' : 
+                                                                 v.role === 'reviewer_2' ? 'Reviewer 2' : 
+                                                                 v.role === 'oversight' ? 'Oversight' : 
+                                                                 v.role === 'admin' ? 'Admin' : v.role}
+                                                            </Badge>
+                                                        </div>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <p className="text-sm text-blue-800">
+                                            <strong>What happens next?</strong><br />
+                                            Your colleague will receive this review and check your work. 
+                                            Once they approve, the application moves forward. 
+                                            If they have questions, they&apos;ll send it back to you.
+                                        </p>
+                                    </div>
+
                                     <Button
                                         onClick={handleSubmitReview}
                                         disabled={submitting || !generalComments.trim() || !selectedValidator}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-700"
+                                        className="w-full h-12 text-base bg-emerald-600 hover:bg-emerald-700"
                                     >
-                                        <PaperPlaneTilt className="h-4 w-4 mr-2" />
-                                        {submitting ? "Submitting..." : "Submit & Send for Approval"}
+                                        <PaperPlaneTilt className="h-5 w-5 mr-2" />
+                                        {submitting ? "Submitting..." : "Submit & Send for Second Check"}
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -809,9 +910,10 @@ export default function ReviewerDDReviewPage() {
                             <Card className="border-blue-200 bg-blue-50">
                                 <CardContent className="py-8 text-center">
                                     <Clock className="h-12 w-12 mx-auto mb-4 text-blue-500" weight="duotone" />
-                                    <h3 className="text-lg font-medium text-blue-800">Awaiting Final Approval</h3>
+                                    <h3 className="text-lg font-medium text-blue-800">Waiting for Second Check</h3>
                                     <p className="text-blue-600 mt-2">
-                                        Your assessment has been sent. You&apos;ll be notified once reviewed.
+                                        You&apos;ve sent this to a colleague for review. <br/>
+                                        They&apos;ll approve it or send it back if they have questions.
                                     </p>
                                 </CardContent>
                             </Card>
