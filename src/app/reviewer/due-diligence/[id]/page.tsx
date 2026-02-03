@@ -8,7 +8,9 @@ import {
     getAvailableValidators,
     getEligibilityScoresForDD,
     selectValidatorReviewer,
-    claimDDApplication
+    claimDDApplication,
+    submitValidatorAction,
+    type ValidatorAction
 } from "@/lib/actions/due-diligence";
 import { getApplicationById } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -55,7 +57,9 @@ import {
     Info,
     PencilSimple,
     Eye,
-    HandGrabbing
+    HandGrabbing,
+    Question,
+    ArrowCounterClockwise
 } from "@phosphor-icons/react";
 
 type DDRecord = {
@@ -142,6 +146,8 @@ export default function ReviewerDDReviewPage() {
     const [isClaimed, setIsClaimed] = useState(false);
     const [isMyReview, setIsMyReview] = useState(false);
     const [isMyValidation, setIsMyValidation] = useState(false);
+    const [validatorComments, setValidatorComments] = useState("");
+    const [validatorSubmitting, setValidatorSubmitting] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -360,8 +366,29 @@ export default function ReviewerDDReviewPage() {
         setSubmitting(false);
     };
 
+    // Handler for validator to approve or send back
+    const handleValidatorAction = async (action: ValidatorAction) => {
+        if (!validatorComments || validatorComments.trim().length < 5) {
+            toast.error("Please provide comments (minimum 5 characters)");
+            return;
+        }
+
+        setValidatorSubmitting(true);
+        const result = await submitValidatorAction(applicationId, action, validatorComments);
+        if (result.success) {
+            toast.success(action === 'approved' 
+                ? "✅ Review approved successfully!" 
+                : "Sent back to reviewer for changes");
+            loadData();
+        } else {
+            toast.error(result.message);
+        }
+        setValidatorSubmitting(false);
+    };
+
     const canReview = ddRecord?.ddStatus === 'pending' || ddRecord?.ddStatus === 'in_progress' || ddRecord?.ddStatus === 'queried' || ddRecord?.ddStatus === 'auto_reassigned';
     const isAwaitingApproval = ddRecord?.ddStatus === 'awaiting_approval';
+    const canValidate = isMyValidation && isAwaitingApproval;
 
     if (loading) {
         return (
@@ -905,8 +932,81 @@ export default function ReviewerDDReviewPage() {
                             </Card>
                         )}
 
-                        {/* Awaiting Approval */}
-                        {isAwaitingApproval && (
+                        {/* Validator Approval Section - For the person doing the second check */}
+                        {canValidate && (
+                            <Card className="border-2 border-purple-400 shadow-lg">
+                                <CardHeader className="bg-purple-50 border-b border-purple-200">
+                                    <CardTitle className="flex items-center gap-2 text-purple-800">
+                                        <ShieldCheck className="h-5 w-5" />
+                                        Your Decision
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Review what your colleague found and decide whether to approve or send back for changes
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-6 pt-6">
+                                    {/* What the primary reviewer submitted */}
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium text-gray-700">Their Findings</Label>
+                                        <div className="p-4 bg-gray-50 rounded-lg border min-h-[100px] whitespace-pre-wrap text-sm">
+                                            {ddRecord?.phase1Notes || <span className="text-gray-400 italic">No notes provided</span>}
+                                        </div>
+                                    </div>
+
+                                    {/* Score they gave */}
+                                    <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                                        <p className="text-sm text-emerald-700 mb-1">Score Given</p>
+                                        <p className="text-3xl font-bold text-emerald-600">
+                                            {ddRecord?.phase1Score || 0}%
+                                        </p>
+                                    </div>
+
+                                    {/* Your comments */}
+                                    <div className="space-y-2">
+                                        <Label className="text-base font-semibold">Your Comments *</Label>
+                                        <p className="text-sm text-gray-500">
+                                            Tell your colleague why you&apos;re approving, or what needs to be fixed
+                                        </p>
+                                        <Textarea
+                                            placeholder="For example:
+• Looks good, all checks passed
+• OR: Please clarify the employment numbers..."
+                                            value={validatorComments}
+                                            onChange={(e) => setValidatorComments(e.target.value)}
+                                            rows={4}
+                                        />
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="grid grid-cols-2 gap-4 pt-2">
+                                        <Button
+                                            onClick={() => handleValidatorAction('approved')}
+                                            disabled={validatorSubmitting || !validatorComments.trim()}
+                                            className="bg-emerald-600 hover:bg-emerald-700 h-14 text-base"
+                                        >
+                                            <Check className="h-5 w-5 mr-2" />
+                                            {validatorSubmitting ? "Approving..." : "✅ Approve"}
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            onClick={() => handleValidatorAction('queried')}
+                                            disabled={validatorSubmitting || !validatorComments.trim()}
+                                            className="h-14 text-base"
+                                        >
+                                            <ArrowCounterClockwise className="h-5 w-5 mr-2" />
+                                            {validatorSubmitting ? "Sending back..." : "🔙 Send Back"}
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-xs text-gray-500 text-center">
+                                        <strong>Approve</strong> = Complete the review • <strong>Send Back</strong> = Ask for changes
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Awaiting Approval - Only shown to the primary reviewer who submitted */}
+                        {isAwaitingApproval && !isMyValidation && (
                             <Card className="border-blue-200 bg-blue-50">
                                 <CardContent className="py-8 text-center">
                                     <Clock className="h-12 w-12 mx-auto mb-4 text-blue-500" weight="duotone" />
