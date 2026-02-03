@@ -906,6 +906,13 @@ export const dueDiligenceRecords = pgTable('due_diligence_records', {
   // Score disparity tracking
   scoreDisparity: integer('score_disparity'), // Absolute difference between R1 and R2 scores
 
+  // Admin Score Override
+  adminOverrideScore: integer('admin_override_score'), // Admin-adjusted final score
+  originalScore: integer('original_score'), // Store original score before override
+  adminOverrideReason: text('admin_override_reason'), // Justification for override
+  adminOverrideById: text('admin_override_by_id'), // Which admin made the override
+  adminOverrideAt: timestamp('admin_override_at'), // When override was made
+
   reviewerId: text('reviewer_id'), // Legacy - User ID of the staff member
 
   createdAt: timestamp('created_at').defaultNow().notNull(),

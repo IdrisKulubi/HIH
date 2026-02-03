@@ -8,6 +8,7 @@ import {
     selectValidatorReviewer,
     submitValidatorAction,
     getAvailableValidators,
+    adminOverrideDDScore,
     type ValidatorAction
 } from "@/lib/actions/due-diligence";
 import { getApplicationById } from "@/lib/actions";
@@ -39,7 +40,9 @@ import {
     Lightning,
     Question,
     PaperPlaneTilt,
-    ShieldCheck
+    ShieldCheck,
+    PencilSimple,
+    Faders
 } from "@phosphor-icons/react";
 
 type DDRecord = {
@@ -63,6 +66,11 @@ type DDRecord = {
     oversightJustification: string | null;
     finalVerdict: string | null;
     finalReason: string | null;
+    adminOverrideScore: number | null;
+    originalScore: number | null;
+    adminOverrideReason: string | null;
+    adminOverrideById: string | null;
+    adminOverrideAt: Date | null;
     items: Array<{
         id: number;
         phase: string;
@@ -96,6 +104,11 @@ export default function DDReviewPage() {
     const [notes, setNotes] = useState("");
     const [selectedValidator, setSelectedValidator] = useState("");
     const [validatorComments, setValidatorComments] = useState("");
+    
+    // Admin override state
+    const [showOverride, setShowOverride] = useState(false);
+    const [overrideScore, setOverrideScore] = useState<number>(0);
+    const [overrideReason, setOverrideReason] = useState("");
 
     const loadData = async () => {
         setLoading(true);
@@ -106,6 +119,7 @@ export default function DDReviewPage() {
             setDDRecord(ddResult.data as unknown as DDRecord);
             setScore(ddResult.data.phase1Score || 0);
             setNotes(ddResult.data.phase1Notes || "");
+            setOverrideScore(ddResult.data.phase1Score || 0);
         }
 
         // Load application details
@@ -177,6 +191,29 @@ export default function DDReviewPage() {
         const result = await submitValidatorAction(applicationId, action, validatorComments);
         if (result.success) {
             toast.success(result.message);
+            loadData();
+        } else {
+            toast.error(result.message);
+        }
+        setSubmitting(false);
+    };
+
+    const handleOverrideScore = async () => {
+        if (overrideScore < 0 || overrideScore > 100) {
+            toast.error("Score must be between 0 and 100");
+            return;
+        }
+        if (!overrideReason || overrideReason.trim().length < 10) {
+            toast.error("Please provide a justification (at least 10 characters)");
+            return;
+        }
+
+        setSubmitting(true);
+        const result = await adminOverrideDDScore(applicationId, overrideScore, overrideReason);
+        if (result.success) {
+            toast.success(result.message);
+            setShowOverride(false);
+            setOverrideReason("");
             loadData();
         } else {
             toast.error(result.message);
@@ -396,6 +433,93 @@ export default function DDReviewPage() {
                             </CardContent>
                         </Card>
                     )}
+
+                    {/* Admin Score Override */}
+                    <Card className="border-orange-200 bg-orange-50">
+                        <CardHeader>
+                            <CardTitle className="text-orange-800 flex items-center gap-2">
+                                <Faders className="h-5 w-5" />
+                                Admin Score Override
+                            </CardTitle>
+                            <CardDescription>
+                                Adjust the final DD score if needed (admin only)
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-4 bg-white rounded-lg border">
+                                <p className="text-sm text-gray-500 mb-1">Current DD Score</p>
+                                <p className="text-3xl font-bold text-emerald-600">{ddRecord?.phase1Score ?? 0}/100</p>
+                                {ddRecord?.adminOverrideScore !== null && ddRecord?.adminOverrideScore !== undefined && (
+                                    <div className="mt-2 p-2 bg-orange-100 rounded text-sm">
+                                        <p className="text-orange-700 font-medium">Admin Override Applied</p>
+                                        <p className="text-orange-600">Previous: {ddRecord?.originalScore ?? ddRecord?.phase1Score}/100</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {!showOverride ? (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowOverride(true)}
+                                    className="w-full border-orange-300 text-orange-700 hover:bg-orange-100"
+                                >
+                                    <PencilSimple className="h-4 w-4 mr-2" />
+                                    Override Final Score
+                                </Button>
+                            ) : (
+                                <div className="space-y-4 p-4 bg-white rounded-lg border border-orange-200">
+                                    <div className="space-y-2">
+                                        <Label>New DD Score (0-100)</Label>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            value={overrideScore}
+                                            onChange={(e) => setOverrideScore(parseInt(e.target.value) || 0)}
+                                            placeholder="Enter new score"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Justification (Required)</Label>
+                                        <Textarea
+                                            placeholder="Explain why you are overriding the score..."
+                                            value={overrideReason}
+                                            onChange={(e) => setOverrideReason(e.target.value)}
+                                            rows={3}
+                                        />
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <Button
+                                            onClick={handleOverrideScore}
+                                            disabled={submitting}
+                                            className="flex-1 bg-orange-600 hover:bg-orange-700"
+                                        >
+                                            {submitting ? "Saving..." : "Apply Override"}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowOverride(false);
+                                                setOverrideScore(ddRecord?.phase1Score || 0);
+                                                setOverrideReason("");
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {ddRecord?.adminOverrideReason && (
+                                <div className="p-3 bg-white rounded border border-orange-200">
+                                    <p className="text-xs text-orange-600 font-medium mb-1">Override Justification:</p>
+                                    <p className="text-sm text-gray-700">{ddRecord.adminOverrideReason}</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* Sidebar */}

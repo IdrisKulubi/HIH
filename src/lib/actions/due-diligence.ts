@@ -8,9 +8,11 @@ import {
     applications,
     eligibilityResults,
     users,
-    userProfiles
+    userProfiles,
+    businesses,
+    applicants
 } from "../../../db/schema";
-import { eq, and, isNull, sql, or, lte, isNotNull, ne, inArray } from "drizzle-orm";
+import { eq, and, sql, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Types derived from schema
@@ -973,5 +975,169 @@ export async function releaseDDApplication(applicationId: number): Promise<{
     } catch (error) {
         console.error("Error releasing DD application:", error);
         return { success: false, message: "Failed to release application" };
+    }
+}
+
+/**
+ * Admin-only: Override the final DD score
+ * This allows admins to set a different final score with justification
+ */
+export async function adminOverrideDDScore(
+    applicationId: number,
+    newScore: number,
+    reason: string
+): Promise<{ success: boolean; message: string }> {
+    try {
+        const session = await auth();
+        if (!session?.user || session.user.role !== "admin") {
+            return { success: false, message: "Only admins can override DD scores" };
+        }
+
+        if (newScore < 0 || newScore > 100) {
+            return { success: false, message: "Score must be between 0 and 100" };
+        }
+
+        if (!reason || reason.trim().length < 10) {
+            return { success: false, message: "Please provide a reason for the override (at least 10 characters)" };
+        }
+
+        const record = await db.query.dueDiligenceRecords.findFirst({
+            where: eq(dueDiligenceRecords.applicationId, applicationId)
+        });
+
+        if (!record) {
+            return { success: false, message: "DD record not found" };
+        }
+
+        // Store original score before override (if not already overridden)
+        const originalScore = record.originalScore ?? record.phase1Score;
+
+        await db.update(dueDiligenceRecords)
+            .set({
+                phase1Score: newScore,
+                adminOverrideScore: newScore,
+                originalScore: originalScore,
+                adminOverrideReason: reason,
+                adminOverrideById: session.user.id,
+                adminOverrideAt: new Date(),
+                ddStatus: 'approved', // Mark as approved after admin override
+                updatedAt: new Date()
+            })
+            .where(eq(dueDiligenceRecords.id, record.id));
+
+        revalidatePath(`/admin/due-diligence/${applicationId}`);
+        revalidatePath('/admin/due-diligence');
+        revalidatePath('/admin/qualified');
+
+        return { success: true, message: `Score updated from ${originalScore}% to ${newScore}%` };
+    } catch (error) {
+        console.error("Error overriding DD score:", error);
+        return { success: false, message: "Failed to override score" };
+    }
+}
+
+/**
+ * Get all qualified applications (DD completed with score >= 60%)
+ */
+export async function getQualifiedApplications(): Promise<{
+    success: boolean;
+    data?: Array<{
+        id: number;
+        applicationId: number;
+        businessName: string;
+        applicantName: string;
+        applicantEmail: string;
+        county: string;
+        sector: string;
+        track: string;
+        ddScore: number;
+        ddStatus: string;
+        ddCompletedAt: Date | null;
+        primaryReviewerName: string | null;
+        validatorName: string | null;
+    }>;
+    message?: string;
+}> {
+    try {
+        const session = await auth();
+        if (!session?.user || !["admin", "oversight"].includes(session.user.role || "")) {
+            return { success: false, message: "Unauthorized" };
+        }
+
+        // Get all DD records that are approved and have score >= 60 with joined application data
+        const qualifiedRecords = await db
+            .select({
+                id: dueDiligenceRecords.id,
+                applicationId: dueDiligenceRecords.applicationId,
+                ddScore: dueDiligenceRecords.phase1Score,
+                ddStatus: dueDiligenceRecords.ddStatus,
+                ddCompletedAt: dueDiligenceRecords.validatorActionAt,
+                primaryReviewerId: dueDiligenceRecords.primaryReviewerId,
+                validatorReviewerId: dueDiligenceRecords.validatorReviewerId,
+                // Application data
+                track: applications.track,
+                // Business data
+                businessName: businesses.name,
+                county: businesses.county,
+                sector: businesses.sector,
+                // Applicant data
+                applicantFirstName: applicants.firstName,
+                applicantLastName: applicants.lastName,
+                applicantEmail: applicants.email,
+            })
+            .from(dueDiligenceRecords)
+            .innerJoin(applications, eq(applications.id, dueDiligenceRecords.applicationId))
+            .innerJoin(businesses, eq(businesses.id, applications.businessId))
+            .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+            .where(
+                and(
+                    eq(dueDiligenceRecords.ddStatus, 'approved'),
+                    sql`${dueDiligenceRecords.phase1Score} >= 60`
+                )
+            );
+
+        if (qualifiedRecords.length === 0) {
+            return { success: true, data: [] };
+        }
+
+        // Get reviewer names
+        const reviewerIds = [
+            ...qualifiedRecords.map(r => r.primaryReviewerId).filter(Boolean),
+            ...qualifiedRecords.map(r => r.validatorReviewerId).filter(Boolean)
+        ] as string[];
+
+        const reviewerNames = reviewerIds.length > 0 ? await db
+            .select({
+                id: userProfiles.userId,
+                name: sql<string>`CONCAT(${userProfiles.firstName}, ' ', ${userProfiles.lastName})`,
+            })
+            .from(userProfiles)
+            .where(inArray(userProfiles.userId, reviewerIds)) : [];
+
+        const reviewerMap = new Map(reviewerNames.map(r => [r.id, r.name]));
+
+        const result = qualifiedRecords.map(record => ({
+            id: record.id,
+            applicationId: record.applicationId,
+            businessName: record.businessName || 'Unknown',
+            applicantName: `${record.applicantFirstName || ''} ${record.applicantLastName || ''}`.trim() || 'Unknown',
+            applicantEmail: record.applicantEmail || '',
+            county: record.county || '',
+            sector: record.sector || '',
+            track: record.track || '',
+            ddScore: record.ddScore || 0,
+            ddStatus: record.ddStatus || '',
+            ddCompletedAt: record.ddCompletedAt,
+            primaryReviewerName: record.primaryReviewerId ? reviewerMap.get(record.primaryReviewerId) || null : null,
+            validatorName: record.validatorReviewerId ? reviewerMap.get(record.validatorReviewerId) || null : null,
+        }));
+
+        // Sort by score descending
+        result.sort((a, b) => b.ddScore - a.ddScore);
+
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("Error getting qualified applications:", error);
+        return { success: false, message: "Failed to load qualified applications" };
     }
 }
