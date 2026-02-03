@@ -360,7 +360,7 @@ export default function ReviewerDDReviewPage() {
         setSubmitting(false);
     };
 
-    const canReview = ddRecord?.ddStatus === 'pending' || ddRecord?.ddStatus === 'queried' || ddRecord?.ddStatus === 'auto_reassigned';
+    const canReview = ddRecord?.ddStatus === 'pending' || ddRecord?.ddStatus === 'in_progress' || ddRecord?.ddStatus === 'queried' || ddRecord?.ddStatus === 'auto_reassigned';
     const isAwaitingApproval = ddRecord?.ddStatus === 'awaiting_approval';
 
     if (loading) {
