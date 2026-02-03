@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getDDQueue, checkApprovalDeadlines } from "@/lib/actions/due-diligence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
@@ -17,7 +25,9 @@ import {
     UserCheck,
     ArrowRight,
     Lightning,
-    ShieldCheck
+    ShieldCheck,
+    MagnifyingGlass,
+    X
 } from "@phosphor-icons/react";
 
 type DDQueueItem = {
@@ -51,6 +61,8 @@ export default function DueDiligencePage() {
     const [queue, setQueue] = useState<DDQueueItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [checking, setChecking] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
 
     const loadQueue = async () => {
         setLoading(true);
@@ -78,6 +90,17 @@ export default function DueDiligencePage() {
     useEffect(() => {
         loadQueue();
     }, []);
+
+    // Filtered queue based on search and status filter
+    const filteredQueue = useMemo(() => {
+        return queue.filter(item => {
+            const matchesSearch = !searchQuery || 
+                item.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.applicationId.toString().includes(searchQuery);
+            const matchesStatus = statusFilter === "all" || item.ddStatus === statusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [queue, searchQuery, statusFilter]);
 
     const pendingCount = queue.filter(q => q.ddStatus === 'pending').length;
     const awaitingCount = queue.filter(q => q.ddStatus === 'awaiting_approval').length;
@@ -148,8 +171,39 @@ export default function DueDiligencePage() {
                 </Card>
             </div>
 
-            {/* Actions */}
-            <div className="flex gap-4 mb-6">
+            {/* Search and Filter */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-1 max-w-md">
+                    <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                        placeholder="Search by business name or App ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 pr-10"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="queried">Queried</SelectItem>
+                        <SelectItem value="auto_reassigned">Auto-Reassigned</SelectItem>
+                    </SelectContent>
+                </Select>
                 <Button
                     variant="outline"
                     onClick={handleCheckDeadlines}
@@ -162,6 +216,14 @@ export default function DueDiligencePage() {
                     Refresh Queue
                 </Button>
             </div>
+
+            {/* Results count */}
+            {(searchQuery || statusFilter !== "all") && (
+                <div className="mb-4 text-sm text-gray-600">
+                    Showing {filteredQueue.length} of {queue.length} applications
+                    {searchQuery && <span> matching &quot;{searchQuery}&quot;</span>}
+                </div>
+            )}
 
             {/* Queue Table */}
             <Card>
@@ -178,11 +240,27 @@ export default function DueDiligencePage() {
                                 <Skeleton key={i} className="h-16 w-full" />
                             ))}
                         </div>
-                    ) : queue.length === 0 ? (
+                    ) : filteredQueue.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
                             <ClipboardText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                            <p>No applications in the DD queue</p>
-                            <p className="text-sm">Applications with ≥60% aggregate score will appear here</p>
+                            {queue.length === 0 ? (
+                                <>
+                                    <p>No applications in the DD queue</p>
+                                    <p className="text-sm">Applications with ≥60% aggregate score will appear here</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p>No applications match your search</p>
+                                    <p className="text-sm">Try adjusting your search or filter criteria</p>
+                                    <Button
+                                        variant="link"
+                                        onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+                                        className="mt-2"
+                                    >
+                                        Clear filters
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -198,7 +276,7 @@ export default function DueDiligencePage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {queue.map(item => (
+                                    {filteredQueue.map(item => (
                                         <tr key={item.applicationId} className="border-b hover:bg-gray-50 transition-colors">
                                             <td className="p-3">
                                                 <div className="font-medium text-gray-900">{item.businessName}</div>
