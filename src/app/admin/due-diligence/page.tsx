@@ -35,6 +35,8 @@ type DDQueueItem = {
     applicationId: number;
     businessName: string;
     aggregateScore: number;
+    ddScore: number | null;
+    displayScore: number;
     isOversightInitiated: boolean;
     ddStatus: string;
     scoreDisparity: number | null;
@@ -283,9 +285,14 @@ export default function DueDiligencePage() {
                                                 <div className="text-sm text-gray-500">App #{item.applicationId}</div>
                                             </td>
                                             <td className="p-3">
-                                                <span className="text-lg font-semibold text-emerald-600">
-                                                    {item.aggregateScore}%
-                                                </span>
+                                                <div>
+                                                    <span className={`text-lg font-semibold ${item.ddScore !== null ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                                        {item.displayScore}%
+                                                    </span>
+                                                    <p className="text-xs text-gray-500">
+                                                        {item.ddScore !== null ? 'DD Score' : 'Review Avg'}
+                                                    </p>
+                                                </div>
                                             </td>
                                             <td className="p-3">
                                                 {getStatusBadge(item.ddStatus)}

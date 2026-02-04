@@ -34,6 +34,8 @@ type DDQueueItem = {
     applicationId: number;
     businessName: string;
     aggregateScore: number;
+    ddScore: number | null;
+    displayScore: number;
     isOversightInitiated: boolean;
     ddStatus: string;
     scoreDisparity: number | null;
@@ -452,7 +454,9 @@ export default function ReviewerDDPage() {
                                                 <div className="flex items-center gap-2 text-sm text-gray-500">
                                                     <span>Application #{item.applicationId}</span>
                                                     <span>•</span>
-                                                    <span className="text-emerald-600 font-medium">Score: {item.aggregateScore}%</span>
+                                                    <span className={`font-medium ${item.ddScore !== null ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                                        {item.ddScore !== null ? 'DD' : 'Review'}: {item.displayScore}%
+                                                    </span>
                                                     {item.isOversightInitiated && (
                                                         <>
                                                             <span>•</span>

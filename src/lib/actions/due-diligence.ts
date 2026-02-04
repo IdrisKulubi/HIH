@@ -509,6 +509,8 @@ export async function getDDQueue(): Promise<{
         applicationId: number;
         businessName: string;
         aggregateScore: number;
+        ddScore: number | null;
+        displayScore: number;
         isOversightInitiated: boolean;
         ddStatus: string;
         scoreDisparity: number | null;
@@ -588,11 +590,18 @@ export async function getDDQueue(): Promise<{
                 validatorReviewerName = validatorReviewer?.name || validatorReviewer?.email || null;
             }
 
+            // Get DD score if available
+            const ddScore = ddRecord?.phase1Score ?? null;
+            // Display DD score if DD has been done, otherwise show aggregate
+            const displayScore = ddScore !== null ? ddScore : Math.round(aggregateScore * 10) / 10;
+
             queueItems.push({
                 id: ddRecord?.id || 0,
                 applicationId: app.applicationId,
                 businessName: appDetails.business?.name || "Unknown",
                 aggregateScore: Math.round(aggregateScore * 10) / 10,
+                ddScore,
+                displayScore,
                 isOversightInitiated: app.oversightRecommended || false,
                 ddStatus: ddRecord?.ddStatus || 'pending',
                 scoreDisparity: app.scoreDisparity ? Number(app.scoreDisparity) : null,
