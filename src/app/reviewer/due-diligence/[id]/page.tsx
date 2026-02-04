@@ -186,13 +186,34 @@ export default function ReviewerDDReviewPage() {
         const scoresResult = await getEligibilityScoresForDD(applicationId);
         if (scoresResult.success && scoresResult.data) {
             setEligibilityScores(scoresResult.data);
-            // Initialize adjusted scores with original scores
-            setAdjustedScores({
+            
+            // Calculate actual category scores based on the aggregate score
+            // The category totals in the DB may be outdated (system scores), so we need to 
+            // scale them proportionally to match the actual R1+R2 average
+            const dbCategoryTotals = {
                 innovation: scoresResult.data.innovationTotal || 0,
                 viability: scoresResult.data.viabilityTotal || 0,
                 alignment: scoresResult.data.alignmentTotal || 0,
                 orgCapacity: scoresResult.data.orgCapacityTotal || 0,
-            });
+            };
+            
+            const dbTotal = Object.values(dbCategoryTotals).reduce((sum, v) => sum + v, 0);
+            const actualAggregate = scoresResult.data.aggregateScore; // This is the real R1+R2 average
+            
+            // If the category totals don't match the aggregate, scale them proportionally
+            let scaledScores = dbCategoryTotals;
+            if (dbTotal > 0 && Math.abs(dbTotal - actualAggregate) > 0.5) {
+                const scaleFactor = actualAggregate / dbTotal;
+                scaledScores = {
+                    innovation: Math.round(dbCategoryTotals.innovation * scaleFactor * 10) / 10,
+                    viability: Math.round(dbCategoryTotals.viability * scaleFactor * 10) / 10,
+                    alignment: Math.round(dbCategoryTotals.alignment * scaleFactor * 10) / 10,
+                    orgCapacity: Math.round(dbCategoryTotals.orgCapacity * scaleFactor * 10) / 10,
+                };
+            }
+            
+            // Initialize adjusted scores with properly scaled scores
+            setAdjustedScores(scaledScores);
         }
 
         const validatorResult = await getAvailableValidators(applicationId);
