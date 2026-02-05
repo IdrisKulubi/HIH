@@ -226,15 +226,19 @@ export default function ReviewerDDReviewPage() {
 
     useEffect(() => {
         if (applicationId && session?.user?.id) {
-            loadData();
+            // Use void to indicate we're intentionally not awaiting
+            void (async () => {
+                await loadData();
+            })();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [applicationId, session?.user?.id]);
 
-    // Calculate final DD score based on adjusted scores
+    // Calculate final DD score based on adjusted scores (returns whole number for DB)
     const calculateFinalScore = () => {
         const totalMax = CATEGORIES.reduce((sum, cat) => sum + cat.max, 0);
         const totalAdjusted = Object.values(adjustedScores).reduce((sum, score) => sum + score, 0);
-        return Math.round((totalAdjusted / totalMax) * 100 * 10) / 10;
+        return Math.round((totalAdjusted / totalMax) * 100);
     };
 
     const handleScoreChange = (categoryId: CategoryId, newScore: number, max: number) => {

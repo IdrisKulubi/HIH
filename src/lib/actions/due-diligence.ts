@@ -634,6 +634,9 @@ export async function submitPrimaryDDReview(
             return { success: false, message: "Unauthorized" };
         }
 
+        // Round score to integer (database column is integer type)
+        const roundedScore = Math.round(finalScore);
+
         let record = await db.query.dueDiligenceRecords.findFirst({
             where: eq(dueDiligenceRecords.applicationId, applicationId)
         });
@@ -645,7 +648,7 @@ export async function submitPrimaryDDReview(
                     applicationId,
                     primaryReviewerId: session.user.id,
                     primaryReviewedAt: new Date(),
-                    phase1Score: finalScore,
+                    phase1Score: roundedScore,
                     phase1Notes: notes,
                     phase1Status: 'completed',
                     ddStatus: 'awaiting_approval',
@@ -658,7 +661,7 @@ export async function submitPrimaryDDReview(
                 .set({
                     primaryReviewerId: session.user.id,
                     primaryReviewedAt: new Date(),
-                    phase1Score: finalScore,
+                    phase1Score: roundedScore,
                     phase1Notes: notes,
                     phase1Status: 'completed',
                     ddStatus: 'awaiting_approval',
@@ -1020,11 +1023,14 @@ export async function adminOverrideDDScore(
 
         // Store original score before override (if not already overridden)
         const originalScore = record.originalScore ?? record.phase1Score;
+        
+        // Round score to integer (database column is integer type)
+        const roundedScore = Math.round(newScore);
 
         await db.update(dueDiligenceRecords)
             .set({
-                phase1Score: newScore,
-                adminOverrideScore: newScore,
+                phase1Score: roundedScore,
+                adminOverrideScore: roundedScore,
                 originalScore: originalScore,
                 adminOverrideReason: reason,
                 adminOverrideById: session.user.id,
