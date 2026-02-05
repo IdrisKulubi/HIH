@@ -132,13 +132,19 @@ export default function ReviewerDDReviewPage() {
         alignment: 0,
         orgCapacity: 0,
     });
+    // Store initial scores to compare against (so we know if user actually changed something)
+    const [initialScores, setInitialScores] = useState<Record<CategoryId, number>>({
+        innovation: 0,
+        viability: 0,
+        alignment: 0,
+        orgCapacity: 0,
+    });
     const [scoreJustifications, setScoreJustifications] = useState<Record<CategoryId, string>>({
         innovation: '',
         viability: '',
         alignment: '',
         orgCapacity: '',
     });
-    const [editingCategory, setEditingCategory] = useState<CategoryId | null>(null);
 
     // General comments and validator
     const [generalComments, setGeneralComments] = useState("");
@@ -212,8 +218,9 @@ export default function ReviewerDDReviewPage() {
                 };
             }
             
-            // Initialize adjusted scores with properly scaled scores
+            // Initialize both adjusted and initial scores with properly scaled scores
             setAdjustedScores(scaledScores);
+            setInitialScores(scaledScores);
         }
 
         const validatorResult = await getAvailableValidators(applicationId);
@@ -251,14 +258,9 @@ export default function ReviewerDDReviewPage() {
     };
 
     const hasScoreChanged = (categoryId: CategoryId) => {
-        if (!eligibilityScores) return false;
-        const originalMap: Record<CategoryId, number> = {
-            innovation: eligibilityScores.innovationTotal || 0,
-            viability: eligibilityScores.viabilityTotal || 0,
-            alignment: eligibilityScores.alignmentTotal || 0,
-            orgCapacity: eligibilityScores.orgCapacityTotal || 0,
-        };
-        return adjustedScores[categoryId] !== originalMap[categoryId];
+        // Compare against the initial scores we started with, not raw DB values
+        // This ensures we only flag changes the user actually made
+        return adjustedScores[categoryId] !== initialScores[categoryId];
     };
 
     // Helper to get relevant application data for each scoring category
@@ -428,14 +430,8 @@ export default function ReviewerDDReviewPage() {
     }
 
     const getOriginalScore = (categoryId: CategoryId): number => {
-        if (!eligibilityScores) return 0;
-        const map: Record<CategoryId, number> = {
-            innovation: eligibilityScores.innovationTotal || 0,
-            viability: eligibilityScores.viabilityTotal || 0,
-            alignment: eligibilityScores.alignmentTotal || 0,
-            orgCapacity: eligibilityScores.orgCapacityTotal || 0,
-        };
-        return map[categoryId];
+        // Return the initial score we started with (properly scaled)
+        return initialScores[categoryId] || 0;
     };
 
     return (
