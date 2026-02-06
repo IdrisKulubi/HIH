@@ -434,9 +434,14 @@ export async function sendAllBatchesAutomatically(campaignId: number) {
     }
 
     // Calculate total batches
-    const totalBatches = Math.ceil(
-      campaign.totalRecipients / (campaign.batchSize || 5)
-    );
+    const totalRecipients = campaign.totalRecipients ?? 0;
+    const batchSize = campaign.batchSize ?? 5;
+    
+    if (totalRecipients === 0) {
+      return { success: false, error: "No recipients in campaign" };
+    }
+    
+    const totalBatches = Math.ceil(totalRecipients / batchSize);
 
     let totalSent = 0;
     let totalFailed = 0;
