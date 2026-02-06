@@ -40,8 +40,8 @@ const campaignSchema = z.object({
   name: z.string().min(3, "Campaign name must be at least 3 characters"),
   subject: z.string().min(5, "Subject must be at least 5 characters"),
   emailBody: z.string().min(20, "Email body must be at least 20 characters"),
-  feedbackFormUrl: z.string().url("Must be a valid URL"),
-  linkDisplayText: z.string().min(3, "Link text must be at least 3 characters"),
+  feedbackFormUrl: z.string().optional(),
+  linkDisplayText: z.string().optional(),
   batchSize: z.number().min(1).max(50),
 });
 
@@ -227,7 +227,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 </p>
               )}
               <p className="text-xs text-gray-500">
-                This message will appear before the feedback form button
+                This message will be the main content of your email. Add a URL below to include a button.
               </p>
             </div>
 
@@ -240,12 +240,12 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 className="flex items-center gap-2"
               >
                 <LinkIcon className="h-4 w-4 text-[#0B5FBA]" />
-                Feedback Form URL
+                Feedback Form URL (Optional)
               </Label>
               <Input
                 id="feedbackFormUrl"
-                type="url"
-                placeholder="https://forms.google.com/your-form"
+                type="text"
+                placeholder="https://forms.google.com/your-form or any link"
                 {...form.register("feedbackFormUrl")}
               />
               {form.formState.errors.feedbackFormUrl && (
@@ -253,11 +253,14 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                   {form.formState.errors.feedbackFormUrl.message}
                 </p>
               )}
+              <p className="text-xs text-gray-500">
+                Leave empty for progress update emails without a button. Accepts any valid link.
+              </p>
             </div>
 
             {/* Link Display Text */}
             <div className="space-y-2">
-              <Label htmlFor="linkDisplayText">Button Text</Label>
+              <Label htmlFor="linkDisplayText">Button Text (Optional)</Label>
               <Input
                 id="linkDisplayText"
                 placeholder="Share Your Feedback"
@@ -268,6 +271,9 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                   {form.formState.errors.linkDisplayText.message}
                 </p>
               )}
+              <p className="text-xs text-gray-500">
+                Only used if a feedback form URL is provided
+              </p>
             </div>
 
             {/* Batch Size */}
@@ -439,12 +445,14 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                       "Your email message will appear here..."}
                   </div>
 
-                  {/* Button */}
-                  <div className="text-center my-8">
-                    <div className="inline-block bg-[#0B5FBA] text-white px-8 py-3 rounded-lg font-semibold">
-                      {watchedValues.linkDisplayText || "Share Your Feedback"}
+                  {/* Button - Only show if URL is provided */}
+                  {watchedValues.feedbackFormUrl && (
+                    <div className="text-center my-8">
+                      <div className="inline-block bg-[#0B5FBA] text-white px-8 py-3 rounded-lg font-semibold">
+                        {watchedValues.linkDisplayText || "Share Your Feedback"}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <p className="text-sm text-gray-500 italic text-center">
                     Your responses are anonymous and will help us improve the
