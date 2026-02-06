@@ -19,14 +19,12 @@ const runMigrate = async () => {
 
     const db = drizzle(pool, { schema });
 
-    console.log('⏳ Running migrations...');
 
     const start = Date.now();
 
     try {
         await migrate(db, { migrationsFolder: 'drizzle' });
         const end = Date.now();
-        console.log(`✅ Migrations completed in ${end - start}ms`);
     } catch (err) {
         console.error('❌ Migration failed');
         console.error(err);

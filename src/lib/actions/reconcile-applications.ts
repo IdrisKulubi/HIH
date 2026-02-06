@@ -17,7 +17,6 @@ export async function reconcileRejectedApplications() {
             return { success: false, error: "Unauthorized. Admin access only." };
         }
 
-        console.log("Starting reconciliation of rejected applications (threshold 60%)...");
 
         // 1. Find applications with status 'rejected' but score >= 60
         const impactedApplications = await db
@@ -42,7 +41,6 @@ export async function reconcileRejectedApplications() {
             return { success: true, message: "No applications found that need reconciliation.", count: 0 };
         }
 
-        console.log(`Found ${impactedApplications.length} applications to reconcile.`);
 
         let count = 0;
         for (const app of impactedApplications) {

@@ -308,7 +308,6 @@ export function FoundationApplicationForm() {
         } else {
             toast.error("Please fill in all required fields.");
             // Log errors for debugging
-            console.log("Validation errors:", form.formState.errors);
         }
     };
 

@@ -214,7 +214,6 @@ export async function submitFoundationApplication(
             await db.update(applications)
                 .set({ isObservationOnly: true })
                 .where(eq(applications.id, result.applicationId));
-            console.log(`[OBSERVATION] Application ${result.applicationId} marked as observation-only (revenue < 500k)`);
         } else {
             // Only send confirmation email for qualified applicants
             await sendApplicationSubmissionEmail({

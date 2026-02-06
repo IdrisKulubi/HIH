@@ -48,12 +48,7 @@ export default function FeedbackRequestEmail({
   feedbackFormUrl,
   linkDisplayText = "Share Your Feedback",
 }: FeedbackRequestEmailProps) {
-  // Debug logging
-  console.log("=== Email Template Props ===");
-  console.log("Recipient Name:", recipientName);
-  console.log("Email Body:", emailBody);
-  console.log("Feedback Form URL:", feedbackFormUrl);
-  console.log("Link Display Text:", linkDisplayText);
+ 
   
   return (
     <Html>

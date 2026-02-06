@@ -39,12 +39,7 @@ export async function createFeedbackCampaign(data: CreateCampaignData) {
       return { success: false, error: "Admin access required" };
     }
 
-    // Debug: Log the incoming data
-    console.log("=== Creating Campaign with data ===");
-    console.log("Email Body:", data.emailBody);
-    console.log("Subject:", data.subject);
-    console.log("Feedback URL:", data.feedbackFormUrl);
-    console.log("Link Text:", data.linkDisplayText);
+   
 
     // Create campaign
     const [campaign] = await db
@@ -61,10 +56,7 @@ export async function createFeedbackCampaign(data: CreateCampaignData) {
       })
       .returning();
 
-    // Debug: Log what was saved
-    console.log("=== Campaign created ===");
-    console.log("Saved Email Body:", campaign.emailBody);
-    console.log("Saved Subject:", campaign.subject);
+
 
     // Create email records for recipients
     const emailRecords = data.recipients.map((recipient, index) => ({
@@ -152,12 +144,7 @@ export async function sendCampaignBatch(
       return { success: false, error: "Campaign not found" };
     }
 
-    // Debug: Log campaign data when sending
-    console.log("=== Sending batch for campaign ===");
-    console.log("Campaign Email Body:", campaign.emailBody);
-    console.log("Campaign Subject:", campaign.subject);
-    console.log("Campaign Feedback URL:", campaign.feedbackFormUrl);
-    console.log("Campaign Link Text:", campaign.linkDisplayText);
+    
 
     // Get emails for this batch that are pending
     const emails = await db.query.feedbackEmails.findMany({

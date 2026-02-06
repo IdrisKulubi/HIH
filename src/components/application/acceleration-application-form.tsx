@@ -326,7 +326,6 @@ export function AccelerationApplicationForm() {
                 window.scrollTo({ top: 0, behavior: "smooth" });
             } else {
                 toast.error("Please fill in all required fields before proceeding.");
-                console.log("Validation errors:", form.formState.errors);
             }
         }
     };

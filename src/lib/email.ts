@@ -35,7 +35,6 @@ export const sendEmail = async (params: SendEmailParams) => {
   }
 
   try {
-    console.log('[EMAIL] Sending email to:', to, 'subject:', subject);
     const { data, error } = await resend.emails.send({
       from: fromEmail,
       to,
@@ -48,7 +47,6 @@ export const sendEmail = async (params: SendEmailParams) => {
       throw new Error(`Failed to send email: ${error.message || JSON.stringify(error)}`);
     }
 
-    console.log('[EMAIL] Email sent successfully:', data?.id);
     return { success: true, data };
   } catch (error) {
     console.error('[EMAIL] Error sending email:', error);

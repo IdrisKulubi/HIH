@@ -110,7 +110,6 @@ export async function createSupportTicket(data: CreateSupportTicketData) {
       } catch (error: any) {
         // If it's a duplicate key error and we have retries left, try again
         if (error?.code === '23505' && error?.constraint === 'support_tickets_ticket_number_unique' && attempt < maxRetries - 1) {
-          console.log(`Ticket number collision on attempt ${attempt + 1}, retrying...`);
           await new Promise(resolve => setTimeout(resolve, Math.random() * 200));
           continue;
         }
