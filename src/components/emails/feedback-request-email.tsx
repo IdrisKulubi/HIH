@@ -17,23 +17,41 @@ import * as React from "react";
 
 interface FeedbackRequestEmailProps {
   recipientName: string;
-  emailBody: string; // HTML content
-  feedbackFormUrl: string;
+  emailBody: string; // Plain text or HTML content
+  feedbackFormUrl?: string;
   linkDisplayText?: string;
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bire-platform.org';
 
+// Helper function to convert plain text to HTML paragraphs
+function formatEmailBody(text: string): string {
+  // If already contains HTML tags, return as is
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    return text;
+  }
+  
+  // Convert plain text: split by double newlines for paragraphs, single newlines for breaks
+  return text
+    .split('\n\n')
+    .map(para => {
+      const formatted = para.trim().replace(/\n/g, '<br />');
+      return formatted ? `<p style="margin-bottom: 1em;">${formatted}</p>` : '';
+    })
+    .filter(Boolean)
+    .join('');
+}
+
 export default function FeedbackRequestEmail({
   recipientName = "Participant",
-  emailBody = "<p>We hope you are finding the program valuable. We would appreciate your thoughts on the recent workshop.</p>",
-  feedbackFormUrl = "#",
+  emailBody = "We hope you are finding the program valuable. We would appreciate your thoughts on the recent workshop.",
+  feedbackFormUrl,
   linkDisplayText = "Share Your Feedback",
 }: FeedbackRequestEmailProps) {
   return (
     <Html>
       <Head />
-      <Preview>We'd love to hear your feedback on the BIRE Programme</Preview>
+      <Preview>We&apos;d love to hear your feedback on the BIRE Programme</Preview>
       <Tailwind
         config={{
           theme: {
@@ -72,22 +90,27 @@ export default function FeedbackRequestEmail({
             <Section className="bg-white border border-slate-200 rounded-xl p-6 mx-auto w-full mb-8 shadow-sm">
               <div
                 className="text-slate-700 text-[15px] leading-[26px]"
-                dangerouslySetInnerHTML={{ __html: emailBody }}
+                dangerouslySetInnerHTML={{ __html: formatEmailBody(emailBody) }}
               />
             </Section>
 
-            <Section className="text-center mb-[20px]">
-              <Button
-                className="bg-[#0B5FBA] text-white rounded-lg px-8 py-4 text-[15px] font-bold no-underline hover:bg-blue-700 transition shadow-md block w-full sm:w-auto"
-                href={feedbackFormUrl}
-              >
-                {linkDisplayText}
-              </Button>
-            </Section>
+            {/* Only show button if URL is provided */}
+            {feedbackFormUrl && (
+              <Section className="text-center mb-[20px]">
+                <Button
+                  className="bg-[#0B5FBA] text-white rounded-lg px-8 py-4 text-[15px] font-bold no-underline hover:bg-blue-700 transition shadow-md block w-full sm:w-auto"
+                  href={feedbackFormUrl}
+                >
+                  {linkDisplayText}
+                </Button>
+              </Section>
+            )}
 
-            <Text className="text-slate-500 text-[13px] italic text-center mx-auto max-w-[400px]">
-              Your responses are anonymous and will help us improve the program for future participants.
-            </Text>
+            {feedbackFormUrl && (
+              <Text className="text-slate-500 text-[13px] italic text-center mx-auto max-w-[400px]">
+                Your responses are anonymous and will help us improve the program for future participants.
+              </Text>
+            )}
 
             <Hr className="border-slate-200 my-8" />
 

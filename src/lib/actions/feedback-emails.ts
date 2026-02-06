@@ -180,7 +180,7 @@ export async function sendCampaignBatch(
           react: FeedbackRequestEmail({
             recipientName: email.recipientName,
             emailBody: campaign.emailBody || "",
-            feedbackFormUrl: campaign.feedbackFormUrl || "",
+            feedbackFormUrl: campaign.feedbackFormUrl || undefined,
             linkDisplayText: campaign.linkDisplayText || undefined,
           }),
         });
@@ -313,7 +313,7 @@ export async function retryFailedEmails(
           react: FeedbackRequestEmail({
             recipientName: email.recipientName,
             emailBody: campaign.emailBody || "",
-            feedbackFormUrl: campaign.feedbackFormUrl || "",
+            feedbackFormUrl: campaign.feedbackFormUrl || undefined,
             linkDisplayText: campaign.linkDisplayText || undefined,
           }),
         });
