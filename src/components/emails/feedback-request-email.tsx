@@ -48,10 +48,17 @@ export default function FeedbackRequestEmail({
   feedbackFormUrl,
   linkDisplayText = "Share Your Feedback",
 }: FeedbackRequestEmailProps) {
+  // Debug logging
+  console.log("=== Email Template Props ===");
+  console.log("Recipient Name:", recipientName);
+  console.log("Email Body:", emailBody);
+  console.log("Feedback Form URL:", feedbackFormUrl);
+  console.log("Link Display Text:", linkDisplayText);
+  
   return (
     <Html>
       <Head />
-      <Preview>We&apos;d love to hear your feedback on the BIRE Programme</Preview>
+      <Preview>{feedbackFormUrl ? "We'd love to hear your feedback on the BIRE Programme" : "Update from the BIRE Programme"}</Preview>
       <Tailwind
         config={{
           theme: {
@@ -73,17 +80,12 @@ export default function FeedbackRequestEmail({
             {/* Header/Icon */}
             <Section className="mt-[20px] text-center">
               <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-6 text-3xl">
-                📣
+                {feedbackFormUrl ? "📣" : "📧"}
               </div>
             </Section>
 
-            <Heading className="text-slate-900 text-[24px] font-bold text-center p-0 my-[10px] mx-0 tracking-tight">
-              We Value Your Feedback
-            </Heading>
-
-            <Text className="text-slate-500 text-[14px] leading-[24px] text-center mb-8">
-              Hi <strong>{recipientName}</strong>, <br />
-              Help us improve the BIRE Programme.
+            <Text className="text-slate-700 text-[16px] leading-[24px] mb-8">
+              Hi <strong>{recipientName}</strong>,
             </Text>
 
             {/* Custom email body card */}
@@ -98,7 +100,7 @@ export default function FeedbackRequestEmail({
             {feedbackFormUrl && (
               <Section className="text-center mb-[20px]">
                 <Button
-                  className="bg-[#0B5FBA] text-white rounded-lg px-8 py-4 text-[15px] font-bold no-underline hover:bg-blue-700 transition shadow-md block w-full sm:w-auto"
+                  className="bg-[#0B5FBA] text-white rounded-lg px-8 py-4 text-[15px] font-bold no-underline"
                   href={feedbackFormUrl}
                 >
                   {linkDisplayText}
