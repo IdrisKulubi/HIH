@@ -21,6 +21,7 @@ import {
   sendCampaignBatch,
   retryFailedEmails,
   deleteCampaign,
+  sendAllBatchesAutomatically,
 } from "@/lib/actions/feedback-emails";
 import { format } from "date-fns";
 import {
@@ -55,6 +56,7 @@ export function CampaignsList() {
   const [sendingBatch, setSendingBatch] = useState<number | null>(null);
   const [retrying, setRetrying] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [autoSending, setAutoSending] = useState<number | null>(null);
 
   const loadCampaigns = async () => {
     setLoading(true);
@@ -110,6 +112,21 @@ export function CampaignsList() {
       toast.error(result.error || "Failed to delete");
     }
     setDeleteId(null);
+  };
+
+  const handleAutoSendAll = async (campaignId: number) => {
+    setAutoSending(campaignId);
+    toast.info("Starting automatic batch sending...");
+    
+    const result = await sendAllBatchesAutomatically(campaignId);
+    
+    if (result.success) {
+      toast.success(result.message || "All batches sent successfully!");
+      await loadCampaigns();
+    } else {
+      toast.error(result.error || "Failed to send batches automatically");
+    }
+    setAutoSending(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -277,40 +294,55 @@ export function CampaignsList() {
                 {/* Actions */}
                 <div className="flex flex-wrap gap-3">
                   {canSendNext && (
-                    <Button
-                      onClick={() =>
-                        handleSendNextBatch(
-                          campaign.id,
-                          batchSize,
-                          campaign.sentCount
-                        )
-                      }
-                      disabled={sendingBatch === campaign.id}
-                      className="bg-gradient-to-r from-[#0B5FBA] to-[#00D0AB] hover:from-[#0B5FBA]/90 hover:to-[#00D0AB]/90"
-                    >
-                      {sendingBatch === campaign.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Sending Batch {nextBatchNumber}...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Send Batch {nextBatchNumber} (
-                          {Math.min(
+                    <>
+                      <Button
+                        onClick={() => handleAutoSendAll(campaign.id)}
+                        disabled={autoSending === campaign.id || sendingBatch === campaign.id}
+                        className="bg-gradient-to-r from-[#0B5FBA] to-[#00D0AB] hover:from-[#0B5FBA]/90 hover:to-[#00D0AB]/90"
+                      >
+                        {autoSending === campaign.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Auto-Sending All Batches...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Send All Automatically ({totalRecipients - sentCount} emails)
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          handleSendNextBatch(
+                            campaign.id,
                             batchSize,
-                            totalRecipients - sentCount
-                          )}{" "}
-                          emails)
-                        </>
-                      )}
-                    </Button>
+                            campaign.sentCount
+                          )
+                        }
+                        disabled={sendingBatch === campaign.id || autoSending === campaign.id}
+                        variant="outline"
+                        className="border-[#0B5FBA] text-[#0B5FBA] hover:bg-[#0B5FBA]/5"
+                      >
+                        {sendingBatch === campaign.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending Batch {nextBatchNumber}...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Send Batch {nextBatchNumber} Only
+                          </>
+                        )}
+                      </Button>
+                    </>
                   )}
 
                   {failedCount > 0 && (
                     <Button
                       onClick={() => handleRetry(campaign.id)}
-                      disabled={retrying === campaign.id}
+                      disabled={retrying === campaign.id || autoSending === campaign.id}
                       variant="outline"
                       className="border-orange-200 text-orange-700 hover:bg-orange-50"
                     >

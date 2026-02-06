@@ -415,3 +415,103 @@ export async function deleteCampaign(campaignId: number) {
     return { success: false, error: "Failed to delete campaign" };
   }
 }
+
+// Send all pending batches automatically
+export async function sendAllBatchesAutomatically(campaignId: number) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Get campaign details
+    const campaign = await db.query.feedbackCampaigns.findFirst({
+      where: eq(feedbackCampaigns.id, campaignId),
+    });
+
+    if (!campaign) {
+      return { success: false, error: "Campaign not found" };
+    }
+
+    // Calculate total batches
+    const totalBatches = Math.ceil(
+      campaign.totalRecipients / (campaign.batchSize || 5)
+    );
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    // Send each batch sequentially
+    for (let batchNumber = 1; batchNumber <= totalBatches; batchNumber++) {
+      // Check if batch has pending emails
+      const pendingEmails = await db.query.feedbackEmails.findMany({
+        where: and(
+          eq(feedbackEmails.campaignId, campaignId),
+          eq(feedbackEmails.batchNumber, batchNumber),
+          eq(feedbackEmails.status, "pending")
+        ),
+      });
+
+      if (pendingEmails.length > 0) {
+        // Send this batch
+        const result = await sendCampaignBatch(campaignId, batchNumber);
+
+        if (result.success) {
+          totalSent += result.successCount || 0;
+          totalFailed += result.failCount || 0;
+        }
+
+        // Wait 2 seconds between batches to avoid rate limits
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // After each batch, retry any failed emails from this batch
+      const failedInBatch = await db.query.feedbackEmails.findMany({
+        where: and(
+          eq(feedbackEmails.campaignId, campaignId),
+          eq(feedbackEmails.batchNumber, batchNumber),
+          eq(feedbackEmails.status, "failed")
+        ),
+      });
+
+      if (failedInBatch.length > 0) {
+        const retryResult = await retryFailedEmails(
+          campaignId,
+          failedInBatch.map((e) => e.id)
+        );
+
+        if (retryResult.success) {
+          totalSent += retryResult.successCount || 0;
+        }
+
+        // Wait 2 seconds after retry
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    // Final check: retry any remaining failed emails
+    const allFailed = await db.query.feedbackEmails.findMany({
+      where: and(
+        eq(feedbackEmails.campaignId, campaignId),
+        eq(feedbackEmails.status, "failed")
+      ),
+    });
+
+    if (allFailed.length > 0) {
+      await retryFailedEmails(
+        campaignId,
+        allFailed.map((e) => e.id)
+      );
+    }
+
+    return {
+      success: true,
+      message: `Completed! Sent ${totalSent} emails, ${totalFailed} failed`,
+      totalSent,
+      totalFailed,
+    };
+  } catch (error) {
+    console.error("Error in automatic batch sending:", error);
+    return { success: false, error: "Failed to send batches automatically" };
+  }
+}
