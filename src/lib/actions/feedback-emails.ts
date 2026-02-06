@@ -16,7 +16,7 @@ interface CreateCampaignData {
   name: string;
   subject: string;
   emailBody: string;
-  feedbackFormUrl: string;
+  feedbackFormUrl?: string;
   linkDisplayText?: string;
   batchSize?: number;
   recipients: Array<{ userId: string; email: string; name: string }>;
