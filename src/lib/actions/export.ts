@@ -7,6 +7,7 @@ import { desc, and, SQL, inArray, gte, lte } from "drizzle-orm";
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { stringify } from 'csv-stringify/sync';
+import { getDDQueue } from "./due-diligence";
 
 // Helper function to format values for export
 const formatExportValue = (value: unknown): string => {
@@ -21,7 +22,7 @@ const formatExportValue = (value: unknown): string => {
 
 // Export data function for bulk exports
 export async function exportData(params: {
-  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified";
+  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified" | "due_diligence_queue";
   format: "csv" | "json" | "xlsx";
   filters: {
     status?: string[];
@@ -451,6 +452,38 @@ export async function exportData(params: {
         });
 
         fileName = `BIRE_DD_Qualified_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "due_diligence_queue": {
+        const result = await getDDQueue();
+        if (!result.success || !result.data) {
+          throw new Error(result.message || "Failed to fetch DD queue");
+        }
+
+        let queueData = result.data;
+
+        // Filter by status if provided
+        if (params.filters.status && params.filters.status.length > 0) {
+          queueData = queueData.filter(item =>
+            params.filters.status!.includes(item.ddStatus)
+          );
+        }
+
+        data = queueData.map(item => ({
+          "Application ID": item.applicationId,
+          "Business Name": item.businessName,
+          "Aggregate Score (%)": item.aggregateScore,
+          "Due Diligence Score (%)": item.ddScore !== null ? item.ddScore : "N/A",
+          "Status": item.ddStatus.replace(/_/g, " ").toUpperCase(),
+          "Oversight Initiated": item.isOversightInitiated ? "Yes" : "No",
+          "Primary Reviewer": item.primaryReviewerName || "Unassigned",
+          "Validator": item.validatorReviewerName || "Unassigned",
+          "Deadline": item.approvalDeadline ? format(new Date(item.approvalDeadline), "yyyy-MM-dd HH:mm") : "N/A",
+          "Score Disparity (pts)": item.scoreDisparity !== null ? item.scoreDisparity : "N/A",
+        }));
+
+        fileName = `BIRE_DD_Queue_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
         break;
       }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { getDDQueue, checkApprovalDeadlines } from "@/lib/actions/due-diligence";
+import { exportData } from "@/lib/actions/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,9 @@ import {
     Lightning,
     ShieldCheck,
     MagnifyingGlass,
-    X
+    X,
+    FileXls,
+    CircleNotch
 } from "@phosphor-icons/react";
 
 type DDQueueItem = {
@@ -65,6 +68,7 @@ export default function DueDiligencePage() {
     const [checking, setChecking] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [isExporting, setIsExporting] = useState(false);
 
     const loadQueue = async () => {
         setLoading(true);
@@ -89,6 +93,60 @@ export default function DueDiligencePage() {
         setChecking(false);
     };
 
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const result = await exportData({
+                type: "due_diligence_queue",
+                format: "xlsx",
+                filters: {
+                    status: statusFilter === "all" ? [] : [statusFilter],
+                },
+            });
+
+            if (!result.success) {
+                toast.error(result.error || "Failed to export data");
+                return;
+            }
+
+            if (!result.data || !result.fileName) {
+                toast.error("Failed to export data");
+                return;
+            }
+
+            let blobData: BlobPart;
+            const contentType = result.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+            if (result.isBase64) {
+                const binaryString = atob(result.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                blobData = bytes;
+            } else {
+                blobData = result.data;
+            }
+
+            const blob = new Blob([blobData], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = result.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success(`Export complete: ${result.fileName}`);
+        } catch (error) {
+            console.error("Export error:", error);
+            toast.error("Failed to export data");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     useEffect(() => {
         loadQueue();
     }, []);
@@ -96,7 +154,7 @@ export default function DueDiligencePage() {
     // Filtered queue based on search and status filter
     const filteredQueue = useMemo(() => {
         return queue.filter(item => {
-            const matchesSearch = !searchQuery || 
+            const matchesSearch = !searchQuery ||
                 item.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 item.applicationId.toString().includes(searchQuery);
             const matchesStatus = statusFilter === "all" || item.ddStatus === statusFilter;
@@ -216,6 +274,18 @@ export default function DueDiligencePage() {
                 </Button>
                 <Button variant="outline" onClick={loadQueue}>
                     Refresh Queue
+                </Button>
+                <Button
+                    onClick={handleExport}
+                    disabled={isExporting || loading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                    {isExporting ? (
+                        <CircleNotch className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                        <FileXls className="h-4 w-4 mr-2" />
+                    )}
+                    {isExporting ? "Exporting..." : "Export to Excel"}
                 </Button>
             </div>
 
