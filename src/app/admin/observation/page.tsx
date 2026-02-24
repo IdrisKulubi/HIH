@@ -10,6 +10,7 @@ import {
     ObservationApplication,
     ObservationStats,
 } from "@/lib/actions/observation";
+import { exportData } from "@/lib/actions/export";
 import {
     Table,
     TableBody,
@@ -32,6 +33,8 @@ import {
     ArrowClockwise,
     Check,
     ArrowLeft,
+    FileXls,
+    CircleNotch
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -45,6 +48,7 @@ export default function ObservationPage() {
     const [applications, setApplications] = useState<ObservationApplication[]>([]);
     const [stats, setStats] = useState<ObservationStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
     const [actionLoading, setActionLoading] = useState<number | null>(null);
 
     const loadData = useCallback(async () => {
@@ -112,6 +116,60 @@ export default function ObservationPage() {
         return `KES ${num.toLocaleString()}`;
     };
 
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const result = await exportData({
+                type: "observation_applications",
+                format: "xlsx",
+                filters: {
+                    status: currentTab === "revisit" ? ["revisit"] : [],
+                },
+            });
+
+            if (!result.success) {
+                toast.error(result.error || "Failed to export data");
+                return;
+            }
+
+            if (!result.data || !result.fileName) {
+                toast.error("Failed to export data");
+                return;
+            }
+
+            let blobData: BlobPart;
+            const contentType = result.contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+            if (result.isBase64) {
+                const binaryString = atob(result.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                blobData = bytes;
+            } else {
+                blobData = result.data;
+            }
+
+            const blob = new Blob([blobData], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = result.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success(`Export complete: ${result.fileName}`);
+        } catch (error) {
+            console.error("Export error:", error);
+            toast.error("Failed to export data");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -148,6 +206,18 @@ export default function ObservationPage() {
                 <Badge variant="secondary" className="px-4 py-2 text-lg">
                     {stats?.totalObservation || 0} Applications
                 </Badge>
+                <Button
+                    onClick={handleExport}
+                    disabled={isExporting || isLoading}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                    {isExporting ? (
+                        <CircleNotch className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                        <FileXls className="h-5 w-5 mr-2" />
+                    )}
+                    {isExporting ? "Exporting..." : "Export to Excel"}
+                </Button>
             </div>
 
             {/* Stats Cards */}

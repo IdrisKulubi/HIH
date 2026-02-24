@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { stringify } from 'csv-stringify/sync';
 import { getDDQueue } from "./due-diligence";
+import { getObservationApplications } from "./observation";
 
 // Helper function to format values for export
 const formatExportValue = (value: unknown): string => {
@@ -22,7 +23,7 @@ const formatExportValue = (value: unknown): string => {
 
 // Export data function for bulk exports
 export async function exportData(params: {
-  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified" | "due_diligence_queue";
+  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified" | "due_diligence_queue" | "observation_applications";
   format: "csv" | "json" | "xlsx";
   filters: {
     status?: string[];
@@ -484,6 +485,37 @@ export async function exportData(params: {
         }));
 
         fileName = `BIRE_DD_Queue_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "observation_applications": {
+        const result = await getObservationApplications();
+        if (!result.success || !result.data) {
+          throw new Error(result.error || "Failed to fetch observation applications");
+        }
+
+        let obsData = result.data;
+
+        // Filter by revisit if provided (using status filter as a proxy)
+        if (params.filters.status && params.filters.status.includes("revisit")) {
+          obsData = obsData.filter(item => item.markedForRevisit);
+        }
+
+        data = obsData.map(item => ({
+          "Application ID": item.id,
+          "Business Name": item.business.name,
+          "Sector": item.business.sector?.replace(/_/g, " ") || "N/A",
+          "Applicant Name": `${item.applicant.firstName} ${item.applicant.lastName}`,
+          "Email": item.applicant.email,
+          "Phone": item.applicant.phoneNumber,
+          "Location": `${item.business.city}, ${item.business.county?.replace(/_/g, " ") || "N/A"}`,
+          "Revenue (Last Year)": item.business.revenueLastYear || "N/A",
+          "Employees": item.business.fullTimeEmployeesTotal ?? "N/A",
+          "Submitted Date": item.submittedAt ? format(new Date(item.submittedAt), "yyyy-MM-dd") : "N/A",
+          "Marked for Revisit": item.markedForRevisit ? "Yes" : "No",
+        }));
+
+        fileName = `BIRE_Observation_Applications_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
         break;
       }
 
