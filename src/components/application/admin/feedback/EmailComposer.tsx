@@ -27,6 +27,7 @@ import {
   Type,
   Sparkles,
   Search,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -35,6 +36,7 @@ import {
 } from "@/lib/actions/feedback-emails";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { ExcelImportModal } from "./ExcelImportModal";
 
 const campaignSchema = z.object({
   name: z.string().min(3, "Campaign name must be at least 3 characters"),
@@ -61,6 +63,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
   const [selectAll, setSelectAll] = useState(false);
   const [loadingRecipients, setLoadingRecipients] = useState(true);
   const [recipientSearch, setRecipientSearch] = useState("");
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
@@ -100,6 +103,24 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
       setSelectedRecipients([]);
     }
   }, [selectAll, recipients, selectedRecipients.length]);
+
+  // Merge recipients imported from Excel, deduplicated by email
+  const handleRecipientsImported = (
+    imported: Array<{ userId: string; email: string; name: string }>
+  ) => {
+    // Add any imported emails we don't already have in the list
+    setRecipients((prev) => {
+      const existingEmails = new Set(prev.map((r) => r.email));
+      const newOnes = imported.filter((r) => !existingEmails.has(r.email));
+      return [...prev, ...newOnes];
+    });
+    // Auto-select all imported emails
+    setSelectedRecipients((prev) => {
+      const existing = new Set(prev);
+      imported.forEach((r) => existing.add(r.email));
+      return Array.from(existing);
+    });
+  };
 
   const toggleRecipient = (email: string) => {
     setSelectedRecipients((prev) =>
@@ -300,16 +321,28 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                   <Users className="h-4 w-4 text-[#0B5FBA]" />
                   Recipients ({selectedRecipients.length} selected)
                 </Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectAll(!selectAll)}
-                >
-                  {selectAll || selectedRecipients.length === recipients.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportModalOpen(true)}
+                    className="gap-1.5 border-[#0B5FBA]/30 text-[#0B5FBA] hover:bg-[#0B5FBA]/5"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Import from Excel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectAll(!selectAll)}
+                  >
+                    {selectAll || selectedRecipients.length === recipients.length
+                      ? "Deselect All"
+                      : "Select All"}
+                  </Button>
+                </div>
               </div>
 
               {/* Search Recipients */}
@@ -463,7 +496,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
                 {/* Footer */}
                 <div className="bg-gray-50 p-6 text-center rounded-b-lg border-t">
                   <p className="text-sm text-gray-600">
-                    BIRE Program 
+                    BIRE Program
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     © {new Date().getFullYear()} BIRE Program
@@ -492,6 +525,13 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onRecipientsImported={handleRecipientsImported}
+      />
     </div>
   );
 }

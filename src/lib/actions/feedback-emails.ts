@@ -39,7 +39,7 @@ export async function createFeedbackCampaign(data: CreateCampaignData) {
       return { success: false, error: "Admin access required" };
     }
 
-   
+
 
     // Create campaign
     const [campaign] = await db
@@ -144,7 +144,7 @@ export async function sendCampaignBatch(
       return { success: false, error: "Campaign not found" };
     }
 
-    
+
 
     // Get emails for this batch that are pending
     const emails = await db.query.feedbackEmails.findMany({
@@ -416,6 +416,46 @@ export async function deleteCampaign(campaignId: number) {
   }
 }
 
+// Check which emails exist in the DB (for Excel import crosscheck)
+export async function checkEmailsAgainstDb(emails: string[]) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Normalise to lowercase for comparison
+    const normalised = emails.map((e) => e.toLowerCase().trim()).filter(Boolean);
+    if (normalised.length === 0) {
+      return { success: true, results: [] };
+    }
+
+    // Fetch all applicants whose email is in the list
+    const found = await db.query.applicants.findMany({
+      where: inArray(applicants.email, normalised),
+    });
+
+    const foundMap = new Map(found.map((a) => [a.email.toLowerCase(), a]));
+
+    const results = normalised.map((email) => {
+      const match = foundMap.get(email);
+      return match
+        ? {
+          email,
+          inDb: true as const,
+          userId: match.userId,
+          name: `${match.firstName} ${match.lastName}`.trim(),
+        }
+        : { email, inDb: false as const };
+    });
+
+    return { success: true, results };
+  } catch (error) {
+    console.error("Error checking emails against DB:", error);
+    return { success: false, error: "Failed to check emails" };
+  }
+}
+
 // Send all pending batches automatically
 export async function sendAllBatchesAutomatically(campaignId: number) {
   try {
@@ -436,11 +476,11 @@ export async function sendAllBatchesAutomatically(campaignId: number) {
     // Calculate total batches
     const totalRecipients = campaign.totalRecipients ?? 0;
     const batchSize = campaign.batchSize ?? 5;
-    
+
     if (totalRecipients === 0) {
       return { success: false, error: "No recipients in campaign" };
     }
-    
+
     const totalBatches = Math.ceil(totalRecipients / batchSize);
 
     let totalSent = 0;
