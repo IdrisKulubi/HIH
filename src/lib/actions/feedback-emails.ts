@@ -150,7 +150,16 @@ async function _processBatch(
   let successCount = 0;
   let failCount = 0;
 
-  for (const email of emails) {
+  console.log(
+    `[Campaign ${campaignId}] Batch ${batchNumber}: processing ${emails.length} emails`
+  );
+
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
+    console.log(
+      `[Campaign ${campaignId}] Sending ${i + 1}/${emails.length}: ${email.recipientEmail}`
+    );
+
     try {
       await db
         .update(feedbackEmails)
@@ -174,19 +183,37 @@ async function _processBatch(
         .where(eq(feedbackEmails.id, email.id));
 
       successCount++;
+      console.log(
+        `[Campaign ${campaignId}] ✓ Sent to ${email.recipientEmail}`
+      );
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[Campaign ${campaignId}] ✗ FAILED ${email.recipientEmail}: ${errMsg}`
+      );
+
       await db
         .update(feedbackEmails)
         .set({
           status: "failed",
           failedAt: new Date(),
-          errorMessage: error instanceof Error ? error.message : "Unknown error",
+          errorMessage: errMsg,
         })
         .where(eq(feedbackEmails.id, email.id));
 
       failCount++;
     }
+
+    // 350ms between emails to stay within Resend's rate limits.
+    // Skip delay after the last email.
+    if (i < emails.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
   }
+
+  console.log(
+    `[Campaign ${campaignId}] Batch ${batchNumber} done: ${successCount} sent, ${failCount} failed`
+  );
 
   // Update campaign counters
   const [updated] = await db

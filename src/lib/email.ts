@@ -26,7 +26,7 @@ export interface SendEmailParams {
   react: React.ReactElement;
 }
 
-export const sendEmail = async (params: SendEmailParams) => {
+export const sendEmail = async (params: SendEmailParams, retries = 3) => {
   const { to, subject, react } = params;
 
   if (!process.env.RESEND_API_KEY) {
@@ -34,25 +34,42 @@ export const sendEmail = async (params: SendEmailParams) => {
     throw new Error('Email service not configured');
   }
 
-  try {
+  const html = await render(react);
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
     const { data, error } = await resend.emails.send({
       from: fromEmail,
       to,
       subject,
-      html: await render(react),
+      html,
     });
 
-    if (error) {
-      console.error('[EMAIL] Resend API error:', JSON.stringify(error, null, 2));
-      throw new Error(`Failed to send email: ${error.message || JSON.stringify(error)}`);
+    if (!error) {
+      return { success: true, data };
     }
 
-    return { success: true, data };
-  } catch (error) {
-    console.error('[EMAIL] Error sending email:', error);
-    throw error;
+    // Resend rate-limit: statusCode 429 — wait 1 second and retry
+    const isRateLimit =
+      (error as { statusCode?: number }).statusCode === 429 ||
+      error.message?.toLowerCase().includes('rate');
+
+    console.error(
+      `[EMAIL] Attempt ${attempt}/${retries} failed for ${to}:`,
+      JSON.stringify(error)
+    );
+
+    if (isRateLimit && attempt < retries) {
+      console.warn(`[EMAIL] Rate limited — waiting 1s before retry ${attempt + 1}`);
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
+    }
+
+    throw new Error(`Failed to send email: ${error.message || JSON.stringify(error)}`);
   }
+
+  throw new Error('Failed to send email after all retries');
 };
+
 
 /**
  * Sends a verification code email.
