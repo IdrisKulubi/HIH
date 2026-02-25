@@ -21,7 +21,6 @@ import {
   sendCampaignBatch,
   retryFailedEmails,
   deleteCampaign,
-  sendAllBatchesAutomatically,
 } from "@/lib/actions/feedback-emails";
 import { format } from "date-fns";
 import {
@@ -57,6 +56,12 @@ export function CampaignsList() {
   const [retrying, setRetrying] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [autoSending, setAutoSending] = useState<number | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    sent: number;
+    failed: number;
+  } | null>(null);
 
   const loadCampaigns = async () => {
     setLoading(true);
@@ -114,19 +119,49 @@ export function CampaignsList() {
     setDeleteId(null);
   };
 
-  const handleAutoSendAll = async (campaignId: number) => {
-    setAutoSending(campaignId);
-    toast.info("Starting automatic batch sending...");
-    
-    const result = await sendAllBatchesAutomatically(campaignId);
-    
-    if (result.success) {
-      toast.success(result.message || "All batches sent successfully!");
-      await loadCampaigns();
-    } else {
-      toast.error(result.error || "Failed to send batches automatically");
+  // Client-side batch loop — each sendCampaignBatch call handles ~batchSize emails
+  // so we never hit Next.js server-action timeouts regardless of total count.
+  const handleAutoSendAll = async (campaign: Campaign) => {
+    setAutoSending(campaign.id);
+    toast.info("Starting automatic batch sending…");
+
+    const totalRecipients = campaign.totalRecipients ?? 0;
+    const batchSize = campaign.batchSize || 50;
+    const sentSoFar = campaign.sentCount ?? 0;
+    const totalBatches = Math.ceil(totalRecipients / batchSize);
+    // Start from the first batch that still has pending emails
+    const startBatch = Math.floor(sentSoFar / batchSize) + 1;
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    setBatchProgress({ current: startBatch, total: totalBatches, sent: 0, failed: 0 });
+
+    for (let batch = startBatch; batch <= totalBatches; batch++) {
+      setBatchProgress(prev =>
+        prev ? { ...prev, current: batch } : { current: batch, total: totalBatches, sent: totalSent, failed: totalFailed }
+      );
+
+      const result = await sendCampaignBatch(campaign.id, batch);
+
+      if (result.success) {
+        totalSent += result.successCount ?? 0;
+        totalFailed += result.failCount ?? 0;
+        setBatchProgress(prev =>
+          prev ? { ...prev, sent: totalSent, failed: totalFailed } : null
+        );
+      } else if (result.error === "No pending emails in this batch") {
+        // Batch already done — skip silently
+        continue;
+      } else {
+        toast.error(`Batch ${batch} failed: ${result.error}`);
+      }
     }
+
+    toast.success(`Completed! Sent ${totalSent} emails, ${totalFailed} failed`);
+    setBatchProgress(null);
     setAutoSending(null);
+    await loadCampaigns();
   };
 
   const getStatusBadge = (status: string) => {
@@ -296,14 +331,16 @@ export function CampaignsList() {
                   {canSendNext && (
                     <>
                       <Button
-                        onClick={() => handleAutoSendAll(campaign.id)}
+                        onClick={() => handleAutoSendAll(campaign)}
                         disabled={autoSending === campaign.id || sendingBatch === campaign.id}
                         className="bg-gradient-to-r from-[#0B5FBA] to-[#00D0AB] hover:from-[#0B5FBA]/90 hover:to-[#00D0AB]/90"
                       >
                         {autoSending === campaign.id ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Auto-Sending All Batches...
+                            {batchProgress
+                              ? `Batch ${batchProgress.current}/${batchProgress.total} · ${batchProgress.sent} sent`
+                              : "Sending…"}
                           </>
                         ) : (
                           <>
