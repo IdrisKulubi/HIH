@@ -38,7 +38,7 @@ interface CheckResult {
 }
 
 interface ImportedRecipient {
-    userId: string;
+    userId?: string;   // undefined for emails not in the DB
     email: string;
     name: string;
 }
@@ -151,10 +151,8 @@ export function ExcelImportModal({
             }
 
             setResults(res.results);
-            // Pre-select all emails that are in the DB
-            const preSelected = new Set(
-                res.results.filter((r) => r.inDb).map((r) => r.email)
-            );
+            // Pre-select ALL emails (found and not-found)
+            const preSelected = new Set(res.results.map((r) => r.email));
             setSelectedEmails(preSelected);
             setStep("review");
         } catch (err) {
@@ -191,22 +189,21 @@ export function ExcelImportModal({
     };
 
     const toggleAll = () => {
-        const foundEmails = results.filter((r) => r.inDb).map((r) => r.email);
-        if (selectedEmails.size === foundEmails.length) {
+        if (selectedEmails.size === results.length) {
             setSelectedEmails(new Set());
         } else {
-            setSelectedEmails(new Set(foundEmails));
+            setSelectedEmails(new Set(results.map((r) => r.email)));
         }
     };
 
     // ── Confirm import ──────────────────────────────────────────────────────────
     const handleConfirm = () => {
         const recipients: ImportedRecipient[] = results
-            .filter((r) => r.inDb && selectedEmails.has(r.email))
+            .filter((r) => selectedEmails.has(r.email))
             .map((r) => ({
-                userId: r.userId!,
+                userId: r.userId,          // may be undefined for not-in-DB
                 email: r.email,
-                name: r.name!,
+                name: r.name ?? r.email,   // fall back to email as display name
             }));
 
         onRecipientsImported(recipients);
@@ -217,6 +214,7 @@ export function ExcelImportModal({
     // ── Derived counts ──────────────────────────────────────────────────────────
     const foundCount = results.filter((r) => r.inDb).length;
     const notFoundCount = results.filter((r) => !r.inDb).length;
+    const notFoundSelected = results.filter((r) => !r.inDb && selectedEmails.has(r.email)).length;
 
     // ── Render ──────────────────────────────────────────────────────────────────
     return (
@@ -241,10 +239,10 @@ export function ExcelImportModal({
                             <React.Fragment key={s}>
                                 <div
                                     className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full transition-colors ${step === s
-                                            ? "bg-[#0B5FBA] text-white"
-                                            : i < ["upload", "review", "confirm"].indexOf(step)
-                                                ? "bg-[#00D0AB]/20 text-[#00D0AB]"
-                                                : "bg-gray-100 text-gray-400"
+                                        ? "bg-[#0B5FBA] text-white"
+                                        : i < ["upload", "review", "confirm"].indexOf(step)
+                                            ? "bg-[#00D0AB]/20 text-[#00D0AB]"
+                                            : "bg-gray-100 text-gray-400"
                                         }`}
                                 >
                                     <span>{i + 1}.</span>
@@ -269,8 +267,8 @@ export function ExcelImportModal({
                                 onDragLeave={() => setIsDragging(false)}
                                 onClick={() => inputRef.current?.click()}
                                 className={`w-full border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${isDragging
-                                        ? "border-[#0B5FBA] bg-[#0B5FBA]/5 scale-[1.01]"
-                                        : "border-gray-200 hover:border-[#0B5FBA]/50 hover:bg-gray-50"
+                                    ? "border-[#0B5FBA] bg-[#0B5FBA]/5 scale-[1.01]"
+                                    : "border-gray-200 hover:border-[#0B5FBA]/50 hover:bg-gray-50"
                                     }`}
                             >
                                 {isProcessing ? (
@@ -308,9 +306,9 @@ export function ExcelImportModal({
 
                     {/* ── STEP 2: Review ─────────────────────────────────────────────── */}
                     {step === "review" && (
-                        <div className="flex flex-col gap-3 overflow-hidden">
+                        <div className="flex flex-col gap-3" style={{ minHeight: 0 }}>
                             {/* Summary bar */}
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg flex-wrap">
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg flex-wrap shrink-0">
                                 <div className="flex items-center gap-1.5">
                                     <FileSpreadsheet className="h-4 w-4 text-gray-500" />
                                     <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">
@@ -322,36 +320,41 @@ export function ExcelImportModal({
                                     <CheckCircle2 className="h-3 w-3" />
                                     {foundCount} found in DB
                                 </Badge>
-                                <Badge className="bg-amber-100 text-amber-700 border-0 gap-1">
-                                    <AlertCircle className="h-3 w-3" />
-                                    {notFoundCount} not found
-                                </Badge>
+                                {notFoundCount > 0 && (
+                                    <Badge className="bg-amber-100 text-amber-700 border-0 gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {notFoundCount} not in DB (can still select)
+                                    </Badge>
+                                )}
                             </div>
 
                             {/* Select All / Deselect All */}
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between shrink-0">
                                 <span className="text-sm text-gray-600">
                                     <span className="font-semibold text-gray-900">
                                         {selectedEmails.size}
                                     </span>{" "}
-                                    of {foundCount} selected
+                                    of {results.length} selected
+                                    {notFoundSelected > 0 && (
+                                        <span className="text-amber-600 ml-1">
+                                            ({notFoundSelected} not in DB)
+                                        </span>
+                                    )}
                                 </span>
-                                {foundCount > 0 && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={toggleAll}
-                                    >
-                                        {selectedEmails.size === foundCount
-                                            ? "Deselect All"
-                                            : "Select All"}
-                                    </Button>
-                                )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={toggleAll}
+                                >
+                                    {selectedEmails.size === results.length
+                                        ? "Deselect All"
+                                        : "Select All"}
+                                </Button>
                             </div>
 
-                            {/* Table */}
-                            <ScrollArea className="flex-1 h-[320px] rounded-md border">
+                            {/* Scrollable table — takes remaining height */}
+                            <div className="overflow-auto rounded-md border" style={{ maxHeight: "340px" }}>
                                 <table className="w-full text-sm">
                                     <thead className="sticky top-0 bg-white border-b z-10">
                                         <tr>
@@ -371,20 +374,18 @@ export function ExcelImportModal({
                                         {results.map((r, i) => (
                                             <tr
                                                 key={i}
-                                                className={`border-b last:border-0 transition-colors ${r.inDb ? "hover:bg-gray-50 cursor-pointer" : "opacity-50"
-                                                    }`}
-                                                onClick={() => r.inDb && toggleEmail(r.email)}
+                                                className="border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+                                                onClick={() => toggleEmail(r.email)}
                                             >
                                                 <td className="px-4 py-2.5">
-                                                    {r.inDb && (
-                                                        <Checkbox
-                                                            checked={selectedEmails.has(r.email)}
-                                                            onCheckedChange={() => toggleEmail(r.email)}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    )}
+                                                    <Checkbox
+                                                        checked={selectedEmails.has(r.email)}
+                                                        onCheckedChange={() => toggleEmail(r.email)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
                                                 </td>
-                                                <td className="px-4 py-2.5 font-mono text-xs text-gray-700">
+                                                <td className={`px-4 py-2.5 font-mono text-xs ${r.inDb ? "text-gray-700" : "text-amber-700"
+                                                    }`}>
                                                     {r.email}
                                                 </td>
                                                 <td className="px-4 py-2.5 text-gray-700">
@@ -407,10 +408,10 @@ export function ExcelImportModal({
                                         ))}
                                     </tbody>
                                 </table>
-                            </ScrollArea>
+                            </div>
 
-                            {/* Navigation */}
-                            <div className="flex gap-2 pt-1">
+                            {/* Navigation — always pinned below the scroll area */}
+                            <div className="flex gap-2 pt-1 shrink-0">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -450,13 +451,13 @@ export function ExcelImportModal({
                                 </p>
                             </div>
 
-                            {notFoundCount > 0 && (
+                            {notFoundSelected > 0 && (
                                 <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                                     <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                                     <span>
-                                        <strong>{notFoundCount}</strong> email
-                                        {notFoundCount !== 1 ? "s" : ""} from your file were not
-                                        found in the applicant database and will be skipped.
+                                        <strong>{notFoundSelected}</strong> selected email
+                                        {notFoundSelected !== 1 ? "s" : ""} were not found in the
+                                        applicant database — they will be added as external recipients.
                                     </span>
                                 </div>
                             )}

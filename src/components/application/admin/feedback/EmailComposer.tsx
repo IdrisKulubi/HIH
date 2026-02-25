@@ -106,12 +106,18 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
 
   // Merge recipients imported from Excel, deduplicated by email
   const handleRecipientsImported = (
-    imported: Array<{ userId: string; email: string; name: string }>
+    imported: Array<{ userId?: string; email: string; name: string }>
   ) => {
     // Add any imported emails we don't already have in the list
     setRecipients((prev) => {
       const existingEmails = new Set(prev.map((r) => r.email));
-      const newOnes = imported.filter((r) => !existingEmails.has(r.email));
+      const newOnes = imported
+        .filter((r) => !existingEmails.has(r.email))
+        .map((r) => ({
+          userId: r.userId ?? "",   // external emails have no userId
+          email: r.email,
+          name: r.name,
+        }));
       return [...prev, ...newOnes];
     });
     // Auto-select all imported emails
@@ -120,6 +126,7 @@ export function EmailComposer({ onCampaignCreated }: EmailComposerProps) {
       imported.forEach((r) => existing.add(r.email));
       return Array.from(existing);
     });
+
   };
 
   const toggleRecipient = (email: string) => {
