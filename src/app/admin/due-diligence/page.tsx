@@ -56,6 +56,7 @@ function getStatusBadge(status: string) {
         approved: { label: "Approved", variant: "default" },
         queried: { label: "Queried", variant: "destructive" },
         auto_reassigned: { label: "Auto-Reassigned", variant: "destructive" },
+        rejected: { label: "Rejected", variant: "destructive" },
     };
 
     const config = statusConfig[status] || { label: status, variant: "outline" as const };
@@ -262,6 +263,7 @@ export default function DueDiligencePage() {
                         <SelectItem value="approved">Approved</SelectItem>
                         <SelectItem value="queried">Queried</SelectItem>
                         <SelectItem value="auto_reassigned">Auto-Reassigned</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button
