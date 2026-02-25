@@ -124,7 +124,95 @@ export async function getCampaignDetails(campaignId: number) {
   }
 }
 
-// Send emails in batches
+// ─── Private helper (no auth – called internally) ───────────────────────────
+async function _processBatch(
+  campaignId: number,
+  batchNumber: number,
+  campaign: { id: number; subject: string | null; emailBody: string | null; feedbackFormUrl: string | null; linkDisplayText: string | null; sentCount: number | null; failedCount: number | null; totalRecipients: number | null; startedAt: Date | null }
+): Promise<{ successCount: number; failCount: number }> {
+  // Get pending emails for this batch
+  const emails = await db.query.feedbackEmails.findMany({
+    where: and(
+      eq(feedbackEmails.campaignId, campaignId),
+      eq(feedbackEmails.batchNumber, batchNumber),
+      eq(feedbackEmails.status, "pending")
+    ),
+  });
+
+  if (emails.length === 0) return { successCount: 0, failCount: 0 };
+
+  // Mark campaign as sending
+  await db
+    .update(feedbackCampaigns)
+    .set({ status: "sending", startedAt: campaign.startedAt || new Date() })
+    .where(eq(feedbackCampaigns.id, campaignId));
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const email of emails) {
+    try {
+      await db
+        .update(feedbackEmails)
+        .set({ status: "sending" })
+        .where(eq(feedbackEmails.id, email.id));
+
+      await sendEmail({
+        to: email.recipientEmail,
+        subject: campaign.subject || "Feedback Request",
+        react: FeedbackRequestEmail({
+          recipientName: email.recipientName,
+          emailBody: campaign.emailBody || "",
+          feedbackFormUrl: campaign.feedbackFormUrl || undefined,
+          linkDisplayText: campaign.linkDisplayText || undefined,
+        }),
+      });
+
+      await db
+        .update(feedbackEmails)
+        .set({ status: "sent", sentAt: new Date() })
+        .where(eq(feedbackEmails.id, email.id));
+
+      successCount++;
+    } catch (error) {
+      await db
+        .update(feedbackEmails)
+        .set({
+          status: "failed",
+          failedAt: new Date(),
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        })
+        .where(eq(feedbackEmails.id, email.id));
+
+      failCount++;
+    }
+  }
+
+  // Update campaign counters
+  const [updated] = await db
+    .update(feedbackCampaigns)
+    .set({
+      sentCount: (campaign.sentCount ?? 0) + successCount,
+      failedCount: (campaign.failedCount ?? 0) + failCount,
+    })
+    .where(eq(feedbackCampaigns.id, campaignId))
+    .returning();
+
+  // Mark campaign complete if all emails are accounted for
+  if (
+    updated &&
+    (updated.sentCount ?? 0) + (updated.failedCount ?? 0) >= (updated.totalRecipients ?? 0)
+  ) {
+    await db
+      .update(feedbackCampaigns)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(feedbackCampaigns.id, campaignId));
+  }
+
+  return { successCount, failCount };
+}
+
+// Send emails in batches (public server action)
 export async function sendCampaignBatch(
   campaignId: number,
   batchNumber: number
@@ -135,7 +223,6 @@ export async function sendCampaignBatch(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get campaign details
     const campaign = await db.query.feedbackCampaigns.findFirst({
       where: eq(feedbackCampaigns.id, campaignId),
     });
@@ -144,10 +231,8 @@ export async function sendCampaignBatch(
       return { success: false, error: "Campaign not found" };
     }
 
-
-
-    // Get emails for this batch that are pending
-    const emails = await db.query.feedbackEmails.findMany({
+    // Check if there are any pending emails in this batch
+    const hasPending = await db.query.feedbackEmails.findFirst({
       where: and(
         eq(feedbackEmails.campaignId, campaignId),
         eq(feedbackEmails.batchNumber, batchNumber),
@@ -155,93 +240,15 @@ export async function sendCampaignBatch(
       ),
     });
 
-    if (emails.length === 0) {
+    if (!hasPending) {
       return { success: false, error: "No pending emails in this batch" };
     }
 
-    // Update campaign status to sending
-    await db
-      .update(feedbackCampaigns)
-      .set({
-        status: "sending",
-        startedAt: campaign.startedAt || new Date(),
-      })
-      .where(eq(feedbackCampaigns.id, campaignId));
-
-    let successCount = 0;
-    let failCount = 0;
-
-    // Send emails one by one
-    for (const email of emails) {
-      try {
-        // Update status to sending
-        await db
-          .update(feedbackEmails)
-          .set({ status: "sending" })
-          .where(eq(feedbackEmails.id, email.id));
-
-        await sendEmail({
-          to: email.recipientEmail,
-          subject: campaign.subject || "Feedback Request",
-          react: FeedbackRequestEmail({
-            recipientName: email.recipientName,
-            emailBody: campaign.emailBody || "",
-            feedbackFormUrl: campaign.feedbackFormUrl || undefined,
-            linkDisplayText: campaign.linkDisplayText || undefined,
-          }),
-        });
-
-        // Mark as sent
-        await db
-          .update(feedbackEmails)
-          .set({
-            status: "sent",
-            sentAt: new Date(),
-          })
-          .where(eq(feedbackEmails.id, email.id));
-
-        successCount++;
-      } catch (error) {
-        // Mark as failed
-        await db
-          .update(feedbackEmails)
-          .set({
-            status: "failed",
-            failedAt: new Date(),
-            errorMessage:
-              error instanceof Error ? error.message : "Unknown error",
-          })
-          .where(eq(feedbackEmails.id, email.id));
-
-        failCount++;
-      }
-    }
-
-    // Update campaign stats
-    const updatedCampaign = await db
-      .update(feedbackCampaigns)
-      .set({
-        sentCount: (campaign.sentCount ?? 0) + successCount,
-        failedCount: (campaign.failedCount ?? 0) + failCount,
-      })
-      .where(eq(feedbackCampaigns.id, campaignId))
-      .returning();
-
-    // Check if campaign is complete
-    const updated = updatedCampaign[0];
-    if (
-      updated &&
-      (updated.sentCount ?? 0) + (updated.failedCount ?? 0) >=
-      (updated.totalRecipients ?? 0)
-    ) {
-      await db
-        .update(feedbackCampaigns)
-        .set({
-          status: "completed",
-          completedAt: new Date(),
-        })
-        .where(eq(feedbackCampaigns.id, campaignId));
-    }
+    const { successCount, failCount } = await _processBatch(
+      campaignId,
+      batchNumber,
+      campaign
+    );
 
     return {
       success: true,
@@ -456,7 +463,7 @@ export async function checkEmailsAgainstDb(emails: string[]) {
   }
 }
 
-// Send all pending batches automatically
+// Send all pending batches automatically (no setTimeout – avoids server action timeouts)
 export async function sendAllBatchesAutomatically(campaignId: number) {
   try {
     const session = await auth();
@@ -464,7 +471,6 @@ export async function sendAllBatchesAutomatically(campaignId: number) {
       return { success: false, error: "Unauthorized" };
     }
 
-    // Get campaign details
     const campaign = await db.query.feedbackCampaigns.findFirst({
       where: eq(feedbackCampaigns.id, campaignId),
     });
@@ -473,7 +479,6 @@ export async function sendAllBatchesAutomatically(campaignId: number) {
       return { success: false, error: "Campaign not found" };
     }
 
-    // Calculate total batches
     const totalRecipients = campaign.totalRecipients ?? 0;
     const batchSize = campaign.batchSize ?? 5;
 
@@ -482,71 +487,30 @@ export async function sendAllBatchesAutomatically(campaignId: number) {
     }
 
     const totalBatches = Math.ceil(totalRecipients / batchSize);
-
     let totalSent = 0;
     let totalFailed = 0;
 
-    // Send each batch sequentially
+    // Snapshot the campaign object so _processBatch can update counters correctly
+    // We re-fetch after each batch to keep sentCount / failedCount in sync
+    let liveCampaign = campaign;
+
     for (let batchNumber = 1; batchNumber <= totalBatches; batchNumber++) {
-      // Check if batch has pending emails
-      const pendingEmails = await db.query.feedbackEmails.findMany({
-        where: and(
-          eq(feedbackEmails.campaignId, campaignId),
-          eq(feedbackEmails.batchNumber, batchNumber),
-          eq(feedbackEmails.status, "pending")
-        ),
-      });
-
-      if (pendingEmails.length > 0) {
-        // Send this batch
-        const result = await sendCampaignBatch(campaignId, batchNumber);
-
-        if (result.success) {
-          totalSent += result.successCount || 0;
-          totalFailed += result.failCount || 0;
-        }
-
-        // Wait 2 seconds between batches to avoid rate limits
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-
-      // After each batch, retry any failed emails from this batch
-      const failedInBatch = await db.query.feedbackEmails.findMany({
-        where: and(
-          eq(feedbackEmails.campaignId, campaignId),
-          eq(feedbackEmails.batchNumber, batchNumber),
-          eq(feedbackEmails.status, "failed")
-        ),
-      });
-
-      if (failedInBatch.length > 0) {
-        const retryResult = await retryFailedEmails(
-          campaignId,
-          failedInBatch.map((e) => e.id)
-        );
-
-        if (retryResult.success) {
-          totalSent += retryResult.successCount || 0;
-        }
-
-        // Wait 2 seconds after retry
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    // Final check: retry any remaining failed emails
-    const allFailed = await db.query.feedbackEmails.findMany({
-      where: and(
-        eq(feedbackEmails.campaignId, campaignId),
-        eq(feedbackEmails.status, "failed")
-      ),
-    });
-
-    if (allFailed.length > 0) {
-      await retryFailedEmails(
+      const { successCount, failCount } = await _processBatch(
         campaignId,
-        allFailed.map((e) => e.id)
+        batchNumber,
+        liveCampaign
       );
+
+      totalSent += successCount;
+      totalFailed += failCount;
+
+      // Re-fetch so next batch has accurate sentCount / failedCount
+      if (successCount + failCount > 0) {
+        const refreshed = await db.query.feedbackCampaigns.findFirst({
+          where: eq(feedbackCampaigns.id, campaignId),
+        });
+        if (refreshed) liveCampaign = refreshed;
+      }
     }
 
     return {
