@@ -61,13 +61,16 @@ export async function createFeedbackCampaign(data: CreateCampaignData) {
     // Create email records for recipients
     const emailRecords = data.recipients.map((recipient, index) => ({
       campaignId: campaign.id,
-      recipientId: recipient.userId,
+      // External emails (not in DB) have no userId — store null to satisfy the FK
+      recipientId: recipient.userId && recipient.userId !== "" ? recipient.userId : null,
       recipientEmail: recipient.email,
       recipientName: recipient.name,
       batchNumber: Math.floor(index / (data.batchSize || 5)) + 1,
     }));
 
+    console.log(`[createFeedbackCampaign] Inserting ${emailRecords.length} email records for campaign ${campaign.id}`);
     await db.insert(feedbackEmails).values(emailRecords);
+    console.log(`[createFeedbackCampaign] ✓ Insert complete`);
 
     return { success: true, campaign };
   } catch (error) {
@@ -138,6 +141,10 @@ async function _processBatch(
       eq(feedbackEmails.status, "pending")
     ),
   });
+
+  console.log(
+    `[Campaign ${campaignId}] _processBatch(${batchNumber}): found ${emails.length} pending emails`
+  );
 
   if (emails.length === 0) return { successCount: 0, failCount: 0 };
 
@@ -245,8 +252,11 @@ export async function sendCampaignBatch(
   batchNumber: number
 ) {
   try {
+    console.log(`[sendCampaignBatch] Called: campaignId=${campaignId}, batchNumber=${batchNumber}`);
+
     const session = await auth();
     if (!session?.user?.id) {
+      console.error(`[sendCampaignBatch] Unauthorized - no session`);
       return { success: false, error: "Unauthorized" };
     }
 
@@ -255,8 +265,22 @@ export async function sendCampaignBatch(
     });
 
     if (!campaign) {
+      console.error(`[sendCampaignBatch] Campaign ${campaignId} not found`);
       return { success: false, error: "Campaign not found" };
     }
+
+    // Log all distinct batchNumbers stored in the DB for this campaign
+    const allEmails = await db.query.feedbackEmails.findMany({
+      where: eq(feedbackEmails.campaignId, campaignId),
+    });
+    const batchNums = [...new Set(allEmails.map(e => e.batchNumber))].sort((a, b) => a - b);
+    const statusCounts = allEmails.reduce<Record<string, number>>((acc, e) => {
+      acc[e.status] = (acc[e.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    console.log(
+      `[sendCampaignBatch] Campaign ${campaignId}: ${allEmails.length} total emails | batchNums in DB: [${batchNums.join(',')}] | statuses: ${JSON.stringify(statusCounts)} | campaign.batchSize=${campaign.batchSize}`
+    );
 
     // Check if there are any pending emails in this batch
     const hasPending = await db.query.feedbackEmails.findFirst({
@@ -266,6 +290,8 @@ export async function sendCampaignBatch(
         eq(feedbackEmails.status, "pending")
       ),
     });
+
+    console.log(`[sendCampaignBatch] Batch ${batchNumber}: hasPending=${!!hasPending}`);
 
     if (!hasPending) {
       return { success: false, error: "No pending emails in this batch" };

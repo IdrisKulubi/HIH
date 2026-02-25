@@ -663,7 +663,7 @@ export const feedbackCampaigns = pgTable('feedback_campaigns', {
 export const feedbackEmails = pgTable('feedback_emails', {
   id: serial('id').primaryKey(),
   campaignId: integer('campaign_id').notNull().references(() => feedbackCampaigns.id, { onDelete: 'cascade' }),
-  recipientId: text('recipient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recipientId: text('recipient_id').references(() => users.id, { onDelete: 'set null' }),
   recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
   recipientName: varchar('recipient_name', { length: 255 }).notNull(),
   batchNumber: integer('batch_number').default(1).notNull(),
