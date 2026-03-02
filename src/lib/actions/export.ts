@@ -466,9 +466,12 @@ export async function exportData(params: {
 
         // Filter by status if provided
         if (params.filters.status && params.filters.status.length > 0) {
-          queueData = queueData.filter(item =>
-            params.filters.status!.includes(item.ddStatus)
-          );
+          queueData = queueData.filter(item => {
+            if (params.filters.status!.includes("fail")) {
+              return (item as any).displayScore < 60;
+            }
+            return params.filters.status!.includes(item.ddStatus);
+          });
         }
 
         data = queueData.map(item => ({

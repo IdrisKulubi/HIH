@@ -158,7 +158,8 @@ export default function DueDiligencePage() {
             const matchesSearch = !searchQuery ||
                 item.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 item.applicationId.toString().includes(searchQuery);
-            const matchesStatus = statusFilter === "all" || item.ddStatus === statusFilter;
+            const matchesStatus = statusFilter === "all" ||
+                (statusFilter === "fail" ? item.displayScore < 60 : item.ddStatus === statusFilter);
             return matchesSearch && matchesStatus;
         });
     }, [queue, searchQuery, statusFilter]);
@@ -264,6 +265,7 @@ export default function DueDiligencePage() {
                         <SelectItem value="queried">Queried</SelectItem>
                         <SelectItem value="auto_reassigned">Auto-Reassigned</SelectItem>
                         <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="fail">Fail (Score Below 60%)</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button
