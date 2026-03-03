@@ -519,6 +519,7 @@ export async function getDDQueue(): Promise<{
         validatorReviewerId: string | null;
         validatorReviewerName: string | null;
         approvalDeadline: Date | null;
+        businessEmail: string | null;
     }>;
     message?: string;
 }> {
@@ -567,7 +568,13 @@ export async function getDDQueue(): Promise<{
             // Get application details
             const appDetails = await db.query.applications.findFirst({
                 where: eq(applications.id, app.applicationId),
-                with: { business: true }
+                with: {
+                    business: {
+                        with: {
+                            applicant: true
+                        }
+                    }
+                }
             });
 
             if (!appDetails) continue;
@@ -610,6 +617,7 @@ export async function getDDQueue(): Promise<{
                 validatorReviewerId: ddRecord?.validatorReviewerId || null,
                 validatorReviewerName,
                 approvalDeadline: ddRecord?.approvalDeadline || null,
+                businessEmail: appDetails.business?.applicant?.email || null,
             });
         }
 
@@ -904,9 +912,9 @@ export async function claimDDApplication(applicationId: number): Promise<{
             // Check if already claimed by someone else and in progress
             if (record.primaryReviewerId && record.primaryReviewerId !== session.user.id) {
                 if (record.ddStatus === 'in_progress' || record.ddStatus === 'awaiting_approval') {
-                    return { 
-                        success: false, 
-                        message: "This application is already being reviewed by another team member" 
+                    return {
+                        success: false,
+                        message: "This application is already being reviewed by another team member"
                     };
                 }
             }
@@ -1023,7 +1031,7 @@ export async function adminOverrideDDScore(
 
         // Store original score before override (if not already overridden)
         const originalScore = record.originalScore ?? record.phase1Score;
-        
+
         // Round score to integer (database column is integer type)
         const roundedScore = Math.round(newScore);
 

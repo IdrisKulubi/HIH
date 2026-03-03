@@ -477,6 +477,7 @@ export async function exportData(params: {
         data = queueData.map(item => ({
           "Application ID": item.applicationId,
           "Business Name": item.businessName,
+          "Email": (item as any).businessEmail || "N/A",
           "Aggregate Score (%)": item.aggregateScore,
           "Due Diligence Score (%)": item.ddScore !== null ? item.ddScore : "N/A",
           "Status": item.ddStatus.replace(/_/g, " ").toUpperCase(),

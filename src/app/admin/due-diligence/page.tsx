@@ -46,6 +46,7 @@ type DDQueueItem = {
     primaryReviewerId: string | null;
     validatorReviewerId: string | null;
     approvalDeadline: Date | null;
+    businessEmail: string | null;
 };
 
 function getStatusBadge(status: string) {
