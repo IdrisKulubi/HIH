@@ -11,7 +11,8 @@ import {
   pgEnum,
   decimal,
   primaryKey,
-  index
+  index,
+  jsonb
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
@@ -41,7 +42,8 @@ export const userRoleEnum = pgEnum('user_role', [
   'technical_reviewer',
   'reviewer_1',
   'reviewer_2',
-  'oversight'
+  'oversight',
+  'a2f_officer'
 ]);
 
 export const fundingSourceEnum = pgEnum('funding_source', [
@@ -954,3 +956,321 @@ export type DueDiligenceRecord = typeof dueDiligenceRecords.$inferSelect;
 export type NewDueDiligenceRecord = typeof dueDiligenceRecords.$inferInsert;
 export type DueDiligenceItem = typeof dueDiligenceItems.$inferSelect;
 export type NewDueDiligenceItem = typeof dueDiligenceItems.$inferInsert;
+
+// ============================================================
+// === A2F & INVESTMENT MANAGEMENT MODULE =====================
+// ============================================================
+
+// --- Enums ---
+
+export const a2fInstrumentTypeEnum = pgEnum('a2f_instrument_type', [
+  'matching_grant',
+  'repayable_grant',
+]);
+
+export const a2fPipelineStatusEnum = pgEnum('a2f_pipeline_status', [
+  'a2f_pipeline',
+  'due_diligence_initial',
+  'pre_ic_scoring',
+  'ic_appraisal_review',
+  'offer_issued',
+  'contracting',
+  'disbursement_active',
+  'post_ta_monitoring',
+]);
+
+export const a2fDdStageEnum = pgEnum('a2f_dd_stage', [
+  'initial',
+  'pre_ic',
+  'post_ta',
+]);
+
+export const a2fDocumentTypeEnum = pgEnum('a2f_document_type', [
+  'gair',
+  'investment_memo',
+]);
+
+export const a2fAgreementTypeEnum = pgEnum('a2f_agreement_type', [
+  'matching',
+  'repayable',
+  'working_capital',
+]);
+
+export const a2fTransactionTypeEnum = pgEnum('a2f_transaction_type', [
+  'disbursement',
+  'repayment',
+]);
+
+export const a2fTransactionStatusEnum = pgEnum('a2f_transaction_status', [
+  'pending',
+  'verified',
+  'rejected',
+]);
+
+// --- Tables ---
+
+/**
+ * Tracks each qualifying enterprise through the A2F investment pipeline.
+ * Created once an application passes Committee Selection (DD qualified).
+ */
+export const a2fPipeline = pgTable('a2f_pipeline', {
+  id: serial('id').primaryKey(),
+  applicationId: integer('application_id')
+    .notNull()
+    .references(() => applications.id, { onDelete: 'cascade' }),
+  instrumentType: a2fInstrumentTypeEnum('instrument_type').notNull(),
+  requestedAmount: decimal('requested_amount', { precision: 14, scale: 2 }).notNull(),
+  status: a2fPipelineStatusEnum('status').default('a2f_pipeline').notNull(),
+  a2fOfficerId: text('a2f_officer_id').references(() => users.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  applicationIdIdx: index('a2f_pipeline_application_id_idx').on(table.applicationId),
+  statusIdx: index('a2f_pipeline_status_idx').on(table.status),
+  officerIdx: index('a2f_pipeline_officer_id_idx').on(table.a2fOfficerId),
+}));
+
+/**
+ * Stores the full 11-category Due Diligence data per pipeline entry.
+ * Each stage (INITIAL, PRE_IC, POST_TA) gets its own record.
+ *
+ * JSONB field shapes (for reference):
+ *  - companyOverview: { history, businessModel, missionVision }
+ *  - financialDd: { revenue, debt, banking, projections }
+ *  - hrAndRisk: { orgStructure, insurance, crisisManagement }
+ *  - impactEsg: { climateAngle, socioEconomicImpacts }
+ */
+export const a2fDueDiligenceReports = pgTable('a2f_due_diligence_reports', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  stage: a2fDdStageEnum('stage').notNull(),
+  submittedById: text('submitted_by_id').references(() => users.id, { onDelete: 'set null' }),
+
+  // 11-category DD data stored as structured JSONB
+  companyOverview: jsonb('company_overview'),
+  financialDd: jsonb('financial_dd'),
+  hrAndRisk: jsonb('hr_and_risk'),
+  impactEsg: jsonb('impact_esg'),
+  exitStrategy: text('exit_strategy'),
+
+  // Additional DD categories
+  managementTeam: jsonb('management_team'),
+  legalCompliance: jsonb('legal_compliance'),
+  marketPosition: jsonb('market_position'),
+  operationalCapacity: jsonb('operational_capacity'),
+  technologySystems: jsonb('technology_systems'),
+  customerSupplierRelations: jsonb('customer_supplier_relations'),
+
+  isComplete: boolean('is_complete').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_dd_reports_a2f_id_idx').on(table.a2fId),
+  stageIdx: index('a2f_dd_reports_stage_idx').on(table.stage),
+}));
+
+/**
+ * Stores Pre-IC scoring results per pipeline entry.
+ * Two scoring rubric variants: Repayable Grant (max 110) and Matching Grant (max 110).
+ *
+ * JSONB `scores` shape:
+ *  Repayable:  { repaymentCapacity, marketScalability, impactInclusion, investmentPlan, bonus }
+ *  Matching:   { financialReadiness, marketScalability, impactInclusion, investmentLeverage, bonus }
+ */
+export const a2fScoring = pgTable('a2f_scoring', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  scorerId: text('scorer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  instrumentType: a2fInstrumentTypeEnum('instrument_type').notNull(),
+  scores: jsonb('scores').notNull(),
+  totalScore: integer('total_score').notNull().default(0),
+  bonusPoints: integer('bonus_points').notNull().default(0),
+  scorerNotes: text('scorer_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_scoring_a2f_id_idx').on(table.a2fId),
+  scorerIdIdx: index('a2f_scoring_scorer_id_idx').on(table.scorerId),
+}));
+
+/**
+ * Stores Investment Committee documents — GAIR and Investment Memos.
+ * Auto-populated from DD reports; supports multi-member IC approval.
+ *
+ * JSONB `content` shape:
+ *  { risks, mitigations, sourceOfFunds, usesOfFunds, strengths, weaknesses, narrative }
+ */
+export const investmentAppraisals = pgTable('investment_appraisals', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  documentType: a2fDocumentTypeEnum('document_type').notNull(),
+  content: jsonb('content').notNull(),
+  icApprovalStatus: boolean('ic_approval_status').default(false).notNull(),
+  approvedBy: jsonb('approved_by').$type<string[]>().default([]),
+  generatedDocumentUrl: text('generated_document_url'),
+  preparedById: text('prepared_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('investment_appraisals_a2f_id_idx').on(table.a2fId),
+  docTypeIdx: index('investment_appraisals_doc_type_idx').on(table.documentType),
+}));
+
+/**
+ * Records the formal Grant Agreement for each funded enterprise.
+ * Matching Grant: tracks HiH + enterprise co-contributions.
+ * Repayable Grant: 24-month term, 3-month grace, 6% interest by default.
+ */
+export const grantAgreements = pgTable('grant_agreements', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  agreementType: a2fAgreementTypeEnum('agreement_type').notNull(),
+  totalProjectAmount: decimal('total_project_amount', { precision: 14, scale: 2 }).notNull(),
+  hihContribution: decimal('hih_contribution', { precision: 14, scale: 2 }).notNull(),
+  enterpriseContribution: decimal('enterprise_contribution', { precision: 14, scale: 2 }).default('0'),
+
+  // Repayable grant terms (defaults per spec)
+  termMonths: integer('term_months').default(24),
+  interestRate: decimal('interest_rate', { precision: 5, scale: 2 }).default('6.0'),
+  gracePeriodMonths: integer('grace_period_months').default(3),
+
+  // Document lifecycle
+  offerLetterUrl: text('offer_letter_url'),
+  signedDocumentUrl: text('signed_document_url'),
+  offerSentAt: timestamp('offer_sent_at'),
+  signedAt: timestamp('signed_at'),
+  isFullyExecuted: boolean('is_fully_executed').default(false).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('grant_agreements_a2f_id_idx').on(table.a2fId),
+  agreementTypeIdx: index('grant_agreements_agreement_type_idx').on(table.agreementType),
+}));
+
+/**
+ * Ledger of all disbursements and repayments against a Grant Agreement.
+ * Proof documents (receipts/bank slips) uploaded via UploadThing.
+ */
+export const disbursementsAndRepayments = pgTable('disbursements_and_repayments', {
+  id: serial('id').primaryKey(),
+  agreementId: integer('agreement_id')
+    .notNull()
+    .references(() => grantAgreements.id, { onDelete: 'cascade' }),
+  transactionType: a2fTransactionTypeEnum('transaction_type').notNull(),
+  amount: decimal('amount', { precision: 14, scale: 2 }).notNull(),
+  transactionDate: timestamp('transaction_date').notNull(),
+  proofDocumentUrl: text('proof_document_url'),
+  status: a2fTransactionStatusEnum('status').default('pending').notNull(),
+  verifiedById: text('verified_by_id').references(() => users.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at'),
+  rejectionReason: text('rejection_reason'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  agreementIdIdx: index('disbursements_agreement_id_idx').on(table.agreementId),
+  transactionTypeIdx: index('disbursements_transaction_type_idx').on(table.transactionType),
+  statusIdx: index('disbursements_status_idx').on(table.status),
+  transactionDateIdx: index('disbursements_transaction_date_idx').on(table.transactionDate),
+}));
+
+// --- Relations ---
+
+export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [a2fPipeline.applicationId],
+    references: [applications.id],
+  }),
+  a2fOfficer: one(users, {
+    fields: [a2fPipeline.a2fOfficerId],
+    references: [users.id],
+  }),
+  dueDiligenceReports: many(a2fDueDiligenceReports),
+  scoringRecords: many(a2fScoring),
+  investmentAppraisals: many(investmentAppraisals),
+  grantAgreements: many(grantAgreements),
+}));
+
+export const a2fDueDiligenceReportsRelations = relations(a2fDueDiligenceReports, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fDueDiligenceReports.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  submittedBy: one(users, {
+    fields: [a2fDueDiligenceReports.submittedById],
+    references: [users.id],
+  }),
+}));
+
+export const a2fScoringRelations = relations(a2fScoring, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fScoring.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  scorer: one(users, {
+    fields: [a2fScoring.scorerId],
+    references: [users.id],
+  }),
+}));
+
+export const investmentAppraisalsRelations = relations(investmentAppraisals, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [investmentAppraisals.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  preparedBy: one(users, {
+    fields: [investmentAppraisals.preparedById],
+    references: [users.id],
+  }),
+}));
+
+export const grantAgreementsRelations = relations(grantAgreements, ({ one, many }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [grantAgreements.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  transactions: many(disbursementsAndRepayments),
+}));
+
+export const disbursementsAndRepaymentsRelations = relations(disbursementsAndRepayments, ({ one }) => ({
+  grantAgreement: one(grantAgreements, {
+    fields: [disbursementsAndRepayments.agreementId],
+    references: [grantAgreements.id],
+  }),
+  verifiedBy: one(users, {
+    fields: [disbursementsAndRepayments.verifiedById],
+    references: [users.id],
+  }),
+}));
+
+// --- A2F Type Exports ---
+
+export type A2fPipeline = typeof a2fPipeline.$inferSelect;
+export type NewA2fPipeline = typeof a2fPipeline.$inferInsert;
+
+export type A2fDueDiligenceReport = typeof a2fDueDiligenceReports.$inferSelect;
+export type NewA2fDueDiligenceReport = typeof a2fDueDiligenceReports.$inferInsert;
+
+export type A2fScoring = typeof a2fScoring.$inferSelect;
+export type NewA2fScoring = typeof a2fScoring.$inferInsert;
+
+export type InvestmentAppraisal = typeof investmentAppraisals.$inferSelect;
+export type NewInvestmentAppraisal = typeof investmentAppraisals.$inferInsert;
+
+export type GrantAgreement = typeof grantAgreements.$inferSelect;
+export type NewGrantAgreement = typeof grantAgreements.$inferInsert;
+
+export type DisbursementOrRepayment = typeof disbursementsAndRepayments.$inferSelect;
+export type NewDisbursementOrRepayment = typeof disbursementsAndRepayments.$inferInsert;

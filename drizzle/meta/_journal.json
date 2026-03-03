@@ -64,6 +64,13 @@
       "when": 1768384060803,
       "tag": "0008_chilly_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772540293347,
+      "tag": "0009_chief_blink",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,7 @@ import { format } from "date-fns";
 import { UserSupportTickets } from "@/components/support/UserSupportTickets";
 import { PasswordChangeForm } from "@/components/auth/PasswordChangeForm";
 import { ShieldCheck } from "lucide-react";
+import { ApplicantContractsTab } from "@/components/application/ApplicantContractsTab";
 
 // Helper function to get status color
 function getStatusColor(status: string) {
@@ -215,6 +216,15 @@ export default async function ProfilePage() {
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Support
               </TabsTrigger>
+              {!isReviewer && (
+                <TabsTrigger
+                  value="contracts"
+                  className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Contracts
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -531,6 +541,26 @@ export default async function ProfilePage() {
             <TabsContent value="security" className="focus-visible:outline-none">
               <div className="max-w-2xl mx-auto">
                 <PasswordChangeForm />
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Offers & Contracts Tab - Applicants only */}
+          {!isReviewer && (
+            <TabsContent value="contracts" className="focus-visible:outline-none">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Offers & Contracts</h3>
+                    <p className="text-slate-500 text-sm">
+                      Review your grant agreements, download offer letters, and submit signed copies.
+                    </p>
+                  </div>
+                </div>
+                <ApplicantContractsTab />
               </div>
             </TabsContent>
           )}
