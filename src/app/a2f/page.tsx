@@ -12,7 +12,7 @@ import { createA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import { getQualifiedApplications } from "@/lib/actions/due-diligence";
 import { toast } from "sonner";
 import {
-    Card, CardContent, CardHeader, CardTitle, CardDescription,
+    Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +30,14 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+    Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
     Kanban, MagnifyingGlass, X, Plus, ArrowRight, Coins,
-    Buildings, MapPin, User, ArrowsClockwise, Lightning,
-    CheckCircle, Circle, Hourglass, ArrowUUpLeft, Trophy,
-    CurrencyDollar, Warning,
+    Buildings, MapPin, User, ArrowsClockwise,
+    CheckCircle, CurrencyDollar, CaretUpDown, Check,
 } from "@phosphor-icons/react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,11 +78,15 @@ function A2fDashboardContent() {
     const [showCreate, setShowCreate] = useState(false);
     const [qualifiedApps, setQualifiedApps] = useState<Array<{ applicationId: number; businessName: string }>>([]);
     const [creating, setCreating] = useState(false);
-    const [createForm, setCreateForm] = useState({
-        applicationId: "",
-        instrumentType: "matching_grant" as "matching_grant" | "repayable_grant",
-        requestedAmount: "",
-    });
+
+    // Multi-select state: map of applicationId → { instrumentType, requestedAmount }
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [perAppConfig, setPerAppConfig] = useState<Record<number, {
+        instrumentType: "matching_grant" | "repayable_grant";
+        requestedAmount: string;
+    }>>({});
+    const [appPickerOpen, setAppPickerOpen] = useState(false);
+    const [appSearch, setAppSearch] = useState("");
 
     const loadPipeline = useCallback(async () => {
         setLoading(true);
@@ -127,28 +135,67 @@ function A2fDashboardContent() {
                     .map(a => ({ applicationId: a.applicationId, businessName: a.businessName }))
             );
         }
+        setSelectedIds(new Set());
+        setPerAppConfig({});
+        setAppSearch("");
         setShowCreate(true);
     };
 
+    const toggleAppSelection = (appId: number) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(appId)) {
+                next.delete(appId);
+                setPerAppConfig(cfg => {
+                    const c = { ...cfg };
+                    delete c[appId];
+                    return c;
+                });
+            } else {
+                next.add(appId);
+                setPerAppConfig(cfg => ({
+                    ...cfg,
+                    [appId]: { instrumentType: "matching_grant", requestedAmount: "" },
+                }));
+            }
+            return next;
+        });
+    };
+
     const handleCreate = async () => {
-        if (!createForm.applicationId || !createForm.requestedAmount) {
-            toast.error("Please fill in all required fields");
+        const entries = Array.from(selectedIds);
+        if (entries.length === 0) {
+            toast.error("Select at least one enterprise");
+            return;
+        }
+        const invalid = entries.find(id => !perAppConfig[id]?.requestedAmount || Number(perAppConfig[id].requestedAmount) <= 0);
+        if (invalid) {
+            toast.error(`Enter a valid requested amount for all selected enterprises`);
             return;
         }
         setCreating(true);
-        const res = await createA2fPipelineEntry({
-            applicationId: Number(createForm.applicationId),
-            instrumentType: createForm.instrumentType,
-            requestedAmount: Number(createForm.requestedAmount),
-        });
+        let lastId: number | null = null;
+        let successCount = 0;
+        for (const appId of entries) {
+            const cfg = perAppConfig[appId];
+            const res = await createA2fPipelineEntry({
+                applicationId: appId,
+                instrumentType: cfg.instrumentType,
+                requestedAmount: Number(cfg.requestedAmount),
+            });
+            if (res.success) {
+                successCount++;
+                if (res.data?.id) lastId = res.data.id;
+            } else {
+                toast.error(`Failed for app #${appId}: ${res.error}`);
+            }
+        }
         setCreating(false);
-        if (res.success) {
-            toast.success(res.message ?? "Pipeline entry created");
+        if (successCount > 0) {
+            toast.success(`${successCount} pipeline entr${successCount > 1 ? "ies" : "y"} created`);
             setShowCreate(false);
             loadPipeline();
-            if (res.data?.id) router.push(`/a2f/${res.data.id}`);
-        } else {
-            toast.error(res.error ?? "Failed to create entry");
+            if (successCount === 1 && lastId) router.push(`/a2f/${lastId}`);
         }
     };
 
@@ -383,80 +430,205 @@ function A2fDashboardContent() {
             </Card>
 
             {/* ── Create Entry Dialog ── */}
-            <Dialog open={showCreate} onOpenChange={setShowCreate}>
-                <DialogContent className="max-w-md">
+            <Dialog open={showCreate} onOpenChange={open => { setShowCreate(open); if (!open) setAppPickerOpen(false); }}>
+                <DialogContent className="max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Plus className="size-4" />
                             Add to A2F Pipeline
                         </DialogTitle>
                         <DialogDescription>
-                            Select a DD-qualified application and configure the grant instrument.
+                            Search and select one or more DD-qualified enterprises, then configure each grant instrument.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 py-1">
+                        {/* ── Searchable multi-select picker ── */}
                         <div className="space-y-1.5">
-                            <Label>Qualified Application *</Label>
-                            <Select
-                                value={createForm.applicationId}
-                                onValueChange={v => setCreateForm(f => ({ ...f, applicationId: v }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select enterprise…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {qualifiedApps.length === 0 ? (
-                                        <SelectItem value="__none" disabled>
-                                            No unprocessed qualified applications
-                                        </SelectItem>
-                                    ) : (
-                                        qualifiedApps.map(app => (
-                                            <SelectItem key={app.applicationId} value={String(app.applicationId)}>
-                                                {app.businessName} (#{app.applicationId})
-                                            </SelectItem>
-                                        ))
+                            <Label>Qualified Applications *</Label>
+                            <Popover open={appPickerOpen} onOpenChange={setAppPickerOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        className="w-full justify-between font-normal"
+                                    >
+                                        <span className="truncate text-muted-foreground">
+                                            {selectedIds.size === 0
+                                                ? "Search enterprise or applicant name…"
+                                                : `${selectedIds.size} enterprise${selectedIds.size > 1 ? "s" : ""} selected`
+                                            }
+                                        </span>
+                                        <CaretUpDown className="size-4 shrink-0 text-muted-foreground ml-2" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[440px] p-0" align="start">
+                                    <Command shouldFilter={false}>
+                                        <CommandInput
+                                            placeholder="Search by name, applicant or app ID…"
+                                            value={appSearch}
+                                            onValueChange={setAppSearch}
+                                        />
+                                        <CommandList>
+                                            <CommandEmpty>No matching applications found.</CommandEmpty>
+                                            <CommandGroup>
+                                                <ScrollArea className="max-h-64">
+                                                    {qualifiedApps
+                                                        .filter(app => {
+                                                            const q = appSearch.toLowerCase();
+                                                            return !q
+                                                                || app.businessName.toLowerCase().includes(q)
+                                                                || String(app.applicationId).includes(q);
+                                                        })
+                                                        .map(app => {
+                                                            const isSelected = selectedIds.has(app.applicationId);
+                                                            return (
+                                                                <CommandItem
+                                                                    key={app.applicationId}
+                                                                    value={String(app.applicationId)}
+                                                                    onSelect={() => toggleAppSelection(app.applicationId)}
+                                                                    className="flex items-center gap-3 cursor-pointer"
+                                                                >
+                                                                    <div className={`size-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                                                        isSelected
+                                                                            ? "bg-emerald-600 border-emerald-600 text-white"
+                                                                            : "border-input"
+                                                                    }`}>
+                                                                        {isSelected && <Check weight="bold" className="size-2.5" />}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium truncate">{app.businessName}</p>
+                                                                        <p className="text-xs text-muted-foreground">App #{app.applicationId}</p>
+                                                                    </div>
+                                                                </CommandItem>
+                                                            );
+                                                        })
+                                                    }
+                                                </ScrollArea>
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                    {selectedIds.size > 0 && (
+                                        <div className="border-t px-3 py-2 flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 text-xs"
+                                                onClick={() => { setSelectedIds(new Set()); setPerAppConfig({}); }}
+                                            >
+                                                Clear all
+                                            </Button>
+                                        </div>
                                     )}
-                                </SelectContent>
-                            </Select>
+                                </PopoverContent>
+                            </Popover>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label>Grant Instrument *</Label>
-                            <Select
-                                value={createForm.instrumentType}
-                                onValueChange={v => setCreateForm(f => ({ ...f, instrumentType: v as "matching_grant" | "repayable_grant" }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="matching_grant">Matching Grant</SelectItem>
-                                    <SelectItem value="repayable_grant">Repayable Grant (24m @ 6%)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Requested Amount (KES) *</Label>
-                            <div className="relative">
-                                <CurrencyDollar className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                                <Input
-                                    type="number"
-                                    placeholder="0.00"
-                                    className="pl-9"
-                                    value={createForm.requestedAmount}
-                                    onChange={e => setCreateForm(f => ({ ...f, requestedAmount: e.target.value }))}
-                                />
+                        {/* ── Selected chips ── */}
+                        {selectedIds.size > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                                {Array.from(selectedIds).map(id => {
+                                    const app = qualifiedApps.find(a => a.applicationId === id);
+                                    return (
+                                        <Badge
+                                            key={id}
+                                            variant="secondary"
+                                            className="gap-1 pr-1 text-xs max-w-[200px]"
+                                        >
+                                            <span className="truncate">{app?.businessName ?? `#${id}`}</span>
+                                            <button
+                                                onClick={() => toggleAppSelection(id)}
+                                                className="rounded-full hover:bg-muted-foreground/20 p-0.5 ml-0.5 shrink-0"
+                                            >
+                                                <X className="size-2.5" />
+                                            </button>
+                                        </Badge>
+                                    );
+                                })}
                             </div>
-                        </div>
+                        )}
+
+                        {/* ── Per-enterprise config rows ── */}
+                        {selectedIds.size > 0 && (
+                            <div className="space-y-3">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                    Configure each enterprise
+                                </p>
+                                <ScrollArea className="max-h-56">
+                                    <div className="space-y-3 pr-1">
+                                        {Array.from(selectedIds).map(id => {
+                                            const app = qualifiedApps.find(a => a.applicationId === id);
+                                            const cfg = perAppConfig[id] ?? { instrumentType: "matching_grant", requestedAmount: "" };
+                                            return (
+                                                <div key={id} className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="rounded bg-emerald-100 p-1">
+                                                            <Buildings weight="duotone" className="size-3.5 text-emerald-700" />
+                                                        </div>
+                                                        <p className="text-sm font-semibold truncate flex-1">{app?.businessName}</p>
+                                                        <span className="text-xs text-muted-foreground shrink-0">#{id}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div className="space-y-1">
+                                                            <Label className="text-xs">Instrument</Label>
+                                                            <Select
+                                                                value={cfg.instrumentType}
+                                                                onValueChange={v => setPerAppConfig(c => ({
+                                                                    ...c,
+                                                                    [id]: { ...c[id], instrumentType: v as "matching_grant" | "repayable_grant" },
+                                                                }))}
+                                                            >
+                                                                <SelectTrigger className="h-8 text-xs">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="matching_grant">Matching Grant</SelectItem>
+                                                                    <SelectItem value="repayable_grant">Repayable (24m @ 6%)</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-xs">Amount (KES)</Label>
+                                                            <div className="relative">
+                                                                <CurrencyDollar className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+                                                                <Input
+                                                                    type="number"
+                                                                    placeholder="0.00"
+                                                                    className="h-8 pl-6 text-xs"
+                                                                    value={cfg.requestedAmount}
+                                                                    onChange={e => setPerAppConfig(c => ({
+                                                                        ...c,
+                                                                        [id]: { ...c[id], requestedAmount: e.target.value },
+                                                                    }))}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="mt-2">
                         <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-                        <Button onClick={handleCreate} disabled={creating} className="bg-emerald-700 hover:bg-emerald-800">
-                            {creating ? <ArrowsClockwise className="size-4 mr-2 animate-spin" /> : <Plus className="size-4 mr-2" />}
-                            Create Entry
+                        <Button
+                            onClick={handleCreate}
+                            disabled={creating || selectedIds.size === 0}
+                            className="bg-emerald-700 hover:bg-emerald-800 gap-1.5"
+                        >
+                            {creating
+                                ? <ArrowsClockwise className="size-4 animate-spin" />
+                                : <Plus className="size-4" />
+                            }
+                            {creating
+                                ? "Creating…"
+                                : `Add ${selectedIds.size > 0 ? selectedIds.size : ""} to Pipeline`
+                            }
                         </Button>
                     </DialogFooter>
                 </DialogContent>
