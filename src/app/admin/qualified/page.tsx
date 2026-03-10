@@ -119,8 +119,9 @@ export default function QualifiedApplicationsPage() {
     }), [applications]);
 
     const getScoreBadgeColor = (score: number) => {
-        if (score >= 80) return "bg-emerald-100 text-emerald-800 border-emerald-300";
-        if (score >= 70) return "bg-blue-100 text-blue-800 border-blue-300";
+        const capped = Math.min(score, 100);
+        if (capped >= 80) return "bg-emerald-100 text-emerald-800 border-emerald-300";
+        if (capped >= 70) return "bg-blue-100 text-blue-800 border-blue-300";
         return "bg-amber-100 text-amber-800 border-amber-300";
     };
 
@@ -353,7 +354,7 @@ export default function QualifiedApplicationsPage() {
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Badge className={`text-lg font-bold ${getScoreBadgeColor(app.ddScore)}`}>
-                                                    {app.ddScore}%
+                                                    {Math.min(app.ddScore, 100)}%
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>

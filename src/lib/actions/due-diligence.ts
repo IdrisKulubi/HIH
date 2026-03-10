@@ -642,8 +642,8 @@ export async function submitPrimaryDDReview(
             return { success: false, message: "Unauthorized" };
         }
 
-        // Round score to integer (database column is integer type)
-        const roundedScore = Math.round(finalScore);
+        // Round score to integer and cap at 100 (database column is integer type)
+        const roundedScore = Math.min(100, Math.round(finalScore));
 
         let record = await db.query.dueDiligenceRecords.findFirst({
             where: eq(dueDiligenceRecords.applicationId, applicationId)
@@ -1032,8 +1032,8 @@ export async function adminOverrideDDScore(
         // Store original score before override (if not already overridden)
         const originalScore = record.originalScore ?? record.phase1Score;
 
-        // Round score to integer (database column is integer type)
-        const roundedScore = Math.round(newScore);
+        // Round score to integer and cap at 100 (database column is integer type)
+        const roundedScore = Math.min(100, Math.round(newScore));
 
         await db.update(dueDiligenceRecords)
             .set({
