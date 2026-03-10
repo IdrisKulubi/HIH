@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -79,6 +79,13 @@ function ApplicationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // URL-derived filter state (read first so they can seed the useState calls below)
+  const currentPage = Number(searchParams.get("page")) || 1;
+  const currentStatus = searchParams.get("status") || "all";
+  const currentScoreRange = searchParams.get("scoreRange") || "all";
+  const currentSearch = searchParams.get("search") || "";
+  const currentTab = searchParams.get("tab") || "all";
+
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [observationStats, setObservationStats] = useState<{ totalObservation: number } | null>(null);
@@ -88,12 +95,23 @@ function ApplicationsContent() {
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isReconciling, setIsReconciling] = useState(false);
 
-  // Filters state
-  const currentPage = Number(searchParams.get("page")) || 1;
-  const currentStatus = searchParams.get("status") || "all";
-  const currentScoreRange = searchParams.get("scoreRange") || "all";
-  const currentSearch = searchParams.get("search") || "";
-  const currentTab = searchParams.get("tab") || "all";
+  // Local search state for controlled, debounced input
+  const [searchInput, setSearchInput] = useState(currentSearch);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced search: fires 400ms after the user stops typing
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      if (searchInput !== currentSearch) {
+        handleSearch(searchInput);
+      }
+    }, 400);
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   // Load data function
   const loadData = useCallback(async () => {
@@ -235,11 +253,14 @@ function ApplicationsContent() {
           <div className="relative w-full sm:w-[320px]">
             <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search applicant, business, or ID..."
+              placeholder="Search enterprise, applicant, or ID..."
               className="pl-9 h-10 bg-gray-50/50 border-transparent focus:bg-white focus:border-blue-500 transition-all rounded-xl"
-              defaultValue={currentSearch}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch((e.currentTarget as HTMLInputElement).value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
+            {isSearching && (
+              <Spinner className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-400" />
+            )}
           </div>
 
           {/* Track Tabs (Pills) */}

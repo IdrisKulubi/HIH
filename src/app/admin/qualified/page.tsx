@@ -44,6 +44,7 @@ type QualifiedApplication = {
     businessName: string;
     applicantName: string;
     applicantEmail: string;
+    applicantPhone: string;
     county: string;
     sector: string;
     track: string;
@@ -77,15 +78,15 @@ export default function QualifiedApplicationsPage() {
     }, []);
 
     // Get unique values for filters
-    const counties = useMemo(() => 
+    const counties = useMemo(() =>
         [...new Set(applications.map(a => a.county).filter(Boolean))].sort(),
         [applications]
     );
-    const sectors = useMemo(() => 
+    const sectors = useMemo(() =>
         [...new Set(applications.map(a => a.sector).filter(Boolean))].sort(),
         [applications]
     );
-    const tracks = useMemo(() => 
+    const tracks = useMemo(() =>
         [...new Set(applications.map(a => a.track).filter(Boolean))].sort(),
         [applications]
     );
@@ -93,7 +94,7 @@ export default function QualifiedApplicationsPage() {
     // Filtered applications
     const filteredApplications = useMemo(() => {
         return applications.filter(app => {
-            const matchesSearch = !searchQuery || 
+            const matchesSearch = !searchQuery ||
                 app.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 app.applicationId.toString().includes(searchQuery);
@@ -107,7 +108,7 @@ export default function QualifiedApplicationsPage() {
     // Stats
     const stats = useMemo(() => ({
         total: applications.length,
-        avgScore: applications.length > 0 
+        avgScore: applications.length > 0
             ? Math.round(applications.reduce((sum, a) => sum + a.ddScore, 0) / applications.length)
             : 0,
         topPerformers: applications.filter(a => a.ddScore >= 80).length,
@@ -124,12 +125,13 @@ export default function QualifiedApplicationsPage() {
     };
 
     const exportToCSV = () => {
-        const headers = ['Application ID', 'Business Name', 'Applicant', 'Email', 'County', 'Sector', 'Track', 'DD Score', 'Completed Date', 'Primary Reviewer', 'Validator'];
+        const headers = ['Application ID', 'Business Name', 'Applicant', 'Email', 'Phone', 'County', 'Sector', 'Track', 'DD Score', 'Completed Date', 'Primary Reviewer', 'Validator'];
         const rows = filteredApplications.map(app => [
             app.applicationId,
             app.businessName,
             app.applicantName,
             app.applicantEmail,
+            app.applicantPhone,
             app.county,
             app.sector,
             app.track,
@@ -138,7 +140,7 @@ export default function QualifiedApplicationsPage() {
             app.primaryReviewerName || '',
             app.validatorName || ''
         ]);
-        
+
         const csvContent = [headers.join(','), ...rows.map(r => r.map(cell => `"${cell}"`).join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -313,6 +315,7 @@ export default function QualifiedApplicationsPage() {
                                     <TableRow>
                                         <TableHead>Business</TableHead>
                                         <TableHead>Applicant</TableHead>
+                                        <TableHead>Phone</TableHead>
                                         <TableHead>County</TableHead>
                                         <TableHead>Track</TableHead>
                                         <TableHead className="text-center">DD Score</TableHead>
@@ -336,6 +339,9 @@ export default function QualifiedApplicationsPage() {
                                                         <div className="text-xs text-gray-500">{app.applicantEmail}</div>
                                                     </div>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-gray-700">{app.applicantPhone || '-'}</span>
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-sm">{app.county || '-'}</span>

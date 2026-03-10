@@ -1070,6 +1070,7 @@ export async function getQualifiedApplications(): Promise<{
         businessName: string;
         applicantName: string;
         applicantEmail: string;
+        applicantPhone: string;
         county: string;
         sector: string;
         track: string;
@@ -1107,6 +1108,7 @@ export async function getQualifiedApplications(): Promise<{
                 applicantFirstName: applicants.firstName,
                 applicantLastName: applicants.lastName,
                 applicantEmail: applicants.email,
+                applicantPhone: applicants.phoneNumber,
             })
             .from(dueDiligenceRecords)
             .innerJoin(applications, eq(applications.id, dueDiligenceRecords.applicationId))
@@ -1145,6 +1147,7 @@ export async function getQualifiedApplications(): Promise<{
             businessName: record.businessName || 'Unknown',
             applicantName: `${record.applicantFirstName || ''} ${record.applicantLastName || ''}`.trim() || 'Unknown',
             applicantEmail: record.applicantEmail || '',
+            applicantPhone: record.applicantPhone || '',
             county: record.county || '',
             sector: record.sector || '',
             track: record.track || '',
