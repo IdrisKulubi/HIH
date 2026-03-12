@@ -23,7 +23,7 @@ const formatExportValue = (value: unknown): string => {
 
 // Export data function for bulk exports
 export async function exportData(params: {
-  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified" | "due_diligence_queue" | "observation_applications";
+  type: "applications" | "applicants" | "eligibility" | "due_diligence_qualified" | "due_diligence_queue" | "observation_applications" | "system_rejected";
   format: "csv" | "json" | "xlsx";
   filters: {
     status?: string[];
@@ -520,6 +520,48 @@ export async function exportData(params: {
         }));
 
         fileName = `BIRE_Observation_Applications_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
+        break;
+      }
+
+      case "system_rejected": {
+        // Fetch all applications with eligibility results to check systemScore
+        const rejectedData = await db.query.applications.findMany({
+          where: conditions.length ? and(...conditions) : undefined,
+          orderBy: [desc(applications.createdAt)],
+          with: {
+            business: {
+              with: {
+                applicant: true,
+              },
+            },
+            eligibilityResults: true,
+          },
+        });
+
+        // Filter for those with systemScore < 60
+        const filteredRejected = rejectedData.filter(app => {
+          const res = app.eligibilityResults?.[0];
+          if (!res || res.systemScore === null) return false;
+          return parseFloat(res.systemScore) < 60;
+        });
+
+        data = filteredRejected.map(app => {
+          const res = app.eligibilityResults?.[0];
+          return {
+            "Application ID": app.id,
+            "Business Name": app.business?.name || "",
+            "Applicant Name": `${app.business?.applicant?.firstName || ""} ${app.business?.applicant?.lastName || ""}`.trim(),
+            "Email": app.business?.applicant?.email || "",
+            "Phone": app.business?.applicant?.phoneNumber || "",
+            "County": app.business?.county?.replace(/_/g, " ").toUpperCase() || "N/A",
+            "Track": app.track ? app.track.charAt(0).toUpperCase() + app.track.slice(1) : "N/A",
+            "Initial System Score": res?.systemScore || "0",
+            "Status": app.status.replace(/_/g, " ").toUpperCase(),
+            "Submitted At": formatExportValue(app.submittedAt),
+          };
+        });
+
+        fileName = `BIRE_System_Rejected_Export_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}`;
         break;
       }
 

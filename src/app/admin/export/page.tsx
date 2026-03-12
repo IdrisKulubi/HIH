@@ -44,7 +44,7 @@ import { toast } from "sonner";
 import { exportData } from "@/lib/actions/export";
 
 const formSchema = z.object({
-  type: z.enum(["applications", "applicants", "eligibility", "due_diligence_qualified"]),
+  type: z.enum(["applications", "applicants", "eligibility", "due_diligence_qualified", "system_rejected"]),
   format: z.enum(["csv", "json", "xlsx"]),
   filters: z.object({
     status: z.array(z.string()).optional(),
@@ -214,6 +214,7 @@ export default function ExportPage() {
                           <SelectItem value="applicants">Applicants</SelectItem>
                           <SelectItem value="eligibility">Eligibility Results</SelectItem>
                           <SelectItem value="due_diligence_qualified" className="font-semibold text-blue-600">Due Diligence Qualified (60%+)</SelectItem>
+                          <SelectItem value="system_rejected" className="font-semibold text-red-600">System Rejected (Initial Score &lt; 60%)</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
