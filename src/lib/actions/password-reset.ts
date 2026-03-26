@@ -107,9 +107,10 @@ export async function resetPassword(email: string, code: string, newPassword: st
     // 2. Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // 3. Update the user's password
+    // 3. Update the user's password and mark email as verified
+    // (user proved ownership of this email via OTP code)
     const [updatedUser] = await db.update(users)
-      .set({ password: hashedPassword, updatedAt: new Date() })
+      .set({ password: hashedPassword, emailVerified: new Date(), updatedAt: new Date() })
       .where(eq(users.email, normalizedEmail))
       .returning();
       
