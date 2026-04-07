@@ -66,6 +66,11 @@ export default async function AdminLayout({
                 </Link>
               </li>
               <li>
+                <Link href="/admin/kyc" className="text-sky-300 hover:text-sky-200 transition-colors">
+                  KYC
+                </Link>
+              </li>
+              <li>
                 <Link href="/admin/analytics" className="text-white/80 hover:text-white transition-colors">
                   Analytics
                 </Link>

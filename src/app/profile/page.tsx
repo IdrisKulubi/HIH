@@ -81,6 +81,23 @@ function getStatusDescription(status: string) {
   }
 }
 
+function getKycStatusDescription(status?: string) {
+  switch (status) {
+    case 'in_progress':
+      return 'Your KYC profile has been opened. Complete the required compliance information to continue.';
+    case 'submitted':
+      return 'Your KYC submission is under review by the verification team.';
+    case 'needs_info':
+      return 'The verification team has requested additional KYC information before activation.';
+    case 'verified':
+      return 'Your KYC profile has been verified and your downstream programme modules can now be unlocked.';
+    case 'rejected':
+      return 'Your KYC submission was rejected. Please contact the programme team for next steps.';
+    default:
+      return 'KYC has not started yet.';
+  }
+}
+
 export default async function ProfilePage() {
   const session = await auth();
 
@@ -100,6 +117,15 @@ export default async function ProfilePage() {
   const application = applicationResult?.success ? applicationResult.data : null;
 
   const isReviewer = ['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(userProfile.role || '');
+
+  if (
+    !isReviewer &&
+    application &&
+    (application.status === 'approved' || application.status === 'finalist') &&
+    application.kycStatus !== 'verified'
+  ) {
+    redirect('/kyc');
+  }
 
   const profileFields = [
     userProfile.firstName,
@@ -311,6 +337,22 @@ export default async function ProfilePage() {
                         </p>
                       </div>
 
+                      {(application.status === "approved" || application.status === "finalist") && (
+                        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="font-semibold text-blue-900">KYC onboarding is now required</p>
+                              <p className="text-sm text-blue-800/80">
+                                Complete KYC to unlock mentorship, CNA, M&amp;E, and downstream programme support.
+                              </p>
+                            </div>
+                            <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                              <Link href="/kyc">Open KYC</Link>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
 
                     </div>
                   </div>
@@ -351,6 +393,17 @@ export default async function ProfilePage() {
                           <p className="text-sm text-slate-500 leading-relaxed">
                             {getStatusDescription(application.status)}
                           </p>
+                          {(application.status === 'approved' || application.status === 'finalist') && (
+                            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-left">
+                              <p className="text-xs font-bold uppercase tracking-wider text-blue-700">KYC Status</p>
+                              <p className="mt-1 text-sm font-semibold text-blue-900 capitalize">
+                                {application.kycStatus.replace(/_/g, ' ')}
+                              </p>
+                              <p className="mt-1 text-sm text-blue-800/80">
+                                {getKycStatusDescription(application.kycStatus)}
+                              </p>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <>
@@ -498,7 +551,9 @@ export default async function ProfilePage() {
                       { status: 'shortlisted', label: 'Shortlisted', desc: 'You made it to the shortlist!', completed: ['shortlisted', 'scoring_phase', 'dragons_den', 'finalist', 'approved'].includes(application.status) },
                       { status: 'scoring_phase', label: 'Detailed Scoring', desc: 'Experts are reviewing your detailed plan.', completed: ['scoring_phase', 'dragons_den', 'finalist', 'approved'].includes(application.status) },
                       { status: 'finalist', label: 'Finalist', desc: 'You are a finalist!', completed: ['finalist', 'approved'].includes(application.status) },
-                      { status: 'approved', label: 'Selected for Funding', desc: 'Congratulations! Funding approved. Please wait for further communication.', completed: application.status === 'approved' }
+                      { status: 'approved', label: 'Selected for Programme', desc: 'You have been selected and must complete KYC before activation.', completed: application.status === 'approved' || application.status === 'finalist' },
+                      { status: 'kyc_submitted', label: 'KYC Submitted', desc: 'Your compliance profile has been submitted for verification.', completed: ['submitted', 'needs_info', 'verified'].includes(application.kycStatus) },
+                      { status: 'kyc_verified', label: 'KYC Verified', desc: 'Your enterprise profile is verified and downstream modules can be unlocked.', completed: application.kycStatus === 'verified' }
                     ].map((step, index) => (
                       <div key={step.status} className={`flex gap-6 relative group ${!step.completed && application.status !== step.status ? 'opacity-50' : ''
                         }`}>

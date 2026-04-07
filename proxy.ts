@@ -48,8 +48,8 @@ export async function proxy(request: Request & { nextUrl: URL }) {
     if (callbackUrl && callbackUrl !== "/login") {
       return NextResponse.redirect(new URL(callbackUrl, request.url));
     }
-    // Default redirect after login - go to apply page
-    return NextResponse.redirect(new URL("/apply", request.url));
+    // Default redirect after login - go to profile, which can route users into KYC if needed
+    return NextResponse.redirect(new URL("/profile", request.url));
   }
 
   // Allow access to all other routes for authenticated users

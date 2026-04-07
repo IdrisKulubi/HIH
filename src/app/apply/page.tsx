@@ -68,6 +68,13 @@ export default async function ApplyPage() {
   const existingApplication = await getUserApplication();
 
   if (existingApplication.success && existingApplication.data) {
+    const app = existingApplication.data;
+    if (
+      (app.status === "approved" || app.status === "finalist") &&
+      app.kycStatus !== "verified"
+    ) {
+      redirect('/kyc');
+    }
     redirect('/profile');
   }
 
