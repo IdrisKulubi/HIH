@@ -113,3 +113,18 @@ export {
     getDetailedScores,
 } from "./scoring-progress";
 
+// =============================================================================
+// KYC
+// =============================================================================
+
+export {
+    getCurrentUserKycProfile,
+    saveKycDraft,
+    submitKycProfile,
+    getKycQueue,
+    getKycProfileForAdmin,
+    reviewKycSubmission,
+    requestKycProfileChange,
+    reviewKycChangeRequest,
+} from "./kyc";
+

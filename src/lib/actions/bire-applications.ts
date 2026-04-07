@@ -467,6 +467,8 @@ export async function getUserApplication(): Promise<ActionResponse<{
     id: number;
     track: string | null;
     status: string;
+    kycStatus: string;
+    kycRequired: boolean;
     submittedAt: string | null;
     business: {
         name: string;
@@ -527,6 +529,8 @@ export async function getUserApplication(): Promise<ActionResponse<{
             id: applicationData.id,
             track: applicationData.track,
             status: applicationData.status,
+            kycStatus: applicationData.kycStatus,
+            kycRequired: applicationData.kycRequired,
             submittedAt: applicationData.submittedAt?.toISOString() ?? null,
             business: {
                 name: applicationData.business.name,
