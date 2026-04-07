@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { ReactNode, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { saveKycDraft, submitKycProfile, requestKycProfileChange } from "@/lib/actions";
+import { KycDocumentUploader } from "@/components/kyc/KycDocumentUploader";
+import { cn } from "@/lib/utils";
+import { Loader2, MapPin } from "lucide-react";
 
 type DocumentItem = {
   documentType:
@@ -80,9 +83,52 @@ const DOC_LABELS: Array<{ type: DocumentItem["documentType"]; label: string; req
   { type: "additional_supporting_document", label: "Additional Supporting Document", required: false },
 ];
 
+const FIELD_LABELS: Record<string, string> = {
+  gpsCoordinates: "Business location",
+  registrationTypeConfirmed: "Registration type",
+  kraPin: "KRA PIN",
+  bankName: "Bank name",
+  bankAccountName: "Bank account name",
+  baselineMonthLabel: "Baseline label",
+  baselineRevenue: "Baseline revenue",
+  baselineEmployeeCount: "Baseline employee count",
+  secondaryContactName: "Secondary contact name",
+  secondaryContactPhone: "Secondary contact phone",
+  secondaryContactEmail: "Secondary contact email",
+};
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function RequiredLabel({
+  htmlFor,
+  children,
+}: {
+  htmlFor?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className="inline-flex items-center gap-1">
+      <span>{children}</span>
+      <span className="text-red-500">*</span>
+    </Label>
+  );
+}
+
+function buildDocumentNumber(documentType: DocumentItem["documentType"]) {
+  const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  return `${documentType.toUpperCase()}-${timestamp}`;
+}
+
 export function KycProfileClient({ data }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState(
+    data.profile.gpsCoordinates ? "Current location captured." : ""
+  );
+  const [actionError, setActionError] = useState("");
+  const [validationSummary, setValidationSummary] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const existingDocs = useMemo(
     () =>
       Object.fromEntries(
@@ -127,6 +173,87 @@ export function KycProfileClient({ data }: Props) {
   });
 
   const isLocked = data.profile.profileLockStatus === "locked" || data.profile.profileLockStatus === "change_requested";
+  const canEditKyc = data.profile.status === "in_progress" || data.profile.status === "needs_info";
+  const showEditableActions = canEditKyc && !isLocked;
+  const showReadOnlySummary = !canEditKyc;
+  const isSubmittedState = data.profile.status === "submitted";
+  const isVerifiedState = data.profile.status === "verified";
+  const isRejectedState = data.profile.status === "rejected";
+  const isNeedsInfoState = data.profile.status === "needs_info";
+
+  const submittedValues = [
+    { label: "Business location", value: form.gpsCoordinates || "Not provided" },
+    {
+      label: "Registration type",
+      value: form.registrationTypeConfirmed.replace(/_/g, " ") || "Not provided",
+    },
+    { label: "KRA PIN", value: form.kraPin || "Not provided" },
+    { label: "Bank name", value: form.bankName || "Not provided" },
+    { label: "Bank account name", value: form.bankAccountName || "Not provided" },
+    { label: "Baseline label", value: form.baselineMonthLabel || "Not provided" },
+    { label: "Baseline revenue", value: form.baselineRevenue || "Not provided" },
+    { label: "Baseline employee count", value: form.baselineEmployeeCount || "Not provided" },
+    { label: "Secondary contact name", value: form.secondaryContactName || "Not provided" },
+    { label: "Secondary contact phone", value: form.secondaryContactPhone || "Not provided" },
+    { label: "Secondary contact email", value: form.secondaryContactEmail || "Not provided" },
+  ];
+
+  const statusBanner = isVerifiedState
+    ? {
+        title: "KYC verified",
+        description: "Your KYC details have been verified. This profile is now locked for compliance control.",
+        className: "border-emerald-200 bg-emerald-50",
+        titleClassName: "text-emerald-900",
+        textClassName: "text-emerald-800",
+      }
+    : isSubmittedState
+      ? {
+          title: "KYC submitted for review",
+          description: "Your KYC details are with the review team. You can view what you submitted below while we verify the information.",
+          className: "border-blue-200 bg-blue-50",
+          titleClassName: "text-blue-900",
+          textClassName: "text-blue-800",
+        }
+      : isRejectedState
+        ? {
+            title: "KYC submission was not approved",
+            description: "Please review the feedback below. This submission is currently read-only.",
+            className: "border-red-200 bg-red-50",
+            titleClassName: "text-red-900",
+            textClassName: "text-red-800",
+          }
+        : null;
+
+  const setFieldValue = (field: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+
+    if (field === "gpsCoordinates") {
+      setLocationMessage(value.trim() ? "Location ready." : "");
+    }
+  };
+
+  const setDocumentValue = (
+    documentType: DocumentItem["documentType"],
+    value: { fileUrl: string; fileName: string; documentNumber: string; notes: string }
+  ) => {
+    setDocuments((current) => ({
+      ...current,
+      [documentType]: value,
+    }));
+    setFieldErrors((current) => {
+      const errorKey = `documents.${documentType}`;
+      if (!current[errorKey]) return current;
+      const next = { ...current };
+      delete next[errorKey];
+      return next;
+    });
+  };
 
   const serializeDocs = () =>
     DOC_LABELS.map((item) => ({
@@ -158,25 +285,137 @@ export function KycProfileClient({ data }: Props) {
     documents: serializeDocs(),
   });
 
+  const validateSubmitForm = () => {
+    const nextFieldErrors: Record<string, string> = {};
+    const nextSummary: string[] = [];
+    const trimmed = {
+      gpsCoordinates: form.gpsCoordinates.trim(),
+      registrationTypeConfirmed: form.registrationTypeConfirmed,
+      kraPin: form.kraPin.trim(),
+      bankName: form.bankName.trim(),
+      bankAccountName: form.bankAccountName.trim(),
+      baselineMonthLabel: form.baselineMonthLabel.trim(),
+      baselineRevenue: form.baselineRevenue.trim(),
+      baselineEmployeeCount: form.baselineEmployeeCount.trim(),
+      secondaryContactEmail: form.secondaryContactEmail.trim(),
+    };
+
+    const requireField = (field: keyof typeof trimmed) => {
+      if (!trimmed[field]) {
+        const message = `${FIELD_LABELS[field]} is required.`;
+        nextFieldErrors[field] = message;
+        nextSummary.push(message);
+      }
+    };
+
+    requireField("gpsCoordinates");
+    requireField("registrationTypeConfirmed");
+    requireField("kraPin");
+    requireField("bankName");
+    requireField("bankAccountName");
+    requireField("baselineMonthLabel");
+    requireField("baselineRevenue");
+    requireField("baselineEmployeeCount");
+
+    if (trimmed.baselineRevenue && Number.isNaN(Number(trimmed.baselineRevenue))) {
+      const message = "Baseline revenue must be a valid number.";
+      nextFieldErrors.baselineRevenue = message;
+      nextSummary.push(message);
+    }
+
+    if (trimmed.baselineEmployeeCount && Number.isNaN(Number(trimmed.baselineEmployeeCount))) {
+      const message = "Baseline employee count must be a valid number.";
+      nextFieldErrors.baselineEmployeeCount = message;
+      nextSummary.push(message);
+    }
+
+    if (trimmed.secondaryContactEmail && !EMAIL_REGEX.test(trimmed.secondaryContactEmail)) {
+      const message = "Secondary contact email must be a valid email address.";
+      nextFieldErrors.secondaryContactEmail = message;
+      nextSummary.push(message);
+    }
+
+    const requiredDocuments = DOC_LABELS.filter(
+      (doc) => doc.required || (doc.type === "cr12" && trimmed.registrationTypeConfirmed === "limited_company")
+    );
+
+    for (const doc of requiredDocuments) {
+      if (!documents[doc.type]?.fileUrl?.trim()) {
+        const message = `${doc.label} is required.`;
+        nextFieldErrors[`documents.${doc.type}`] = message;
+        nextSummary.push(message);
+      }
+    }
+
+    return {
+      nextFieldErrors,
+      nextSummary: Array.from(new Set(nextSummary)),
+    };
+  };
+
+  const focusFirstError = (errors: Record<string, string>) => {
+    const firstKey = Object.keys(errors)[0];
+    if (!firstKey) return;
+
+    const targetId = firstKey.startsWith("documents.")
+      ? `document-${firstKey.replace("documents.", "")}`
+      : firstKey;
+    const element = document.getElementById(targetId);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if ("focus" in (element ?? {})) {
+      (element as HTMLElement).focus();
+    }
+  };
+
+  const handleValidationFailure = (summary: string[], errors: Record<string, string>, fallbackMessage?: string) => {
+    setFieldErrors(errors);
+    setValidationSummary(summary);
+    setActionError(fallbackMessage ?? "Please complete the highlighted KYC details before submitting.");
+    focusFirstError(errors);
+  };
+
+  const renderFieldError = (field: string) =>
+    fieldErrors[field] ? <p className="text-sm text-red-600">{fieldErrors[field]}</p> : null;
+
+  const getInputClassName = (field: string) =>
+    cn(fieldErrors[field] && "border-red-300 focus-visible:ring-red-500");
+
   const handleSaveDraft = () => {
     startTransition(async () => {
       const result = await saveKycDraft(buildPayload());
       if (!result.success) {
-        toast.error(result.error || "Failed to save draft");
+        const message = result.error || "Failed to save draft";
+        setActionError(message);
+        toast.error(message);
         return;
       }
+      setActionError("");
+      setValidationSummary([]);
       toast.success(result.message || "Draft saved");
       router.refresh();
     });
   };
 
   const handleSubmit = () => {
+    const { nextFieldErrors, nextSummary } = validateSubmitForm();
+    if (nextSummary.length > 0) {
+      handleValidationFailure(nextSummary, nextFieldErrors);
+      toast.error("Please complete the highlighted KYC details.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await submitKycProfile(buildPayload());
       if (!result.success) {
-        toast.error(result.error || "Failed to submit KYC");
+        const message = result.error || "Failed to submit KYC";
+        setActionError(message);
+        setValidationSummary([]);
+        toast.error(message);
         return;
       }
+      setActionError("");
+      setValidationSummary([]);
+      setFieldErrors({});
       toast.success(result.message || "KYC submitted");
       router.refresh();
     });
@@ -190,13 +429,67 @@ export function KycProfileClient({ data }: Props) {
         reason: changeRequest.reason,
       });
       if (!result.success) {
-        toast.error(result.error || "Failed to submit change request");
+        const message = result.error || "Failed to submit change request";
+        setActionError(message);
+        toast.error(message);
         return;
       }
+      setActionError("");
+      setValidationSummary([]);
       toast.success(result.message || "Change request submitted");
       setChangeRequest((current) => ({ ...current, requestedValue: "", reason: "" }));
       router.refresh();
     });
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      const message = "Location is not supported on this device or browser.";
+      setFieldErrors((current) => ({ ...current, gpsCoordinates: message }));
+      setLocationMessage("");
+      toast.error(message);
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationMessage("Getting your current location...");
+    setFieldErrors((current) => {
+      if (!current.gpsCoordinates) return current;
+      const next = { ...current };
+      delete next.gpsCoordinates;
+      return next;
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coordinates = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+        setFieldValue("gpsCoordinates", coordinates);
+        setLocationMessage(
+          position.coords.accuracy
+            ? `Location captured within about ${Math.round(position.coords.accuracy)} meters.`
+            : "Current location captured."
+        );
+        setIsLocating(false);
+        toast.success("Location captured");
+      },
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Please allow location access, or enter the location manually."
+            : error.code === error.POSITION_UNAVAILABLE
+              ? "We could not detect your location right now. Please try again or enter it manually."
+              : "Location request timed out. Please try again or enter it manually.";
+        setFieldErrors((current) => ({ ...current, gpsCoordinates: message }));
+        setLocationMessage("");
+        setIsLocating(false);
+        toast.error(message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000,
+      }
+    );
   };
 
   return (
@@ -246,6 +539,35 @@ export function KycProfileClient({ data }: Props) {
         </Card>
       )}
 
+      {actionError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-900">Please fix these KYC details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-red-800">{actionError}</p>
+            {validationSummary.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 text-sm text-red-800">
+                {validationSummary.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {statusBanner && (
+        <Card className={statusBanner.className}>
+          <CardHeader>
+            <CardTitle className={statusBanner.titleClassName}>{statusBanner.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={cn("text-sm", statusBanner.textClassName)}>{statusBanner.description}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>KYC Details</CardTitle>
@@ -254,122 +576,234 @@ export function KycProfileClient({ data }: Props) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="gpsCoordinates">GPS Coordinates</Label>
-              <Input id="gpsCoordinates" value={form.gpsCoordinates} onChange={(e) => setForm({ ...form, gpsCoordinates: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registrationTypeConfirmed">Registration Type</Label>
-              <select
-                id="registrationTypeConfirmed"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={form.registrationTypeConfirmed}
-                onChange={(e) => setForm({ ...form, registrationTypeConfirmed: e.target.value })}
-                disabled={isLocked || isPending}
-              >
-                <option value="limited_company">Limited Company</option>
-                <option value="partnership">Partnership</option>
-                <option value="cooperative">Cooperative</option>
-                <option value="self_help_group_cbo">Self Help Group / CBO</option>
-                <option value="sole_proprietorship">Sole Proprietorship</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="kraPin">KRA PIN</Label>
-              <Input id="kraPin" value={form.kraPin} onChange={(e) => setForm({ ...form, kraPin: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="baselineMonthLabel">Baseline Label</Label>
-              <Input id="baselineMonthLabel" value={form.baselineMonthLabel} onChange={(e) => setForm({ ...form, baselineMonthLabel: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="baselineRevenue">Baseline Revenue</Label>
-              <Input id="baselineRevenue" type="number" value={form.baselineRevenue} onChange={(e) => setForm({ ...form, baselineRevenue: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="baselineEmployeeCount">Baseline Employee Count</Label>
-              <Input id="baselineEmployeeCount" type="number" value={form.baselineEmployeeCount} onChange={(e) => setForm({ ...form, baselineEmployeeCount: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bankName">Bank Name</Label>
-              <Input id="bankName" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bankAccountName">Bank Account Name</Label>
-              <Input id="bankAccountName" value={form.bankAccountName} onChange={(e) => setForm({ ...form, bankAccountName: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="secondaryContactName">Secondary Contact Name</Label>
-              <Input id="secondaryContactName" value={form.secondaryContactName} onChange={(e) => setForm({ ...form, secondaryContactName: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="secondaryContactPhone">Secondary Contact Phone</Label>
-              <Input id="secondaryContactPhone" value={form.secondaryContactPhone} onChange={(e) => setForm({ ...form, secondaryContactPhone: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="secondaryContactEmail">Secondary Contact Email</Label>
-              <Input id="secondaryContactEmail" value={form.secondaryContactEmail} onChange={(e) => setForm({ ...form, secondaryContactEmail: e.target.value })} disabled={isLocked || isPending} />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold text-slate-900">Documents</h3>
-              <p className="text-sm text-slate-500">Paste the uploaded file URLs for now. We can switch this to UploadThing forms next.</p>
-            </div>
-            {DOC_LABELS.map((doc) => (
-              <div key={doc.type} className="rounded-xl border border-slate-200 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <Label className="font-medium text-slate-900">{doc.label}</Label>
-                  <div className="flex items-center gap-2">
-                    {doc.required && <Badge variant="outline">Required</Badge>}
-                    {data.documents.find((item) => item.documentType === doc.type)?.isVerified && (
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>
+          {showEditableActions ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="space-y-2">
+                    <RequiredLabel htmlFor="gpsCoordinates">Business Location</RequiredLabel>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="gpsCoordinates"
+                        placeholder="Use your current location or enter coordinates manually"
+                        className={cn("sm:flex-1", getInputClassName("gpsCoordinates"))}
+                        value={form.gpsCoordinates}
+                        onChange={(e) => setFieldValue("gpsCoordinates", e.target.value)}
+                        disabled={isLocked || isPending || isLocating}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleUseCurrentLocation}
+                        disabled={isLocked || isPending || isLocating}
+                        className="sm:w-auto"
+                      >
+                        {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                        Use my current location
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      The easiest option is to let the browser capture the location for you. Manual entry is only a fallback.
+                    </p>
+                    {locationMessage && !fieldErrors.gpsCoordinates && (
+                      <p className="text-sm text-slate-600">{locationMessage}</p>
                     )}
                   </div>
+                  {renderFieldError("gpsCoordinates")}
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Input
-                    placeholder="File URL"
-                    value={documents[doc.type]?.fileUrl ?? ""}
-                    onChange={(e) => setDocuments({ ...documents, [doc.type]: { ...documents[doc.type], fileUrl: e.target.value } })}
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="registrationTypeConfirmed">Registration Type</RequiredLabel>
+                  <select
+                    id="registrationTypeConfirmed"
+                    className={cn("flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm", getInputClassName("registrationTypeConfirmed"))}
+                    value={form.registrationTypeConfirmed}
+                    onChange={(e) => setFieldValue("registrationTypeConfirmed", e.target.value)}
                     disabled={isLocked || isPending}
-                  />
-                  <Input
-                    placeholder="File name"
-                    value={documents[doc.type]?.fileName ?? ""}
-                    onChange={(e) => setDocuments({ ...documents, [doc.type]: { ...documents[doc.type], fileName: e.target.value } })}
-                    disabled={isLocked || isPending}
-                  />
-                  <Input
-                    placeholder="Document number"
-                    value={documents[doc.type]?.documentNumber ?? ""}
-                    onChange={(e) => setDocuments({ ...documents, [doc.type]: { ...documents[doc.type], documentNumber: e.target.value } })}
-                    disabled={isLocked || isPending}
-                  />
-                  <Input
-                    placeholder="Notes"
-                    value={documents[doc.type]?.notes ?? ""}
-                    onChange={(e) => setDocuments({ ...documents, [doc.type]: { ...documents[doc.type], notes: e.target.value } })}
-                    disabled={isLocked || isPending}
-                  />
+                  >
+                    <option value="limited_company">Limited Company</option>
+                    <option value="partnership">Partnership</option>
+                    <option value="cooperative">Cooperative</option>
+                    <option value="self_help_group_cbo">Self Help Group / CBO</option>
+                    <option value="sole_proprietorship">Sole Proprietorship</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {renderFieldError("registrationTypeConfirmed")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="kraPin">KRA PIN</RequiredLabel>
+                  <Input id="kraPin" className={getInputClassName("kraPin")} value={form.kraPin} onChange={(e) => setFieldValue("kraPin", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("kraPin")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="baselineMonthLabel">Baseline Label</RequiredLabel>
+                  <Input id="baselineMonthLabel" className={getInputClassName("baselineMonthLabel")} value={form.baselineMonthLabel} onChange={(e) => setFieldValue("baselineMonthLabel", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("baselineMonthLabel")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="baselineRevenue">Baseline Revenue</RequiredLabel>
+                  <Input id="baselineRevenue" className={getInputClassName("baselineRevenue")} type="number" value={form.baselineRevenue} onChange={(e) => setFieldValue("baselineRevenue", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("baselineRevenue")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="baselineEmployeeCount">Baseline Employee Count</RequiredLabel>
+                  <Input id="baselineEmployeeCount" className={getInputClassName("baselineEmployeeCount")} type="number" value={form.baselineEmployeeCount} onChange={(e) => setFieldValue("baselineEmployeeCount", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("baselineEmployeeCount")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="bankName">Bank Name</RequiredLabel>
+                  <Input id="bankName" className={getInputClassName("bankName")} value={form.bankName} onChange={(e) => setFieldValue("bankName", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("bankName")}
+                </div>
+                <div className="space-y-2">
+                  <RequiredLabel htmlFor="bankAccountName">Bank Account Name</RequiredLabel>
+                  <Input id="bankAccountName" className={getInputClassName("bankAccountName")} value={form.bankAccountName} onChange={(e) => setFieldValue("bankAccountName", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("bankAccountName")}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryContactName">Secondary Contact Name</Label>
+                  <Input id="secondaryContactName" value={form.secondaryContactName} onChange={(e) => setFieldValue("secondaryContactName", e.target.value)} disabled={isLocked || isPending} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryContactPhone">Secondary Contact Phone</Label>
+                  <Input id="secondaryContactPhone" value={form.secondaryContactPhone} onChange={(e) => setFieldValue("secondaryContactPhone", e.target.value)} disabled={isLocked || isPending} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="secondaryContactEmail">Secondary Contact Email</Label>
+                  <Input id="secondaryContactEmail" className={getInputClassName("secondaryContactEmail")} value={form.secondaryContactEmail} onChange={(e) => setFieldValue("secondaryContactEmail", e.target.value)} disabled={isLocked || isPending} />
+                  {renderFieldError("secondaryContactEmail")}
                 </div>
               </div>
-            ))}
-          </div>
 
-          {!isLocked && (
-            <div className="flex flex-wrap gap-3">
-              <Button variant="outline" onClick={handleSaveDraft} disabled={isPending}>Save Draft</Button>
-              <Button onClick={handleSubmit} disabled={isPending}>Submit for Review</Button>
-            </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Documents</h3>
+                  <p className="text-sm text-slate-500">Upload the required compliance documents before submitting your KYC profile.</p>
+                </div>
+                {DOC_LABELS.map((doc) => (
+                  <div
+                    key={doc.type}
+                    id={`document-${doc.type}`}
+                    className={cn(
+                      "rounded-xl border border-slate-200 p-4",
+                      fieldErrors[`documents.${doc.type}`] && "border-red-300 bg-red-50/40"
+                    )}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="inline-flex items-center gap-1 font-medium text-slate-900">
+                        <span>{doc.label}</span>
+                        {(doc.required || (doc.type === "cr12" && form.registrationTypeConfirmed === "limited_company")) && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {doc.required && <Badge variant="outline">Required</Badge>}
+                        {data.documents.find((item) => item.documentType === doc.type)?.isVerified && (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <KycDocumentUploader
+                        label={doc.label}
+                        description={doc.required ? "Required before KYC can be submitted." : "Optional supporting document."}
+                        value={documents[doc.type]?.fileUrl ?? ""}
+                        fileName={documents[doc.type]?.fileName ?? ""}
+                        disabled={isLocked || isPending}
+                        onUploaded={({ fileUrl, fileName }) =>
+                          setDocumentValue(doc.type, {
+                            ...documents[doc.type],
+                            fileUrl,
+                            fileName,
+                            documentNumber: documents[doc.type]?.documentNumber || buildDocumentNumber(doc.type),
+                          })
+                        }
+                        onRemove={() =>
+                          setDocumentValue(doc.type, {
+                            fileUrl: "",
+                            fileName: "",
+                            documentNumber: "",
+                            notes: "",
+                          })
+                        }
+                      />
+                      {renderFieldError(`documents.${doc.type}`)}
+                      {documents[doc.type]?.fileName && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                          Stored file name: <span className="font-medium text-slate-800">{documents[doc.type]?.fileName}</span>
+                        </div>
+                      )}
+                      <Input
+                        placeholder="Notes"
+                        value={documents[doc.type]?.notes ?? ""}
+                        onChange={(e) =>
+                          setDocumentValue(doc.type, {
+                            ...documents[doc.type],
+                            notes: e.target.value,
+                          })
+                        }
+                        disabled={isLocked || isPending}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" onClick={handleSaveDraft} disabled={isPending}>Save Draft</Button>
+                <Button onClick={handleSubmit} disabled={isPending}>
+                  {isNeedsInfoState ? "Update and Resubmit" : "Submit for Review"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                {submittedValues.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-sm text-slate-500">{item.label}</p>
+                    <p className="mt-1 font-medium text-slate-900 capitalize">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Submitted Documents</h3>
+                  <p className="text-sm text-slate-500">These are the files currently attached to your KYC submission.</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {DOC_LABELS.filter((doc) => documents[doc.type]?.fileUrl).map((doc) => (
+                    <div key={doc.type} className="rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium text-slate-900">{doc.label}</p>
+                        {data.documents.find((item) => item.documentType === doc.type)?.isVerified && (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {documents[doc.type]?.fileName || "Uploaded document"}
+                      </p>
+                      <a
+                        href={documents[doc.type]?.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block break-all text-sm text-blue-700 underline underline-offset-4"
+                      >
+                        View document
+                      </a>
+                      {documents[doc.type]?.notes && (
+                        <p className="mt-2 text-sm text-slate-500">Notes: {documents[doc.type]?.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
-      {data.fieldChanges.length > 0 && (
+      {data.fieldChanges.length > 0 && canEditKyc && (
         <Card>
           <CardHeader>
             <CardTitle>Detected Changes</CardTitle>

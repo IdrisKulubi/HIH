@@ -92,8 +92,61 @@ type KycSubmitInput = z.infer<typeof kycSubmitSchema>;
 type KycReviewInput = z.infer<typeof kycReviewSchema>;
 type KycChangeRequestInput = z.infer<typeof kycChangeRequestSchema>;
 
+const KYC_FIELD_LABELS: Record<string, string> = {
+  gpsCoordinates: "Business location",
+  registrationTypeConfirmed: "Registration type",
+  kraPin: "KRA PIN",
+  bankName: "Bank name",
+  bankAccountName: "Bank account name",
+  baselineMonthLabel: "Baseline label",
+  baselineRevenue: "Baseline revenue",
+  baselineEmployeeCount: "Baseline employee count",
+  secondaryContactName: "Secondary contact name",
+  secondaryContactPhone: "Secondary contact phone",
+  secondaryContactEmail: "Secondary contact email",
+  documents: "Supporting documents",
+  fieldName: "Field name",
+  requestedValue: "Requested value",
+  reason: "Reason",
+  action: "Review action",
+  applicationId: "Application",
+  reviewNotes: "Review notes",
+};
+
+const KYC_DOCUMENT_LABELS: Record<string, string> = {
+  tax_compliance_certificate: "Tax Compliance Certificate",
+  cr12: "CR12",
+  bank_account_proof: "Bank Account Proof",
+  programme_consent_form: "Programme Consent Form",
+  director_id_document: "Director ID Document",
+  additional_supporting_document: "Additional Supporting Document",
+};
+
 function isKycAdmin(role?: string | null) {
   return !!role && KYC_ADMIN_ROLES.includes(role as (typeof KYC_ADMIN_ROLES)[number]);
+}
+
+function formatValidationError(error: z.ZodError) {
+  const messages = error.issues.map((issue) => {
+    const rawPath = issue.path[0]?.toString() ?? "field";
+    const fieldLabel = KYC_FIELD_LABELS[rawPath] ?? rawPath;
+
+    if (issue.code === "too_small" && issue.minimum === 1) {
+      return `${fieldLabel} is required.`;
+    }
+
+    if (issue.code === "invalid_type" && issue.received === "undefined") {
+      return `${fieldLabel} is required.`;
+    }
+
+    if (rawPath === "secondaryContactEmail" && issue.code === "invalid_string") {
+      return "Secondary contact email must be a valid email address.";
+    }
+
+    return `${fieldLabel}: ${issue.message}`;
+  });
+
+  return Array.from(new Set(messages)).join(" ");
 }
 
 function buildOriginalSnapshot(application: {
@@ -412,7 +465,7 @@ export async function saveKycDraft(input: KycDraftInput): Promise<ActionResponse
   } catch (error) {
     console.error("Error saving KYC draft:", error);
     if (error instanceof z.ZodError) {
-      return errorResponse(`Validation failed: ${error.errors.map((item) => item.message).join(", ")}`);
+      return errorResponse(`Please complete the missing KYC details. ${formatValidationError(error)}`);
     }
     return errorResponse("Failed to save KYC draft");
   }
@@ -450,7 +503,8 @@ export async function submitKycProfile(input: KycSubmitInput): Promise<ActionRes
 
     const missing = requiredDocuments.filter((docType) => !documentTypes.has(docType as typeof allDocs[number]["documentType"]));
     if (missing.length) {
-      return errorResponse(`Missing required KYC documents: ${missing.join(", ")}`);
+      const missingLabels = missing.map((docType) => KYC_DOCUMENT_LABELS[docType] ?? docType);
+      return errorResponse(`Please upload the missing required documents: ${missingLabels.join(", ")}.`);
     }
 
     const originalSnapshot = (profile.originalSnapshot as ReturnType<typeof buildOriginalSnapshot>) || buildOriginalSnapshot(application);
@@ -501,7 +555,7 @@ export async function submitKycProfile(input: KycSubmitInput): Promise<ActionRes
   } catch (error) {
     console.error("Error submitting KYC profile:", error);
     if (error instanceof z.ZodError) {
-      return errorResponse(`Validation failed: ${error.errors.map((item) => item.message).join(", ")}`);
+      return errorResponse(`Please complete the missing KYC details before submitting. ${formatValidationError(error)}`);
     }
     return errorResponse("Failed to submit KYC profile");
   }
@@ -680,7 +734,7 @@ export async function reviewKycSubmission(input: KycReviewInput): Promise<Action
   } catch (error) {
     console.error("Error reviewing KYC submission:", error);
     if (error instanceof z.ZodError) {
-      return errorResponse(`Validation failed: ${error.errors.map((item) => item.message).join(", ")}`);
+      return errorResponse(`Review data is incomplete. ${formatValidationError(error)}`);
     }
     return errorResponse("Failed to review KYC submission");
   }
@@ -726,7 +780,7 @@ export async function requestKycProfileChange(input: KycChangeRequestInput): Pro
   } catch (error) {
     console.error("Error requesting KYC profile change:", error);
     if (error instanceof z.ZodError) {
-      return errorResponse(`Validation failed: ${error.errors.map((item) => item.message).join(", ")}`);
+      return errorResponse(`Please complete the change request details. ${formatValidationError(error)}`);
     }
     return errorResponse("Failed to submit change request");
   }
