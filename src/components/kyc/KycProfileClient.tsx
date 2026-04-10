@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { saveKycDraft, submitKycProfile, requestKycProfileChange } from "@/lib/actions";
 import { KycDocumentUploader } from "@/components/kyc/KycDocumentUploader";
 import { cn } from "@/lib/utils";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Loader2, MapPin } from "lucide-react";
 
 type DocumentItem = {
@@ -784,10 +785,13 @@ export function KycProfileClient({ data }: Props) {
                         {documents[doc.type]?.fileName || "Uploaded document"}
                       </p>
                       <a
-                        href={documents[doc.type]?.fileUrl}
+                        href={getDocumentViewerHref(
+                          documents[doc.type]?.fileUrl ?? "",
+                          documents[doc.type]?.fileName ?? "",
+                        )}
                         target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block break-all text-sm text-blue-700 underline underline-offset-4"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block text-sm text-blue-700 underline underline-offset-4"
                       >
                         View document
                       </a>

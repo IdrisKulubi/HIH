@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
 
 type Props = {
   applicationId: number;
@@ -17,6 +18,7 @@ type Props = {
     id?: number;
     documentType: string;
     fileUrl: string;
+    fileName?: string | null;
     isVerified?: boolean;
     notes?: string | null;
   }>;
@@ -115,8 +117,13 @@ export function AdminKycReviewClient({ applicationId, profileStatus, documents, 
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-slate-900">{doc.documentType.replace(/_/g, " ")}</p>
-                  <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline underline-offset-4">
-                    {doc.fileUrl}
+                  <a
+                    href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 underline underline-offset-4"
+                  >
+                    View document
                   </a>
                 </div>
                 {doc.isVerified && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>}

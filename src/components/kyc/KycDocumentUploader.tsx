@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useDropzone } from "@uploadthing/react";
 import { useUploadThing } from "@/utils/uploadthing";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,13 +139,13 @@ export function KycDocumentUploader({
               <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Ready</Badge>
             </div>
             <a
-              href={value}
+              href={getDocumentViewerHref(value, fileName ?? "")}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="block break-all text-sm text-emerald-700 underline underline-offset-4"
               onClick={(event) => event.stopPropagation()}
             >
-              {value}
+              Open / preview file
             </a>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-emerald-800/80">Click this area to replace the file.</p>
