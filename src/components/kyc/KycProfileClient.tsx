@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useMemo, useState, useTransition } from "react";
+import { ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { saveKycDraft, submitKycProfile, requestKycProfileChange } from "@/lib/actions";
+import { saveKycDraft, submitKycProfile, requestKycProfileChange, saveKycApplicantDemographics } from "@/lib/actions";
+import type { ApplicationPhaseDocument } from "@/lib/kyc-application-documents";
 import { KycDocumentUploader } from "@/components/kyc/KycDocumentUploader";
 import { cn } from "@/lib/utils";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Loader2, MapPin } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 type DocumentItem = {
   documentType:
@@ -54,10 +56,24 @@ type Props = {
     };
     business: {
       name: string;
+      sector: string | null;
+      sectorOther: string | null;
+      county: string | null;
+      city: string;
       registrationType: string | null;
       revenueLastYear: string | null;
       fullTimeEmployeesTotal: number | null;
     };
+    applicant: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phoneNumber: string;
+      gender: string;
+      dob: string;
+      idPassportNumber: string;
+    };
+    applicationDocuments: ApplicationPhaseDocument[];
     documents: Array<{
       documentType: DocumentItem["documentType"];
       fileUrl: string;
@@ -100,6 +116,15 @@ const FIELD_LABELS: Record<string, string> = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function formatEnumLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.replace(/_/g, " ");
+}
+
+function normalizeApplicantGender(g: string): "male" | "female" | "other" {
+  return g === "male" || g === "female" || g === "other" ? g : "other";
+}
+
 function RequiredLabel({
   htmlFor,
   children,
@@ -122,6 +147,7 @@ function buildDocumentNumber(documentType: DocumentItem["documentType"]) {
 
 export function KycProfileClient({ data }: Props) {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const [isPending, startTransition] = useTransition();
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState(
@@ -172,6 +198,35 @@ export function KycProfileClient({ data }: Props) {
     requestedValue: "",
     reason: "",
   });
+
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [applicantForm, setApplicantForm] = useState({
+    firstName: data.applicant.firstName,
+    lastName: data.applicant.lastName,
+    phoneNumber: data.applicant.phoneNumber,
+    idPassportNumber: data.applicant.idPassportNumber,
+    gender: normalizeApplicantGender(data.applicant.gender),
+    dob: data.applicant.dob,
+  });
+  const [applicantFieldErrors, setApplicantFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setApplicantForm({
+      firstName: data.applicant.firstName,
+      lastName: data.applicant.lastName,
+      phoneNumber: data.applicant.phoneNumber,
+      idPassportNumber: data.applicant.idPassportNumber,
+      gender: normalizeApplicantGender(data.applicant.gender),
+      dob: data.applicant.dob,
+    });
+  }, [
+    data.applicant.firstName,
+    data.applicant.lastName,
+    data.applicant.phoneNumber,
+    data.applicant.idPassportNumber,
+    data.applicant.gender,
+    data.applicant.dob,
+  ]);
 
   const isLocked = data.profile.profileLockStatus === "locked" || data.profile.profileLockStatus === "change_requested";
   const canEditKyc = data.profile.status === "in_progress" || data.profile.status === "needs_info";
@@ -418,6 +473,7 @@ export function KycProfileClient({ data }: Props) {
       setValidationSummary([]);
       setFieldErrors({});
       toast.success(result.message || "KYC submitted");
+      void updateSession();
       router.refresh();
     });
   };
@@ -439,6 +495,51 @@ export function KycProfileClient({ data }: Props) {
       setValidationSummary([]);
       toast.success(result.message || "Change request submitted");
       setChangeRequest((current) => ({ ...current, requestedValue: "", reason: "" }));
+      router.refresh();
+    });
+  };
+
+  const validateApplicantStep = () => {
+    const err: Record<string, string> = {};
+    if (!applicantForm.firstName.trim()) err.firstName = "First name is required.";
+    if (!applicantForm.lastName.trim()) err.lastName = "Last name is required.";
+    if (!applicantForm.phoneNumber.trim()) err.phoneNumber = "Phone number is required.";
+    if (!applicantForm.idPassportNumber.trim()) err.idPassportNumber = "ID or passport number is required.";
+    if (!applicantForm.gender) err.gender = "Gender is required.";
+    if (!applicantForm.dob.trim()) err.dob = "Date of birth is required.";
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(applicantForm.dob.trim())) {
+      err.dob = "Use YYYY-MM-DD.";
+    }
+    return err;
+  };
+
+  const handleApplicantStepContinue = () => {
+    const err = validateApplicantStep();
+    if (Object.keys(err).length > 0) {
+      setApplicantFieldErrors(err);
+      toast.error("Please complete the founder details.");
+      return;
+    }
+    setApplicantFieldErrors({});
+    startTransition(async () => {
+      const result = await saveKycApplicantDemographics({
+        firstName: applicantForm.firstName.trim(),
+        lastName: applicantForm.lastName.trim(),
+        phoneNumber: applicantForm.phoneNumber.trim(),
+        idPassportNumber: applicantForm.idPassportNumber.trim(),
+        gender: applicantForm.gender,
+        dob: applicantForm.dob.trim(),
+      });
+      if (!result.success) {
+        const message = result.error || "Failed to save details";
+        setActionError(message);
+        toast.error(message);
+        return;
+      }
+      setActionError("");
+      toast.success("Founder details saved");
+      setWizardStep(2);
+      await updateSession();
       router.refresh();
     });
   };
@@ -579,6 +680,226 @@ export function KycProfileClient({ data }: Props) {
         <CardContent className="space-y-6">
           {showEditableActions ? (
             <>
+              <ol className="mb-6 flex flex-wrap gap-6 border-b border-slate-200 pb-4 text-sm" aria-label="KYC progress">
+                <li className={cn(wizardStep === 1 ? "font-semibold text-blue-700" : "text-slate-500")}>Step 1 — Founder</li>
+                <li className={cn(wizardStep === 2 ? "font-semibold text-blue-700" : "text-slate-500")}>Step 2 — Business</li>
+                <li className={cn(wizardStep === 3 ? "font-semibold text-blue-700" : "text-slate-500")}>Step 3 — Compliance</li>
+              </ol>
+
+              {wizardStep === 1 && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Founder / legal identity</h3>
+                    <p className="text-sm text-slate-500">
+                      Review and correct your details. Email is from your account and cannot be changed here.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <RequiredLabel htmlFor="appFirstName">First name</RequiredLabel>
+                      <Input
+                        id="appFirstName"
+                        value={applicantForm.firstName}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, firstName: e.target.value }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.firstName;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                        className={cn(applicantFieldErrors.firstName && "border-red-300")}
+                      />
+                      {applicantFieldErrors.firstName && <p className="text-sm text-red-600">{applicantFieldErrors.firstName}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <RequiredLabel htmlFor="appLastName">Last name</RequiredLabel>
+                      <Input
+                        id="appLastName"
+                        value={applicantForm.lastName}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, lastName: e.target.value }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.lastName;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                        className={cn(applicantFieldErrors.lastName && "border-red-300")}
+                      />
+                      {applicantFieldErrors.lastName && <p className="text-sm text-red-600">{applicantFieldErrors.lastName}</p>}
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Email</Label>
+                      <Input value={data.applicant.email} readOnly disabled className="bg-slate-50 text-slate-600" />
+                    </div>
+                    <div className="space-y-2">
+                      <RequiredLabel htmlFor="appPhone">Phone</RequiredLabel>
+                      <Input
+                        id="appPhone"
+                        value={applicantForm.phoneNumber}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, phoneNumber: e.target.value }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.phoneNumber;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                        className={cn(applicantFieldErrors.phoneNumber && "border-red-300")}
+                      />
+                      {applicantFieldErrors.phoneNumber && <p className="text-sm text-red-600">{applicantFieldErrors.phoneNumber}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <RequiredLabel htmlFor="appGender">Gender</RequiredLabel>
+                      <select
+                        id="appGender"
+                        className={cn(
+                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
+                          applicantFieldErrors.gender && "border-red-300",
+                        )}
+                        value={applicantForm.gender}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, gender: e.target.value as "male" | "female" | "other" }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.gender;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                      >
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="other">Other</option>
+                      </select>
+                      {applicantFieldErrors.gender && <p className="text-sm text-red-600">{applicantFieldErrors.gender}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <RequiredLabel htmlFor="appDob">Date of birth</RequiredLabel>
+                      <Input
+                        id="appDob"
+                        type="date"
+                        value={applicantForm.dob}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, dob: e.target.value }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.dob;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                        className={cn(applicantFieldErrors.dob && "border-red-300")}
+                      />
+                      {applicantFieldErrors.dob && <p className="text-sm text-red-600">{applicantFieldErrors.dob}</p>}
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <RequiredLabel htmlFor="appId">National ID / passport number</RequiredLabel>
+                      <Input
+                        id="appId"
+                        value={applicantForm.idPassportNumber}
+                        onChange={(e) => {
+                          setApplicantForm((p) => ({ ...p, idPassportNumber: e.target.value }));
+                          setApplicantFieldErrors((er) => {
+                            const n = { ...er };
+                            delete n.idPassportNumber;
+                            return n;
+                          });
+                        }}
+                        disabled={isPending}
+                        className={cn(applicantFieldErrors.idPassportNumber && "border-red-300")}
+                      />
+                      {applicantFieldErrors.idPassportNumber && (
+                        <p className="text-sm text-red-600">{applicantFieldErrors.idPassportNumber}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Button type="button" onClick={handleApplicantStepContinue} disabled={isPending}>
+                      {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Save &amp; continue
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 2 && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Business fundamentals</h3>
+                    <p className="text-sm text-slate-500">
+                      These details come from your application. Material corrections (e.g. legal name) must go through programme support.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Business name</p>
+                      <p className="mt-1 font-medium text-slate-900">{data.business.name}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Sector</p>
+                      <p className="mt-1 font-medium text-slate-900 capitalize">{formatEnumLabel(data.business.sector)}</p>
+                      {data.business.sector === "other" && data.business.sectorOther && (
+                        <p className="mt-1 text-sm text-slate-600">{data.business.sectorOther}</p>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">County</p>
+                      <p className="mt-1 font-medium text-slate-900 capitalize">{formatEnumLabel(data.business.county)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">City</p>
+                      <p className="mt-1 font-medium text-slate-900">{data.business.city}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Button type="button" variant="outline" onClick={() => setWizardStep(1)} disabled={isPending}>
+                      Back
+                    </Button>
+                    <Button type="button" onClick={() => setWizardStep(3)} disabled={isPending}>
+                      Continue to compliance
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 3 && (
+                <>
+                  {data.applicationDocuments.length > 0 && (
+                    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Documents from your application</h3>
+                        <p className="text-sm text-slate-500">
+                          Read-only reference. You do not need to upload these again for KYC.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {data.applicationDocuments.map((doc) => (
+                          <div key={doc.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <p className="text-sm font-medium text-slate-900">{doc.label}</p>
+                            <a
+                              href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-block text-sm text-blue-700 underline underline-offset-4"
+                            >
+                              View document
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-slate-900">Compliance &amp; baseline</h3>
+                    <p className="text-sm text-slate-500">GPS, banking, KRA, baseline figures, and new compliance uploads.</p>
+                  </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="space-y-2">
@@ -750,15 +1071,28 @@ export function KycProfileClient({ data }: Props) {
               </div>
 
               <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="outline" onClick={() => setWizardStep(2)} disabled={isPending}>
+                  Back
+                </Button>
                 <Button variant="outline" onClick={handleSaveDraft} disabled={isPending}>Save Draft</Button>
                 <Button onClick={handleSubmit} disabled={isPending}>
                   {isNeedsInfoState ? "Update and Resubmit" : "Submit for Review"}
                 </Button>
               </div>
+                </>
+              )}
             </>
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 p-4 md:col-span-2">
+                  <p className="text-sm text-slate-500">Primary contact (founder)</p>
+                  <p className="mt-1 font-medium text-slate-900">
+                    {data.applicant.firstName} {data.applicant.lastName}
+                  </p>
+                  <p className="text-sm text-slate-600">{data.applicant.email}</p>
+                  <p className="text-sm text-slate-600">{data.applicant.phoneNumber}</p>
+                </div>
                 {submittedValues.map((item) => (
                   <div key={item.label} className="rounded-xl border border-slate-200 p-4">
                     <p className="text-sm text-slate-500">{item.label}</p>
@@ -766,6 +1100,30 @@ export function KycProfileClient({ data }: Props) {
                   </div>
                 ))}
               </div>
+
+              {data.applicationDocuments.length > 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">Application documents (reference)</h3>
+                    <p className="text-sm text-slate-500">Files supplied with your original application.</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {data.applicationDocuments.map((doc) => (
+                      <div key={doc.id} className="rounded-xl border border-slate-200 p-4">
+                        <p className="font-medium text-slate-900">{doc.label}</p>
+                        <a
+                          href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block text-sm text-blue-700 underline underline-offset-4"
+                        >
+                          View document
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>

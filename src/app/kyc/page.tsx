@@ -45,7 +45,8 @@ export default async function KycPage() {
       <div className="mb-8 space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Enterprise KYC</h1>
         <p className="text-slate-600">
-          Complete your compliance profile to unlock mentorship, CNA, monitoring, and funding support.
+          You were selected for the programme. Complete this compliance profile and submit the required documents to unlock
+          mentorship, capacity needs assessment, monitoring, and funding support.
         </p>
       </div>
       <KycProfileClient data={result.data} />

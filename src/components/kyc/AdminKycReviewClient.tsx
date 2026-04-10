@@ -10,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
+import { kycDocumentTypeCompareHint, type ApplicationPhaseDocument } from "@/lib/kyc-application-documents";
 
 type Props = {
   applicationId: number;
   profileStatus: string;
+  applicationDocuments: ApplicationPhaseDocument[];
   documents: Array<{
     id?: number;
     documentType: string;
@@ -39,7 +41,14 @@ type Props = {
   }>;
 };
 
-export function AdminKycReviewClient({ applicationId, profileStatus, documents, fieldChanges, changeRequests }: Props) {
+export function AdminKycReviewClient({
+  applicationId,
+  profileStatus,
+  applicationDocuments,
+  documents,
+  fieldChanges,
+  changeRequests,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reviewNotes, setReviewNotes] = useState("");
@@ -108,29 +117,78 @@ export function AdminKycReviewClient({ applicationId, profileStatus, documents, 
 
       <Card>
         <CardHeader>
-          <CardTitle>Submitted Documents</CardTitle>
-          <CardDescription>Review uploaded KYC links and supporting notes.</CardDescription>
+          <CardTitle>Application vs KYC documents</CardTitle>
+          <CardDescription>
+            Compare files from the original application (left) with KYC uploads (right). Hints link similar document types—they
+            are not the same file.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {documents.map((doc) => (
-            <div key={`${doc.documentType}-${doc.fileUrl}`} className="rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-slate-900">{doc.documentType.replace(/_/g, " ")}</p>
-                  <a
-                    href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 underline underline-offset-4"
-                  >
-                    View document
-                  </a>
-                </div>
-                {doc.isVerified && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>}
-              </div>
-              {doc.notes && <p className="mt-2 text-sm text-slate-600">{doc.notes}</p>}
+        <CardContent>
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Application phase</h4>
+              {applicationDocuments.length === 0 ? (
+                <p className="text-sm text-slate-500">No document URLs stored on the business record.</p>
+              ) : (
+                applicationDocuments.map((doc) => (
+                  <div key={doc.id} className="rounded-xl border border-slate-200 p-4">
+                    <p className="font-medium text-slate-900">{doc.label}</p>
+                    {doc.compareHint === "tax_compliance" && (
+                      <p className="mt-1 text-xs text-slate-500">Often compare with KYC: Tax compliance certificate</p>
+                    )}
+                    {doc.compareHint === "registration" && (
+                      <p className="mt-1 text-xs text-slate-500">Often compare with KYC: CR12 / registration evidence</p>
+                    )}
+                    <a
+                      href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-sm text-blue-600 underline underline-offset-4"
+                    >
+                      View document
+                    </a>
+                  </div>
+                ))
+              )}
             </div>
-          ))}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-700">KYC submissions</h4>
+              {documents.length === 0 ? (
+                <p className="text-sm text-slate-500">No KYC documents uploaded yet.</p>
+              ) : (
+                documents.map((doc) => {
+                  const hint = kycDocumentTypeCompareHint(doc.documentType);
+                  return (
+                    <div key={`${doc.documentType}-${doc.fileUrl}`} className="rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-slate-900 capitalize">{doc.documentType.replace(/_/g, " ")}</p>
+                          {hint === "tax_compliance" && (
+                            <p className="mt-1 text-xs text-slate-500">Compare with application tax compliance (if listed)</p>
+                          )}
+                          {hint === "registration" && (
+                            <p className="mt-1 text-xs text-slate-500">Compare with application registration certificate (if listed)</p>
+                          )}
+                          <a
+                            href={getDocumentViewerHref(doc.fileUrl, doc.fileName ?? "")}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-block text-sm text-blue-600 underline underline-offset-4"
+                          >
+                            View document
+                          </a>
+                        </div>
+                        {doc.isVerified && (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>
+                        )}
+                      </div>
+                      {doc.notes && <p className="mt-2 text-sm text-slate-600">{doc.notes}</p>}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

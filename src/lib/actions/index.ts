@@ -119,6 +119,7 @@ export {
 
 export {
     getCurrentUserKycProfile,
+    saveKycApplicantDemographics,
     saveKycDraft,
     submitKycProfile,
     getKycQueue,

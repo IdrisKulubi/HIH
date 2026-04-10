@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getKycProfileForAdmin } from "@/lib/actions";
+import { buildApplicationDocumentsFromBusiness } from "@/lib/kyc-application-documents";
 import { AdminKycReviewClient } from "@/components/kyc/AdminKycReviewClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ export default async function AdminKycDetailPage({ params }: Props) {
   }
 
   const { profile, business, applicant, application, documents, fieldChanges, changeRequests } = result.data;
+  const applicationDocuments = buildApplicationDocumentsFromBusiness(business);
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8 space-y-6">
@@ -79,6 +81,7 @@ export default async function AdminKycDetailPage({ params }: Props) {
       <AdminKycReviewClient
         applicationId={applicationId}
         profileStatus={profile.status}
+        applicationDocuments={applicationDocuments}
         documents={documents}
         fieldChanges={fieldChanges}
         changeRequests={changeRequests}

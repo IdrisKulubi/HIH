@@ -6,7 +6,7 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import db from "./db/drizzle";
-import { users, userProfiles } from "./db/schema";
+import { applications, users, userProfiles } from "./db/schema";
 
 declare module "next-auth" {
   interface Session {
@@ -20,7 +20,13 @@ declare module "next-auth" {
       organization?: string;
       profileCompleted?: boolean;
       hasProfile: boolean;
+      /** Selected enterprise must finish KYC before using full profile (from live DB each session). */
+      kycGate?: { active: boolean; verified: boolean };
     } & DefaultSession["user"];
+  }
+
+  interface User {
+    kycGate?: { active: boolean; verified: boolean };
   }
 }
 
@@ -120,11 +126,37 @@ export const {
   },
   callbacks: {
     async jwt({ token, account, user }) {
+      const t = token as Record<string, unknown> & { sub?: string; provider?: string };
       if (account && user) {
-        token.provider = account.provider;
-        // Ensure user ID is preserved
-        token.sub = user.id;
+        t.provider = account.provider;
+        t.sub = user.id;
       }
+      if (!t.sub) return token;
+
+      try {
+        const profile = await db.query.userProfiles.findFirst({
+          where: eq(userProfiles.userId, t.sub),
+        });
+        const role = profile?.role ?? "applicant";
+        t.role = role;
+
+        if (role === "applicant") {
+          const app = await db.query.applications.findFirst({
+            where: eq(applications.userId, t.sub),
+          });
+          const selected = app && (app.status === "approved" || app.status === "finalist");
+          t.kycGateActive = Boolean(selected && app && app.kycStatus !== "verified");
+          t.kycVerified = app?.kycStatus === "verified";
+        } else {
+          t.kycGateActive = false;
+          t.kycVerified = false;
+        }
+      } catch (error) {
+        console.error("JWT callback error:", error);
+        t.kycGateActive = false;
+        t.kycVerified = false;
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -133,18 +165,13 @@ export const {
         session.user.email = token.email as string;
 
         try {
-          // Check if user exists in our custom users table
-          const user = await db.select().from(users)
-            .where(eq(users.id, token.sub))
-            .limit(1);
-
-          // Check if user has a profile
           const profile = await db.query.userProfiles.findFirst({
             where: eq(userProfiles.userId, token.sub)
           });
 
           session.user.hasProfile = !!profile;
-          session.user.role = profile?.role || 'applicant';
+          const tok = token as Record<string, unknown>;
+          session.user.role = (tok.role as string) || profile?.role || "applicant";
           session.user.profileCompleted = profile?.isCompleted || false;
 
           if (profile) {
@@ -153,11 +180,17 @@ export const {
             session.user.phoneNumber = profile.phoneNumber || undefined;
             session.user.organization = profile.organization || undefined;
           }
+
+          session.user.kycGate = {
+            active: Boolean(tok.kycGateActive),
+            verified: Boolean(tok.kycVerified),
+          };
         } catch (error) {
           console.error("Session callback error:", error);
           session.user.hasProfile = false;
-          session.user.role = 'applicant';
+          session.user.role = "applicant";
           session.user.profileCompleted = false;
+          session.user.kycGate = { active: false, verified: false };
         }
       }
       return session;

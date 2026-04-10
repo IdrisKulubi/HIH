@@ -15,6 +15,10 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
+import {
+  buildApplicationDocumentsFromBusiness,
+  type ApplicationPhaseDocument,
+} from "@/lib/kyc-application-documents";
 
 const KYC_READY_APPLICATION_STATUSES = ["approved", "finalist"] as const;
 const KYC_ADMIN_ROLES = ["admin", "oversight"] as const;
@@ -87,6 +91,15 @@ const kycChangeRequestSchema = z.object({
   reason: z.string().min(10),
 });
 
+const kycApplicantDemographicsSchema = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  phoneNumber: z.string().min(1).max(20),
+  idPassportNumber: z.string().min(1).max(50),
+  gender: z.enum(["male", "female", "other"]),
+  dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+});
+
 type KycDraftInput = z.infer<typeof kycDraftSchema>;
 type KycSubmitInput = z.infer<typeof kycSubmitSchema>;
 type KycReviewInput = z.infer<typeof kycReviewSchema>;
@@ -124,6 +137,24 @@ const KYC_DOCUMENT_LABELS: Record<string, string> = {
 
 function isKycAdmin(role?: string | null) {
   return !!role && KYC_ADMIN_ROLES.includes(role as (typeof KYC_ADMIN_ROLES)[number]);
+}
+
+function applicantDobToInputValue(dob: Date | string | null | undefined): string {
+  if (!dob) return "";
+  if (dob instanceof Date && !Number.isNaN(dob.getTime())) {
+    return dob.toISOString().slice(0, 10);
+  }
+  if (typeof dob === "string") {
+    const m = dob.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : "";
+  }
+  return "";
+}
+
+function canEditKycApplicantDemographics(profile: typeof kycProfiles.$inferSelect): boolean {
+  const editableStatus = profile.status === "in_progress" || profile.status === "needs_info";
+  const locked = profile.profileLockStatus === "locked" || profile.profileLockStatus === "change_requested";
+  return editableStatus && !locked;
 }
 
 function formatValidationError(error: z.ZodError) {
@@ -357,6 +388,8 @@ export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
   business: {
     id: number;
     name: string;
+    sector: string | null;
+    sectorOther: string | null;
     county: string | null;
     city: string;
     registrationType: string | null;
@@ -368,7 +401,11 @@ export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
     lastName: string;
     email: string;
     phoneNumber: string;
+    gender: string;
+    dob: string;
+    idPassportNumber: string;
   };
+  applicationDocuments: ApplicationPhaseDocument[];
   documents: typeof kycDocuments.$inferSelect[];
   fieldChanges: typeof kycFieldChanges.$inferSelect[];
   changeRequests: typeof kycChangeRequests.$inferSelect[];
@@ -381,6 +418,8 @@ export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
     if ("error" in result) return errorResponse(result.error ?? "KYC profile unavailable");
 
     const { application, profile } = result;
+    const b = application.business;
+    const a = b.applicant;
 
     return successResponse({
       applicationId: application.id,
@@ -389,20 +428,26 @@ export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
       kycStatus: application.kycStatus,
       profile,
       business: {
-        id: application.business.id,
-        name: application.business.name,
-        county: application.business.county,
-        city: application.business.city,
-        registrationType: application.business.registrationType,
-        revenueLastYear: application.business.revenueLastYear,
-        fullTimeEmployeesTotal: application.business.fullTimeEmployeesTotal,
+        id: b.id,
+        name: b.name,
+        sector: b.sector,
+        sectorOther: b.sectorOther,
+        county: b.county,
+        city: b.city,
+        registrationType: b.registrationType,
+        revenueLastYear: b.revenueLastYear,
+        fullTimeEmployeesTotal: b.fullTimeEmployeesTotal,
       },
       applicant: {
-        firstName: application.business.applicant.firstName,
-        lastName: application.business.applicant.lastName,
-        email: application.business.applicant.email,
-        phoneNumber: application.business.applicant.phoneNumber,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        email: a.email,
+        phoneNumber: a.phoneNumber,
+        gender: a.gender,
+        dob: applicantDobToInputValue(a.dob),
+        idPassportNumber: a.idPassportNumber,
       },
+      applicationDocuments: buildApplicationDocumentsFromBusiness(b),
       documents: profile.documents,
       fieldChanges: profile.fieldChanges,
       changeRequests: profile.changeRequests,
@@ -410,6 +455,52 @@ export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
   } catch (error) {
     console.error("Error loading KYC profile:", error);
     return errorResponse("Failed to load KYC profile");
+  }
+}
+
+export async function saveKycApplicantDemographics(
+  input: z.infer<typeof kycApplicantDemographicsSchema>
+): Promise<ActionResponse<{ updated: true }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return errorResponse("Unauthorized");
+
+    const validated = kycApplicantDemographicsSchema.parse(input);
+    const result = await ensureKycProfile(session.user.id);
+    if ("error" in result) return errorResponse(result.error ?? "KYC profile unavailable");
+
+    const { application, profile } = result;
+    if (!canEditKycApplicantDemographics(profile)) {
+      return errorResponse("Applicant details cannot be edited in the current KYC state.");
+    }
+
+    const applicantId = application.business.applicantId;
+    const dobDate = new Date(`${validated.dob}T12:00:00.000Z`);
+    if (Number.isNaN(dobDate.getTime())) {
+      return errorResponse("Invalid date of birth.");
+    }
+
+    await db
+      .update(applicants)
+      .set({
+        firstName: validated.firstName,
+        lastName: validated.lastName,
+        phoneNumber: validated.phoneNumber,
+        idPassportNumber: validated.idPassportNumber,
+        gender: validated.gender,
+        dob: dobDate,
+        updatedAt: new Date(),
+      })
+      .where(eq(applicants.id, applicantId));
+
+    revalidatePath("/kyc");
+    return successResponse({ updated: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return errorResponse(error.issues.map((i) => i.message).join(" "));
+    }
+    console.error("Error saving KYC applicant demographics:", error);
+    return errorResponse("Failed to save applicant details.");
   }
 }
 

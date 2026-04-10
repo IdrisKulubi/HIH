@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getCurrentUserProfile } from "@/lib/actions/user.actions";
+import { getUserApplication } from "@/lib/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,16 @@ export default async function ProfileEditPage() {
 
   if (!userProfile) {
     redirect('/profile/setup');
+  }
+
+  const applicationResult = await getUserApplication();
+  const application = applicationResult?.success ? applicationResult.data : null;
+  if (
+    application &&
+    (application.status === "approved" || application.status === "finalist") &&
+    application.kycStatus !== "verified"
+  ) {
+    redirect("/kyc");
   }
 
   return (
