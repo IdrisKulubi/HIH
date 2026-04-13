@@ -16,8 +16,9 @@ export function AdminRoleGuard() {
             if (status === "loading") return;
 
             const role = session?.user?.role;
-            if (role !== "admin") {
-                console.warn("[AdminRoleGuard] Non-admin detected, redirecting...");
+            const allowed = role === "admin" || role === "oversight";
+            if (!allowed) {
+                console.warn("[AdminRoleGuard] Unauthorized admin shell access, redirecting...");
                 const isReviewer = ["reviewer_1", "reviewer_2", "technical_reviewer"].includes(role || "");
                 router.replace(isReviewer ? "/reviewer" : "/");
             }

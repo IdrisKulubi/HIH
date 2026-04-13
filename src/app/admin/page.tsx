@@ -15,7 +15,8 @@ import {
   ChatIcon,
   ShieldCheckIcon,
   EnvelopeSimpleIcon,
-  CaretRightIcon
+  CaretRightIcon,
+  ShieldIcon
 } from "@phosphor-icons/react/dist/ssr"; // Use SSR import if needed, or standard
 import { getCurrentUser } from "@/lib/actions/user.actions";
 import { redirect } from "next/navigation";
@@ -138,6 +139,12 @@ export default async function AdminDashboard() {
                 title="Scoring Criteria"
                 description="Configure evaluation metrics & weights"
               /> */}
+              <QuickActionRow
+                href="/admin/kyc"
+                icon={<ShieldIcon weight="duotone" className="w-5 h-5 text-sky-500" />}
+                title="KYC Verification"
+                description="Review compliance submissions and activate verified enterprises"
+              />
               <QuickActionRow
                 href="/admin/support"
                 icon={<ChatIcon weight="duotone" className="w-5 h-5 text-cyan-500" />}

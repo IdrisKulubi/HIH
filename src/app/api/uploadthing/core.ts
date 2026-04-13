@@ -1,15 +1,15 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
+import { auth } from "@/auth";
 
 const f = createUploadthing();
 
-// Improved auth function for development - replace with real auth in production
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const auth = async (req: Request) => {
-  // In development, we'll create a simple user ID
-  // In production, replace this with your actual authentication logic
-  const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  return { id: userId };
+const authenticateUploadRequest = async () => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new UploadThingError("Unauthorized");
+  }
+  return { id: session.user.id };
 };
 
 // Define a reusable document uploader configuration
@@ -19,9 +19,9 @@ const documentUploader = f({
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxFileSize: "8MB", maxFileCount: 1 }, // .docx
   // Add other document types if needed e.g. excel, powerpoint
 })
-.middleware(async ({ req }) => {
+.middleware(async () => {
   try {
-    const user = await auth(req);
+    const user = await authenticateUploadRequest();
     if (!user?.id) {
       throw new UploadThingError("Failed to authenticate user");
     }
@@ -38,9 +38,9 @@ const documentUploader = f({
 
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
-    .middleware(async ({ req }) => {
+    .middleware(async () => {
       try {
-        const user = await auth(req);
+        const user = await authenticateUploadRequest();
         if (!user?.id) {
           throw new UploadThingError("Failed to authenticate user");
         }
@@ -60,6 +60,7 @@ export const ourFileRouter = {
   auditedAccountsUploader: documentUploader,
   taxComplianceUploader: documentUploader,
   registrationCertificateUploader: documentUploader,
+  kycDocumentUploader: documentUploader,
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter; 

@@ -12,6 +12,7 @@ import {
   decimal,
   primaryKey,
   index,
+  uniqueIndex,
   jsonb
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
@@ -167,6 +168,63 @@ export const verificationStatusEnum = pgEnum('verification_status', [
   'needs_info'
 ]);
 
+export const kycStatusEnum = pgEnum('kyc_status', [
+  'not_started',
+  'in_progress',
+  'submitted',
+  'needs_info',
+  'verified',
+  'rejected'
+]);
+
+export const profileLockStatusEnum = pgEnum('profile_lock_status', [
+  'unlocked',
+  'locked',
+  'change_requested',
+  'change_approved'
+]);
+
+export const kycDocumentTypeEnum = pgEnum('kyc_document_type', [
+  'tax_compliance_certificate',
+  'cr12',
+  'bank_account_proof',
+  'programme_consent_form',
+  'director_id_document',
+  'additional_supporting_document'
+]);
+
+export const kycChangeRequestStatusEnum = pgEnum('kyc_change_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled'
+]);
+
+/** Phase 2 — mentorship, CNA/BDS, M&E, Kajabi */
+export const sessionTypeEnum = pgEnum('session_type', ['physical', 'virtual']);
+export const sessionStatusEnum = pgEnum('session_status', [
+  'scheduled',
+  'completed',
+  'missed',
+  'rescheduled'
+]);
+export const bdsStatusEnum = pgEnum('bds_status', [
+  'recommended',
+  'in_progress',
+  'completed',
+  'dropped'
+]);
+export const actionItemStatusEnum = pgEnum('action_item_status', [
+  'pending',
+  'partial',
+  'completed'
+]);
+export const mentorshipMatchStatusEnum = pgEnum('mentorship_match_status', [
+  'active',
+  'completed',
+  'terminated'
+]);
+
 export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
   'limited_company',
   'partnership',
@@ -312,6 +370,7 @@ export const businesses = pgTable('businesses', {
   id: serial('id').primaryKey(),
   applicantId: integer('applicant_id').notNull().references(() => applicants.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  verificationStatus: verificationStatusEnum('verification_status').default('pending').notNull(),
 
   // === ELIGIBILITY FIELDS ===
   isRegistered: boolean('is_registered').notNull(),
@@ -427,6 +486,12 @@ export const applications = pgTable('applications', {
   businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
   track: applicationTrackEnum('track'),
   status: applicationStatusEnum('status').default('submitted').notNull(),
+  kycStatus: kycStatusEnum('kyc_status').default('not_started').notNull(),
+  kycRequired: boolean('kyc_required').default(false).notNull(),
+  selectedAt: timestamp('selected_at'),
+  kycSubmittedAt: timestamp('kyc_submitted_at'),
+  kycVerifiedAt: timestamp('kyc_verified_at'),
+  kycVerifiedBy: text('kyc_verified_by').references(() => users.id),
   isObservationOnly: boolean('is_observation_only').default(false).notNull(), // Kenya applicants with revenue < 500k
   markedForRevisit: boolean('marked_for_revisit').default(false).notNull(), // Observation apps flagged for future review
   revisitMarkedAt: timestamp('revisit_marked_at'),
@@ -437,6 +502,302 @@ export const applications = pgTable('applications', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
+
+export const kycProfiles = pgTable('kyc_profiles', {
+  id: serial('id').primaryKey(),
+  applicationId: integer('application_id').notNull().references(() => applications.id, { onDelete: 'cascade' }).unique(),
+  businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }).unique(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: kycStatusEnum('status').default('not_started').notNull(),
+  profileLockStatus: profileLockStatusEnum('profile_lock_status').default('unlocked').notNull(),
+  gpsCoordinates: varchar('gps_coordinates', { length: 255 }),
+  registrationTypeConfirmed: businessRegistrationTypeEnum('registration_type_confirmed'),
+  kraPin: varchar('kra_pin', { length: 100 }),
+  bankName: varchar('bank_name', { length: 255 }),
+  bankAccountName: varchar('bank_account_name', { length: 255 }),
+  baselineMonthLabel: varchar('baseline_month_label', { length: 100 }),
+  baselineRevenue: decimal('baseline_revenue', { precision: 14, scale: 2 }),
+  baselineEmployeeCount: integer('baseline_employee_count'),
+  secondaryContactName: varchar('secondary_contact_name', { length: 255 }),
+  secondaryContactPhone: varchar('secondary_contact_phone', { length: 50 }),
+  secondaryContactEmail: varchar('secondary_contact_email', { length: 255 }),
+  reviewNotes: text('review_notes'),
+  rejectionReason: text('rejection_reason'),
+  needsInfoReason: text('needs_info_reason'),
+  originalSnapshot: jsonb('original_snapshot'),
+  submittedSnapshot: jsonb('submitted_snapshot'),
+  submittedAt: timestamp('submitted_at'),
+  reviewedAt: timestamp('reviewed_at'),
+  verifiedAt: timestamp('verified_at'),
+  verifiedById: text('verified_by_id').references(() => users.id, { onDelete: 'set null' }),
+  lockedAt: timestamp('locked_at'),
+  lockedById: text('locked_by_id').references(() => users.id, { onDelete: 'set null' }),
+  lastSavedAt: timestamp('last_saved_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  applicationIdx: index('kyc_profiles_application_id_idx').on(table.applicationId),
+  businessIdx: index('kyc_profiles_business_id_idx').on(table.businessId),
+  userIdx: index('kyc_profiles_user_id_idx').on(table.userId),
+  statusIdx: index('kyc_profiles_status_idx').on(table.status),
+  lockStatusIdx: index('kyc_profiles_lock_status_idx').on(table.profileLockStatus),
+}));
+
+export const kycDocuments = pgTable('kyc_documents', {
+  id: serial('id').primaryKey(),
+  kycProfileId: integer('kyc_profile_id').notNull().references(() => kycProfiles.id, { onDelete: 'cascade' }),
+  documentType: kycDocumentTypeEnum('document_type').notNull(),
+  fileUrl: varchar('file_url', { length: 500 }).notNull(),
+  fileName: varchar('file_name', { length: 255 }),
+  documentNumber: varchar('document_number', { length: 255 }),
+  notes: text('notes'),
+  isVerified: boolean('is_verified').default(false).notNull(),
+  verifiedById: text('verified_by_id').references(() => users.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at'),
+  rejectionReason: text('rejection_reason'),
+  uploadedById: text('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  profileIdx: index('kyc_documents_profile_id_idx').on(table.kycProfileId),
+  documentTypeIdx: index('kyc_documents_type_idx').on(table.documentType),
+}));
+
+export const kycFieldChanges = pgTable('kyc_field_changes', {
+  id: serial('id').primaryKey(),
+  kycProfileId: integer('kyc_profile_id').notNull().references(() => kycProfiles.id, { onDelete: 'cascade' }),
+  fieldName: varchar('field_name', { length: 120 }).notNull(),
+  oldValue: jsonb('old_value'),
+  newValue: jsonb('new_value'),
+  isCoreField: boolean('is_core_field').default(false).notNull(),
+  changedById: text('changed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  profileIdx: index('kyc_field_changes_profile_id_idx').on(table.kycProfileId),
+  fieldIdx: index('kyc_field_changes_field_idx').on(table.fieldName),
+}));
+
+export const kycChangeRequests = pgTable('kyc_change_requests', {
+  id: serial('id').primaryKey(),
+  kycProfileId: integer('kyc_profile_id').notNull().references(() => kycProfiles.id, { onDelete: 'cascade' }),
+  requestedById: text('requested_by_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  fieldName: varchar('field_name', { length: 120 }).notNull(),
+  currentValue: jsonb('current_value'),
+  requestedValue: jsonb('requested_value'),
+  reason: text('reason').notNull(),
+  status: kycChangeRequestStatusEnum('status').default('pending').notNull(),
+  reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewNotes: text('review_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  profileIdx: index('kyc_change_requests_profile_id_idx').on(table.kycProfileId),
+  statusIdx: index('kyc_change_requests_status_idx').on(table.status),
+  requestedByIdx: index('kyc_change_requests_requested_by_idx').on(table.requestedById),
+}));
+
+// --- Phase 2: mentorship, CNA/BDS, M&E, Kajabi ---
+
+export const mentors = pgTable(
+  'mentors',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expertiseArea: businessSectorEnum('expertise_area').notNull(),
+    maxMentees: integer('max_mentees').default(3),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index('mentors_user_id_idx').on(table.userId),
+  })
+);
+
+export const mentorshipMatches = pgTable(
+  'mentorship_matches',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    mentorId: integer('mentor_id')
+      .notNull()
+      .references(() => mentors.id, { onDelete: 'cascade' }),
+    status: mentorshipMatchStatusEnum('status').default('active').notNull(),
+    startDate: timestamp('start_date').defaultNow().notNull(),
+    endDate: timestamp('end_date'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('mentorship_matches_business_id_idx').on(table.businessId),
+    mentorIdx: index('mentorship_matches_mentor_id_idx').on(table.mentorId),
+  })
+);
+
+export const mentorshipSessions = pgTable(
+  'mentorship_sessions',
+  {
+    id: serial('id').primaryKey(),
+    matchId: integer('match_id')
+      .notNull()
+      .references(() => mentorshipMatches.id, { onDelete: 'cascade' }),
+    sessionNumber: integer('session_number').notNull(),
+    sessionType: sessionTypeEnum('session_type').notNull(),
+    status: sessionStatusEnum('status').default('scheduled').notNull(),
+    scheduledDate: timestamp('scheduled_date').notNull(),
+    completedDate: timestamp('completed_date'),
+    diagnosticNotes: text('diagnostic_notes'),
+    photographicEvidenceUrl: varchar('photographic_evidence_url', { length: 500 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    matchIdx: index('mentorship_sessions_match_id_idx').on(table.matchId),
+    matchSessionUq: uniqueIndex('mentorship_sessions_match_session_uq').on(
+      table.matchId,
+      table.sessionNumber
+    ),
+  })
+);
+
+export const mentorshipActionItems = pgTable(
+  'mentorship_action_items',
+  {
+    id: serial('id').primaryKey(),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => mentorshipSessions.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    status: actionItemStatusEnum('status').default('pending').notNull(),
+    enterpriseFeedback: text('enterprise_feedback'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionIdx: index('mentorship_action_items_session_id_idx').on(table.sessionId),
+  })
+);
+
+export const cnaDiagnostics = pgTable(
+  'cna_diagnostics',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    conductedById: text('conducted_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    financialManagementScore: integer('financial_management_score').notNull(),
+    marketReachScore: integer('market_reach_score').notNull(),
+    operationsScore: integer('operations_score').notNull(),
+    complianceScore: integer('compliance_score').notNull(),
+    topRiskArea: text('top_risk_area'),
+    resilienceIndex: decimal('resilience_index', { precision: 5, scale: 2 }),
+    conductedAt: timestamp('conducted_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('cna_diagnostics_business_id_idx').on(table.businessId),
+  })
+);
+
+export const bdsInterventions = pgTable(
+  'bds_interventions',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    diagnosticId: integer('diagnostic_id').references(() => cnaDiagnostics.id, {
+      onDelete: 'set null',
+    }),
+    interventionName: text('intervention_name').notNull(),
+    status: bdsStatusEnum('status').default('recommended').notNull(),
+    providerName: text('provider_name'),
+    completionDate: timestamp('completion_date'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('bds_interventions_business_id_idx').on(table.businessId),
+    diagnosticIdx: index('bds_interventions_diagnostic_id_idx').on(table.diagnosticId),
+  })
+);
+
+export const businessPerformanceMetrics = pgTable(
+  'business_performance_metrics',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    reportingPeriod: text('reporting_period').notNull(),
+    revenueGenerated: decimal('revenue_generated', { precision: 14, scale: 2 }),
+    newJobsCreated: integer('new_jobs_created').default(0),
+    newMarketsEntered: integer('new_markets_entered').default(0),
+    marketExpansionIndex: decimal('market_expansion_index', { precision: 5, scale: 2 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('business_performance_metrics_business_id_idx').on(table.businessId),
+  })
+);
+
+export const aiReportQueries = pgTable(
+  'ai_report_queries',
+  {
+    id: serial('id').primaryKey(),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    queryText: text('query_text').notNull(),
+    generatedSummary: text('generated_summary').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    adminIdx: index('ai_report_queries_admin_id_idx').on(table.adminId),
+  })
+);
+
+export const kajabiUserMapping = pgTable(
+  'kajabi_user_mapping',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kajabiExternalId: varchar('kajabi_external_id', { length: 255 }).notNull().unique(),
+    hasActiveAccess: boolean('has_active_access').default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index('kajabi_user_mapping_user_id_idx').on(table.userId),
+  })
+);
+
+export const kajabiProgressWebhooks = pgTable(
+  'kajabi_progress_webhooks',
+  {
+    id: serial('id').primaryKey(),
+    kajabiExternalId: varchar('kajabi_external_id', { length: 255 }).notNull(),
+    courseId: varchar('course_id', { length: 255 }).notNull(),
+    eventTitle: varchar('event_title', { length: 255 }).notNull(),
+    payload: jsonb('payload'),
+    processedAt: timestamp('processed_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    externalIdx: index('kajabi_progress_webhooks_external_id_idx').on(table.kajabiExternalId),
+  })
+);
 
 export const eligibilityResults = pgTable('eligibility_results', {
   id: serial('id').primaryKey(),
@@ -693,7 +1054,25 @@ export const userRelations = relations(users, ({ one, many }) => ({
   }),
   assignedTickets: many(supportTickets, { relationName: 'assignedTo' }),
   sentMessages: many(ticketMessages, { relationName: 'sender' }),
-  createdCampaigns: many(feedbackCampaigns, { relationName: 'creator' })
+  createdCampaigns: many(feedbackCampaigns, { relationName: 'creator' }),
+  ownedKycProfiles: many(kycProfiles),
+  verifiedKycProfiles: many(kycProfiles, { relationName: 'kycVerifier' }),
+  lockedKycProfiles: many(kycProfiles, { relationName: 'kycLocker' }),
+  uploadedKycDocuments: many(kycDocuments, { relationName: 'kycDocumentUploader' }),
+  verifiedKycDocuments: many(kycDocuments, { relationName: 'kycDocumentVerifier' }),
+  kycFieldChanges: many(kycFieldChanges),
+  requestedKycChanges: many(kycChangeRequests, { relationName: 'kycChangeRequester' }),
+  reviewedKycChanges: many(kycChangeRequests, { relationName: 'kycChangeReviewer' }),
+  mentorProfile: one(mentors, {
+    fields: [users.id],
+    references: [mentors.userId],
+  }),
+  conductedCnaDiagnostics: many(cnaDiagnostics),
+  kajabiMapping: one(kajabiUserMapping, {
+    fields: [users.id],
+    references: [kajabiUserMapping.userId],
+  }),
+  aiReportQueries: many(aiReportQueries),
 }));
 
 export const userProfileRelations = relations(userProfiles, ({ one }) => ({
@@ -726,7 +1105,15 @@ export const businessRelations = relations(businesses, ({ one, many }) => ({
     fields: [businesses.id],
     references: [employees.businessId]
   }),
-  targetCustomers: many(targetCustomers)
+  targetCustomers: many(targetCustomers),
+  kycProfile: one(kycProfiles, {
+    fields: [businesses.id],
+    references: [kycProfiles.businessId]
+  }),
+  mentorshipMatches: many(mentorshipMatches),
+  cnaDiagnostics: many(cnaDiagnostics),
+  bdsInterventions: many(bdsInterventions),
+  businessPerformanceMetrics: many(businessPerformanceMetrics),
 }));
 
 export const applicationRelations = relations(applications, ({ one, many }) => ({
@@ -738,7 +1125,170 @@ export const applicationRelations = relations(applications, ({ one, many }) => (
     fields: [applications.businessId],
     references: [businesses.id]
   }),
-  eligibilityResults: many(eligibilityResults)
+  eligibilityResults: many(eligibilityResults),
+  kycProfile: one(kycProfiles, {
+    fields: [applications.id],
+    references: [kycProfiles.applicationId]
+  }),
+  kycVerifier: one(users, {
+    fields: [applications.kycVerifiedBy],
+    references: [users.id]
+  })
+}));
+
+export const kycProfileRelations = relations(kycProfiles, ({ one, many }) => ({
+  application: one(applications, {
+    fields: [kycProfiles.applicationId],
+    references: [applications.id]
+  }),
+  business: one(businesses, {
+    fields: [kycProfiles.businessId],
+    references: [businesses.id]
+  }),
+  user: one(users, {
+    fields: [kycProfiles.userId],
+    references: [users.id]
+  }),
+  verifiedBy: one(users, {
+    fields: [kycProfiles.verifiedById],
+    references: [users.id],
+    relationName: 'kycVerifier'
+  }),
+  lockedBy: one(users, {
+    fields: [kycProfiles.lockedById],
+    references: [users.id],
+    relationName: 'kycLocker'
+  }),
+  documents: many(kycDocuments),
+  fieldChanges: many(kycFieldChanges),
+  changeRequests: many(kycChangeRequests)
+}));
+
+export const kycDocumentRelations = relations(kycDocuments, ({ one }) => ({
+  kycProfile: one(kycProfiles, {
+    fields: [kycDocuments.kycProfileId],
+    references: [kycProfiles.id]
+  }),
+  uploadedBy: one(users, {
+    fields: [kycDocuments.uploadedById],
+    references: [users.id],
+    relationName: 'kycDocumentUploader'
+  }),
+  verifiedBy: one(users, {
+    fields: [kycDocuments.verifiedById],
+    references: [users.id],
+    relationName: 'kycDocumentVerifier'
+  })
+}));
+
+export const kycFieldChangeRelations = relations(kycFieldChanges, ({ one }) => ({
+  kycProfile: one(kycProfiles, {
+    fields: [kycFieldChanges.kycProfileId],
+    references: [kycProfiles.id]
+  }),
+  changedBy: one(users, {
+    fields: [kycFieldChanges.changedById],
+    references: [users.id]
+  })
+}));
+
+export const kycChangeRequestRelations = relations(kycChangeRequests, ({ one }) => ({
+  kycProfile: one(kycProfiles, {
+    fields: [kycChangeRequests.kycProfileId],
+    references: [kycProfiles.id]
+  }),
+  requestedBy: one(users, {
+    fields: [kycChangeRequests.requestedById],
+    references: [users.id],
+    relationName: 'kycChangeRequester'
+  }),
+  reviewedBy: one(users, {
+    fields: [kycChangeRequests.reviewedById],
+    references: [users.id],
+    relationName: 'kycChangeReviewer'
+  })
+}));
+
+export const mentorsRelations = relations(mentors, ({ one, many }) => ({
+  user: one(users, {
+    fields: [mentors.userId],
+    references: [users.id],
+  }),
+  matches: many(mentorshipMatches),
+}));
+
+export const mentorshipMatchesRelations = relations(mentorshipMatches, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [mentorshipMatches.businessId],
+    references: [businesses.id],
+  }),
+  mentor: one(mentors, {
+    fields: [mentorshipMatches.mentorId],
+    references: [mentors.id],
+  }),
+  sessions: many(mentorshipSessions),
+}));
+
+export const mentorshipSessionsRelations = relations(mentorshipSessions, ({ one, many }) => ({
+  match: one(mentorshipMatches, {
+    fields: [mentorshipSessions.matchId],
+    references: [mentorshipMatches.id],
+  }),
+  actionItems: many(mentorshipActionItems),
+}));
+
+export const mentorshipActionItemsRelations = relations(mentorshipActionItems, ({ one }) => ({
+  session: one(mentorshipSessions, {
+    fields: [mentorshipActionItems.sessionId],
+    references: [mentorshipSessions.id],
+  }),
+}));
+
+export const cnaDiagnosticsRelations = relations(cnaDiagnostics, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [cnaDiagnostics.businessId],
+    references: [businesses.id],
+  }),
+  conductedBy: one(users, {
+    fields: [cnaDiagnostics.conductedById],
+    references: [users.id],
+  }),
+  bdsInterventions: many(bdsInterventions),
+}));
+
+export const bdsInterventionsRelations = relations(bdsInterventions, ({ one }) => ({
+  business: one(businesses, {
+    fields: [bdsInterventions.businessId],
+    references: [businesses.id],
+  }),
+  diagnostic: one(cnaDiagnostics, {
+    fields: [bdsInterventions.diagnosticId],
+    references: [cnaDiagnostics.id],
+  }),
+}));
+
+export const businessPerformanceMetricsRelations = relations(
+  businessPerformanceMetrics,
+  ({ one }) => ({
+    business: one(businesses, {
+      fields: [businessPerformanceMetrics.businessId],
+      references: [businesses.id],
+    }),
+  })
+);
+
+export const aiReportQueriesRelations = relations(aiReportQueries, ({ one }) => ({
+  admin: one(users, {
+    fields: [aiReportQueries.adminId],
+    references: [users.id],
+  }),
+}));
+
+export const kajabiUserMappingRelations = relations(kajabiUserMapping, ({ one }) => ({
+  user: one(users, {
+    fields: [kajabiUserMapping.userId],
+    references: [users.id],
+  }),
 }));
 
 export const eligibilityResultsRelations = relations(eligibilityResults, ({ one, many }) => ({
@@ -1274,3 +1824,45 @@ export type NewGrantAgreement = typeof grantAgreements.$inferInsert;
 
 export type DisbursementOrRepayment = typeof disbursementsAndRepayments.$inferSelect;
 export type NewDisbursementOrRepayment = typeof disbursementsAndRepayments.$inferInsert;
+
+export type KycProfile = typeof kycProfiles.$inferSelect;
+export type NewKycProfile = typeof kycProfiles.$inferInsert;
+
+export type KycDocument = typeof kycDocuments.$inferSelect;
+export type NewKycDocument = typeof kycDocuments.$inferInsert;
+
+export type KycFieldChange = typeof kycFieldChanges.$inferSelect;
+export type NewKycFieldChange = typeof kycFieldChanges.$inferInsert;
+
+export type KycChangeRequest = typeof kycChangeRequests.$inferSelect;
+export type NewKycChangeRequest = typeof kycChangeRequests.$inferInsert;
+
+export type Mentor = typeof mentors.$inferSelect;
+export type NewMentor = typeof mentors.$inferInsert;
+
+export type MentorshipMatch = typeof mentorshipMatches.$inferSelect;
+export type NewMentorshipMatch = typeof mentorshipMatches.$inferInsert;
+
+export type MentorshipSession = typeof mentorshipSessions.$inferSelect;
+export type NewMentorshipSession = typeof mentorshipSessions.$inferInsert;
+
+export type MentorshipActionItem = typeof mentorshipActionItems.$inferSelect;
+export type NewMentorshipActionItem = typeof mentorshipActionItems.$inferInsert;
+
+export type CnaDiagnostic = typeof cnaDiagnostics.$inferSelect;
+export type NewCnaDiagnostic = typeof cnaDiagnostics.$inferInsert;
+
+export type BdsIntervention = typeof bdsInterventions.$inferSelect;
+export type NewBdsIntervention = typeof bdsInterventions.$inferInsert;
+
+export type BusinessPerformanceMetric = typeof businessPerformanceMetrics.$inferSelect;
+export type NewBusinessPerformanceMetric = typeof businessPerformanceMetrics.$inferInsert;
+
+export type AiReportQuery = typeof aiReportQueries.$inferSelect;
+export type NewAiReportQuery = typeof aiReportQueries.$inferInsert;
+
+export type KajabiUserMapping = typeof kajabiUserMapping.$inferSelect;
+export type NewKajabiUserMapping = typeof kajabiUserMapping.$inferInsert;
+
+export type KajabiProgressWebhook = typeof kajabiProgressWebhooks.$inferSelect;
+export type NewKajabiProgressWebhook = typeof kajabiProgressWebhooks.$inferInsert;

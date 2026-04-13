@@ -113,3 +113,44 @@ export {
     getDetailedScores,
 } from "./scoring-progress";
 
+// =============================================================================
+// KYC
+// =============================================================================
+
+export {
+    getCurrentUserKycProfile,
+    saveKycApplicantDemographics,
+    saveKycDraft,
+    submitKycProfile,
+    getKycQueue,
+    getKycProfileForAdmin,
+    reviewKycSubmission,
+    requestKycProfileChange,
+    reviewKycChangeRequest,
+} from "./kyc";
+
+// =============================================================================
+// PHASE 2 — CNA & MENTORSHIP (admin)
+// =============================================================================
+
+export {
+    saveCnaDiagnostic,
+    saveCnaDiagnosticFromForm,
+    listCnaDiagnosticsForBusiness,
+    listBusinessesWithApplicantForAdmin,
+} from "./cna";
+
+export type { BusinessListRow } from "./cna";
+
+export {
+    createMentor,
+    createMentorFromForm,
+    createMentorshipMatch,
+    completeMentorshipSession,
+    completeMentorshipSessionFromForm,
+    listMentorsForAdmin,
+    listMentorshipMatchesForBusiness,
+} from "./mentorship";
+
+export type { MentorListRow, MentorshipMatchWithSessions } from "./mentorship";
+

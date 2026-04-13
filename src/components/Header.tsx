@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, FileText, LogIn, Clock } from "lucide-react";
+import { User, LogOut, FileText, LogIn, Clock, ShieldCheck } from "lucide-react";
 import { areApplicationsOpen } from "@/lib/config";
 
 export function Header() {
@@ -199,6 +199,15 @@ export function Header() {
                         <Link href="/profile?tab=application" className="flex items-center">
                           <FileText className="mr-2 h-4 w-4" />
                           <span>My Application</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+
+                    {!['admin', 'oversight', 'reviewer_1', 'reviewer_2', 'technical_reviewer', 'a2f_officer'].includes(session.user.role || '') && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/kyc" className="flex items-center">
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                          <span>KYC Profile</span>
                         </Link>
                       </DropdownMenuItem>
                     )}
