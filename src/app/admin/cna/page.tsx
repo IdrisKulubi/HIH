@@ -1,13 +1,5 @@
-import Link from "next/link";
 import { listBusinessesWithApplicantForAdmin } from "@/lib/actions/cna";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdminCnaBusinessTable } from "@/components/admin/cna/AdminCnaBusinessTable";
 
 export default async function AdminCnaPage() {
   const res = await listBusinessesWithApplicantForAdmin();
@@ -28,33 +20,7 @@ export default async function AdminCnaPage() {
           Select a business to enter diagnostic scores. Top risk area and resilience index are computed on save.
         </p>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Business</TableHead>
-            <TableHead>Applicant</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {res.data.map((row) => (
-            <TableRow key={row.businessId}>
-              <TableCell className="font-medium">{row.businessName}</TableCell>
-              <TableCell>{row.applicantName}</TableCell>
-              <TableCell>{row.applicantEmail}</TableCell>
-              <TableCell className="text-right">
-                <Link
-                  href={`/admin/cna/${row.businessId}`}
-                  className="text-sky-700 hover:underline text-sm font-medium"
-                >
-                  Open
-                </Link>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <AdminCnaBusinessTable rows={res.data} />
     </div>
   );
 }

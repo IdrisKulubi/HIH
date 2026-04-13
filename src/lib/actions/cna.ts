@@ -108,6 +108,8 @@ export type BusinessListRow = {
   businessName: string;
   applicantName: string;
   applicantEmail: string;
+  /** `business_sector` enum value */
+  sector: string;
 };
 
 export async function listBusinessesWithApplicantForAdmin(): Promise<
@@ -131,6 +133,7 @@ export async function listBusinessesWithApplicantForAdmin(): Promise<
       businessName: b.name,
       applicantName: `${b.applicant.firstName} ${b.applicant.lastName}`.trim(),
       applicantEmail: b.applicant.email,
+      sector: b.sector,
     }));
 
     return successResponse(data);
