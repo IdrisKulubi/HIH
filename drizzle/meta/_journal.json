@@ -78,6 +78,13 @@
       "when": 1775785367371,
       "tag": "0010_nappy_maverick",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776152988529,
+      "tag": "0011_cdp_capacity_plans",
+      "breakpoints": true
     }
   ]
 }

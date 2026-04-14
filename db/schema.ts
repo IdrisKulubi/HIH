@@ -225,6 +225,30 @@ export const mentorshipMatchStatusEnum = pgEnum('mentorship_match_status', [
   'terminated'
 ]);
 
+/** BIRE Capacity Development Plan (CDP) */
+export const cdpPlanStatusEnum = pgEnum('cdp_plan_status', ['draft', 'active', 'archived']);
+export const cdpFocusCodeEnum = pgEnum('cdp_focus_code', [
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+]);
+export const cdpProgressQuarterEnum = pgEnum('cdp_progress_quarter', ['Q1', 'Q2', 'Q3', 'Q4']);
+export const cdpReviewCycleStatusEnum = pgEnum('cdp_review_cycle_status', [
+  'not_started',
+  'in_progress',
+  'done',
+  'blocked',
+]);
+
 export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
   'limited_company',
   'partnership',
@@ -707,6 +731,130 @@ export const cnaDiagnostics = pgTable(
   })
 );
 
+export const capacityDevelopmentPlans = pgTable(
+  'capacity_development_plans',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    status: cdpPlanStatusEnum('status').default('draft').notNull(),
+    diagnosticDate: date('diagnostic_date').notNull(),
+    cdpReviewDate: date('cdp_review_date'),
+    leadStaffId: text('lead_staff_id').references(() => users.id, { onDelete: 'set null' }),
+    notes: text('notes'),
+    linkedCnaDiagnosticId: integer('linked_cna_diagnostic_id').references(
+      () => cnaDiagnostics.id,
+      { onDelete: 'set null' }
+    ),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('capacity_development_plans_business_id_idx').on(table.businessId),
+    statusIdx: index('capacity_development_plans_status_idx').on(table.status),
+  })
+);
+
+export const cdpFocusSummary = pgTable(
+  'cdp_focus_summary',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    focusCode: cdpFocusCodeEnum('focus_code').notNull(),
+    score0to10: integer('score0to10').notNull().default(0),
+    keyGaps: text('key_gaps'),
+    recommendedIntervention: text('recommended_intervention'),
+    responsibleStaff: text('responsible_staff'),
+    targetDate: date('target_date'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_focus_summary_plan_id_idx').on(table.planId),
+    planFocusUq: uniqueIndex('cdp_focus_summary_plan_focus_uq').on(table.planId, table.focusCode),
+  })
+);
+
+export const cdpActivities = pgTable(
+  'cdp_activities',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    focusCode: cdpFocusCodeEnum('focus_code').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    gapChallenge: text('gap_challenge'),
+    intervention: text('intervention').notNull().default(''),
+    supportType: text('support_type'),
+    deliveryMethod: text('delivery_method'),
+    responsibleStaff: text('responsible_staff'),
+    targetDate: date('target_date'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_activities_plan_id_idx').on(table.planId),
+    planFocusIdx: index('cdp_activities_plan_focus_idx').on(table.planId, table.focusCode),
+  })
+);
+
+export const cdpBusinessSupportSessions = pgTable(
+  'cdp_business_support_sessions',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    sessionNumber: integer('session_number').notNull(),
+    sessionDate: timestamp('session_date').notNull(),
+    focusCodes: text('focus_codes').array().notNull().default(sql`ARRAY[]::text[]`),
+    agenda: text('agenda'),
+    supportType: text('support_type'),
+    durationHours: decimal('duration_hours', { precision: 6, scale: 2 }),
+    keyActionsAgreed: text('key_actions_agreed'),
+    challengesRaised: text('challenges_raised'),
+    nextSteps: text('next_steps'),
+    followUpDate: date('follow_up_date'),
+    conductedById: text('conducted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_business_support_sessions_plan_id_idx').on(table.planId),
+    planSessionUq: uniqueIndex('cdp_bss_plan_session_uq').on(table.planId, table.sessionNumber),
+  })
+);
+
+export const cdpActivityProgressReviews = pgTable(
+  'cdp_activity_progress_reviews',
+  {
+    id: serial('id').primaryKey(),
+    activityId: integer('activity_id')
+      .notNull()
+      .references(() => cdpActivities.id, { onDelete: 'cascade' }),
+    reviewPeriod: cdpProgressQuarterEnum('review_period').notNull(),
+    status: cdpReviewCycleStatusEnum('status').default('not_started').notNull(),
+    outcomeAchieved: boolean('outcome_achieved'),
+    staffNotes: text('staff_notes'),
+    reviewedAt: timestamp('reviewed_at'),
+    reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    activityIdx: index('cdp_activity_progress_activity_id_idx').on(table.activityId),
+    activityQuarterUq: uniqueIndex('cdp_activity_progress_activity_quarter_uq').on(
+      table.activityId,
+      table.reviewPeriod
+    ),
+  })
+);
+
 export const bdsInterventions = pgTable(
   'bds_interventions',
   {
@@ -715,6 +863,10 @@ export const bdsInterventions = pgTable(
       .notNull()
       .references(() => businesses.id, { onDelete: 'cascade' }),
     diagnosticId: integer('diagnostic_id').references(() => cnaDiagnostics.id, {
+      onDelete: 'set null',
+    }),
+    /** Optional link when a legacy BDS row mirrors a CDP detailed activity. */
+    cdpActivityId: integer('cdp_activity_id').references(() => cdpActivities.id, {
       onDelete: 'set null',
     }),
     interventionName: text('intervention_name').notNull(),
@@ -727,6 +879,7 @@ export const bdsInterventions = pgTable(
   (table) => ({
     businessIdx: index('bds_interventions_business_id_idx').on(table.businessId),
     diagnosticIdx: index('bds_interventions_diagnostic_id_idx').on(table.diagnosticId),
+    cdpActivityIdx: index('bds_interventions_cdp_activity_id_idx').on(table.cdpActivityId),
   })
 );
 
@@ -1068,6 +1221,14 @@ export const userRelations = relations(users, ({ one, many }) => ({
     references: [mentors.userId],
   }),
   conductedCnaDiagnostics: many(cnaDiagnostics),
+  cdpPlansCreated: many(capacityDevelopmentPlans, { relationName: 'cdpPlanCreatedBy' }),
+  cdpPlansLead: many(capacityDevelopmentPlans, { relationName: 'cdpPlanLeadStaff' }),
+  cdpSupportSessionsConducted: many(cdpBusinessSupportSessions, {
+    relationName: 'cdpBssConductedBy',
+  }),
+  cdpProgressReviewsAuthored: many(cdpActivityProgressReviews, {
+    relationName: 'cdpProgressReviewedBy',
+  }),
   kajabiMapping: one(kajabiUserMapping, {
     fields: [users.id],
     references: [kajabiUserMapping.userId],
@@ -1112,6 +1273,7 @@ export const businessRelations = relations(businesses, ({ one, many }) => ({
   }),
   mentorshipMatches: many(mentorshipMatches),
   cnaDiagnostics: many(cnaDiagnostics),
+  capacityDevelopmentPlans: many(capacityDevelopmentPlans),
   bdsInterventions: many(bdsInterventions),
   businessPerformanceMetrics: many(businessPerformanceMetrics),
 }));
@@ -1254,7 +1416,84 @@ export const cnaDiagnosticsRelations = relations(cnaDiagnostics, ({ one, many })
     references: [users.id],
   }),
   bdsInterventions: many(bdsInterventions),
+  linkedCapacityDevelopmentPlans: many(capacityDevelopmentPlans, {
+    relationName: 'cnaLinkedCdpPlans',
+  }),
 }));
+
+export const capacityDevelopmentPlansRelations = relations(
+  capacityDevelopmentPlans,
+  ({ one, many }) => ({
+    business: one(businesses, {
+      fields: [capacityDevelopmentPlans.businessId],
+      references: [businesses.id],
+    }),
+    leadStaff: one(users, {
+      fields: [capacityDevelopmentPlans.leadStaffId],
+      references: [users.id],
+      relationName: 'cdpPlanLeadStaff',
+    }),
+    createdBy: one(users, {
+      fields: [capacityDevelopmentPlans.createdById],
+      references: [users.id],
+      relationName: 'cdpPlanCreatedBy',
+    }),
+    linkedCnaDiagnostic: one(cnaDiagnostics, {
+      fields: [capacityDevelopmentPlans.linkedCnaDiagnosticId],
+      references: [cnaDiagnostics.id],
+      relationName: 'cnaLinkedCdpPlans',
+    }),
+    focusSummaries: many(cdpFocusSummary),
+    activities: many(cdpActivities),
+    supportSessions: many(cdpBusinessSupportSessions),
+  })
+);
+
+export const cdpFocusSummaryRelations = relations(cdpFocusSummary, ({ one }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpFocusSummary.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+}));
+
+export const cdpActivitiesRelations = relations(cdpActivities, ({ one, many }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpActivities.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+  progressReviews: many(cdpActivityProgressReviews),
+  linkedBdsInterventions: many(bdsInterventions),
+}));
+
+export const cdpBusinessSupportSessionsRelations = relations(
+  cdpBusinessSupportSessions,
+  ({ one }) => ({
+    plan: one(capacityDevelopmentPlans, {
+      fields: [cdpBusinessSupportSessions.planId],
+      references: [capacityDevelopmentPlans.id],
+    }),
+    conductedBy: one(users, {
+      fields: [cdpBusinessSupportSessions.conductedById],
+      references: [users.id],
+      relationName: 'cdpBssConductedBy',
+    }),
+  })
+);
+
+export const cdpActivityProgressReviewsRelations = relations(
+  cdpActivityProgressReviews,
+  ({ one }) => ({
+    activity: one(cdpActivities, {
+      fields: [cdpActivityProgressReviews.activityId],
+      references: [cdpActivities.id],
+    }),
+    reviewedBy: one(users, {
+      fields: [cdpActivityProgressReviews.reviewedById],
+      references: [users.id],
+      relationName: 'cdpProgressReviewedBy',
+    }),
+  })
+);
 
 export const bdsInterventionsRelations = relations(bdsInterventions, ({ one }) => ({
   business: one(businesses, {
@@ -1264,6 +1503,10 @@ export const bdsInterventionsRelations = relations(bdsInterventions, ({ one }) =
   diagnostic: one(cnaDiagnostics, {
     fields: [bdsInterventions.diagnosticId],
     references: [cnaDiagnostics.id],
+  }),
+  cdpActivity: one(cdpActivities, {
+    fields: [bdsInterventions.cdpActivityId],
+    references: [cdpActivities.id],
   }),
 }));
 
@@ -1851,6 +2094,21 @@ export type NewMentorshipActionItem = typeof mentorshipActionItems.$inferInsert;
 
 export type CnaDiagnostic = typeof cnaDiagnostics.$inferSelect;
 export type NewCnaDiagnostic = typeof cnaDiagnostics.$inferInsert;
+
+export type CapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferSelect;
+export type NewCapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferInsert;
+
+export type CdpFocusSummaryRow = typeof cdpFocusSummary.$inferSelect;
+export type NewCdpFocusSummaryRow = typeof cdpFocusSummary.$inferInsert;
+
+export type CdpActivity = typeof cdpActivities.$inferSelect;
+export type NewCdpActivity = typeof cdpActivities.$inferInsert;
+
+export type CdpBusinessSupportSession = typeof cdpBusinessSupportSessions.$inferSelect;
+export type NewCdpBusinessSupportSession = typeof cdpBusinessSupportSessions.$inferInsert;
+
+export type CdpActivityProgressReview = typeof cdpActivityProgressReviews.$inferSelect;
+export type NewCdpActivityProgressReview = typeof cdpActivityProgressReviews.$inferInsert;
 
 export type BdsIntervention = typeof bdsInterventions.$inferSelect;
 export type NewBdsIntervention = typeof bdsInterventions.$inferInsert;

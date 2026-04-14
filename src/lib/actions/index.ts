@@ -142,6 +142,26 @@ export {
 
 export type { BusinessListRow } from "./cna";
 
+export type { CdpPlanFull, CdpPlanListItem } from "./cdp";
+
+export {
+    listCdpPlansForBusiness,
+    getCdpPlanFull,
+    createCdpPlan,
+    updateCdpPlan,
+    saveCdpFocusSummaries,
+    importCdpSummariesFromLatestCna,
+    createCdpActivity,
+    updateCdpActivity,
+    deleteCdpActivity,
+    createCdpSupportSession,
+    updateCdpSupportSession,
+    deleteCdpSupportSession,
+    upsertCdpActivityProgress,
+    getEnterpriseCdpReadonly,
+    buildCdpCsvExport,
+} from "./cdp";
+
 export {
     createMentor,
     createMentorFromForm,

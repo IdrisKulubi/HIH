@@ -34,7 +34,16 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "email_asc", label: "Email A–Z" },
 ];
 
-export function AdminCnaBusinessTable({ rows }: { rows: BusinessListRow[] }) {
+export function AdminCnaBusinessTable({
+  rows,
+  basePath = "/admin/cna",
+  actionLabel = "Open",
+}: {
+  rows: BusinessListRow[];
+  /** e.g. `/admin/cna` or `/admin/cdp` */
+  basePath?: string;
+  actionLabel?: string;
+}) {
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState<string>("");
   const [sort, setSort] = useState<SortKey>("company_asc");
@@ -162,7 +171,7 @@ export function AdminCnaBusinessTable({ rows }: { rows: BusinessListRow[] }) {
               <TableHead>Applicant</TableHead>
               <TableHead>Sector</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -176,10 +185,10 @@ export function AdminCnaBusinessTable({ rows }: { rows: BusinessListRow[] }) {
                 <TableCell className="text-sm">{row.applicantEmail}</TableCell>
                 <TableCell className="text-right">
                   <Link
-                    href={`/admin/cna/${row.businessId}`}
+                    href={`${basePath.replace(/\/$/, "")}/${row.businessId}`}
                     className="text-sky-700 hover:underline text-sm font-medium"
                   >
-                    Open
+                    {actionLabel}
                   </Link>
                 </TableCell>
               </TableRow>

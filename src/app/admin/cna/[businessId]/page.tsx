@@ -35,9 +35,14 @@ export default async function AdminCnaBusinessPage({
     <div className="container mx-auto px-4 py-8 space-y-8">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <div>
-          <Link href="/admin/cna" className="text-sm text-sky-700 hover:underline">
-            ← All businesses
-          </Link>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/admin/cna" className="text-sky-700 hover:underline">
+              ← All businesses (CNA)
+            </Link>
+            <Link href={`/admin/cdp/${businessId}`} className="text-emerald-700 hover:underline font-medium">
+              CDP workspace →
+            </Link>
+          </div>
           <h1 className="text-2xl font-semibold text-slate-900 mt-2">{business.name}</h1>
           <p className="text-sm text-muted-foreground">
             {business.applicant.firstName} {business.applicant.lastName} · {business.applicant.email}

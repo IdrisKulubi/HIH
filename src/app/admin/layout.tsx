@@ -76,6 +76,11 @@ export default async function AdminLayout({
                 </Link>
               </li>
               <li>
+                <Link href="/admin/cdp" className="text-emerald-300 hover:text-emerald-200 transition-colors">
+                  CDP
+                </Link>
+              </li>
+              <li>
                 <Link href="/admin/mentorship" className="text-violet-300 hover:text-violet-200 transition-colors">
                   Mentorship
                 </Link>
