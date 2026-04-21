@@ -579,7 +579,8 @@ export async function getReviewerKycProfile(applicationId: number): Promise<Acti
 
     const result = await ensureReviewerKycProfile(applicationId);
     if ("error" in result) {
-      return errorResponse(result.error);
+      const message: string = result.error ?? "KYC profile unavailable";
+      return errorResponse(message);
     }
 
     return successResponse({
@@ -608,7 +609,8 @@ export async function saveReviewerKycDocuments(
     const validated = reviewerKycDocumentsSchema.parse(input);
     const result = await ensureReviewerKycProfile(validated.applicationId);
     if ("error" in result) {
-      return errorResponse(result.error);
+      const message: string = result.error ?? "KYC profile unavailable";
+      return errorResponse(message);
     }
 
     const { application, profile } = result;
@@ -673,7 +675,8 @@ export async function saveReviewerKycGeolocation(
     const validated = reviewerKycGeolocationSchema.parse(input);
     const result = await ensureReviewerKycProfile(validated.applicationId);
     if ("error" in result) {
-      return errorResponse(result.error);
+      const message: string = result.error ?? "KYC profile unavailable";
+      return errorResponse(message);
     }
 
     const { application, profile } = result;
