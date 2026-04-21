@@ -92,6 +92,13 @@
       "when": 1777000000000,
       "tag": "0012_cdp_extended_okr_endline",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777200000000,
+      "tag": "0013_kyc_reviewer_documents",
+      "breakpoints": true
     }
   ]
 }

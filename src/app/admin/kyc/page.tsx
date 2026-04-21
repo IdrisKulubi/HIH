@@ -35,7 +35,7 @@ export default async function AdminKycPage({ searchParams }: Props) {
   if (!queue.success || !queue.data) {
     return (
       <div className="container mx-auto px-4 py-8 space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">KYC Verification Queue</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">KYC Oversight Queue</h1>
         <p className="text-sm text-slate-500">{queue.error || "Unable to load the KYC queue."}</p>
       </div>
     );
@@ -63,8 +63,10 @@ export default async function AdminKycPage({ searchParams }: Props) {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">KYC Verification Queue</h1>
-        <p className="text-sm text-slate-500">Review selected enterprises, verify compliance details, and unlock the next modules.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">KYC Oversight Queue</h1>
+        <p className="text-sm text-slate-500">
+          Review reviewer-entered KYC records, confirm the uploaded agreement, and inspect geolocation progress.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
@@ -108,10 +110,13 @@ export default async function AdminKycPage({ searchParams }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Application</TableHead>
                   <TableHead>Business</TableHead>
                   <TableHead>Applicant</TableHead>
+                  <TableHead>Track</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Lock</TableHead>
+                  <TableHead>Progress</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -119,11 +124,19 @@ export default async function AdminKycPage({ searchParams }: Props) {
               <TableBody>
                 {filtered.map((item) => (
                   <TableRow key={item.applicationId}>
+                    <TableCell className="font-medium text-slate-900">#{item.applicationId}</TableCell>
                     <TableCell className="font-medium text-slate-900">{item.businessName}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="text-slate-900">{item.applicantName}</span>
                         <span className="text-xs text-slate-500">{item.applicantEmail}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="capitalize">{item.track?.replace(/_/g, " ") ?? "Not set"}</TableCell>
+                    <TableCell className="text-sm text-slate-600">
+                      <div className="flex flex-col">
+                        <span className="capitalize">{item.county?.replace(/_/g, " ") ?? "No county"}</span>
+                        <span>{item.city}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -132,9 +145,14 @@ export default async function AdminKycPage({ searchParams }: Props) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {item.profileLockStatus.replace(/_/g, " ")}
-                      </Badge>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant={item.hasLetterOfAgreement ? "default" : "outline"}>
+                          {item.hasLetterOfAgreement ? "Agreement uploaded" : "Agreement pending"}
+                        </Badge>
+                        <Badge variant={item.geolocationCaptured ? "default" : "outline"}>
+                          {item.geolocationCaptured ? "Geo saved" : "Geo pending"}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-slate-600">
                       {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "Not submitted"}

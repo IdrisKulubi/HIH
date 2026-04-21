@@ -87,6 +87,10 @@ export function kycDocumentTypeCompareHint(
       return "tax_compliance";
     case "cr12":
       return "registration";
+    case "letter_of_agreement":
+      return "other";
+    case "national_id_document":
+      return "other";
     default:
       return "other";
   }

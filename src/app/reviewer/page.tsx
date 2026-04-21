@@ -110,6 +110,26 @@ export default async function ReviewerDashboard() {
                         </Card>
                     )}
 
+                    <Card className="border-sky-200 shadow-sm hover:shadow-md transition-shadow bg-sky-50/30">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <ShieldCheck className="h-5 w-5 text-sky-600" />
+                                KYC
+                            </CardTitle>
+                            <CardDescription>
+                                Upload letters of agreement and capture enterprise geolocation
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Link href="/reviewer/kyc" className="block">
+                                <Button className="w-full bg-sky-600 hover:bg-sky-700 shadow-sm transition-all py-6 text-base font-medium">
+                                    Open KYC Workspace
+                                    <ArrowRight className="ml-2 h-5 w-5" />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
                     {/* Role Info Card */}
                     <Card className="border-gray-100 shadow-sm">
                         <CardHeader>

@@ -119,6 +119,10 @@ export {
 
 export {
     getCurrentUserKycProfile,
+    getReviewerKycQueue,
+    getReviewerKycProfile,
+    saveReviewerKycDocuments,
+    saveReviewerKycGeolocation,
     saveKycApplicantDemographics,
     saveKycDraft,
     submitKycProfile,

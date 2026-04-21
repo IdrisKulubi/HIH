@@ -190,7 +190,9 @@ export const kycDocumentTypeEnum = pgEnum('kyc_document_type', [
   'bank_account_proof',
   'programme_consent_form',
   'director_id_document',
-  'additional_supporting_document'
+  'additional_supporting_document',
+  'letter_of_agreement',
+  'national_id_document'
 ]);
 
 export const kycChangeRequestStatusEnum = pgEnum('kyc_change_request_status', [

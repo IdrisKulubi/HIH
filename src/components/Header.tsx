@@ -207,7 +207,7 @@ export function Header() {
                       <DropdownMenuItem asChild>
                         <Link href="/kyc" className="flex items-center">
                           <ShieldCheck className="mr-2 h-4 w-4" />
-                          <span>KYC Profile</span>
+                          <span>KYC Status</span>
                         </Link>
                       </DropdownMenuItem>
                     )}

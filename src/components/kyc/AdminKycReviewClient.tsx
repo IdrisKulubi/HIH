@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { kycDocumentTypeCompareHint, type ApplicationPhaseDocument } from "@/lib/kyc-application-documents";
+import { getKycDocumentLabel } from "@/lib/kyc/constants";
 
 type Props = {
   applicationId: number;
@@ -93,7 +94,9 @@ export function AdminKycReviewClient({
           <div className="flex items-center justify-between gap-3">
             <div>
               <CardTitle>KYC Review Decision</CardTitle>
-              <CardDescription>Approve the enterprise, request more information, or reject the submission.</CardDescription>
+              <CardDescription>
+                Approve the reviewer-entered KYC record, request more information, or reject the submission.
+              </CardDescription>
             </div>
             <Badge className="capitalize bg-blue-100 text-blue-700 hover:bg-blue-100">{profileStatus.replace(/_/g, " ")}</Badge>
           </div>
@@ -119,8 +122,8 @@ export function AdminKycReviewClient({
         <CardHeader>
           <CardTitle>Application vs KYC documents</CardTitle>
           <CardDescription>
-            Compare files from the original application (left) with KYC uploads (right). Hints link similar document types—they
-            are not the same file.
+            Compare files from the original application (left) with reviewer-uploaded KYC documents (right). Hints link similar
+            document types; they are not always the same file.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,7 +165,7 @@ export function AdminKycReviewClient({
                     <div key={`${doc.documentType}-${doc.fileUrl}`} className="rounded-xl border border-slate-200 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900 capitalize">{doc.documentType.replace(/_/g, " ")}</p>
+                          <p className="font-medium text-slate-900">{getKycDocumentLabel(doc.documentType)}</p>
                           {hint === "tax_compliance" && (
                             <p className="mt-1 text-xs text-slate-500">Compare with application tax compliance (if listed)</p>
                           )}

@@ -84,15 +84,15 @@ function getStatusDescription(status: string) {
 function getKycStatusDescription(status?: string) {
   switch (status) {
     case 'in_progress':
-      return 'Your KYC profile has been opened. Complete the required compliance information to continue.';
+      return 'Your KYC record has been opened for review. The programme team is collecting the required compliance information.';
     case 'submitted':
-      return 'Your KYC submission is under review by the verification team.';
+      return 'Your KYC record has been updated by the review team and is awaiting final verification.';
     case 'needs_info':
-      return 'The verification team has requested additional KYC information before activation.';
+      return 'The verification team has requested additional KYC information from the field reviewers before activation.';
     case 'verified':
       return 'Your KYC profile has been verified and your downstream programme modules can now be unlocked.';
     case 'rejected':
-      return 'Your KYC submission was rejected. Please contact the programme team for next steps.';
+      return 'Your KYC record was rejected. Please contact the programme team for next steps.';
     default:
       return 'KYC has not started yet.';
   }

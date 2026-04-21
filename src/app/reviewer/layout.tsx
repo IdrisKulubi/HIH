@@ -46,6 +46,11 @@ export default async function ReviewerLayout({
                                 </Link>
                             </li>
                             <li>
+                                <Link href="/reviewer/kyc" className="text-white/80 hover:text-white transition-colors">
+                                    KYC
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/" className="text-white/80 hover:text-white transition-colors">
                                     Back to Site
                                 </Link>

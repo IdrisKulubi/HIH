@@ -11,7 +11,7 @@ import {
   kycFieldChanges,
   kycProfiles,
 } from "../../../db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
@@ -19,23 +19,40 @@ import {
   buildApplicationDocumentsFromBusiness,
   type ApplicationPhaseDocument,
 } from "@/lib/kyc-application-documents";
+import {
+  allKycDocumentTypes,
+  getKycDocumentLabel,
+  reviewerKycDocumentTypes,
+} from "@/lib/kyc/constants";
 
 const KYC_READY_APPLICATION_STATUSES = ["approved", "finalist"] as const;
 const KYC_ADMIN_ROLES = ["admin", "oversight"] as const;
+const KYC_REVIEWER_ROLES = ["admin", "reviewer_1", "reviewer_2", "technical_reviewer"] as const;
 
 const kycDocumentInputSchema = z.object({
-  documentType: z.enum([
-    "tax_compliance_certificate",
-    "cr12",
-    "bank_account_proof",
-    "programme_consent_form",
-    "director_id_document",
-    "additional_supporting_document",
-  ]),
+  documentType: z.enum(allKycDocumentTypes),
   fileUrl: z.string().min(1),
   fileName: z.string().optional(),
   documentNumber: z.string().optional(),
   notes: z.string().optional(),
+});
+
+const reviewerKycDocumentInputSchema = z.object({
+  documentType: z.enum(reviewerKycDocumentTypes),
+  fileUrl: z.string().min(1),
+  fileName: z.string().optional(),
+  documentNumber: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const reviewerKycDocumentsSchema = z.object({
+  applicationId: z.number().int().positive(),
+  documents: z.array(reviewerKycDocumentInputSchema),
+});
+
+const reviewerKycGeolocationSchema = z.object({
+  applicationId: z.number().int().positive(),
+  gpsCoordinates: z.string().min(1).max(255),
 });
 
 const kycDraftSchema = z.object({
@@ -104,6 +121,8 @@ type KycDraftInput = z.infer<typeof kycDraftSchema>;
 type KycSubmitInput = z.infer<typeof kycSubmitSchema>;
 type KycReviewInput = z.infer<typeof kycReviewSchema>;
 type KycChangeRequestInput = z.infer<typeof kycChangeRequestSchema>;
+type ReviewerKycDocumentsInput = z.infer<typeof reviewerKycDocumentsSchema>;
+type ReviewerKycGeolocationInput = z.infer<typeof reviewerKycGeolocationSchema>;
 
 const KYC_FIELD_LABELS: Record<string, string> = {
   gpsCoordinates: "Business location",
@@ -126,17 +145,12 @@ const KYC_FIELD_LABELS: Record<string, string> = {
   reviewNotes: "Review notes",
 };
 
-const KYC_DOCUMENT_LABELS: Record<string, string> = {
-  tax_compliance_certificate: "Tax Compliance Certificate",
-  cr12: "CR12",
-  bank_account_proof: "Bank Account Proof",
-  programme_consent_form: "Programme Consent Form",
-  director_id_document: "Director ID Document",
-  additional_supporting_document: "Additional Supporting Document",
-};
-
 function isKycAdmin(role?: string | null) {
   return !!role && KYC_ADMIN_ROLES.includes(role as (typeof KYC_ADMIN_ROLES)[number]);
+}
+
+function isKycReviewer(role?: string | null) {
+  return !!role && KYC_REVIEWER_ROLES.includes(role as (typeof KYC_REVIEWER_ROLES)[number]);
 }
 
 function applicantDobToInputValue(dob: Date | string | null | undefined): string {
@@ -262,6 +276,78 @@ async function getAuthorizedKycApplication(userId: string) {
   });
 }
 
+async function getKycApplicationById(applicationId: number) {
+  return db.query.applications.findFirst({
+    where: eq(applications.id, applicationId),
+    with: {
+      business: {
+        with: {
+          applicant: true,
+        },
+      },
+    },
+  });
+}
+
+function canReviewerEditKycProfile(profile: typeof kycProfiles.$inferSelect) {
+  if (profile.profileLockStatus === "locked" || profile.profileLockStatus === "change_requested") {
+    return false;
+  }
+
+  return profile.status !== "verified" && profile.status !== "rejected";
+}
+
+async function ensureReviewerKycProfile(applicationId: number) {
+  const application = await getKycApplicationById(applicationId);
+
+  if (!application) {
+    return { error: "Application not found." as const };
+  }
+
+  const existingProfile = await db.query.kycProfiles.findFirst({
+    where: eq(kycProfiles.applicationId, application.id),
+    with: {
+      documents: true,
+      fieldChanges: true,
+      changeRequests: true,
+    },
+  });
+
+  if (existingProfile) {
+    return { application, profile: existingProfile };
+  }
+
+  if (!KYC_READY_APPLICATION_STATUSES.includes(application.status as (typeof KYC_READY_APPLICATION_STATUSES)[number])) {
+    return { error: "KYC is only available for selected enterprises." as const };
+  }
+
+  const originalSnapshot = buildOriginalSnapshot(application);
+  const [created] = await db.insert(kycProfiles).values({
+    applicationId: application.id,
+    businessId: application.business.id,
+    userId: application.userId,
+    status: "not_started",
+    originalSnapshot,
+    submittedSnapshot: {},
+    lastSavedAt: new Date(),
+  }).returning();
+
+  const profile = {
+    ...created,
+    documents: [],
+    fieldChanges: [],
+    changeRequests: [],
+  };
+
+  return { application, profile };
+}
+
+function buildReviewerKycSnapshot(profile: typeof kycProfiles.$inferSelect) {
+  return {
+    gpsCoordinates: profile.gpsCoordinates ?? null,
+  };
+}
+
 async function upsertKycDocuments(profileId: number, userId: string, docs?: KycDraftInput["documents"]) {
   if (!docs?.length) return;
 
@@ -377,6 +463,257 @@ async function ensureKycProfile(userId: string) {
   }
 
   return { application, profile };
+}
+
+export async function getReviewerKycQueue(
+  search?: string,
+  status?: string
+): Promise<ActionResponse<Array<{
+  applicationId: number;
+  businessName: string;
+  applicantName: string;
+  applicantEmail: string;
+  track: string | null;
+  county: string | null;
+  city: string;
+  kycStatus: string;
+  geolocationCaptured: boolean;
+  hasLetterOfAgreement: boolean;
+}>>> {
+  try {
+    const session = await auth();
+    if (!isKycReviewer(session?.user?.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const applicationsList = await db.query.applications.findMany({
+      where: inArray(applications.status, [...KYC_READY_APPLICATION_STATUSES]),
+      orderBy: [desc(applications.updatedAt), desc(applications.id)],
+      with: {
+        business: {
+          with: {
+            applicant: true,
+          },
+        },
+      },
+    });
+
+    const applicationIds = applicationsList.map((item) => item.id);
+    const profiles = applicationIds.length === 0
+      ? []
+      : await db.query.kycProfiles.findMany({
+          where: inArray(kycProfiles.applicationId, applicationIds),
+          with: {
+            documents: true,
+          },
+        });
+
+    const profileByApplicationId = new Map(profiles.map((profile) => [profile.applicationId, profile]));
+    const normalizedSearch = search?.trim().toLowerCase();
+
+    const rows = applicationsList
+      .map((application) => {
+        const profile = profileByApplicationId.get(application.id);
+        const applicantName = `${application.business.applicant.firstName} ${application.business.applicant.lastName}`.trim();
+        const hasLetterOfAgreement = Boolean(
+          profile?.documents.some((document) => document.documentType === "letter_of_agreement" && document.fileUrl)
+        );
+
+        return {
+          applicationId: application.id,
+          businessName: application.business.name,
+          applicantName,
+          applicantEmail: application.business.applicant.email,
+          track: application.track,
+          county: application.business.county,
+          city: application.business.city,
+          kycStatus: profile?.status ?? "not_started",
+          geolocationCaptured: Boolean(profile?.gpsCoordinates?.trim()),
+          hasLetterOfAgreement,
+        };
+      })
+      .filter((item) => {
+        if (status && status !== "all" && item.kycStatus !== status) {
+          return false;
+        }
+
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        const haystack = [
+          String(item.applicationId),
+          item.businessName,
+          item.applicantName,
+          item.applicantEmail,
+          item.track ?? "",
+          item.county ?? "",
+          item.city,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(normalizedSearch);
+      });
+
+    return successResponse(rows);
+  } catch (error) {
+    console.error("Error loading reviewer KYC queue:", error);
+    return errorResponse("Failed to load reviewer KYC queue");
+  }
+}
+
+export async function getReviewerKycProfile(applicationId: number): Promise<ActionResponse<{
+  profile: typeof kycProfiles.$inferSelect;
+  application: typeof applications.$inferSelect;
+  business: typeof businesses.$inferSelect;
+  applicant: typeof applicants.$inferSelect;
+  applicationDocuments: ApplicationPhaseDocument[];
+  documents: typeof kycDocuments.$inferSelect[];
+}>> {
+  try {
+    const session = await auth();
+    if (!isKycReviewer(session?.user?.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const result = await ensureReviewerKycProfile(applicationId);
+    if ("error" in result) {
+      return errorResponse(result.error);
+    }
+
+    return successResponse({
+      profile: result.profile,
+      application: result.application,
+      business: result.application.business,
+      applicant: result.application.business.applicant,
+      applicationDocuments: buildApplicationDocumentsFromBusiness(result.application.business),
+      documents: result.profile.documents,
+    });
+  } catch (error) {
+    console.error("Error loading reviewer KYC profile:", error);
+    return errorResponse("Failed to load reviewer KYC profile");
+  }
+}
+
+export async function saveReviewerKycDocuments(
+  input: ReviewerKycDocumentsInput
+): Promise<ActionResponse<{ profileId: number; status: string }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isKycReviewer(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const validated = reviewerKycDocumentsSchema.parse(input);
+    const result = await ensureReviewerKycProfile(validated.applicationId);
+    if ("error" in result) {
+      return errorResponse(result.error);
+    }
+
+    const { application, profile } = result;
+    if (!canReviewerEditKycProfile(profile)) {
+      return errorResponse("This KYC record is locked and cannot be updated.");
+    }
+
+    const hasLetterOfAgreement = validated.documents.some((document) => document.documentType === "letter_of_agreement");
+    if (!hasLetterOfAgreement) {
+      return errorResponse("Letter of Agreement is required before saving KYC details.");
+    }
+
+    await upsertKycDocuments(profile.id, session.user.id, validated.documents);
+
+    await db.update(kycProfiles).set({
+      status: "submitted",
+      submittedSnapshot: buildReviewerKycSnapshot({
+        ...profile,
+        gpsCoordinates: profile.gpsCoordinates,
+      }),
+      submittedAt: profile.submittedAt ?? new Date(),
+      lastSavedAt: new Date(),
+      reviewNotes: null,
+      rejectionReason: null,
+      needsInfoReason: null,
+      updatedAt: new Date(),
+    }).where(eq(kycProfiles.id, profile.id));
+
+    await db.update(applications).set({
+      kycRequired: true,
+      kycStatus: "submitted",
+      kycSubmittedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(applications.id, application.id));
+
+    revalidatePath("/reviewer/kyc");
+    revalidatePath(`/reviewer/kyc/${application.id}`);
+    revalidatePath("/admin/kyc");
+    revalidatePath(`/admin/kyc/${application.id}`);
+    revalidatePath("/kyc");
+    revalidatePath("/profile");
+
+    return successResponse({ profileId: profile.id, status: "submitted" }, "KYC details saved");
+  } catch (error) {
+    console.error("Error saving reviewer KYC documents:", error);
+    if (error instanceof z.ZodError) {
+      return errorResponse(formatValidationError(error));
+    }
+    return errorResponse("Failed to save KYC details");
+  }
+}
+
+export async function saveReviewerKycGeolocation(
+  input: ReviewerKycGeolocationInput
+): Promise<ActionResponse<{ profileId: number; gpsCoordinates: string }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isKycReviewer(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const validated = reviewerKycGeolocationSchema.parse(input);
+    const result = await ensureReviewerKycProfile(validated.applicationId);
+    if ("error" in result) {
+      return errorResponse(result.error);
+    }
+
+    const { application, profile } = result;
+    if (!canReviewerEditKycProfile(profile)) {
+      return errorResponse("This KYC record is locked and cannot be updated.");
+    }
+
+    await db.update(kycProfiles).set({
+      gpsCoordinates: validated.gpsCoordinates,
+      submittedSnapshot: {
+        ...((profile.submittedSnapshot as Record<string, unknown>) ?? {}),
+        gpsCoordinates: validated.gpsCoordinates,
+      },
+      status: profile.status === "not_started" ? "in_progress" : profile.status,
+      lastSavedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(kycProfiles.id, profile.id));
+
+    await db.update(applications).set({
+      kycRequired: true,
+      kycStatus: profile.status === "not_started" ? "in_progress" : profile.status,
+      updatedAt: new Date(),
+    }).where(eq(applications.id, application.id));
+
+    revalidatePath("/reviewer/kyc");
+    revalidatePath(`/reviewer/kyc/${application.id}`);
+    revalidatePath("/admin/kyc");
+    revalidatePath(`/admin/kyc/${application.id}`);
+
+    return successResponse(
+      { profileId: profile.id, gpsCoordinates: validated.gpsCoordinates },
+      "Geolocation saved"
+    );
+  } catch (error) {
+    console.error("Error saving reviewer KYC geolocation:", error);
+    if (error instanceof z.ZodError) {
+      return errorResponse(formatValidationError(error));
+    }
+    return errorResponse("Failed to save geolocation");
+  }
 }
 
 export async function getCurrentUserKycProfile(): Promise<ActionResponse<{
@@ -594,7 +931,7 @@ export async function submitKycProfile(input: KycSubmitInput): Promise<ActionRes
 
     const missing = requiredDocuments.filter((docType) => !documentTypes.has(docType as typeof allDocs[number]["documentType"]));
     if (missing.length) {
-      const missingLabels = missing.map((docType) => KYC_DOCUMENT_LABELS[docType] ?? docType);
+      const missingLabels = missing.map((docType) => getKycDocumentLabel(docType));
       return errorResponse(`Please upload the missing required documents: ${missingLabels.join(", ")}.`);
     }
 
@@ -657,8 +994,13 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
   businessName: string;
   applicantName: string;
   applicantEmail: string;
+  track: string | null;
+  county: string | null;
+  city: string;
   kycStatus: string;
   profileLockStatus: string;
+  geolocationCaptured: boolean;
+  hasLetterOfAgreement: boolean;
   submittedAt: string | null;
   verifiedAt: string | null;
 }>>> {
@@ -679,6 +1021,7 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
             },
           },
         },
+        documents: true,
       },
     });
 
@@ -688,8 +1031,13 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
         businessName: profile.application.business.name,
         applicantName: `${profile.application.business.applicant.firstName} ${profile.application.business.applicant.lastName}`.trim(),
         applicantEmail: profile.application.business.applicant.email,
+        track: profile.application.track,
+        county: profile.application.business.county,
+        city: profile.application.business.city,
         kycStatus: profile.status,
         profileLockStatus: profile.profileLockStatus,
+        geolocationCaptured: Boolean(profile.gpsCoordinates?.trim()),
+        hasLetterOfAgreement: profile.documents.some((document) => document.documentType === "letter_of_agreement"),
         submittedAt: profile.submittedAt?.toISOString() ?? null,
         verifiedAt: profile.verifiedAt?.toISOString() ?? null,
       }))
