@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { AdminRoleGuard } from "@/components/admin/AdminRoleGuard";
+import { AdminNavbar } from "@/components/admin/AdminNavbar";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | BIRE Programme",
@@ -25,95 +25,10 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground ">
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Periodic role check runs every hour */}
       <AdminRoleGuard />
-      <header className="sticky top-16 z-40 border-b bg-slate-800 text-white shadow-md">
-        <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-          <Link href="/admin" className="font-bold text-xl">
-            BIRE Programme Admin
-          </Link>
-          <nav>
-            <ul className="flex space-x-8">
-              <li>
-                <Link href="/admin" className="text-white/80 hover:text-white transition-colors">
-                  Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/applications" className="text-white/80 hover:text-white transition-colors">
-                  Applications
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/observation" className="text-amber-400 hover:text-amber-300 transition-colors">
-                  Observation
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/due-diligence" className="text-emerald-400 hover:text-emerald-300 transition-colors">
-                  Due Diligence
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/qualified" className="text-green-400 hover:text-green-300 transition-colors">
-                  Qualified
-                </Link>
-              </li>
-              <li>
-                <Link href="/a2f" className="text-cyan-400 hover:text-cyan-300 transition-colors font-semibold">
-                  A2F
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/kyc" className="text-sky-300 hover:text-sky-200 transition-colors">
-                  KYC
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/cna" className="text-teal-300 hover:text-teal-200 transition-colors">
-                  CNA
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/cdp" className="text-emerald-300 hover:text-emerald-200 transition-colors">
-                  CDP
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/mentorship" className="text-violet-300 hover:text-violet-200 transition-colors">
-                  Mentorship
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/analytics" className="text-white/80 hover:text-white transition-colors">
-                  Analytics
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/scoring" className="text-white/80 hover:text-white transition-colors">
-                  Scoring
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/review" className="text-white/80 hover:text-white transition-colors">
-                  Review
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/assignments" className="text-purple-400 hover:text-purple-300 transition-colors">
-                  Assignments
-                </Link>
-              </li>
-              <li>
-                <Link href="/" className="text-white/80 hover:text-white transition-colors">
-                  Back to Site
-                </Link>
-              </li>
-            </ul>
-          </nav>
-        </div>
-      </header>
+      <AdminNavbar />
 
       <main className="flex-1">
         {children}

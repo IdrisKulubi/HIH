@@ -9,16 +9,32 @@ import {
   cdpActivities,
   cdpActivityProgressReviews,
   cdpBusinessSupportSessions,
+  cdpEndlineResponses,
   cdpFocusSummary,
+  cdpKeyResults,
+  cdpObjectives,
+  cdpSessionActionItems,
+  cdpWeeklyMilestones,
   cnaDiagnostics,
+  kycProfiles,
   type CapacityDevelopmentPlan,
   type CdpActivity,
   type CdpActivityProgressReview,
   type CdpBusinessSupportSession,
+  type CdpEndlineResponse,
   type CdpFocusSummaryRow,
+  type CdpKeyResult,
+  type CdpObjective,
+  type CdpSessionActionItem,
+  type CdpWeeklyMilestone,
 } from "@/db/schema";
 import { suggestedFocusSummariesFromLegacyCna } from "@/lib/cdp/legacy-cna-bridge";
 import { CDP_FOCUS_CODES, cdpFocusCodeSchema, cdpFocusSummaryInputSchema } from "@/lib/cdp/focus-areas";
+import {
+  assertCdpActivationReadiness,
+  computeCdpPipelineCompleteness,
+  type PipelineCompleteness,
+} from "@/lib/cdp/pipeline";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { stringify } from "csv-stringify/sync";
@@ -60,10 +76,15 @@ export type CdpPlanListItem = Pick<
   "id" | "businessId" | "status" | "diagnosticDate" | "cdpReviewDate" | "updatedAt"
 >;
 
+export type CdpObjectiveWithKrs = CdpObjective & { keyResults: CdpKeyResult[] };
+
 export type CdpPlanFull = CapacityDevelopmentPlan & {
   focusSummaries: CdpFocusSummaryRow[];
   activities: (CdpActivity & { progressReviews: CdpActivityProgressReview[] })[];
-  supportSessions: CdpBusinessSupportSession[];
+  supportSessions: (CdpBusinessSupportSession & { actionItems: CdpSessionActionItem[] })[];
+  objectives: CdpObjectiveWithKrs[];
+  weeklyMilestones: CdpWeeklyMilestone[];
+  endlineResponse: CdpEndlineResponse | null;
 };
 
 export async function listCdpPlansForBusiness(
@@ -111,7 +132,22 @@ export async function getCdpPlanFull(planId: number): Promise<ActionResponse<Cdp
           orderBy: [asc(cdpActivities.sortOrder), asc(cdpActivities.id)],
           with: { progressReviews: { orderBy: [asc(cdpActivityProgressReviews.reviewPeriod)] } },
         },
-        supportSessions: { orderBy: [asc(cdpBusinessSupportSessions.sessionNumber)] },
+        supportSessions: {
+          orderBy: [asc(cdpBusinessSupportSessions.sessionNumber)],
+          with: {
+            actionItems: { orderBy: [asc(cdpSessionActionItems.sortOrder), asc(cdpSessionActionItems.id)] },
+          },
+        },
+        objectives: {
+          orderBy: [asc(cdpObjectives.sortOrder), asc(cdpObjectives.id)],
+          with: {
+            keyResults: { orderBy: [asc(cdpKeyResults.sortOrder), asc(cdpKeyResults.id)] },
+          },
+        },
+        weeklyMilestones: {
+          orderBy: [asc(cdpWeeklyMilestones.weekIndex), asc(cdpWeeklyMilestones.id)],
+        },
+        endlineResponse: true,
       },
     });
     if (!row) return errorResponse("Plan not found");
@@ -198,14 +234,38 @@ export async function updateCdpPlan(
 
     const existing = await db.query.capacityDevelopmentPlans.findFirst({
       where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
-      columns: { id: true, businessId: true },
+      columns: { id: true, businessId: true, status: true },
     });
     if (!existing) return errorResponse("Plan not found");
+
+    if (parsed.data.status === "active" && existing.status !== "active") {
+      const full = await db.query.capacityDevelopmentPlans.findFirst({
+        where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
+        with: {
+          focusSummaries: true,
+          activities: true,
+          objectives: { with: { keyResults: true } },
+        },
+      });
+      if (!full) return errorResponse("Plan not found");
+      const krWeights = full.objectives.flatMap((o) => o.keyResults.map((k) => ({ weightPercent: k.weightPercent })));
+      const gate = assertCdpActivationReadiness({
+        focusSummaries: full.focusSummaries,
+        activities: full.activities,
+        keyResultWeights: krWeights,
+      });
+      if (gate) return errorResponse(gate);
+    }
 
     const patch: Partial<typeof capacityDevelopmentPlans.$inferInsert> = {
       updatedAt: new Date(),
     };
-    if (parsed.data.status != null) patch.status = parsed.data.status;
+    if (parsed.data.status != null) {
+      patch.status = parsed.data.status;
+      if (parsed.data.status === "active" && existing.status !== "active") {
+        patch.cdpApprovedAt = new Date();
+      }
+    }
     if (parsed.data.diagnosticDate != null) patch.diagnosticDate = parsed.data.diagnosticDate;
     if (parsed.data.cdpReviewDate !== undefined) {
       patch.cdpReviewDate = parseOptionalDate(parsed.data.cdpReviewDate);
@@ -228,6 +288,35 @@ export async function updateCdpPlan(
   } catch (e) {
     console.error("updateCdpPlan", e);
     return errorResponse("Failed to update plan");
+  }
+}
+
+export async function setCdpDiagnosticLocked(
+  planId: number,
+  locked: boolean
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const plan = await db.query.capacityDevelopmentPlans.findFirst({
+      where: eq(capacityDevelopmentPlans.id, planId),
+      columns: { businessId: true },
+    });
+    if (!plan) return errorResponse("Plan not found");
+    await db
+      .update(capacityDevelopmentPlans)
+      .set({
+        diagnosticLockedAt: locked ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(capacityDevelopmentPlans.id, planId));
+    revalidateCdpPaths(plan.businessId, planId);
+    return successResponse({ businessId: plan.businessId });
+  } catch (e) {
+    console.error("setCdpDiagnosticLocked", e);
+    return errorResponse("Failed to update diagnostic lock");
   }
 }
 
@@ -316,9 +405,12 @@ export async function saveCdpFocusSummaries(
 
     const plan = await db.query.capacityDevelopmentPlans.findFirst({
       where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
-      columns: { id: true, businessId: true },
+      columns: { id: true, businessId: true, diagnosticLockedAt: true },
     });
     if (!plan) return errorResponse("Plan not found");
+    if (plan.diagnosticLockedAt) {
+      return errorResponse("Diagnostic is locked. Ask a lead to unlock before editing A–L scores.");
+    }
 
     for (const row of parsed.data.rows) {
       await db
@@ -483,6 +575,10 @@ const sessionCreateSchema = z.object({
   challengesRaised: z.string().max(8000).optional().nullable(),
   nextSteps: z.string().max(8000).optional().nullable(),
   followUpDate: z.string().optional().nullable(),
+  bootcampWeek: z.number().int().min(1).max(13).optional().nullable(),
+  evidenceUrls: z.array(z.string().max(500)).max(20).optional().nullable(),
+  /** Logged as structured follow-ups (recommended when key actions are agreed). */
+  initialActionDescriptions: z.array(z.string().max(2000)).max(30).optional().nullable(),
 });
 
 export async function createCdpSupportSession(
@@ -505,27 +601,74 @@ export async function createCdpSupportSession(
     const sessionDate = new Date(parsed.data.sessionDate);
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
 
-    const [row] = await db
-      .insert(cdpBusinessSupportSessions)
-      .values({
-        planId: parsed.data.planId,
-        sessionNumber: parsed.data.sessionNumber,
-        sessionDate,
-        focusCodes: parsed.data.focusCodes,
-        agenda: parsed.data.agenda?.trim() || null,
-        supportType: parsed.data.supportType?.trim() || null,
-        durationHours:
-          parsed.data.durationHours != null ? String(parsed.data.durationHours) : null,
-        keyActionsAgreed: parsed.data.keyActionsAgreed?.trim() || null,
-        challengesRaised: parsed.data.challengesRaised?.trim() || null,
-        nextSteps: parsed.data.nextSteps?.trim() || null,
-        followUpDate: parseOptionalDate(parsed.data.followUpDate ?? null),
-        conductedById: session.user!.id,
-      })
-      .returning({ id: cdpBusinessSupportSessions.id });
+    const n = parsed.data.sessionNumber;
+    if (n > 1) {
+      const prev = await db.query.cdpBusinessSupportSessions.findFirst({
+        where: and(
+          eq(cdpBusinessSupportSessions.planId, parsed.data.planId),
+          eq(cdpBusinessSupportSessions.sessionNumber, n - 1)
+        ),
+        with: {
+          actionItems: true,
+        },
+      });
+      if (prev) {
+        const items = prev.actionItems ?? [];
+        if (items.length > 0) {
+          const blocked = items.filter((i) => i.status === "open" || i.status === "blocked");
+          if (blocked.length > 0) {
+            return errorResponse(
+              `Session ${n - 1} still has open action items. Mark them done or waived before logging session ${n}.`
+            );
+          }
+        } else if (prev.keyActionsAgreed && String(prev.keyActionsAgreed).trim().length > 0) {
+          return errorResponse(
+            `Session ${n - 1} has "key actions agreed" text but no structured action items. Add action items to that session and close them before logging session ${n}.`
+          );
+        }
+      }
+    }
+
+    const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
+
+    const newId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(cdpBusinessSupportSessions)
+        .values({
+          planId: parsed.data.planId,
+          sessionNumber: parsed.data.sessionNumber,
+          sessionDate,
+          focusCodes: parsed.data.focusCodes,
+          agenda: parsed.data.agenda?.trim() || null,
+          supportType: parsed.data.supportType?.trim() || null,
+          durationHours:
+            parsed.data.durationHours != null ? String(parsed.data.durationHours) : null,
+          keyActionsAgreed: parsed.data.keyActionsAgreed?.trim() || null,
+          challengesRaised: parsed.data.challengesRaised?.trim() || null,
+          nextSteps: parsed.data.nextSteps?.trim() || null,
+          followUpDate: parseOptionalDate(parsed.data.followUpDate ?? null),
+          bootcampWeek: parsed.data.bootcampWeek ?? null,
+          evidenceUrls,
+          conductedById: session.user!.id,
+        })
+        .returning({ id: cdpBusinessSupportSessions.id });
+
+      const descriptions = parsed.data.initialActionDescriptions?.filter((d) => d.trim()) ?? [];
+      if (descriptions.length > 0) {
+        await tx.insert(cdpSessionActionItems).values(
+          descriptions.map((description, idx) => ({
+            sessionId: row.id,
+            description: description.trim(),
+            sortOrder: idx,
+          }))
+        );
+      }
+
+      return row.id;
+    });
 
     revalidateCdpPaths(plan.businessId, parsed.data.planId);
-    return successResponse({ id: row.id, businessId: plan.businessId });
+    return successResponse({ id: newId, businessId: plan.businessId });
   } catch (e) {
     console.error("createCdpSupportSession", e);
     return errorResponse("Failed to create session (check session # is unique for this plan).");
@@ -558,6 +701,8 @@ export async function updateCdpSupportSession(
     const sessionDate = new Date(parsed.data.sessionDate);
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
 
+    const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
+
     await db
       .update(cdpBusinessSupportSessions)
       .set({
@@ -572,6 +717,8 @@ export async function updateCdpSupportSession(
         challengesRaised: parsed.data.challengesRaised?.trim() || null,
         nextSteps: parsed.data.nextSteps?.trim() || null,
         followUpDate: parseOptionalDate(parsed.data.followUpDate ?? null),
+        bootcampWeek: parsed.data.bootcampWeek ?? null,
+        evidenceUrls,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -605,6 +752,526 @@ export async function deleteCdpSupportSession(
   } catch (e) {
     console.error("deleteCdpSupportSession", e);
     return errorResponse("Failed to delete session");
+  }
+}
+
+const objectiveCreateSchema = z.object({
+  planId: z.number().int().positive(),
+  title: z.string().min(1).max(2000),
+});
+
+export async function createCdpObjective(
+  input: z.infer<typeof objectiveCreateSchema>
+): Promise<ActionResponse<{ id: number; businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = objectiveCreateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid objective");
+
+    const plan = await db.query.capacityDevelopmentPlans.findFirst({
+      where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
+      columns: { businessId: true },
+    });
+    if (!plan) return errorResponse("Plan not found");
+
+    const [maxRow] = await db
+      .select({ m: cdpObjectives.sortOrder })
+      .from(cdpObjectives)
+      .where(eq(cdpObjectives.planId, parsed.data.planId))
+      .orderBy(desc(cdpObjectives.sortOrder))
+      .limit(1);
+    const nextOrder = (maxRow?.m ?? 0) + 1;
+
+    const [row] = await db
+      .insert(cdpObjectives)
+      .values({
+        planId: parsed.data.planId,
+        title: parsed.data.title.trim(),
+        sortOrder: nextOrder,
+      })
+      .returning({ id: cdpObjectives.id });
+
+    revalidateCdpPaths(plan.businessId, parsed.data.planId);
+    return successResponse({ id: row.id, businessId: plan.businessId });
+  } catch (e) {
+    console.error("createCdpObjective", e);
+    return errorResponse("Failed to create objective");
+  }
+}
+
+export async function deleteCdpObjective(
+  objectiveId: number
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const existing = await db.query.cdpObjectives.findFirst({
+      where: eq(cdpObjectives.id, objectiveId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!existing?.plan) return errorResponse("Objective not found");
+    await db.delete(cdpObjectives).where(eq(cdpObjectives.id, objectiveId));
+    revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
+    return successResponse({ businessId: existing.plan.businessId });
+  } catch (e) {
+    console.error("deleteCdpObjective", e);
+    return errorResponse("Failed to delete objective");
+  }
+}
+
+const keyResultUpsertSchema = z.object({
+  objectiveId: z.number().int().positive(),
+  title: z.string().min(1).max(2000),
+  targetOutcome: z.string().max(8000).optional().nullable(),
+  achievedOutcome: z.string().max(8000).optional().nullable(),
+  weightPercent: z.number().min(0).max(100),
+  dueDate: z.string().optional().nullable(),
+});
+
+const keyResultUpdateSchema = keyResultUpsertSchema.extend({
+  keyResultId: z.number().int().positive(),
+});
+
+export async function createCdpKeyResult(
+  input: z.infer<typeof keyResultUpsertSchema>
+): Promise<ActionResponse<{ id: number; businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = keyResultUpsertSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid key result");
+
+    const obj = await db.query.cdpObjectives.findFirst({
+      where: eq(cdpObjectives.id, parsed.data.objectiveId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!obj?.plan) return errorResponse("Objective not found");
+
+    const [maxRow] = await db
+      .select({ m: cdpKeyResults.sortOrder })
+      .from(cdpKeyResults)
+      .where(eq(cdpKeyResults.objectiveId, parsed.data.objectiveId))
+      .orderBy(desc(cdpKeyResults.sortOrder))
+      .limit(1);
+    const nextOrder = (maxRow?.m ?? 0) + 1;
+
+    const [row] = await db
+      .insert(cdpKeyResults)
+      .values({
+        objectiveId: parsed.data.objectiveId,
+        title: parsed.data.title.trim(),
+        targetOutcome: parsed.data.targetOutcome?.trim() || null,
+        achievedOutcome: parsed.data.achievedOutcome?.trim() || null,
+        weightPercent: String(parsed.data.weightPercent),
+        dueDate: parseOptionalDate(parsed.data.dueDate ?? null),
+        sortOrder: nextOrder,
+      })
+      .returning({ id: cdpKeyResults.id });
+
+    revalidateCdpPaths(obj.plan.businessId, obj.plan.id);
+    return successResponse({ id: row.id, businessId: obj.plan.businessId });
+  } catch (e) {
+    console.error("createCdpKeyResult", e);
+    return errorResponse("Failed to create key result");
+  }
+}
+
+export async function updateCdpKeyResult(
+  input: z.infer<typeof keyResultUpdateSchema>
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = keyResultUpdateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid key result");
+
+    const kr = await db.query.cdpKeyResults.findFirst({
+      where: eq(cdpKeyResults.id, parsed.data.keyResultId),
+      with: {
+        objective: { with: { plan: { columns: { businessId: true, id: true } } } },
+      },
+    });
+    if (!kr?.objective?.plan || kr.objectiveId !== parsed.data.objectiveId) {
+      return errorResponse("Key result not found");
+    }
+
+    await db
+      .update(cdpKeyResults)
+      .set({
+        title: parsed.data.title.trim(),
+        targetOutcome: parsed.data.targetOutcome?.trim() || null,
+        achievedOutcome: parsed.data.achievedOutcome?.trim() || null,
+        weightPercent: String(parsed.data.weightPercent),
+        dueDate: parseOptionalDate(parsed.data.dueDate ?? null),
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpKeyResults.id, parsed.data.keyResultId));
+
+    revalidateCdpPaths(kr.objective.plan.businessId, kr.objective.plan.id);
+    return successResponse({ businessId: kr.objective.plan.businessId });
+  } catch (e) {
+    console.error("updateCdpKeyResult", e);
+    return errorResponse("Failed to update key result");
+  }
+}
+
+export async function deleteCdpKeyResult(
+  keyResultId: number
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const kr = await db.query.cdpKeyResults.findFirst({
+      where: eq(cdpKeyResults.id, keyResultId),
+      with: {
+        objective: { with: { plan: { columns: { businessId: true, id: true } } } },
+      },
+    });
+    if (!kr?.objective?.plan) return errorResponse("Key result not found");
+    await db.delete(cdpKeyResults).where(eq(cdpKeyResults.id, keyResultId));
+    revalidateCdpPaths(kr.objective.plan.businessId, kr.objective.plan.id);
+    return successResponse({ businessId: kr.objective.plan.businessId });
+  } catch (e) {
+    console.error("deleteCdpKeyResult", e);
+    return errorResponse("Failed to delete key result");
+  }
+}
+
+const milestoneCreateSchema = z.object({
+  planId: z.number().int().positive(),
+  weekIndex: z.number().int().min(1).max(104).optional().nullable(),
+  weekLabel: z.string().max(120).optional().nullable(),
+  actionText: z.string().min(1).max(8000),
+  dueDate: z.string().optional().nullable(),
+  progressPercent: z.number().int().min(0).max(100).optional(),
+  keyResultId: z.number().int().positive().optional().nullable(),
+});
+
+const milestoneUpdateSchema = milestoneCreateSchema
+  .omit({ planId: true })
+  .extend({ milestoneId: z.number().int().positive() });
+
+export async function createCdpWeeklyMilestone(
+  input: z.infer<typeof milestoneCreateSchema>
+): Promise<ActionResponse<{ id: number; businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = milestoneCreateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid milestone");
+
+    const plan = await db.query.capacityDevelopmentPlans.findFirst({
+      where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
+      columns: { businessId: true },
+    });
+    if (!plan) return errorResponse("Plan not found");
+
+    const [row] = await db
+      .insert(cdpWeeklyMilestones)
+      .values({
+        planId: parsed.data.planId,
+        weekIndex: parsed.data.weekIndex ?? null,
+        weekLabel: parsed.data.weekLabel?.trim() || null,
+        actionText: parsed.data.actionText.trim(),
+        dueDate: parseOptionalDate(parsed.data.dueDate ?? null),
+        progressPercent: parsed.data.progressPercent ?? 0,
+        keyResultId: parsed.data.keyResultId ?? null,
+      })
+      .returning({ id: cdpWeeklyMilestones.id });
+
+    revalidateCdpPaths(plan.businessId, parsed.data.planId);
+    return successResponse({ id: row.id, businessId: plan.businessId });
+  } catch (e) {
+    console.error("createCdpWeeklyMilestone", e);
+    return errorResponse("Failed to create milestone");
+  }
+}
+
+export async function updateCdpWeeklyMilestone(
+  input: z.infer<typeof milestoneUpdateSchema>
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = milestoneUpdateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid milestone");
+
+    const row = await db.query.cdpWeeklyMilestones.findFirst({
+      where: eq(cdpWeeklyMilestones.id, parsed.data.milestoneId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!row?.plan) return errorResponse("Milestone not found");
+
+    await db
+      .update(cdpWeeklyMilestones)
+      .set({
+        weekIndex: parsed.data.weekIndex ?? null,
+        weekLabel: parsed.data.weekLabel?.trim() || null,
+        actionText: parsed.data.actionText.trim(),
+        dueDate: parseOptionalDate(parsed.data.dueDate ?? null),
+        progressPercent: parsed.data.progressPercent ?? 0,
+        keyResultId: parsed.data.keyResultId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpWeeklyMilestones.id, parsed.data.milestoneId));
+
+    revalidateCdpPaths(row.plan.businessId, row.plan.id);
+    return successResponse({ businessId: row.plan.businessId });
+  } catch (e) {
+    console.error("updateCdpWeeklyMilestone", e);
+    return errorResponse("Failed to update milestone");
+  }
+}
+
+export async function deleteCdpWeeklyMilestone(
+  milestoneId: number
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const row = await db.query.cdpWeeklyMilestones.findFirst({
+      where: eq(cdpWeeklyMilestones.id, milestoneId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!row?.plan) return errorResponse("Milestone not found");
+    await db.delete(cdpWeeklyMilestones).where(eq(cdpWeeklyMilestones.id, milestoneId));
+    revalidateCdpPaths(row.plan.businessId, row.plan.id);
+    return successResponse({ businessId: row.plan.businessId });
+  } catch (e) {
+    console.error("deleteCdpWeeklyMilestone", e);
+    return errorResponse("Failed to delete milestone");
+  }
+}
+
+const sessionActionItemUpdateSchema = z.object({
+  actionItemId: z.number().int().positive(),
+  status: z.enum(["open", "done", "waived", "blocked"]),
+  statusNotes: z.string().max(8000).optional().nullable(),
+});
+
+export async function updateCdpSessionActionItem(
+  input: z.infer<typeof sessionActionItemUpdateSchema>
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = sessionActionItemUpdateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid action item");
+
+    const item = await db.query.cdpSessionActionItems.findFirst({
+      where: eq(cdpSessionActionItems.id, parsed.data.actionItemId),
+      with: {
+        session: { with: { plan: { columns: { businessId: true, id: true } } } },
+      },
+    });
+    if (!item?.session?.plan) return errorResponse("Action item not found");
+
+    await db
+      .update(cdpSessionActionItems)
+      .set({
+        status: parsed.data.status,
+        statusNotes: parsed.data.statusNotes?.trim() || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpSessionActionItems.id, parsed.data.actionItemId));
+
+    revalidateCdpPaths(item.session.plan.businessId, item.session.plan.id);
+    return successResponse({ businessId: item.session.plan.businessId });
+  } catch (e) {
+    console.error("updateCdpSessionActionItem", e);
+    return errorResponse("Failed to update action item");
+  }
+}
+
+const addSessionActionItemSchema = z.object({
+  sessionId: z.number().int().positive(),
+  description: z.string().min(1).max(2000),
+});
+
+export async function addCdpSessionActionItem(
+  input: z.infer<typeof addSessionActionItemSchema>
+): Promise<ActionResponse<{ id: number; businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = addSessionActionItemSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid action item");
+
+    const sess = await db.query.cdpBusinessSupportSessions.findFirst({
+      where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!sess?.plan) return errorResponse("Session not found");
+
+    const [maxRow] = await db
+      .select({ m: cdpSessionActionItems.sortOrder })
+      .from(cdpSessionActionItems)
+      .where(eq(cdpSessionActionItems.sessionId, parsed.data.sessionId))
+      .orderBy(desc(cdpSessionActionItems.sortOrder))
+      .limit(1);
+    const nextOrder = (maxRow?.m ?? 0) + 1;
+
+    const [row] = await db
+      .insert(cdpSessionActionItems)
+      .values({
+        sessionId: parsed.data.sessionId,
+        description: parsed.data.description.trim(),
+        sortOrder: nextOrder,
+      })
+      .returning({ id: cdpSessionActionItems.id });
+
+    revalidateCdpPaths(sess.plan.businessId, sess.plan.id);
+    return successResponse({ id: row.id, businessId: sess.plan.businessId });
+  } catch (e) {
+    console.error("addCdpSessionActionItem", e);
+    return errorResponse("Failed to add action item");
+  }
+}
+
+const endlineSubmitSchema = z.object({
+  planId: z.number().int().positive(),
+  responses: z.record(z.string(), z.unknown()),
+});
+
+function buildImpactDeltas(
+  baseline: { revenue: string | null; employees: number | null } | null,
+  responses: Record<string, unknown>
+): Record<string, unknown> {
+  const endRev = responses.endlineRevenue;
+  const endEmp = responses.endlineEmployeeCount;
+  const endRevNum = typeof endRev === "number" ? endRev : typeof endRev === "string" ? parseFloat(endRev) : null;
+  const endEmpNum =
+    typeof endEmp === "number" ? endEmp : typeof endEmp === "string" ? parseInt(endEmp, 10) : null;
+
+  const out: Record<string, unknown> = {};
+  if (baseline?.revenue != null && endRevNum != null && Number.isFinite(endRevNum)) {
+    const base = parseFloat(baseline.revenue);
+    if (Number.isFinite(base)) {
+      out.baselineRevenue = base;
+      out.endlineRevenue = endRevNum;
+      out.revenueDelta = endRevNum - base;
+    }
+  }
+  if (baseline?.employees != null && endEmpNum != null && Number.isFinite(endEmpNum)) {
+    out.baselineEmployeeCount = baseline.employees;
+    out.endlineEmployeeCount = endEmpNum;
+    out.employeeDelta = endEmpNum - baseline.employees;
+  }
+  return out;
+}
+
+export async function submitCdpEndline(
+  input: z.infer<typeof endlineSubmitSchema>
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const parsed = endlineSubmitSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid endline payload");
+
+    const plan = await db.query.capacityDevelopmentPlans.findFirst({
+      where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
+      columns: { businessId: true },
+    });
+    if (!plan) return errorResponse("Plan not found");
+
+    const kyc = await db.query.kycProfiles.findFirst({
+      where: eq(kycProfiles.businessId, plan.businessId),
+      columns: {
+        baselineRevenue: true,
+        baselineEmployeeCount: true,
+      },
+    });
+
+    const impactDeltas = buildImpactDeltas(
+      kyc
+        ? {
+            revenue: kyc.baselineRevenue,
+            employees: kyc.baselineEmployeeCount,
+          }
+        : null,
+      parsed.data.responses
+    );
+
+    await db
+      .insert(cdpEndlineResponses)
+      .values({
+        planId: parsed.data.planId,
+        responses: parsed.data.responses,
+        impactDeltas: Object.keys(impactDeltas).length ? impactDeltas : null,
+        submittedById: session.user!.id,
+      })
+      .onConflictDoUpdate({
+        target: cdpEndlineResponses.planId,
+        set: {
+          responses: parsed.data.responses,
+          impactDeltas: Object.keys(impactDeltas).length ? impactDeltas : null,
+          submittedAt: new Date(),
+          submittedById: session.user!.id,
+          updatedAt: new Date(),
+        },
+      });
+
+    revalidateCdpPaths(plan.businessId, parsed.data.planId);
+    return successResponse({ businessId: plan.businessId });
+  } catch (e) {
+    console.error("submitCdpEndline", e);
+    return errorResponse("Failed to save endline");
+  }
+}
+
+export async function getCdpPipelineCompletenessForPlan(
+  planId: number
+): Promise<ActionResponse<PipelineCompleteness>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+    const full = await getCdpPlanFull(planId);
+    if (!full.success || !full.data) return errorResponse(full.error ?? "Plan not found");
+    const p = full.data;
+    const krWeights = p.objectives.flatMap((o) =>
+      o.keyResults.map((k) => ({ weightPercent: k.weightPercent }))
+    );
+    const result = computeCdpPipelineCompleteness({
+      status: p.status,
+      focusSummaries: p.focusSummaries,
+      activities: p.activities,
+      supportSessions: p.supportSessions.map((s) => ({
+        sessionNumber: s.sessionNumber,
+        bootcampWeek: s.bootcampWeek ?? null,
+      })),
+      keyResultWeights: krWeights,
+      hasEndline: p.endlineResponse != null,
+    });
+    return successResponse(result);
+  } catch (e) {
+    console.error("getCdpPipelineCompletenessForPlan", e);
+    return errorResponse("Failed to compute pipeline status");
   }
 }
 
@@ -692,7 +1359,22 @@ export async function getEnterpriseCdpReadonly(): Promise<ActionResponse<CdpPlan
           orderBy: [asc(cdpActivities.sortOrder), asc(cdpActivities.id)],
           with: { progressReviews: { orderBy: [asc(cdpActivityProgressReviews.reviewPeriod)] } },
         },
-        supportSessions: { orderBy: [asc(cdpBusinessSupportSessions.sessionNumber)] },
+        supportSessions: {
+          orderBy: [asc(cdpBusinessSupportSessions.sessionNumber)],
+          with: {
+            actionItems: { orderBy: [asc(cdpSessionActionItems.sortOrder), asc(cdpSessionActionItems.id)] },
+          },
+        },
+        objectives: {
+          orderBy: [asc(cdpObjectives.sortOrder), asc(cdpObjectives.id)],
+          with: {
+            keyResults: { orderBy: [asc(cdpKeyResults.sortOrder), asc(cdpKeyResults.id)] },
+          },
+        },
+        weeklyMilestones: {
+          orderBy: [asc(cdpWeeklyMilestones.weekIndex), asc(cdpWeeklyMilestones.id)],
+        },
+        endlineResponse: true,
       },
     });
 
@@ -768,6 +1450,7 @@ export async function buildCdpCsvExport(planId: number): Promise<ActionResponse<
         p.supportSessions.map((s) => ({
           sessionNumber: s.sessionNumber,
           sessionDate: s.sessionDate ? new Date(s.sessionDate).toISOString() : "",
+          bootcampWeek: s.bootcampWeek ?? "",
           focusCodes: (s.focusCodes ?? []).join(";"),
           agenda: s.agenda ?? "",
           supportType: s.supportType ?? "",
@@ -776,9 +1459,96 @@ export async function buildCdpCsvExport(planId: number): Promise<ActionResponse<
           challengesRaised: s.challengesRaised ?? "",
           nextSteps: s.nextSteps ?? "",
           followUpDate: s.followUpDate ?? "",
+          evidenceUrls: (s.evidenceUrls ?? []).join(";"),
         })),
         { header: true }
       )
+    );
+    blocks.push("");
+
+    const okrRows: {
+      objectiveId: number;
+      objectiveTitle: string;
+      keyResultId: number;
+      keyResultTitle: string;
+      weightPercent: string;
+      targetOutcome: string;
+      achievedOutcome: string;
+      dueDate: string;
+    }[] = [];
+    for (const o of p.objectives ?? []) {
+      for (const kr of o.keyResults ?? []) {
+        okrRows.push({
+          objectiveId: o.id,
+          objectiveTitle: o.title,
+          keyResultId: kr.id,
+          keyResultTitle: kr.title,
+          weightPercent: String(kr.weightPercent ?? ""),
+          targetOutcome: kr.targetOutcome ?? "",
+          achievedOutcome: kr.achievedOutcome ?? "",
+          dueDate: kr.dueDate ?? "",
+        });
+      }
+    }
+    blocks.push("## OKRS");
+    blocks.push(stringify(okrRows, { header: true }));
+    blocks.push("");
+
+    blocks.push("## WEEKLY_MILESTONES");
+    blocks.push(
+      stringify(
+        (p.weeklyMilestones ?? []).map((m) => ({
+          id: m.id,
+          weekIndex: m.weekIndex ?? "",
+          weekLabel: m.weekLabel ?? "",
+          actionText: m.actionText,
+          dueDate: m.dueDate ?? "",
+          progressPercent: m.progressPercent,
+          keyResultId: m.keyResultId ?? "",
+        })),
+        { header: true }
+      )
+    );
+    blocks.push("");
+
+    const actionRows: {
+      sessionNumber: number;
+      actionItemId: number;
+      description: string;
+      status: string;
+      statusNotes: string;
+    }[] = [];
+    for (const s of p.supportSessions ?? []) {
+      for (const ai of s.actionItems ?? []) {
+        actionRows.push({
+          sessionNumber: s.sessionNumber,
+          actionItemId: ai.id,
+          description: ai.description,
+          status: ai.status,
+          statusNotes: ai.statusNotes ?? "",
+        });
+      }
+    }
+    blocks.push("## SESSION_ACTION_ITEMS");
+    blocks.push(stringify(actionRows, { header: true }));
+    blocks.push("");
+
+    blocks.push("## ENDLINE");
+    blocks.push(
+      p.endlineResponse
+        ? stringify(
+            [
+              {
+                submittedAt: p.endlineResponse.submittedAt
+                  ? new Date(p.endlineResponse.submittedAt).toISOString()
+                  : "",
+                responsesJson: JSON.stringify(p.endlineResponse.responses ?? {}),
+                impactDeltasJson: JSON.stringify(p.endlineResponse.impactDeltas ?? {}),
+              },
+            ],
+            { header: true }
+          )
+        : "(no endline submitted)"
     );
     blocks.push("");
 

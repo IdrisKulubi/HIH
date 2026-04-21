@@ -48,6 +48,12 @@ export default async function AdminMentorshipMatchesPage({
         </p>
       </div>
 
+      {!mentorsRes.success && mentorsRes.error ? (
+        <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          {mentorsRes.error}
+        </p>
+      ) : null}
+
       <section className="space-y-3">
         <h2 className="text-lg font-medium">New match</h2>
         <CreateMatchForm businessId={businessId} mentors={mentorOptions} />

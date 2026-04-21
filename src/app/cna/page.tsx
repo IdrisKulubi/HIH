@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CDP_FOCUS_AREAS, priorityFromScore0to10, priorityLabel } from "@/lib/cdp/focus-areas";
+import { computeCdpTopRiskFocus } from "@/lib/cdp/pipeline";
 
 export default async function EnterpriseCnaPage() {
   await requireKycVerified();
@@ -54,6 +55,10 @@ export default async function EnterpriseCnaPage() {
   const summaries = [...plan.focusSummaries].sort((a, b) =>
     a.focusCode.localeCompare(b.focusCode)
   );
+  const topRisk = computeCdpTopRiskFocus(plan.focusSummaries);
+  const krWeightSum = plan.objectives
+    .flatMap((o) => o.keyResults.map((k) => parseFloat(String(k.weightPercent ?? "0"))))
+    .reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12 space-y-8">
@@ -72,8 +77,46 @@ export default async function EnterpriseCnaPage() {
             ) : null}
           </p>
           <p className="text-xs">This is a read-only view. Contact your Business Support Staff to request updates.</p>
+          {topRisk ? (
+            <p className="text-sm text-foreground pt-2">
+              <span className="text-muted-foreground">Top risk focus:</span>{" "}
+              <span className="font-mono font-medium">{topRisk.focusCode}</span> —{" "}
+              {CDP_FOCUS_AREAS[topRisk.focusCode].label} (score {topRisk.score0to10})
+            </p>
+          ) : null}
+          <p className="text-xs text-muted-foreground pt-1">
+            OKR weights (staff view): {krWeightSum.toFixed(2)}% of 100% · Endline:{" "}
+            {plan.endlineResponse ? "submitted" : "pending"}
+          </p>
         </CardContent>
       </Card>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">Objectives and key results</h2>
+        <div className="rounded-md border overflow-x-auto">
+          {plan.objectives.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-4">No OKRs published yet.</p>
+          ) : (
+            <ul className="text-sm p-4 space-y-3 list-none">
+              {plan.objectives.map((o) => (
+                <li key={o.id}>
+                  <p className="font-medium text-foreground">{o.title}</p>
+                  <ul className="mt-1 ml-4 list-disc text-muted-foreground space-y-1">
+                    {o.keyResults.map((kr) => (
+                      <li key={kr.id}>
+                        {kr.title}{" "}
+                        <span className="text-xs">
+                          (weight {String(kr.weightPercent)}%{kr.targetOutcome ? ` — ${kr.targetOutcome}` : ""})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-slate-900">Diagnostic summary (A–L)</h2>
@@ -85,6 +128,7 @@ export default async function EnterpriseCnaPage() {
                 <TableHead>Focus area</TableHead>
                 <TableHead>Score</TableHead>
                 <TableHead>Priority</TableHead>
+                <TableHead>Key gaps</TableHead>
                 <TableHead>Recommended intervention</TableHead>
               </TableRow>
             </TableHeader>
@@ -97,6 +141,7 @@ export default async function EnterpriseCnaPage() {
                   <TableCell className="text-xs max-w-[200px] text-muted-foreground">
                     {priorityLabel(priorityFromScore0to10(s.score0to10))}
                   </TableCell>
+                  <TableCell className="text-sm max-w-md">{s.keyGaps ?? "—"}</TableCell>
                   <TableCell className="text-sm max-w-md">{s.recommendedIntervention ?? "—"}</TableCell>
                 </TableRow>
               ))}

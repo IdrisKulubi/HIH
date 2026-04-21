@@ -249,6 +249,14 @@ export const cdpReviewCycleStatusEnum = pgEnum('cdp_review_cycle_status', [
   'blocked',
 ]);
 
+/** CDP support session follow-up items (gates next session when present). */
+export const cdpSessionActionItemStatusEnum = pgEnum('cdp_session_action_item_status', [
+  'open',
+  'done',
+  'waived',
+  'blocked',
+]);
+
 export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
   'limited_company',
   'partnership',
@@ -748,6 +756,10 @@ export const capacityDevelopmentPlans = pgTable(
       { onDelete: 'set null' }
     ),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** When set, diagnostic A–L scores should not be edited without clearing this timestamp. */
+    diagnosticLockedAt: timestamp('diagnostic_locked_at'),
+    /** Audit: last time plan met activation rules and was set to active (optional; also infer from status). */
+    cdpApprovedAt: timestamp('cdp_approved_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -821,12 +833,119 @@ export const cdpBusinessSupportSessions = pgTable(
     nextSteps: text('next_steps'),
     followUpDate: date('follow_up_date'),
     conductedById: text('conducted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Optional link to 13-week bootcamp curriculum week (1–13). */
+    bootcampWeek: integer('bootcamp_week'),
+    evidenceUrls: text('evidence_urls')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => ({
     planIdx: index('cdp_business_support_sessions_plan_id_idx').on(table.planId),
     planSessionUq: uniqueIndex('cdp_bss_plan_session_uq').on(table.planId, table.sessionNumber),
+  })
+);
+
+export const cdpObjectives = pgTable(
+  'cdp_objectives',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_objectives_plan_id_idx').on(table.planId),
+  })
+);
+
+export const cdpKeyResults = pgTable(
+  'cdp_key_results',
+  {
+    id: serial('id').primaryKey(),
+    objectiveId: integer('objective_id')
+      .notNull()
+      .references(() => cdpObjectives.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    targetOutcome: text('target_outcome'),
+    achievedOutcome: text('achieved_outcome'),
+    weightPercent: decimal('weight_percent', { precision: 6, scale: 2 }).notNull().default('0'),
+    dueDate: date('due_date'),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    objectiveIdx: index('cdp_key_results_objective_id_idx').on(table.objectiveId),
+  })
+);
+
+export const cdpWeeklyMilestones = pgTable(
+  'cdp_weekly_milestones',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    weekIndex: integer('week_index'),
+    weekLabel: varchar('week_label', { length: 120 }),
+    actionText: text('action_text').notNull(),
+    dueDate: date('due_date'),
+    progressPercent: integer('progress_percent').default(0).notNull(),
+    keyResultId: integer('key_result_id').references(() => cdpKeyResults.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_weekly_milestones_plan_id_idx').on(table.planId),
+    krIdx: index('cdp_weekly_milestones_key_result_id_idx').on(table.keyResultId),
+  })
+);
+
+export const cdpSessionActionItems = pgTable(
+  'cdp_session_action_items',
+  {
+    id: serial('id').primaryKey(),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => cdpBusinessSupportSessions.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    status: cdpSessionActionItemStatusEnum('status').default('open').notNull(),
+    statusNotes: text('status_notes'),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionIdx: index('cdp_session_action_items_session_id_idx').on(table.sessionId),
+  })
+);
+
+export const cdpEndlineResponses = pgTable(
+  'cdp_endline_responses',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' })
+      .unique(),
+    responses: jsonb('responses').notNull().default(sql`'{}'::jsonb`),
+    impactDeltas: jsonb('impact_deltas'),
+    submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+    submittedById: text('submitted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_endline_responses_plan_id_idx').on(table.planId),
   })
 );
 
@@ -1446,6 +1565,12 @@ export const capacityDevelopmentPlansRelations = relations(
     focusSummaries: many(cdpFocusSummary),
     activities: many(cdpActivities),
     supportSessions: many(cdpBusinessSupportSessions),
+    objectives: many(cdpObjectives),
+    weeklyMilestones: many(cdpWeeklyMilestones),
+    endlineResponse: one(cdpEndlineResponses, {
+      fields: [capacityDevelopmentPlans.id],
+      references: [cdpEndlineResponses.planId],
+    }),
   })
 );
 
@@ -1467,7 +1592,7 @@ export const cdpActivitiesRelations = relations(cdpActivities, ({ one, many }) =
 
 export const cdpBusinessSupportSessionsRelations = relations(
   cdpBusinessSupportSessions,
-  ({ one }) => ({
+  ({ one, many }) => ({
     plan: one(capacityDevelopmentPlans, {
       fields: [cdpBusinessSupportSessions.planId],
       references: [capacityDevelopmentPlans.id],
@@ -1477,8 +1602,55 @@ export const cdpBusinessSupportSessionsRelations = relations(
       references: [users.id],
       relationName: 'cdpBssConductedBy',
     }),
+    actionItems: many(cdpSessionActionItems),
   })
 );
+
+export const cdpObjectivesRelations = relations(cdpObjectives, ({ one, many }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpObjectives.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+  keyResults: many(cdpKeyResults),
+}));
+
+export const cdpKeyResultsRelations = relations(cdpKeyResults, ({ one, many }) => ({
+  objective: one(cdpObjectives, {
+    fields: [cdpKeyResults.objectiveId],
+    references: [cdpObjectives.id],
+  }),
+  weeklyMilestones: many(cdpWeeklyMilestones),
+}));
+
+export const cdpWeeklyMilestonesRelations = relations(cdpWeeklyMilestones, ({ one }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpWeeklyMilestones.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+  keyResult: one(cdpKeyResults, {
+    fields: [cdpWeeklyMilestones.keyResultId],
+    references: [cdpKeyResults.id],
+  }),
+}));
+
+export const cdpSessionActionItemsRelations = relations(cdpSessionActionItems, ({ one }) => ({
+  session: one(cdpBusinessSupportSessions, {
+    fields: [cdpSessionActionItems.sessionId],
+    references: [cdpBusinessSupportSessions.id],
+  }),
+}));
+
+export const cdpEndlineResponsesRelations = relations(cdpEndlineResponses, ({ one }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpEndlineResponses.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+  submittedBy: one(users, {
+    fields: [cdpEndlineResponses.submittedById],
+    references: [users.id],
+    relationName: 'cdpEndlineSubmittedBy',
+  }),
+}));
 
 export const cdpActivityProgressReviewsRelations = relations(
   cdpActivityProgressReviews,
@@ -2109,6 +2281,21 @@ export type NewCdpBusinessSupportSession = typeof cdpBusinessSupportSessions.$in
 
 export type CdpActivityProgressReview = typeof cdpActivityProgressReviews.$inferSelect;
 export type NewCdpActivityProgressReview = typeof cdpActivityProgressReviews.$inferInsert;
+
+export type CdpObjective = typeof cdpObjectives.$inferSelect;
+export type NewCdpObjective = typeof cdpObjectives.$inferInsert;
+
+export type CdpKeyResult = typeof cdpKeyResults.$inferSelect;
+export type NewCdpKeyResult = typeof cdpKeyResults.$inferInsert;
+
+export type CdpWeeklyMilestone = typeof cdpWeeklyMilestones.$inferSelect;
+export type NewCdpWeeklyMilestone = typeof cdpWeeklyMilestones.$inferInsert;
+
+export type CdpSessionActionItem = typeof cdpSessionActionItems.$inferSelect;
+export type NewCdpSessionActionItem = typeof cdpSessionActionItems.$inferInsert;
+
+export type CdpEndlineResponse = typeof cdpEndlineResponses.$inferSelect;
+export type NewCdpEndlineResponse = typeof cdpEndlineResponses.$inferInsert;
 
 export type BdsIntervention = typeof bdsInterventions.$inferSelect;
 export type NewBdsIntervention = typeof bdsInterventions.$inferInsert;

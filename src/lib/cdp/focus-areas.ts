@@ -63,9 +63,12 @@ export function priorityLabel(p: CdpPriorityLevel): string {
 
 export const score0to10Schema = z.number().int().min(0).max(10);
 
+/** BIRE template: area scores are restricted to 0, 5, or 10. */
+export const score0to5to10Schema = z.union([z.literal(0), z.literal(5), z.literal(10)]);
+
 export const cdpFocusSummaryInputSchema = z.object({
   focusCode: cdpFocusCodeSchema,
-  score0to10: score0to10Schema,
+  score0to10: score0to5to10Schema,
   keyGaps: z.string().max(8000).optional().nullable(),
   recommendedIntervention: z.string().max(8000).optional().nullable(),
   responsibleStaff: z.string().max(500).optional().nullable(),

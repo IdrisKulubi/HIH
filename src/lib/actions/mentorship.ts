@@ -20,6 +20,27 @@ function isPhase2Admin(role?: string | null) {
   return !!role && ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number]);
 }
 
+/** Postgres undefined_table — usually migrations not applied to this database. */
+function isPgUndefinedTableError(e: unknown): boolean {
+  const chain: unknown[] = [e];
+  let cur: unknown = e;
+  for (let i = 0; i < 5 && cur && typeof cur === "object" && "cause" in cur; i++) {
+    cur = (cur as { cause: unknown }).cause;
+    chain.push(cur);
+  }
+  for (const err of chain) {
+    if (!err || typeof err !== "object") continue;
+    const code = (err as { code?: string }).code;
+    if (code === "42P01") return true;
+    const msg = (err as Error).message ?? String(err);
+    if (/relation .* does not exist/i.test(msg)) return true;
+  }
+  return false;
+}
+
+const MIGRATION_HINT =
+  "Database schema is out of date (missing tables). From the project root, run: pnpm db:migrate (or npm run db:migrate) against the same POSTGRES_URL this app uses.";
+
 const sectorValues = [
   "agriculture_and_agribusiness",
   "manufacturing",
@@ -255,6 +276,7 @@ export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRo
     return successResponse(data);
   } catch (e) {
     console.error("listMentorsForAdmin", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
     return errorResponse("Failed to load mentors");
   }
 }
@@ -290,6 +312,7 @@ export async function listMentorshipMatchesForBusiness(
     return successResponse(data);
   } catch (e) {
     console.error("listMentorshipMatchesForBusiness", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
     return errorResponse("Failed to load matches");
   }
 }

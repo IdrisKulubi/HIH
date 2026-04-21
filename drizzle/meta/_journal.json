@@ -85,6 +85,13 @@
       "when": 1776152988529,
       "tag": "0011_cdp_capacity_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777000000000,
+      "tag": "0012_cdp_extended_okr_endline",
+      "breakpoints": true
     }
   ]
 }

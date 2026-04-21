@@ -4,6 +4,7 @@ import {
   type CdpFocusCode,
   type CdpFocusSummaryInput,
 } from "@/lib/cdp/focus-areas";
+import { roundScoreToDiscrete0510 } from "@/lib/cdp/pipeline";
 
 /**
  * Legacy quick CNA uses four 1–5 dimensions. CDP uses twelve focus areas (A–L) at 0–10.
@@ -34,10 +35,11 @@ export const LEGACY_CNA_TO_CDP_FOCUS: Record<
   },
 };
 
-/** Map legacy 1–5 score to 0–10 (linear stretch). */
-export function legacyScore1to5To0to10(score: number): number {
+/** Map legacy 1–5 score to 0–10 (linear stretch), then snap to BIRE discrete 0 / 5 / 10. */
+export function legacyScore1to5To0to10(score: number): 0 | 5 | 10 {
   const clamped = Math.min(5, Math.max(1, Math.round(score)));
-  return Math.round(((clamped - 1) / 4) * 10);
+  const stretched = Math.round(((clamped - 1) / 4) * 10);
+  return roundScoreToDiscrete0510(stretched);
 }
 
 /**
