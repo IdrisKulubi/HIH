@@ -156,16 +156,16 @@ export function ReviewerKycDetailClient({ data }: ReviewerKycDetailClientProps) 
       .filter((document) => document.fileUrl);
 
   const handleSaveDocuments = () => {
-    if (!documents.letter_of_agreement.fileUrl.trim()) {
-      setFieldErrors({ "documents.letter_of_agreement": "Letter of Agreement is required." });
-      toast.error("Letter of Agreement is required.");
+    const payload = serializeDocuments();
+    if (!payload.length) {
+      toast.error("Upload at least one document before saving.");
       return;
     }
 
     startTransition(async () => {
       const result = await saveReviewerKycDocuments({
         applicationId: data.application.id,
-        documents: serializeDocuments(),
+        documents: payload,
       });
 
       if (!result.success) {
@@ -362,7 +362,7 @@ export function ReviewerKycDetailClient({ data }: ReviewerKycDetailClientProps) 
         <CardHeader>
           <CardTitle>Reviewer KYC Documents</CardTitle>
           <CardDescription>
-            Upload the Letter of Agreement now. National ID and CR12 can be added if available.
+            You can save National ID or CR12 before the Letter of Agreement. The letter is required before the KYC package is marked complete for admin review.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

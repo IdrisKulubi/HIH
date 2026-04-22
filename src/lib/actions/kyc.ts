@@ -618,42 +618,96 @@ export async function saveReviewerKycDocuments(
       return errorResponse("This KYC record is locked and cannot be updated.");
     }
 
-    const hasLetterOfAgreement = validated.documents.some((document) => document.documentType === "letter_of_agreement");
-    if (!hasLetterOfAgreement) {
-      return errorResponse("Letter of Agreement is required before saving KYC details.");
+    if (!validated.documents.length) {
+      return errorResponse("Add at least one document before saving.");
     }
+
+    const letterInThisSave = validated.documents.some(
+      (document) => document.documentType === "letter_of_agreement"
+    );
 
     await upsertKycDocuments(profile.id, session.user.id, validated.documents);
 
+    const allDocs = await db.query.kycDocuments.findMany({
+      where: eq(kycDocuments.kycProfileId, profile.id),
+    });
+    const hasLetterOnRecord = allDocs.some(
+      (document) => document.documentType === "letter_of_agreement" && document.fileUrl?.trim()
+    );
+
+    const revalidateReviewerKyc = () => {
+      revalidatePath("/reviewer/kyc");
+      revalidatePath(`/reviewer/kyc/${application.id}`);
+      revalidatePath("/admin/kyc");
+      revalidatePath(`/admin/kyc/${application.id}`);
+      revalidatePath("/kyc");
+      revalidatePath("/profile");
+    };
+
+    if (!hasLetterOnRecord) {
+      const nextProfileStatus = profile.status === "not_started" ? "in_progress" : profile.status;
+      const nextAppKycStatus = application.kycStatus === "not_started" ? "in_progress" : application.kycStatus;
+
+      await db.update(kycProfiles).set({
+        status: nextProfileStatus,
+        lastSavedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(kycProfiles.id, profile.id));
+
+      await db.update(applications).set({
+        kycRequired: true,
+        kycStatus: nextAppKycStatus,
+        updatedAt: new Date(),
+      }).where(eq(applications.id, application.id));
+
+      revalidateReviewerKyc();
+
+      return successResponse(
+        { profileId: profile.id, status: nextProfileStatus },
+        "Documents saved. Upload the Letter of Agreement when you have it."
+      );
+    }
+
+    if (letterInThisSave) {
+      await db.update(kycProfiles).set({
+        status: "submitted",
+        submittedSnapshot: buildReviewerKycSnapshot({
+          ...profile,
+          gpsCoordinates: profile.gpsCoordinates,
+        }),
+        submittedAt: profile.submittedAt ?? new Date(),
+        lastSavedAt: new Date(),
+        reviewNotes: null,
+        rejectionReason: null,
+        needsInfoReason: null,
+        updatedAt: new Date(),
+      }).where(eq(kycProfiles.id, profile.id));
+
+      await db.update(applications).set({
+        kycRequired: true,
+        kycStatus: "submitted",
+        kycSubmittedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(applications.id, application.id));
+
+      revalidateReviewerKyc();
+
+      return successResponse({ profileId: profile.id, status: "submitted" }, "KYC details saved");
+    }
+
     await db.update(kycProfiles).set({
-      status: "submitted",
-      submittedSnapshot: buildReviewerKycSnapshot({
-        ...profile,
-        gpsCoordinates: profile.gpsCoordinates,
-      }),
-      submittedAt: profile.submittedAt ?? new Date(),
       lastSavedAt: new Date(),
-      reviewNotes: null,
-      rejectionReason: null,
-      needsInfoReason: null,
       updatedAt: new Date(),
     }).where(eq(kycProfiles.id, profile.id));
 
     await db.update(applications).set({
       kycRequired: true,
-      kycStatus: "submitted",
-      kycSubmittedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(applications.id, application.id));
 
-    revalidatePath("/reviewer/kyc");
-    revalidatePath(`/reviewer/kyc/${application.id}`);
-    revalidatePath("/admin/kyc");
-    revalidatePath(`/admin/kyc/${application.id}`);
-    revalidatePath("/kyc");
-    revalidatePath("/profile");
+    revalidateReviewerKyc();
 
-    return successResponse({ profileId: profile.id, status: "submitted" }, "KYC details saved");
+    return successResponse({ profileId: profile.id, status: profile.status }, "Documents saved");
   } catch (error) {
     console.error("Error saving reviewer KYC documents:", error);
     if (error instanceof z.ZodError) {
