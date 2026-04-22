@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getReviewerKycQueue } from "@/lib/actions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReviewerKycSearchControls } from "@/components/kyc/ReviewerKycSearchControls";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -121,7 +121,9 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
         <CardHeader>
           <CardTitle>Selected Enterprises</CardTitle>
           <CardDescription>
-            {search ? `Showing results for "${search}".` : "Showing all selected enterprises currently eligible for KYC."}
+            {search
+              ? `Showing results for "${search}".`
+              : "Selected enterprises (approved / finalist). Agreement means a Letter of Agreement saved on this KYC record (use Save KYC Details on the enterprise page)."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -175,11 +177,12 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/reviewer/kyc/${row.applicationId}`}>
-                          {row.kycStatus === "not_started" ? "Start" : "Open"}
-                        </Link>
-                      </Button>
+                      <Link
+                        href={`/reviewer/kyc/${row.applicationId}`}
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                      >
+                        {row.kycStatus === "not_started" ? "Start" : "Open"}
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}

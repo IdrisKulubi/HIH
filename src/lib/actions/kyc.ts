@@ -516,7 +516,10 @@ export async function getReviewerKycQueue(
         const profile = profileByApplicationId.get(application.id);
         const applicantName = `${application.business.applicant.firstName} ${application.business.applicant.lastName}`.trim();
         const hasLetterOfAgreement = Boolean(
-          profile?.documents.some((document) => document.documentType === "letter_of_agreement" && document.fileUrl)
+          profile?.documents?.some(
+            (document) =>
+              document.documentType === "letter_of_agreement" && Boolean(document.fileUrl?.trim())
+          )
         );
 
         return {
@@ -527,7 +530,7 @@ export async function getReviewerKycQueue(
           track: application.track,
           county: application.business.county,
           city: application.business.city,
-          kycStatus: profile?.status ?? "not_started",
+          kycStatus: application.kycStatus,
           geolocationCaptured: Boolean(profile?.gpsCoordinates?.trim()),
           hasLetterOfAgreement,
         };
@@ -1094,7 +1097,9 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
         kycStatus: profile.status,
         profileLockStatus: profile.profileLockStatus,
         geolocationCaptured: Boolean(profile.gpsCoordinates?.trim()),
-        hasLetterOfAgreement: profile.documents.some((document) => document.documentType === "letter_of_agreement"),
+        hasLetterOfAgreement: profile.documents.some(
+          (document) => document.documentType === "letter_of_agreement" && Boolean(document.fileUrl?.trim())
+        ),
         submittedAt: profile.submittedAt?.toISOString() ?? null,
         verifiedAt: profile.verifiedAt?.toISOString() ?? null,
       }))
