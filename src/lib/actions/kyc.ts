@@ -48,6 +48,8 @@ const reviewerKycDocumentInputSchema = z.object({
 const reviewerKycDocumentsSchema = z.object({
   applicationId: z.number().int().positive(),
   documents: z.array(reviewerKycDocumentInputSchema),
+  allocatedStaff: z.string().max(255),
+  hubName: z.string().max(255),
 });
 
 const reviewerKycGeolocationSchema = z.object({
@@ -342,9 +344,16 @@ async function ensureReviewerKycProfile(applicationId: number) {
   return { application, profile };
 }
 
+function normalizeReviewerOptionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function buildReviewerKycSnapshot(profile: typeof kycProfiles.$inferSelect) {
   return {
     gpsCoordinates: profile.gpsCoordinates ?? null,
+    allocatedStaff: profile.allocatedStaff ?? null,
+    hubName: profile.hubName ?? null,
   };
 }
 
@@ -629,6 +638,9 @@ export async function saveReviewerKycDocuments(
       (document) => document.documentType === "letter_of_agreement"
     );
 
+    const allocatedStaff = normalizeReviewerOptionalText(validated.allocatedStaff);
+    const hubName = normalizeReviewerOptionalText(validated.hubName);
+
     await upsertKycDocuments(profile.id, session.user.id, validated.documents);
 
     const allDocs = await db.query.kycDocuments.findMany({
@@ -653,6 +665,8 @@ export async function saveReviewerKycDocuments(
 
       await db.update(kycProfiles).set({
         status: nextProfileStatus,
+        allocatedStaff,
+        hubName,
         lastSavedAt: new Date(),
         updatedAt: new Date(),
       }).where(eq(kycProfiles.id, profile.id));
@@ -674,9 +688,13 @@ export async function saveReviewerKycDocuments(
     if (letterInThisSave) {
       await db.update(kycProfiles).set({
         status: "submitted",
+        allocatedStaff,
+        hubName,
         submittedSnapshot: buildReviewerKycSnapshot({
           ...profile,
           gpsCoordinates: profile.gpsCoordinates,
+          allocatedStaff,
+          hubName,
         }),
         submittedAt: profile.submittedAt ?? new Date(),
         lastSavedAt: new Date(),
@@ -699,6 +717,8 @@ export async function saveReviewerKycDocuments(
     }
 
     await db.update(kycProfiles).set({
+      allocatedStaff,
+      hubName,
       lastSavedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(kycProfiles.id, profile.id));
@@ -1050,6 +1070,7 @@ export async function submitKycProfile(input: KycSubmitInput): Promise<ActionRes
 }
 
 export async function getKycQueue(status?: string): Promise<ActionResponse<Array<{
+  profileId: number;
   applicationId: number;
   businessName: string;
   applicantName: string;
@@ -1087,6 +1108,7 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
 
     return successResponse(
       profiles.map((profile) => ({
+        profileId: profile.id,
         applicationId: profile.applicationId,
         businessName: profile.application.business.name,
         applicantName: `${profile.application.business.applicant.firstName} ${profile.application.business.applicant.lastName}`.trim(),

@@ -105,6 +105,14 @@ export default async function AdminKycDetailPage({ params }: Props) {
             <p className="mt-1 font-medium text-slate-900">{profile.gpsCoordinates ?? "Not submitted"}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-sm text-slate-500">Allocated staff (reviewer)</p>
+            <p className="mt-1 font-medium text-slate-900">{profile.allocatedStaff?.trim() || "Not captured"}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-sm text-slate-500">Hub (reviewer)</p>
+            <p className="mt-1 font-medium text-slate-900">{profile.hubName?.trim() || "Not captured"}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-sm text-slate-500">Profile Lock</p>
             <p className="mt-1 font-medium capitalize text-slate-900">{profile.profileLockStatus.replace(/_/g, " ")}</p>
           </div>

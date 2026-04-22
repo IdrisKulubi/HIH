@@ -99,6 +99,13 @@
       "when": 1777200000000,
       "tag": "0013_kyc_reviewer_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777300000000,
+      "tag": "0014_kyc_profile_allocated_staff_hub",
+      "breakpoints": true
     }
   ]
 }

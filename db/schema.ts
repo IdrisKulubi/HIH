@@ -545,6 +545,8 @@ export const kycProfiles = pgTable('kyc_profiles', {
   status: kycStatusEnum('status').default('not_started').notNull(),
   profileLockStatus: profileLockStatusEnum('profile_lock_status').default('unlocked').notNull(),
   gpsCoordinates: varchar('gps_coordinates', { length: 255 }),
+  allocatedStaff: varchar('allocated_staff', { length: 255 }),
+  hubName: varchar('hub_name', { length: 255 }),
   registrationTypeConfirmed: businessRegistrationTypeEnum('registration_type_confirmed'),
   kraPin: varchar('kra_pin', { length: 100 }),
   bankName: varchar('bank_name', { length: 255 }),

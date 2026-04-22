@@ -3,7 +3,7 @@ import { getKycQueue } from "@/lib/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const STATUS_TABS = [
@@ -118,18 +118,26 @@ export default async function AdminKycPage({ searchParams }: Props) {
                   <TableHead>Status</TableHead>
                   <TableHead>Progress</TableHead>
                   <TableHead>Submitted</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="sticky right-0 z-20 min-w-[5.5rem] bg-white text-right shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)] dark:bg-zinc-950">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((item) => (
-                  <TableRow key={item.applicationId}>
+                  <TableRow key={item.profileId} className="group">
                     <TableCell className="font-medium text-slate-900">#{item.applicationId}</TableCell>
-                    <TableCell className="font-medium text-slate-900">{item.businessName}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-slate-900">{item.applicantName}</span>
-                        <span className="text-xs text-slate-500">{item.applicantEmail}</span>
+                    <TableCell className="max-w-[200px] truncate font-medium text-slate-900" title={item.businessName}>
+                      {item.businessName}
+                    </TableCell>
+                    <TableCell className="max-w-[220px]">
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-slate-900" title={item.applicantName}>
+                          {item.applicantName}
+                        </span>
+                        <span className="truncate text-xs text-slate-500" title={item.applicantEmail}>
+                          {item.applicantEmail}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="capitalize">{item.track?.replace(/_/g, " ") ?? "Not set"}</TableCell>
@@ -157,10 +165,13 @@ export default async function AdminKycPage({ searchParams }: Props) {
                     <TableCell className="text-sm text-slate-600">
                       {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "Not submitted"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/admin/kyc/${item.applicationId}`}>Review</Link>
-                      </Button>
+                    <TableCell className="sticky right-0 z-10 min-w-[5.5rem] bg-white text-right shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.12)] group-hover:bg-zinc-50 dark:bg-zinc-950 dark:group-hover:bg-zinc-900">
+                      <Link
+                        href={`/admin/kyc/${item.applicationId}`}
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                      >
+                        Review
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -41,6 +41,8 @@ interface ReviewerKycDetailClientProps {
       status: string;
       profileLockStatus: string;
       gpsCoordinates: string | null;
+      allocatedStaff: string | null;
+      hubName: string | null;
       reviewNotes: string | null;
       rejectionReason: string | null;
       needsInfoReason: string | null;
@@ -91,6 +93,8 @@ export function ReviewerKycDetailClient({ data }: ReviewerKycDetailClientProps) 
     data.profile.gpsCoordinates ? "Saved geolocation is available." : ""
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [allocatedStaff, setAllocatedStaff] = useState(data.profile.allocatedStaff ?? "");
+  const [hubName, setHubName] = useState(data.profile.hubName ?? "");
 
   const existingDocuments = useMemo(
     () =>
@@ -166,6 +170,8 @@ export function ReviewerKycDetailClient({ data }: ReviewerKycDetailClientProps) 
       const result = await saveReviewerKycDocuments({
         applicationId: data.application.id,
         documents: payload,
+        allocatedStaff: allocatedStaff.slice(0, 255),
+        hubName: hubName.slice(0, 255),
       });
 
       if (!result.success) {
@@ -355,6 +361,39 @@ export function ReviewerKycDetailClient({ data }: ReviewerKycDetailClientProps) 
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Programme assignment</CardTitle>
+          <CardDescription>
+            Enter the names here as the reviewer (this is not pulled from the application). These values are saved when you use Save KYC Details below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="allocatedStaff">Allocated staff</Label>
+            <Input
+              id="allocatedStaff"
+              placeholder="Name of allocated staff for this business"
+              value={allocatedStaff}
+              onChange={(e) => setAllocatedStaff(e.target.value)}
+              disabled={isLocked || isPending}
+              maxLength={255}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hubName">Hub</Label>
+            <Input
+              id="hubName"
+              placeholder="Hub where the business is located"
+              value={hubName}
+              onChange={(e) => setHubName(e.target.value)}
+              disabled={isLocked || isPending}
+              maxLength={255}
+            />
+          </div>
         </CardContent>
       </Card>
 
