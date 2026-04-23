@@ -12,7 +12,7 @@ import {
     businesses,
     applicants
 } from "../../../db/schema";
-import { eq, and, sql, lte, isNotNull, ne, inArray } from "drizzle-orm";
+import { eq, and, sql, lte, isNotNull, ne, inArray, or, isNull, lt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Types derived from schema
@@ -1057,6 +1057,42 @@ export async function adminOverrideDDScore(
         console.error("Error overriding DD score:", error);
         return { success: false, message: "Failed to override score" };
     }
+}
+
+/** In sync with getQualifiedApplications: same threshold as `phase1_score >= N`. */
+export { DD_THRESHOLD_PERCENTAGE };
+
+const kycDdCohortWhere = and(
+    eq(dueDiligenceRecords.ddStatus, "approved"),
+    or(
+        isNull(dueDiligenceRecords.phase1Score),
+        lt(dueDiligenceRecords.phase1Score, DD_THRESHOLD_PERCENTAGE)
+    )
+);
+
+/**
+ * KYC update queue: due diligence approved but not on the Qualified list (phase1 < 60%).
+ */
+export async function isApplicationInKycDdCohort(applicationId: number): Promise<boolean> {
+    const record = await db.query.dueDiligenceRecords.findFirst({
+        where: and(eq(dueDiligenceRecords.applicationId, applicationId), kycDdCohortWhere),
+        columns: { id: true },
+    });
+    return record != null;
+}
+
+/** Returns application ids in `applicationIds` that belong to the KYC DD cohort. */
+export async function filterApplicationIdsInKycDdCohort(
+    applicationIds: number[]
+): Promise<Set<number>> {
+    if (applicationIds.length === 0) {
+        return new Set();
+    }
+    const rows = await db
+        .select({ applicationId: dueDiligenceRecords.applicationId })
+        .from(dueDiligenceRecords)
+        .where(and(inArray(dueDiligenceRecords.applicationId, applicationIds), kycDdCohortWhere));
+    return new Set(rows.map((r) => r.applicationId));
 }
 
 /**

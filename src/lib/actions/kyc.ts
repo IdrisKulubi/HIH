@@ -24,8 +24,11 @@ import {
   getKycDocumentLabel,
   reviewerKycDocumentTypes,
 } from "@/lib/kyc/constants";
+import { filterApplicationIdsInKycDdCohort, isApplicationInKycDdCohort } from "./due-diligence";
 
 const KYC_READY_APPLICATION_STATUSES = ["approved", "finalist"] as const;
+const KYC_DD_COHORT_ERROR =
+  "KYC updates are only for due diligence–approved applications below the 60% qualified threshold." as const;
 const KYC_ADMIN_ROLES = ["admin", "oversight"] as const;
 const KYC_REVIEWER_ROLES = ["admin", "reviewer_1", "reviewer_2", "technical_reviewer"] as const;
 
@@ -306,6 +309,10 @@ async function ensureReviewerKycProfile(applicationId: number) {
     return { error: "Application not found." as const };
   }
 
+  if (!(await isApplicationInKycDdCohort(applicationId))) {
+    return { error: KYC_DD_COHORT_ERROR };
+  }
+
   const existingProfile = await db.query.kycProfiles.findFirst({
     where: eq(kycProfiles.applicationId, application.id),
     with: {
@@ -507,7 +514,12 @@ export async function getReviewerKycQueue(
       },
     });
 
-    const applicationIds = applicationsList.map((item) => item.id);
+    const cohortIds = await filterApplicationIdsInKycDdCohort(
+      applicationsList.map((item) => item.id)
+    );
+    const applicationsInCohort = applicationsList.filter((item) => cohortIds.has(item.id));
+
+    const applicationIds = applicationsInCohort.map((item) => item.id);
     const profiles = applicationIds.length === 0
       ? []
       : await db.query.kycProfiles.findMany({
@@ -520,7 +532,7 @@ export async function getReviewerKycQueue(
     const profileByApplicationId = new Map(profiles.map((profile) => [profile.applicationId, profile]));
     const normalizedSearch = search?.trim().toLowerCase();
 
-    const rows = applicationsList
+    const rows = applicationsInCohort
       .map((application) => {
         const profile = profileByApplicationId.get(application.id);
         const applicantName = `${application.business.applicant.firstName} ${application.business.applicant.lastName}`.trim();
@@ -1106,8 +1118,13 @@ export async function getKycQueue(status?: string): Promise<ActionResponse<Array
       },
     });
 
+    const cohortIds = await filterApplicationIdsInKycDdCohort(
+      profiles.map((p) => p.applicationId)
+    );
+    const profilesInCohort = profiles.filter((p) => cohortIds.has(p.applicationId));
+
     return successResponse(
-      profiles.map((profile) => ({
+      profilesInCohort.map((profile) => ({
         profileId: profile.id,
         applicationId: profile.applicationId,
         businessName: profile.application.business.name,
@@ -1144,6 +1161,10 @@ export async function getKycProfileForAdmin(applicationId: number): Promise<Acti
   try {
     const session = await auth();
     if (!isKycAdmin(session?.user?.role ?? null)) return errorResponse("Unauthorized");
+
+    if (!(await isApplicationInKycDdCohort(applicationId))) {
+      return errorResponse(KYC_DD_COHORT_ERROR);
+    }
 
     const profile = await db.query.kycProfiles.findFirst({
       where: eq(kycProfiles.applicationId, applicationId),
@@ -1187,6 +1208,11 @@ export async function reviewKycSubmission(input: KycReviewInput): Promise<Action
     }
 
     const validated = kycReviewSchema.parse(input);
+
+    if (!(await isApplicationInKycDdCohort(validated.applicationId))) {
+      return errorResponse(KYC_DD_COHORT_ERROR);
+    }
+
     const profile = await db.query.kycProfiles.findFirst({
       where: eq(kycProfiles.applicationId, validated.applicationId),
       with: {
@@ -1328,6 +1354,10 @@ export async function reviewKycChangeRequest(
     });
 
     if (!request) return errorResponse("Change request not found");
+
+    if (!(await isApplicationInKycDdCohort(request.kycProfile.applicationId))) {
+      return errorResponse(KYC_DD_COHORT_ERROR);
+    }
 
     await db.update(kycChangeRequests).set({
       status: action,

@@ -65,7 +65,8 @@ export default async function AdminKycPage({ searchParams }: Props) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">KYC Oversight Queue</h1>
         <p className="text-sm text-slate-500">
-          Review reviewer-entered KYC records, confirm the uploaded agreement, and inspect geolocation progress.
+          Due diligence–approved applications below the 60% qualified threshold: review reviewer-entered KYC records,
+          confirm the uploaded agreement, and inspect geolocation progress.
         </p>
       </div>
 
