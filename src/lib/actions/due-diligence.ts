@@ -1059,9 +1059,6 @@ export async function adminOverrideDDScore(
     }
 }
 
-/** In sync with getQualifiedApplications: same threshold as `phase1_score >= N`. */
-export { DD_THRESHOLD_PERCENTAGE };
-
 const kycDdCohortWhere = and(
     eq(dueDiligenceRecords.ddStatus, "approved"),
     or(
