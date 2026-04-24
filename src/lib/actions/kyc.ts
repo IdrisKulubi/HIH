@@ -24,11 +24,15 @@ import {
   getKycDocumentLabel,
   reviewerKycDocumentTypes,
 } from "@/lib/kyc/constants";
-import { filterApplicationIdsInKycDdCohort, isApplicationInKycDdCohort } from "./due-diligence";
+import {
+  filterApplicationIdsInKycDdCohort,
+  getQualifiedDdApplicationIds,
+  isApplicationInKycDdCohort,
+} from "./due-diligence";
 
 const KYC_READY_APPLICATION_STATUSES = ["approved", "finalist"] as const;
 const KYC_DD_COHORT_ERROR =
-  "KYC updates are only for due diligence–approved applications below the 60% qualified threshold." as const;
+  "KYC is only available for applications on the Qualified Applications list (due diligence approved, score at least 60%)." as const;
 const KYC_ADMIN_ROLES = ["admin", "oversight"] as const;
 const KYC_REVIEWER_ROLES = ["admin", "reviewer_1", "reviewer_2", "technical_reviewer"] as const;
 
@@ -326,10 +330,6 @@ async function ensureReviewerKycProfile(applicationId: number) {
     return { application, profile: existingProfile };
   }
 
-  if (!KYC_READY_APPLICATION_STATUSES.includes(application.status as (typeof KYC_READY_APPLICATION_STATUSES)[number])) {
-    return { error: "KYC is only available for selected enterprises." as const };
-  }
-
   const originalSnapshot = buildOriginalSnapshot(application);
   const [created] = await db.insert(kycProfiles).values({
     applicationId: application.id,
@@ -502,8 +502,13 @@ export async function getReviewerKycQueue(
       return errorResponse("Unauthorized");
     }
 
-    const applicationsList = await db.query.applications.findMany({
-      where: inArray(applications.status, [...KYC_READY_APPLICATION_STATUSES]),
+    const qualifiedAppIds = await getQualifiedDdApplicationIds();
+    if (qualifiedAppIds.length === 0) {
+      return successResponse([]);
+    }
+
+    const applicationsInCohort = await db.query.applications.findMany({
+      where: inArray(applications.id, qualifiedAppIds),
       orderBy: [desc(applications.updatedAt), desc(applications.id)],
       with: {
         business: {
@@ -513,11 +518,6 @@ export async function getReviewerKycQueue(
         },
       },
     });
-
-    const cohortIds = await filterApplicationIdsInKycDdCohort(
-      applicationsList.map((item) => item.id)
-    );
-    const applicationsInCohort = applicationsList.filter((item) => cohortIds.has(item.id));
 
     const applicationIds = applicationsInCohort.map((item) => item.id);
     const profiles = applicationIds.length === 0

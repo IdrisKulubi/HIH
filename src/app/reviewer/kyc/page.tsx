@@ -71,7 +71,8 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Reviewer KYC Workspace</h1>
           <p className="text-sm text-slate-500">
-            Search selected enterprises, upload the Letter of Agreement, and capture geolocation later on-site.
+            Same list as Qualified Applications (due diligence completed with a score of at least 60%). Search, upload
+            the Letter of Agreement, and capture geolocation later on-site.
           </p>
         </div>
       </div>
@@ -123,7 +124,7 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
           <CardDescription>
             {search
               ? `Showing results for "${search}".`
-              : "Selected enterprises (approved / finalist). Agreement means a Letter of Agreement saved on this KYC record (use Save KYC Details on the enterprise page)."}
+              : "Qualified Applications cohort (DD approved, ≥60% score). Agreement means a Letter of Agreement saved on this KYC record (use Save KYC Details on the enterprise page)."}
           </CardDescription>
         </CardHeader>
         <CardContent>

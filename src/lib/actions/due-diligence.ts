@@ -12,7 +12,7 @@ import {
     businesses,
     applicants
 } from "../../../db/schema";
-import { eq, and, sql, lte, isNotNull, ne, inArray, or, isNull, lt } from "drizzle-orm";
+import { eq, and, sql, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Types derived from schema
@@ -1059,26 +1059,33 @@ export async function adminOverrideDDScore(
     }
 }
 
-const kycDdCohortWhere = and(
+/** Same predicate as getQualifiedApplications (Qualified Applications list). */
+const qualifiedDdApplicationsWhere = and(
     eq(dueDiligenceRecords.ddStatus, "approved"),
-    or(
-        isNull(dueDiligenceRecords.phase1Score),
-        lt(dueDiligenceRecords.phase1Score, DD_THRESHOLD_PERCENTAGE)
-    )
+    sql`${dueDiligenceRecords.phase1Score} >= ${DD_THRESHOLD_PERCENTAGE}`
 );
 
 /**
- * KYC update queue: due diligence approved but not on the Qualified list (phase1 < 60%).
+ * KYC queue uses the same due-diligence rule as Qualified Applications (approved, phase1 ≥ 60%).
  */
 export async function isApplicationInKycDdCohort(applicationId: number): Promise<boolean> {
     const record = await db.query.dueDiligenceRecords.findFirst({
-        where: and(eq(dueDiligenceRecords.applicationId, applicationId), kycDdCohortWhere),
+        where: and(eq(dueDiligenceRecords.applicationId, applicationId), qualifiedDdApplicationsWhere),
         columns: { id: true },
     });
     return record != null;
 }
 
-/** Returns application ids in `applicationIds` that belong to the KYC DD cohort. */
+/** All application ids that match the Qualified Applications DD rule. */
+export async function getQualifiedDdApplicationIds(): Promise<number[]> {
+    const rows = await db
+        .select({ applicationId: dueDiligenceRecords.applicationId })
+        .from(dueDiligenceRecords)
+        .where(qualifiedDdApplicationsWhere);
+    return rows.map((r) => r.applicationId);
+}
+
+/** Subset of `applicationIds` that are on the Qualified Applications (DD) list. */
 export async function filterApplicationIdsInKycDdCohort(
     applicationIds: number[]
 ): Promise<Set<number>> {
@@ -1088,7 +1095,7 @@ export async function filterApplicationIdsInKycDdCohort(
     const rows = await db
         .select({ applicationId: dueDiligenceRecords.applicationId })
         .from(dueDiligenceRecords)
-        .where(and(inArray(dueDiligenceRecords.applicationId, applicationIds), kycDdCohortWhere));
+        .where(and(inArray(dueDiligenceRecords.applicationId, applicationIds), qualifiedDdApplicationsWhere));
     return new Set(rows.map((r) => r.applicationId));
 }
 
@@ -1147,12 +1154,7 @@ export async function getQualifiedApplications(): Promise<{
             .innerJoin(applications, eq(applications.id, dueDiligenceRecords.applicationId))
             .innerJoin(businesses, eq(businesses.id, applications.businessId))
             .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-            .where(
-                and(
-                    eq(dueDiligenceRecords.ddStatus, 'approved'),
-                    sql`${dueDiligenceRecords.phase1Score} >= 60`
-                )
-            );
+            .where(qualifiedDdApplicationsWhere);
 
         if (qualifiedRecords.length === 0) {
             return { success: true, data: [] };
