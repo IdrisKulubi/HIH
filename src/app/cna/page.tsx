@@ -10,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CDP_FOCUS_AREAS, priorityFromScore0to10, priorityLabel } from "@/lib/cdp/focus-areas";
-import { computeCdpTopRiskFocus } from "@/lib/cdp/pipeline";
+import { sumObjectiveWeightedScores } from "@/lib/cdp/okr-scoring";
+import { computeCdpTopRiskFocus, sumKeyResultWeightsPercent } from "@/lib/cdp/pipeline";
 
 export default async function EnterpriseCnaPage() {
   await requireKycVerified();
@@ -56,9 +57,6 @@ export default async function EnterpriseCnaPage() {
     a.focusCode.localeCompare(b.focusCode)
   );
   const topRisk = computeCdpTopRiskFocus(plan.focusSummaries);
-  const krWeightSum = plan.objectives
-    .flatMap((o) => o.keyResults.map((k) => parseFloat(String(k.weightPercent ?? "0"))))
-    .reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-12 space-y-8">
@@ -84,10 +82,30 @@ export default async function EnterpriseCnaPage() {
               {CDP_FOCUS_AREAS[topRisk.focusCode].label} (score {topRisk.score0to10})
             </p>
           ) : null}
-          <p className="text-xs text-muted-foreground pt-1">
-            OKR weights (staff view): {krWeightSum.toFixed(2)}% of 100% · Endline:{" "}
-            {plan.endlineResponse ? "submitted" : "pending"}
-          </p>
+          <div className="text-xs text-muted-foreground pt-1 space-y-0.5">
+            <p>
+              OKR weights: each objective&apos;s key results total <strong>100%</strong> (staff-managed). Endline:{" "}
+              {plan.endlineResponse ? "submitted" : "pending"}
+            </p>
+            {plan.objectives.map((o) => {
+              const rows = o.keyResults.map((k) => ({ weightPercent: k.weightPercent }));
+              const sum = o.keyResults.length ? sumKeyResultWeightsPercent(rows) : 0;
+              const weighted = sumObjectiveWeightedScores(o.keyResults);
+              if (o.keyResults.length === 0) return null;
+              return (
+                <p key={o.id}>
+                  <span className="text-foreground font-medium">{o.title.slice(0, 48)}</span>
+                  : weights {sum.toFixed(1)}%
+                  {weighted != null ? (
+                    <>
+                      {" "}
+                      · Σ weighted <span className="font-mono">{weighted.toFixed(3)}</span>
+                    </>
+                  ) : null}
+                </p>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 

@@ -729,10 +729,11 @@ export const cnaDiagnostics = pgTable(
     conductedById: text('conducted_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),
-    financialManagementScore: integer('financial_management_score').notNull(),
-    marketReachScore: integer('market_reach_score').notNull(),
-    operationsScore: integer('operations_score').notNull(),
-    complianceScore: integer('compliance_score').notNull(),
+    /** Legacy quick CNA (1–5). Null when diagnostic uses `cna_scores` (A–L full survey). */
+    financialManagementScore: integer('financial_management_score'),
+    marketReachScore: integer('market_reach_score'),
+    operationsScore: integer('operations_score'),
+    complianceScore: integer('compliance_score'),
     topRiskArea: text('top_risk_area'),
     resilienceIndex: decimal('resilience_index', { precision: 5, scale: 2 }),
     conductedAt: timestamp('conducted_at').defaultNow().notNull(),
@@ -740,6 +741,28 @@ export const cnaDiagnostics = pgTable(
   },
   (table) => ({
     businessIdx: index('cna_diagnostics_business_id_idx').on(table.businessId),
+  })
+);
+
+export const cnaScores = pgTable(
+  'cna_scores',
+  {
+    id: serial('id').primaryKey(),
+    diagnosticId: integer('diagnostic_id')
+      .notNull()
+      .references(() => cnaDiagnostics.id, { onDelete: 'cascade' }),
+    focusCode: cdpFocusCodeEnum('focus_code').notNull(),
+    score0to10: integer('score0to10').notNull(),
+    gapReason: text('gap_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    diagnosticIdx: index('cna_scores_diagnostic_id_idx').on(table.diagnosticId),
+    diagnosticFocusUq: uniqueIndex('cna_scores_diagnostic_id_focus_code_unique').on(
+      table.diagnosticId,
+      table.focusCode
+    ),
   })
 );
 
@@ -1538,9 +1561,17 @@ export const cnaDiagnosticsRelations = relations(cnaDiagnostics, ({ one, many })
     fields: [cnaDiagnostics.conductedById],
     references: [users.id],
   }),
+  cnaScores: many(cnaScores),
   bdsInterventions: many(bdsInterventions),
   linkedCapacityDevelopmentPlans: many(capacityDevelopmentPlans, {
     relationName: 'cnaLinkedCdpPlans',
+  }),
+}));
+
+export const cnaScoresRelations = relations(cnaScores, ({ one }) => ({
+  diagnostic: one(cnaDiagnostics, {
+    fields: [cnaScores.diagnosticId],
+    references: [cnaDiagnostics.id],
   }),
 }));
 
@@ -2270,6 +2301,9 @@ export type NewMentorshipActionItem = typeof mentorshipActionItems.$inferInsert;
 
 export type CnaDiagnostic = typeof cnaDiagnostics.$inferSelect;
 export type NewCnaDiagnostic = typeof cnaDiagnostics.$inferInsert;
+
+export type CnaScore = typeof cnaScores.$inferSelect;
+export type NewCnaScore = typeof cnaScores.$inferInsert;
 
 export type CapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferSelect;
 export type NewCapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferInsert;

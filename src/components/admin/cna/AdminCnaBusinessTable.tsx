@@ -97,7 +97,7 @@ export function AdminCnaBusinessTable({
   }, [rows, query, sector, sort]);
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4">
       <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="relative min-w-[min(100%,280px)] flex-1">
           <Label htmlFor="cna-search" className="sr-only">
@@ -164,29 +164,38 @@ export function AdminCnaBusinessTable({
           No businesses match your search or filters.
         </p>
       ) : (
-        <Table>
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Business</TableHead>
-              <TableHead>Applicant</TableHead>
-              <TableHead>Sector</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead className="min-w-0 w-[32%]">Business</TableHead>
+              <TableHead className="min-w-0 w-[22%]">Applicant</TableHead>
+              <TableHead className="min-w-0 w-[16%]">Sector</TableHead>
+              <TableHead className="min-w-0 w-[22%]">Email</TableHead>
+              <TableHead className="w-14 shrink-0 text-right sm:w-16">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map((row) => (
               <TableRow key={row.businessId}>
-                <TableCell className="font-medium">{row.businessName}</TableCell>
-                <TableCell>{row.applicantName}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">
+                <TableCell className="min-w-0 truncate font-medium" title={row.businessName}>
+                  {row.businessName}
+                </TableCell>
+                <TableCell className="min-w-0 truncate" title={row.applicantName}>
+                  {row.applicantName}
+                </TableCell>
+                <TableCell
+                  className="min-w-0 truncate text-muted-foreground text-sm"
+                  title={formatSectorLabel(row.sector)}
+                >
                   {formatSectorLabel(row.sector)}
                 </TableCell>
-                <TableCell className="text-sm">{row.applicantEmail}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="min-w-0 truncate text-sm" title={row.applicantEmail}>
+                  {row.applicantEmail}
+                </TableCell>
+                <TableCell className="w-14 shrink-0 text-right sm:w-16">
                   <Link
                     href={`${basePath.replace(/\/$/, "")}/${row.businessId}`}
-                    className="text-sky-700 hover:underline text-sm font-medium"
+                    className="inline-flex text-sky-700 hover:underline text-sm font-medium whitespace-nowrap"
                   >
                     {actionLabel}
                   </Link>

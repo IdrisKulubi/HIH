@@ -5,6 +5,7 @@ import {
   type CdpFocusSummaryInput,
 } from "@/lib/cdp/focus-areas";
 import { roundScoreToDiscrete0510 } from "@/lib/cdp/pipeline";
+import type { CnaScore } from "@/db/schema";
 
 /**
  * Legacy quick CNA uses four 1–5 dimensions. CDP uses twelve focus areas (A–L) at 0–10.
@@ -67,6 +68,30 @@ export function suggestedFocusSummariesFromLegacyCna(
       focusCode,
       score0to10: 5,
       keyGaps: null,
+      recommendedIntervention: null,
+      responsibleStaff: null,
+      targetDate: null,
+    };
+  });
+}
+
+/**
+ * Map a completed full CNA (`cna_scores` rows) into CDP focus summary inputs for import.
+ */
+export function suggestedFocusSummariesFromFullCnaScores(
+  rows: Pick<CnaScore, "focusCode" | "score0to10" | "gapReason">[]
+): CdpFocusSummaryInput[] {
+  const byCode = new Map<CdpFocusCode, Pick<CnaScore, "focusCode" | "score0to10" | "gapReason">>();
+  for (const r of rows) {
+    byCode.set(r.focusCode as CdpFocusCode, r);
+  }
+  return CDP_FOCUS_CODES.map((focusCode) => {
+    const r = byCode.get(focusCode);
+    const score0to10 = (r?.score0to10 ?? 5) as 0 | 5 | 10;
+    return {
+      focusCode,
+      score0to10,
+      keyGaps: r?.gapReason?.trim() || null,
       recommendedIntervention: null,
       responsibleStaff: null,
       targetDate: null,

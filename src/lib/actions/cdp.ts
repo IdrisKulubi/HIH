@@ -16,6 +16,7 @@ import {
   cdpSessionActionItems,
   cdpWeeklyMilestones,
   cnaDiagnostics,
+  cnaScores,
   kycProfiles,
   type CapacityDevelopmentPlan,
   type CdpActivity,
@@ -28,7 +29,10 @@ import {
   type CdpSessionActionItem,
   type CdpWeeklyMilestone,
 } from "@/db/schema";
-import { suggestedFocusSummariesFromLegacyCna } from "@/lib/cdp/legacy-cna-bridge";
+import {
+  suggestedFocusSummariesFromFullCnaScores,
+  suggestedFocusSummariesFromLegacyCna,
+} from "@/lib/cdp/legacy-cna-bridge";
 import { CDP_FOCUS_CODES, cdpFocusCodeSchema, cdpFocusSummaryInputSchema } from "@/lib/cdp/focus-areas";
 import {
   assertCdpActivationReadiness,
@@ -248,11 +252,15 @@ export async function updateCdpPlan(
         },
       });
       if (!full) return errorResponse("Plan not found");
-      const krWeights = full.objectives.flatMap((o) => o.keyResults.map((k) => ({ weightPercent: k.weightPercent })));
+      const objectivesForKrs = full.objectives.map((o) => ({
+        id: o.id,
+        title: o.title,
+        keyResults: o.keyResults.map((k) => ({ weightPercent: k.weightPercent })),
+      }));
       const gate = assertCdpActivationReadiness({
         focusSummaries: full.focusSummaries,
         activities: full.activities,
-        keyResultWeights: krWeights,
+        objectivesForKrs,
       });
       if (gate) return errorResponse(gate);
     }
@@ -349,17 +357,36 @@ export async function importCdpSummariesFromLatestCna(
     const latest = await db.query.cnaDiagnostics.findFirst({
       where: eq(cnaDiagnostics.businessId, plan.businessId),
       orderBy: [desc(cnaDiagnostics.conductedAt)],
+      with: {
+        cnaScores: { orderBy: [asc(cnaScores.focusCode)] },
+      },
     });
     if (!latest) {
-      return errorResponse("No legacy CNA diagnostic found for this business. Record one under CNA first.");
+      return errorResponse("No CNA diagnostic found for this business. Record one under CNA first.");
     }
 
-    const suggested = suggestedFocusSummariesFromLegacyCna({
-      financialManagementScore: latest.financialManagementScore,
-      marketReachScore: latest.marketReachScore,
-      operationsScore: latest.operationsScore,
-      complianceScore: latest.complianceScore,
-    });
+    const hasFull = latest.cnaScores.length >= 12;
+    const hasLegacy =
+      latest.financialManagementScore != null &&
+      latest.marketReachScore != null &&
+      latest.operationsScore != null &&
+      latest.complianceScore != null;
+
+    let suggested;
+    if (hasFull) {
+      suggested = suggestedFocusSummariesFromFullCnaScores(latest.cnaScores);
+    } else if (hasLegacy) {
+      suggested = suggestedFocusSummariesFromLegacyCna({
+        financialManagementScore: latest.financialManagementScore!,
+        marketReachScore: latest.marketReachScore!,
+        operationsScore: latest.operationsScore!,
+        complianceScore: latest.complianceScore!,
+      });
+    } else {
+      return errorResponse(
+        "Latest CNA has no A–L scores and no legacy four-dimension scores. Complete a CNA first."
+      );
+    }
 
     for (const row of suggested) {
       await db
@@ -401,7 +428,10 @@ export async function saveCdpFocusSummaries(
     }
 
     const parsed = bulkSummarySchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Provide all 12 focus areas (A–L).");
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? "Provide all 12 focus areas (A–L) with valid scores.";
+      return errorResponse(msg);
+    }
 
     const plan = await db.query.capacityDevelopmentPlans.findFirst({
       where: eq(capacityDevelopmentPlans.id, parsed.data.planId),
@@ -1254,9 +1284,11 @@ export async function getCdpPipelineCompletenessForPlan(
     const full = await getCdpPlanFull(planId);
     if (!full.success || !full.data) return errorResponse(full.error ?? "Plan not found");
     const p = full.data;
-    const krWeights = p.objectives.flatMap((o) =>
-      o.keyResults.map((k) => ({ weightPercent: k.weightPercent }))
-    );
+    const objectivesForKrs = p.objectives.map((o) => ({
+      id: o.id,
+      title: o.title,
+      keyResults: o.keyResults.map((k) => ({ weightPercent: k.weightPercent })),
+    }));
     const result = computeCdpPipelineCompleteness({
       status: p.status,
       focusSummaries: p.focusSummaries,
@@ -1265,7 +1297,7 @@ export async function getCdpPipelineCompletenessForPlan(
         sessionNumber: s.sessionNumber,
         bootcampWeek: s.bootcampWeek ?? null,
       })),
-      keyResultWeights: krWeights,
+      objectivesForKrs,
       hasEndline: p.endlineResponse != null,
     });
     return successResponse(result);

@@ -22,7 +22,6 @@ import {
   saveCdpFocusSummaries,
   setCdpDiagnosticLocked,
   submitCdpEndline,
-  updateCdpKeyResult,
   updateCdpPlan,
   updateCdpSessionActionItem,
   updateCdpWeeklyMilestone,
@@ -40,6 +39,13 @@ import {
   sumKeyResultWeightsPercent,
   type PipelineCompleteness,
 } from "@/lib/cdp/pipeline";
+import { CDP_KR_WEIGHT_SUM_TOLERANCE } from "@/lib/cdp/constants";
+import {
+  krFinalScoreRatio,
+  krWeightedScore,
+  parseOutcomeMetric,
+  sumObjectiveWeightedScores,
+} from "@/lib/cdp/okr-scoring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,13 +94,13 @@ export function CdpWorkspace({
   businessName,
   plans,
   initialPlan,
-  hasLegacyCna,
+  hasCnaForImport,
 }: {
   businessId: number;
   businessName: string;
   plans: CdpPlanListItem[];
   initialPlan: CdpPlanFull | null;
-  hasLegacyCna: boolean;
+  hasCnaForImport: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -264,7 +270,7 @@ export function CdpWorkspace({
           <Button type="button" variant="outline" size="sm" onClick={handleExportCsv} disabled={pending}>
             Export CSV
           </Button>
-          {hasLegacyCna ? (
+          {hasCnaForImport ? (
             <Button type="button" variant="secondary" size="sm" onClick={handleImportCna} disabled={pending}>
               Import scores from latest CNA
             </Button>
@@ -338,9 +344,10 @@ export function CdpWorkspace({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground w-full max-w-3xl">
-          <strong>Mark active</strong> requires: scores 0 / 5 / 10 only; key result weights total{" "}
-          <strong>100%</strong>; every <strong>high</strong> and <strong>medium</strong> priority focus has an
-          activity with intervention text and a target date.
+          <strong>Mark active</strong> requires: scores 0 / 5 / 10 only; <strong>key gaps</strong> filled for every
+          score of 0 or 5; within each objective, key result weights total <strong>100%</strong>; every{" "}
+          <strong>high</strong> and <strong>medium</strong> priority focus has an activity with intervention text and
+          a target date.
         </p>
       </div>
 
@@ -508,14 +515,14 @@ export function CdpWorkspace({
 function CdpOkrPanel({ plan, disabled }: { plan: CdpPlanFull; disabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const weights = plan.objectives.flatMap((o) => o.keyResults.map((k) => ({ weightPercent: k.weightPercent })));
-  const sum = sumKeyResultWeightsPercent(weights);
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Key result weights across the whole plan must total <strong>100%</strong> before you can mark the plan{" "}
-        <strong>active</strong>. Current sum: <strong>{sum.toFixed(2)}%</strong>.
+      <p className="text-sm text-muted-foreground max-w-3xl">
+        To mark the plan <strong>active</strong>, each objective that has key results must have weights totaling{" "}
+        <strong>100%</strong>. Weighted score uses <code className="text-xs">(achieved ÷ target) × (weight ÷ 100)</code>{" "}
+        when target and achieved parse as numbers (e.g. <code className="text-xs">100</code> and{" "}
+        <code className="text-xs">75</code>).
       </p>
       <form
         className="flex flex-wrap items-end gap-2 rounded-md border p-3"
@@ -545,121 +552,173 @@ function CdpOkrPanel({ plan, disabled }: { plan: CdpPlanFull; disabled: boolean 
         </Button>
       </form>
 
-      {plan.objectives.map((obj) => (
-        <div key={obj.id} className="rounded-md border p-4 space-y-3">
-          <div className="flex flex-wrap justify-between gap-2">
-            <h3 className="font-medium text-sm">{obj.title}</h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-destructive"
-              disabled={disabled || pending}
-              onClick={() => {
-                if (!confirm("Delete this objective and all its key results?")) return;
+      {plan.objectives.map((obj) => {
+        const krRows = obj.keyResults.map((k) => ({ weightPercent: k.weightPercent }));
+        const weightSum =
+          obj.keyResults.length > 0 ? sumKeyResultWeightsPercent(krRows) : 0;
+        const weightOk =
+          obj.keyResults.length === 0 || Math.abs(weightSum - 100) <= CDP_KR_WEIGHT_SUM_TOLERANCE;
+        const weightedTotal = sumObjectiveWeightedScores(obj.keyResults);
+
+        return (
+          <div key={obj.id} className="rounded-md border p-4 space-y-3">
+            <div className="flex flex-wrap justify-between gap-2">
+              <div>
+                <h3 className="font-medium text-sm">{obj.title}</h3>
+                <p className="text-xs text-muted-foreground">
+                  Weights sum:{" "}
+                  <span className={weightOk ? "text-emerald-800" : "text-destructive"}>
+                    {weightSum.toFixed(2)}%
+                  </span>{" "}
+                  {obj.keyResults.length > 0 ? (weightOk ? "(OK for activation)" : "(must be 100%)") : null}
+                </p>
+                {weightedTotal != null ? (
+                  <p className="text-xs text-muted-foreground">
+                    Σ weighted score (numeric KRs):{" "}
+                    <span className="font-mono text-foreground">{weightedTotal.toFixed(4)}</span>
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                disabled={disabled || pending}
+                onClick={() => {
+                  if (!confirm("Delete this objective and all its key results?")) return;
+                  start(async () => {
+                    const res = await deleteCdpObjective(obj.id);
+                    if (!res.success) toast.error(res.error ?? "Failed");
+                    else {
+                      toast.success("Deleted");
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                Delete objective
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Key result</TableHead>
+                    <TableHead className="w-20">Weight %</TableHead>
+                    <TableHead>Target</TableHead>
+                    <TableHead>Achieved</TableHead>
+                    <TableHead className="w-24">Final ratio</TableHead>
+                    <TableHead className="w-28">Weighted</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {obj.keyResults.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-muted-foreground text-sm">
+                        No key results yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    obj.keyResults.map((kr) => {
+                      const w = parseFloat(String(kr.weightPercent ?? "0"));
+                      const targetN = parseOutcomeMetric(kr.targetOutcome);
+                      const achievedN = parseOutcomeMetric(kr.achievedOutcome);
+                      const ratio = krFinalScoreRatio(achievedN, targetN);
+                      const weighted = krWeightedScore(ratio, w);
+                      return (
+                        <TableRow key={kr.id}>
+                          <TableCell className="text-sm">{kr.title}</TableCell>
+                          <TableCell className="text-xs">{kr.weightPercent}</TableCell>
+                          <TableCell className="text-xs max-w-[140px] truncate" title={kr.targetOutcome ?? ""}>
+                            {kr.targetOutcome ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs max-w-[140px] truncate" title={kr.achievedOutcome ?? ""}>
+                            {kr.achievedOutcome ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {ratio != null ? ratio.toFixed(4) : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {weighted != null ? weighted.toFixed(4) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              disabled={disabled || pending}
+                              onClick={() => {
+                                start(async () => {
+                                  const res = await deleteCdpKeyResult(kr.id);
+                                  if (!res.success) toast.error(res.error ?? "Failed");
+                                  else router.refresh();
+                                });
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <form
+              className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6 items-end border-t pt-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
                 start(async () => {
-                  const res = await deleteCdpObjective(obj.id);
+                  const res = await createCdpKeyResult({
+                    objectiveId: obj.id,
+                    title: String(fd.get("krTitle") ?? ""),
+                    targetOutcome: String(fd.get("krTarget") ?? "") || null,
+                    achievedOutcome: String(fd.get("krAchieved") ?? "") || null,
+                    weightPercent: Number(fd.get("krWeight")),
+                    dueDate: String(fd.get("krDue") ?? "") || null,
+                  });
                   if (!res.success) toast.error(res.error ?? "Failed");
                   else {
-                    toast.success("Deleted");
+                    toast.success("Key result added");
+                    (e.target as HTMLFormElement).reset();
                     router.refresh();
                   }
                 });
               }}
             >
-              Delete objective
-            </Button>
+              <input type="hidden" name="objectiveId" value={obj.id} />
+              <div className="space-y-1 sm:col-span-2">
+                <Label>Key result title</Label>
+                <Input name="krTitle" required placeholder="Measurable outcome" />
+              </div>
+              <div className="space-y-1">
+                <Label>Weight %</Label>
+                <Input name="krWeight" type="number" step="0.01" min={0} max={100} required />
+              </div>
+              <div className="space-y-1">
+                <Label>Due date</Label>
+                <Input name="krDue" type="date" />
+              </div>
+              <div className="space-y-1 sm:col-span-3 lg:col-span-3">
+                <Label>Target (number or text)</Label>
+                <Input name="krTarget" placeholder="e.g. 100 or Increase sales 15%" />
+              </div>
+              <div className="space-y-1 sm:col-span-3 lg:col-span-3">
+                <Label>Achieved (optional, number)</Label>
+                <Input name="krAchieved" placeholder="e.g. 75" />
+              </div>
+              <Button type="submit" size="sm" disabled={disabled || pending} className="sm:col-span-2">
+                Add key result
+              </Button>
+            </form>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Key result</TableHead>
-                <TableHead className="w-24">Weight %</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead className="w-28">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {obj.keyResults.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-muted-foreground text-sm">
-                    No key results yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                obj.keyResults.map((kr) => (
-                  <TableRow key={kr.id}>
-                    <TableCell className="text-sm">{kr.title}</TableCell>
-                    <TableCell className="text-xs">{kr.weightPercent}</TableCell>
-                    <TableCell className="text-xs max-w-xs truncate">{kr.targetOutcome ?? "—"}</TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        disabled={disabled || pending}
-                        onClick={() => {
-                          start(async () => {
-                            const res = await deleteCdpKeyResult(kr.id);
-                            if (!res.success) toast.error(res.error ?? "Failed");
-                            else router.refresh();
-                          });
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <form
-            className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 items-end border-t pt-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              start(async () => {
-                const res = await createCdpKeyResult({
-                  objectiveId: obj.id,
-                  title: String(fd.get("krTitle") ?? ""),
-                  targetOutcome: String(fd.get("krTarget") ?? "") || null,
-                  weightPercent: Number(fd.get("krWeight")),
-                  dueDate: String(fd.get("krDue") ?? "") || null,
-                });
-                if (!res.success) toast.error(res.error ?? "Failed");
-                else {
-                  toast.success("Key result added");
-                  (e.target as HTMLFormElement).reset();
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            <input type="hidden" name="objectiveId" value={obj.id} />
-            <div className="space-y-1 sm:col-span-2">
-              <Label>Key result title</Label>
-              <Input name="krTitle" required placeholder="Measurable outcome" />
-            </div>
-            <div className="space-y-1">
-              <Label>Weight %</Label>
-              <Input name="krWeight" type="number" step="0.01" min={0} max={100} required />
-            </div>
-            <div className="space-y-1">
-              <Label>Due date</Label>
-              <Input name="krDue" type="date" />
-            </div>
-            <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-              <Label>Target outcome</Label>
-              <Input name="krTarget" placeholder="e.g. Increase monthly sales by 15%" />
-            </div>
-            <Button type="submit" size="sm" disabled={disabled || pending}>
-              Add key result
-            </Button>
-          </form>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -809,7 +868,7 @@ function CdpPipelinePanel({
         <ul className="text-sm space-y-2 list-disc pl-5">
           <li>Diagnostic uses only 0 / 5 / 10 scores: {pipeline.diagnosticScoresValid ? "Yes" : "No"}</li>
           <li>Interventions for high + medium gaps: {pipeline.interventionsForPriorityGaps ? "Yes" : "No"}</li>
-          <li>OKR weights total 100%: {pipeline.okrsWeightedTo100 ? "Yes" : "No"}</li>
+          <li>Each objective: OKR weights total 100%: {pipeline.okrsWeightedTo100 ? "Yes" : "No"}</li>
           <li>Sessions or bootcamp weeks: {pipeline.sessionsOrBootcampComplete ? "Yes" : "No"}</li>
           <li>Outcomes recorded for priority areas: {pipeline.outcomesForPriorityGaps ? "Yes" : "No"}</li>
           <li>Endline submitted: {pipeline.endlineSubmitted ? "Yes" : "No"}</li>

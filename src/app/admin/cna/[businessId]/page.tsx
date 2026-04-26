@@ -51,7 +51,7 @@ export default async function AdminCnaBusinessPage({
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium">New diagnostic</h2>
+        <h2 className="text-lg font-medium">New diagnostic (A–L)</h2>
         <CnaDiagnosticForm businessId={businessId} />
       </section>
 
@@ -66,27 +66,53 @@ export default async function AdminCnaBusinessPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                <TableHead>F / M / O / C</TableHead>
+                <TableHead>Format</TableHead>
+                <TableHead>Summary</TableHead>
                 <TableHead>Top risk</TableHead>
                 <TableHead>Resilience</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {history.data.map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {d.conductedAt
-                      ? new Date(d.conductedAt).toLocaleString()
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm font-mono">
-                    {d.financialManagementScore}/{d.marketReachScore}/{d.operationsScore}/
-                    {d.complianceScore}
-                  </TableCell>
-                  <TableCell>{d.topRiskArea ?? "—"}</TableCell>
-                  <TableCell>{d.resilienceIndex ?? "—"}</TableCell>
-                </TableRow>
-              ))}
+              {history.data.map((d) => {
+                const full = d.cnaScores?.length === 12;
+                const legacy =
+                  d.financialManagementScore != null &&
+                  d.marketReachScore != null &&
+                  d.operationsScore != null &&
+                  d.complianceScore != null;
+                return (
+                  <TableRow key={d.id}>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {d.conductedAt ? new Date(d.conductedAt).toLocaleString() : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {full ? (
+                        <span className="text-emerald-800">Full A–L</span>
+                      ) : legacy ? (
+                        <span className="text-muted-foreground">Legacy 4-dim</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="text-xs font-mono max-w-[280px] truncate"
+                      title={
+                        full
+                          ? d.cnaScores!.map((s) => `${s.focusCode}:${s.score0to10}`).join(" · ")
+                          : undefined
+                      }
+                    >
+                      {full
+                        ? d.cnaScores!.map((s) => `${s.focusCode}:${s.score0to10}`).join(" · ")
+                        : legacy
+                          ? `F${d.financialManagementScore}/M${d.marketReachScore}/O${d.operationsScore}/C${d.complianceScore}`
+                          : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">{d.topRiskArea ?? "—"}</TableCell>
+                    <TableCell className="text-sm">{d.resilienceIndex ?? "—"}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

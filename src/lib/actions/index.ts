@@ -144,7 +144,7 @@ export {
     listBusinessesWithApplicantForAdmin,
 } from "./cna";
 
-export type { BusinessListRow } from "./cna";
+export type { BusinessListRow, CnaDiagnosticWithScores } from "./cna";
 
 export type { CdpPlanFull, CdpPlanListItem } from "./cdp";
 

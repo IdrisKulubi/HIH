@@ -57,7 +57,7 @@ export default async function AdminCdpBusinessPage({
           </p>
           <p className="text-xs text-muted-foreground mt-2">
             <Link href={`/admin/cna/${businessId}`} className="text-sky-700 hover:underline">
-              Quick CNA (4 dimensions)
+              CNA (A–L survey)
             </Link>
           </p>
         </div>
@@ -69,7 +69,7 @@ export default async function AdminCdpBusinessPage({
         businessName={business.name}
         plans={plans}
         initialPlan={initialPlan}
-        hasLegacyCna={!!latestCna}
+        hasCnaForImport={!!latestCna}
       />
     </div>
   );

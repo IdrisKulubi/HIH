@@ -57,10 +57,42 @@ export function keyResultsWeightsTotalOneHundred(rows: KrWeightRow[]): boolean {
   return Math.abs(s - 100) <= CDP_KR_WEIGHT_SUM_TOLERANCE;
 }
 
+/** Per blueprint: each objective’s key results must sum to 100% (weights as percentages). */
+export function keyResultsWeightsValidPerObjectives(
+  objectives: { id: number; title: string; keyResults: KrWeightRow[] }[]
+): string | null {
+  for (const obj of objectives) {
+    if (obj.keyResults.length === 0) continue;
+    const s = sumKeyResultWeightsPercent(obj.keyResults);
+    if (Math.abs(s - 100) > CDP_KR_WEIGHT_SUM_TOLERANCE) {
+      const label = obj.title.trim() || `Objective #${obj.id}`;
+      return `${label}: key result weights must total 100% (currently ${s.toFixed(2)}%).`;
+    }
+  }
+  return null;
+}
+
+export function focusSummariesHaveRequiredKeyGaps(
+  summaries: Pick<CdpFocusSummaryRow, "focusCode" | "score0to10" | "keyGaps">[]
+): boolean {
+  for (const row of summaries) {
+    if (row.score0to10 === 0 || row.score0to10 === 5) {
+      if (!String(row.keyGaps ?? "").trim()) return false;
+    }
+  }
+  return true;
+}
+
+export type OkrObjectiveWeightBlock = {
+  id: number;
+  title: string;
+  keyResults: KrWeightRow[];
+};
+
 export type ActivationContext = {
   focusSummaries: CdpFocusSummaryRow[];
   activities: Pick<CdpActivity, "focusCode" | "intervention" | "targetDate">[];
-  keyResultWeights: KrWeightRow[];
+  objectivesForKrs: OkrObjectiveWeightBlock[];
 };
 
 /**
@@ -68,7 +100,7 @@ export type ActivationContext = {
  * Returns first error message or null if OK.
  */
 export function assertCdpActivationReadiness(ctx: ActivationContext): string | null {
-  const { focusSummaries, activities, keyResultWeights } = ctx;
+  const { focusSummaries, activities, objectivesForKrs } = ctx;
 
   if (focusSummaries.length < 12) {
     return "Diagnostic summary must include all 12 focus areas (A–L).";
@@ -81,10 +113,14 @@ export function assertCdpActivationReadiness(ctx: ActivationContext): string | n
     }
   }
 
-  if (!keyResultsWeightsTotalOneHundred(keyResultWeights)) {
-    const s = sumKeyResultWeightsPercent(keyResultWeights);
-    return `Key result weights must total 100% (currently ${s.toFixed(2)}%).`;
+  for (const row of focusSummaries) {
+    if ((row.score0to10 === 0 || row.score0to10 === 5) && !String(row.keyGaps ?? "").trim()) {
+      return `Focus ${row.focusCode}: key gaps (reason) are required when the score is 0 or 5.`;
+    }
   }
+
+  const krErr = keyResultsWeightsValidPerObjectives(objectivesForKrs);
+  if (krErr) return krErr;
 
   const needsIntervention = new Set<CdpFocusCode>();
   for (const s of focusSummaries) {
@@ -124,7 +160,7 @@ export type PipelineCompletenessInput = {
   focusSummaries: CdpFocusSummaryRow[];
   activities: PipelineActivity[];
   supportSessions: PipelineSession[];
-  keyResultWeights: KrWeightRow[];
+  objectivesForKrs: OkrObjectiveWeightBlock[];
   hasEndline: boolean;
 };
 
@@ -205,16 +241,18 @@ export function computeCdpPipelineCompleteness(input: PipelineCompletenessInput)
     focusSummaries,
     activities,
     supportSessions,
-    keyResultWeights,
+    objectivesForKrs,
     hasEndline,
   } = input;
 
   const diagnosticScoresValid =
-    focusSummaries.length >= 12 && discreteScores(focusSummaries);
+    focusSummaries.length >= 12 &&
+    discreteScores(focusSummaries) &&
+    focusSummariesHaveRequiredKeyGaps(focusSummaries);
 
   const interventionsForPriorityGaps = everyHighMediumHasActivity(focusSummaries, activities);
 
-  const okrsWeightedTo100 = keyResultsWeightsTotalOneHundred(keyResultWeights);
+  const okrsWeightedTo100 = keyResultsWeightsValidPerObjectives(objectivesForKrs) == null;
 
   const sessionsOrBootcampComplete = sessionsGateMet(supportSessions);
 
