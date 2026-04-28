@@ -1332,28 +1332,39 @@ export async function upsertCdpActivityProgress(
     });
     if (!act?.plan) return errorResponse("Activity not found");
 
-    await db
-      .insert(cdpActivityProgressReviews)
-      .values({
-        activityId: parsed.data.activityId,
-        reviewPeriod: parsed.data.reviewPeriod,
-        status: parsed.data.status,
-        outcomeAchieved: parsed.data.outcomeAchieved ?? null,
-        staffNotes: parsed.data.staffNotes?.trim() || null,
-        reviewedAt: new Date(),
-        reviewedById: session.user!.id,
-      })
-      .onConflictDoUpdate({
-        target: [cdpActivityProgressReviews.activityId, cdpActivityProgressReviews.reviewPeriod],
-        set: {
-          status: parsed.data.status,
-          outcomeAchieved: parsed.data.outcomeAchieved ?? null,
-          staffNotes: parsed.data.staffNotes?.trim() || null,
-          reviewedAt: new Date(),
-          reviewedById: session.user!.id,
-          updatedAt: new Date(),
-        },
+    const now = new Date();
+    const patch = {
+      status: parsed.data.status,
+      outcomeAchieved: parsed.data.outcomeAchieved ?? null,
+      staffNotes: parsed.data.staffNotes?.trim() || null,
+      reviewedAt: now,
+      reviewedById: session.user!.id,
+      updatedAt: now,
+    };
+
+    // Prefer explicit update/insert: some databases were created without the
+    // unique index required for ON CONFLICT (activity_id, review_period).
+    await db.transaction(async (tx) => {
+      const existing = await tx.query.cdpActivityProgressReviews.findFirst({
+        where: and(
+          eq(cdpActivityProgressReviews.activityId, parsed.data.activityId),
+          eq(cdpActivityProgressReviews.reviewPeriod, parsed.data.reviewPeriod)
+        ),
+        columns: { id: true },
       });
+      if (existing) {
+        await tx
+          .update(cdpActivityProgressReviews)
+          .set(patch)
+          .where(eq(cdpActivityProgressReviews.id, existing.id));
+      } else {
+        await tx.insert(cdpActivityProgressReviews).values({
+          activityId: parsed.data.activityId,
+          reviewPeriod: parsed.data.reviewPeriod,
+          ...patch,
+        });
+      }
+    });
 
     revalidateCdpPaths(act.plan.businessId, act.plan.id);
     return successResponse({ businessId: act.plan.businessId });
