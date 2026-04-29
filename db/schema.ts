@@ -44,7 +44,11 @@ export const userRoleEnum = pgEnum('user_role', [
   'reviewer_1',
   'reviewer_2',
   'oversight',
-  'a2f_officer'
+  'a2f_officer',
+  'mentor',
+  'bds_edo',
+  'investment_analyst',
+  'mel'
 ]);
 
 export const fundingSourceEnum = pgEnum('funding_source', [
@@ -250,6 +254,27 @@ export const cdpReviewCycleStatusEnum = pgEnum('cdp_review_cycle_status', [
   'done',
   'blocked',
 ]);
+
+export const cnaReviewerRoleEnum = pgEnum('cna_reviewer_role', [
+  'mentor',
+  'bds_edo',
+  'investment_analyst',
+  'mel',
+]);
+export const cnaAssessmentStatusEnum = pgEnum('cna_assessment_status', [
+  'draft',
+  'in_progress',
+  'submitted',
+  'locked',
+  'archived',
+]);
+export const cnaRoleReviewStatusEnum = pgEnum('cna_role_review_status', [
+  'not_started',
+  'in_progress',
+  'submitted',
+  'returned',
+]);
+export const cnaRatingEnum = pgEnum('cna_rating', ['poor', 'fair', 'great']);
 
 /** CDP support session follow-up items (gates next session when present). */
 export const cdpSessionActionItemStatusEnum = pgEnum('cdp_session_action_item_status', [
@@ -762,6 +787,118 @@ export const cnaScores = pgTable(
     diagnosticFocusUq: uniqueIndex('cna_scores_diagnostic_id_focus_code_unique').on(
       table.diagnosticId,
       table.focusCode
+    ),
+  })
+);
+
+export const cnaQuestionBank = pgTable(
+  'cna_question_bank',
+  {
+    id: serial('id').primaryKey(),
+    sectionCode: cdpFocusCodeEnum('section_code').notNull(),
+    sectionName: text('section_name').notNull(),
+    questionText: text('question_text').notNull(),
+    assignedRole: cnaReviewerRoleEnum('assigned_role').notNull(),
+    sourceRoleLabel: varchar('source_role_label', { length: 40 }).notNull(),
+    sourceSheet: varchar('source_sheet', { length: 160 }),
+    sourceRow: integer('source_row'),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    sectionIdx: index('cna_question_bank_section_idx').on(table.sectionCode),
+    roleIdx: index('cna_question_bank_role_idx').on(table.assignedRole),
+    activeIdx: index('cna_question_bank_active_idx').on(table.isActive),
+    sourceUq: uniqueIndex('cna_question_bank_source_uq').on(
+      table.sourceSheet,
+      table.sourceRow,
+      table.questionText
+    ),
+  })
+);
+
+export const cnaAssessments = pgTable(
+  'cna_assessments',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    applicationId: integer('application_id').references(() => applications.id, {
+      onDelete: 'set null',
+    }),
+    status: cnaAssessmentStatusEnum('status').default('draft').notNull(),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    submittedAt: timestamp('submitted_at'),
+    lockedAt: timestamp('locked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIdx: index('cna_assessments_business_id_idx').on(table.businessId),
+    applicationIdx: index('cna_assessments_application_id_idx').on(table.applicationId),
+    statusIdx: index('cna_assessments_status_idx').on(table.status),
+  })
+);
+
+export const cnaRoleReviews = pgTable(
+  'cna_role_reviews',
+  {
+    id: serial('id').primaryKey(),
+    assessmentId: integer('assessment_id')
+      .notNull()
+      .references(() => cnaAssessments.id, { onDelete: 'cascade' }),
+    role: cnaReviewerRoleEnum('role').notNull(),
+    reviewerId: text('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+    status: cnaRoleReviewStatusEnum('status').default('not_started').notNull(),
+    startedAt: timestamp('started_at'),
+    submittedAt: timestamp('submitted_at'),
+    adminReturnNote: text('admin_return_note'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    assessmentIdx: index('cna_role_reviews_assessment_id_idx').on(table.assessmentId),
+    reviewerIdx: index('cna_role_reviews_reviewer_id_idx').on(table.reviewerId),
+    assessmentRoleUq: uniqueIndex('cna_role_reviews_assessment_role_uq').on(
+      table.assessmentId,
+      table.role
+    ),
+  })
+);
+
+export const cnaQuestionResponses = pgTable(
+  'cna_question_responses',
+  {
+    id: serial('id').primaryKey(),
+    assessmentId: integer('assessment_id')
+      .notNull()
+      .references(() => cnaAssessments.id, { onDelete: 'cascade' }),
+    roleReviewId: integer('role_review_id')
+      .notNull()
+      .references(() => cnaRoleReviews.id, { onDelete: 'cascade' }),
+    questionId: integer('question_id')
+      .notNull()
+      .references(() => cnaQuestionBank.id, { onDelete: 'cascade' }),
+    ratingLabel: cnaRatingEnum('rating_label').notNull(),
+    questionWeight: decimal('question_weight', { precision: 7, scale: 4 }).notNull(),
+    scoreValue: decimal('score_value', { precision: 7, scale: 4 }).notNull(),
+    comment: text('comment'),
+    evidenceUrl: text('evidence_url'),
+    answeredById: text('answered_by_id').references(() => users.id, { onDelete: 'set null' }),
+    answeredAt: timestamp('answered_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    assessmentIdx: index('cna_question_responses_assessment_id_idx').on(table.assessmentId),
+    roleReviewIdx: index('cna_question_responses_role_review_id_idx').on(table.roleReviewId),
+    questionIdx: index('cna_question_responses_question_id_idx').on(table.questionId),
+    assessmentQuestionUq: uniqueIndex('cna_question_responses_assessment_question_uq').on(
+      table.assessmentId,
+      table.questionId
     ),
   })
 );
@@ -1419,6 +1556,7 @@ export const businessRelations = relations(businesses, ({ one, many }) => ({
   }),
   mentorshipMatches: many(mentorshipMatches),
   cnaDiagnostics: many(cnaDiagnostics),
+  cnaAssessments: many(cnaAssessments),
   capacityDevelopmentPlans: many(capacityDevelopmentPlans),
   bdsInterventions: many(bdsInterventions),
   businessPerformanceMetrics: many(businessPerformanceMetrics),
@@ -1441,7 +1579,8 @@ export const applicationRelations = relations(applications, ({ one, many }) => (
   kycVerifier: one(users, {
     fields: [applications.kycVerifiedBy],
     references: [users.id]
-  })
+  }),
+  cnaAssessments: many(cnaAssessments),
 }));
 
 export const kycProfileRelations = relations(kycProfiles, ({ one, many }) => ({
@@ -1572,6 +1711,61 @@ export const cnaScoresRelations = relations(cnaScores, ({ one }) => ({
   diagnostic: one(cnaDiagnostics, {
     fields: [cnaScores.diagnosticId],
     references: [cnaDiagnostics.id],
+  }),
+}));
+
+export const cnaQuestionBankRelations = relations(cnaQuestionBank, ({ many }) => ({
+  responses: many(cnaQuestionResponses),
+}));
+
+export const cnaAssessmentsRelations = relations(cnaAssessments, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [cnaAssessments.businessId],
+    references: [businesses.id],
+  }),
+  application: one(applications, {
+    fields: [cnaAssessments.applicationId],
+    references: [applications.id],
+  }),
+  createdBy: one(users, {
+    fields: [cnaAssessments.createdById],
+    references: [users.id],
+    relationName: 'cnaAssessmentCreatedBy',
+  }),
+  roleReviews: many(cnaRoleReviews),
+  responses: many(cnaQuestionResponses),
+}));
+
+export const cnaRoleReviewsRelations = relations(cnaRoleReviews, ({ one, many }) => ({
+  assessment: one(cnaAssessments, {
+    fields: [cnaRoleReviews.assessmentId],
+    references: [cnaAssessments.id],
+  }),
+  reviewer: one(users, {
+    fields: [cnaRoleReviews.reviewerId],
+    references: [users.id],
+    relationName: 'cnaRoleReviewer',
+  }),
+  responses: many(cnaQuestionResponses),
+}));
+
+export const cnaQuestionResponsesRelations = relations(cnaQuestionResponses, ({ one }) => ({
+  assessment: one(cnaAssessments, {
+    fields: [cnaQuestionResponses.assessmentId],
+    references: [cnaAssessments.id],
+  }),
+  roleReview: one(cnaRoleReviews, {
+    fields: [cnaQuestionResponses.roleReviewId],
+    references: [cnaRoleReviews.id],
+  }),
+  question: one(cnaQuestionBank, {
+    fields: [cnaQuestionResponses.questionId],
+    references: [cnaQuestionBank.id],
+  }),
+  answeredBy: one(users, {
+    fields: [cnaQuestionResponses.answeredById],
+    references: [users.id],
+    relationName: 'cnaResponseAnsweredBy',
   }),
 }));
 
@@ -2304,6 +2498,18 @@ export type NewCnaDiagnostic = typeof cnaDiagnostics.$inferInsert;
 
 export type CnaScore = typeof cnaScores.$inferSelect;
 export type NewCnaScore = typeof cnaScores.$inferInsert;
+
+export type CnaQuestion = typeof cnaQuestionBank.$inferSelect;
+export type NewCnaQuestion = typeof cnaQuestionBank.$inferInsert;
+
+export type CnaAssessment = typeof cnaAssessments.$inferSelect;
+export type NewCnaAssessment = typeof cnaAssessments.$inferInsert;
+
+export type CnaRoleReview = typeof cnaRoleReviews.$inferSelect;
+export type NewCnaRoleReview = typeof cnaRoleReviews.$inferInsert;
+
+export type CnaQuestionResponse = typeof cnaQuestionResponses.$inferSelect;
+export type NewCnaQuestionResponse = typeof cnaQuestionResponses.$inferInsert;
 
 export type CapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferSelect;
 export type NewCapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferInsert;

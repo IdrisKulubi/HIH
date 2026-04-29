@@ -4,6 +4,7 @@ import db from "@/db/drizzle";
 import { businesses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { listCnaDiagnosticsForBusiness } from "@/lib/actions/cna";
+import { getAdminCnaBusinessOverview } from "@/lib/actions/role-cna";
 import { CnaDiagnosticForm } from "@/components/admin/cna/CnaDiagnosticForm";
 import {
   Table,
@@ -30,6 +31,7 @@ export default async function AdminCnaBusinessPage({
   if (!business) notFound();
 
   const history = await listCnaDiagnosticsForBusiness(businessId);
+  const roleBased = await getAdminCnaBusinessOverview(businessId);
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
@@ -51,7 +53,63 @@ export default async function AdminCnaBusinessPage({
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium">New diagnostic (A–L)</h2>
+        <h2 className="text-lg font-medium">Role-based CNA result</h2>
+        {!roleBased.success ? (
+          <p className="text-sm text-destructive">{roleBased.error}</p>
+        ) : !roleBased.data?.assessment ? (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            No role-based CNA has started for this business yet.
+          </p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Overall score</p>
+              <p className="mt-1 text-3xl font-semibold text-slate-900">
+                {roleBased.data.result?.overallScore ?? 0}%
+              </p>
+              <div className="mt-4 space-y-2">
+                {roleBased.data.result?.roleCompletions.map((r) => (
+                  <div key={r.role} className="flex items-center justify-between text-sm">
+                    <span className="capitalize">{r.role.replace(/_/g, " ")}</span>
+                    <span className={r.isComplete ? "text-emerald-700" : "text-amber-700"}>
+                      {r.answeredQuestions}/{r.totalQuestions}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-lg border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Section</TableHead>
+                    <TableHead>Answered</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Priority</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {roleBased.data.result?.sections.map((s) => (
+                    <TableRow key={s.sectionCode}>
+                      <TableCell className="font-medium">
+                        {s.sectionCode}. {s.sectionName}
+                      </TableCell>
+                      <TableCell>
+                        {s.answeredQuestions}/{s.totalQuestions}
+                      </TableCell>
+                      <TableCell>{s.sectionScore}%</TableCell>
+                      <TableCell className="capitalize">{s.priorityLevel}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-medium">Legacy diagnostic (A-L)</h2>
         <CnaDiagnosticForm businessId={businessId} />
       </section>
 
