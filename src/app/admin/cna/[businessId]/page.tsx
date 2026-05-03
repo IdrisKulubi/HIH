@@ -54,6 +54,32 @@ export default async function AdminCnaBusinessPage({
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Role-based CNA result</h2>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <Link
+            href={`/mentor/cna/${businessId}`}
+            className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
+          >
+            Submit Mentor review
+          </Link>
+          <Link
+            href={`/bds/cna/${businessId}`}
+            className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
+          >
+            Submit BDS / EDO review
+          </Link>
+          <Link
+            href={`/investment/cna/${businessId}`}
+            className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
+          >
+            Submit Investment review
+          </Link>
+          <Link
+            href={`/mel/cna/${businessId}`}
+            className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
+          >
+            Submit MEL review
+          </Link>
+        </div>
         {!roleBased.success ? (
           <p className="text-sm text-destructive">{roleBased.error}</p>
         ) : !roleBased.data?.assessment ? (

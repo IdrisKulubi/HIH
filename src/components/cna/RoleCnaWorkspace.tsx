@@ -68,6 +68,7 @@ export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace })
       questionId,
       ratingLabel,
       comment,
+      reviewerRole: workspace.viewerRole,
     });
     setPendingQuestionId(null);
     setMessages((prev) => ({
@@ -79,7 +80,10 @@ export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace })
   function submitReview() {
     setSubmitMessage("");
     startSubmitTransition(async () => {
-      const res = await submitCnaRoleReview({ businessId: workspace.business.id });
+      const res = await submitCnaRoleReview({
+        businessId: workspace.business.id,
+        reviewerRole: workspace.viewerRole,
+      });
       setSubmitMessage(res.success ? "Review submitted." : res.error ?? "Failed to submit review.");
     });
   }

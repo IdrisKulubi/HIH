@@ -291,6 +291,7 @@ const saveResponseSchema = z.object({
   questionId: z.number().int().positive(),
   ratingLabel: z.enum(CNA_RATINGS),
   comment: z.string().max(8000).optional().nullable(),
+  reviewerRole: z.enum(CNA_REVIEWER_ROLES).optional(),
 });
 
 export async function saveCnaQuestionResponse(
@@ -299,16 +300,17 @@ export async function saveCnaQuestionResponse(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
-    if (actor.isAdmin || !actor.role) return errorResponse("Use a reviewer role to submit CNA responses.");
-
     const parsed = saveResponseSchema.safeParse(input);
     if (!parsed.success) return errorResponse("Invalid CNA response");
+
+    const effectiveRole = actor.isAdmin ? parsed.data.reviewerRole : actor.role;
+    if (!effectiveRole) return errorResponse("Select the reviewer role for this response.");
 
     const question = await db.query.cnaQuestionBank.findFirst({
       where: eq(cnaQuestionBank.id, parsed.data.questionId),
     });
     if (!question || !question.isActive) return errorResponse("Question not found");
-    if (question.assignedRole !== actor.role) return errorResponse("This question belongs to another role.");
+    if (question.assignedRole !== effectiveRole) return errorResponse("This question belongs to another role.");
 
     if (parsed.data.ratingLabel !== "great" && !parsed.data.comment?.trim()) {
       return errorResponse("Add a short reason when rating a question Poor or Fair.");
@@ -318,7 +320,7 @@ export async function saveCnaQuestionResponse(
     if (assessment.status === "locked" || assessment.status === "archived") {
       return errorResponse("This CNA assessment is locked.");
     }
-    const roleReview = await getOrCreateRoleReview(assessment.id, actor.role, actor.userId);
+    const roleReview = await getOrCreateRoleReview(assessment.id, effectiveRole, actor.userId);
 
     const sectionQuestions = await db.query.cnaQuestionBank.findMany({
       where: and(
@@ -381,8 +383,8 @@ export async function saveCnaQuestionResponse(
       })
       .where(eq(cnaRoleReviews.id, roleReview.id));
 
-    revalidatePath(roleHome(actor.role));
-    revalidatePath(`${roleHome(actor.role)}/${parsed.data.businessId}`);
+    revalidatePath(roleHome(effectiveRole));
+    revalidatePath(`${roleHome(effectiveRole)}/${parsed.data.businessId}`);
     revalidatePath("/admin/cna");
     revalidatePath(`/admin/cna/${parsed.data.businessId}`);
     return successResponse({ assessmentId: assessment.id });
@@ -394,6 +396,7 @@ export async function saveCnaQuestionResponse(
 
 const submitReviewSchema = z.object({
   businessId: z.number().int().positive(),
+  reviewerRole: z.enum(CNA_REVIEWER_ROLES).optional(),
 });
 
 export async function submitCnaRoleReview(
@@ -402,12 +405,13 @@ export async function submitCnaRoleReview(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
-    if (actor.isAdmin || !actor.role) return errorResponse("Use a reviewer role to submit CNA reviews.");
-
     const parsed = submitReviewSchema.safeParse(input);
     if (!parsed.success) return errorResponse("Invalid review");
 
-    const workspace = await getCnaRoleWorkspace(parsed.data.businessId, actor.role);
+    const effectiveRole = actor.isAdmin ? parsed.data.reviewerRole : actor.role;
+    if (!effectiveRole) return errorResponse("Select the reviewer role to submit.");
+
+    const workspace = await getCnaRoleWorkspace(parsed.data.businessId, effectiveRole);
     if (!workspace.success || !workspace.data) {
       return errorResponse(workspace.error ?? "Failed to load review");
     }
@@ -425,8 +429,8 @@ export async function submitCnaRoleReview(
       })
       .where(eq(cnaRoleReviews.id, workspace.data.roleReview.id));
 
-    revalidatePath(roleHome(actor.role));
-    revalidatePath(`${roleHome(actor.role)}/${parsed.data.businessId}`);
+    revalidatePath(roleHome(effectiveRole));
+    revalidatePath(`${roleHome(effectiveRole)}/${parsed.data.businessId}`);
     revalidatePath("/admin/cna");
     revalidatePath(`/admin/cna/${parsed.data.businessId}`);
     return successResponse({ assessmentId: workspace.data.assessment.id });
