@@ -13,6 +13,10 @@ import {
   type CnaQuestionResponse,
   type CnaRoleReview,
 } from "@/db/schema";
+import {
+  isBusinessInQualifiedCnaCohort,
+  listQualifiedCnaBusinessRows,
+} from "@/lib/cna/qualified-businesses";
 import { computeQuestionWeights, computeRoleBasedCnaResult, scoreQuestionResponse } from "@/lib/cna/role-based-scoring";
 import {
   CNA_RATINGS,
@@ -69,22 +73,7 @@ export async function listBusinessesForCnaRole(): Promise<ActionResponse<Busines
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
 
-    const rows = await db.query.businesses.findMany({
-      orderBy: (b, { asc }) => [asc(b.name)],
-      with: {
-        applicant: true,
-      },
-    });
-
-    return successResponse(
-      rows.map((b) => ({
-        businessId: b.id,
-        businessName: b.name,
-        applicantName: `${b.applicant.firstName} ${b.applicant.lastName}`.trim(),
-        applicantEmail: b.applicant.email,
-        sector: b.sector,
-      }))
-    );
+    return successResponse(await listQualifiedCnaBusinessRows());
   } catch (e) {
     console.error("listBusinessesForCnaRole", e);
     return errorResponse("Failed to load businesses");
@@ -166,6 +155,10 @@ export async function getCnaRoleWorkspace(
     const viewerRole = requestedRole ?? actor.role;
     if (!viewerRole) return errorResponse("Select a CNA reviewer role.");
     if (!actor.isAdmin && actor.role !== viewerRole) return errorResponse("Unauthorized");
+
+    if (!(await isBusinessInQualifiedCnaCohort(businessId))) {
+      return errorResponse("CNA is only available for businesses that passed final due diligence.");
+    }
 
     const business = await db.query.businesses.findFirst({
       where: eq(businesses.id, businessId),
@@ -314,6 +307,10 @@ export async function saveCnaQuestionResponse(
 
     if (parsed.data.ratingLabel !== "great" && !parsed.data.comment?.trim()) {
       return errorResponse("Add a short reason when rating a question Poor or Fair.");
+    }
+
+    if (!(await isBusinessInQualifiedCnaCohort(parsed.data.businessId))) {
+      return errorResponse("CNA is only available for businesses that passed final due diligence.");
     }
 
     const assessment = await getOrCreateAssessment(parsed.data.businessId, actor.userId);

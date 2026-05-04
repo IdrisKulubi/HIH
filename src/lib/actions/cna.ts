@@ -10,6 +10,10 @@ import {
   type CnaScore,
 } from "@/db/schema";
 import { computeFullCnaSurveyOutputs } from "@/lib/cna/compute-cna-outputs";
+import {
+  isBusinessInQualifiedCnaCohort,
+  listQualifiedCnaBusinessRows,
+} from "@/lib/cna/qualified-businesses";
 import { CDP_FOCUS_CODES, cdpFocusCodeSchema, score0to5to10Schema } from "@/lib/cdp/focus-areas";
 import { asc, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -79,6 +83,10 @@ export async function saveCnaDiagnostic(
     if (!parsed.success) {
       const msg = parsed.error.flatten().formErrors[0] ?? parsed.error.issues[0]?.message;
       return errorResponse(msg ?? "Invalid CNA survey.");
+    }
+
+    if (!(await isBusinessInQualifiedCnaCohort(parsed.data.businessId))) {
+      return errorResponse("CNA is only available for businesses that passed final due diligence.");
     }
 
     const business = await db.query.businesses.findFirst({
@@ -164,22 +172,7 @@ export async function listBusinessesWithApplicantForAdmin(): Promise<
       return errorResponse("Unauthorized");
     }
 
-    const rows = await db.query.businesses.findMany({
-      orderBy: (b, { asc }) => [asc(b.name)],
-      with: {
-        applicant: true,
-      },
-    });
-
-    const data: BusinessListRow[] = rows.map((b) => ({
-      businessId: b.id,
-      businessName: b.name,
-      applicantName: `${b.applicant.firstName} ${b.applicant.lastName}`.trim(),
-      applicantEmail: b.applicant.email,
-      sector: b.sector,
-    }));
-
-    return successResponse(data);
+    return successResponse(await listQualifiedCnaBusinessRows());
   } catch (e) {
     console.error("listBusinessesWithApplicantForAdmin", e);
     return errorResponse("Failed to load businesses");
