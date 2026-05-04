@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import db from "@/db/drizzle";
 import { businesses, cnaDiagnostics } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { getCdpPlanFull, listCdpPlansForBusiness } from "@/lib/actions/cdp";
+import { getCdpPlanFull, getLatestFinalizedCnaForCdp, listCdpPlansForBusiness } from "@/lib/actions/cdp";
 import { CdpWorkspace } from "@/components/admin/cdp/CdpWorkspace";
 
 export default async function AdminCdpBusinessPage({
@@ -43,6 +43,11 @@ export default async function AdminCdpBusinessPage({
     orderBy: [desc(cnaDiagnostics.conductedAt)],
     columns: { id: true },
   });
+  const latestFinalizedCnaRes = await getLatestFinalizedCnaForCdp(businessId);
+  const latestFinalizedCna =
+    latestFinalizedCnaRes.success && latestFinalizedCnaRes.data
+      ? latestFinalizedCnaRes.data
+      : null;
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
@@ -70,6 +75,7 @@ export default async function AdminCdpBusinessPage({
         plans={plans}
         initialPlan={initialPlan}
         hasCnaForImport={!!latestCna}
+        latestFinalizedCna={latestFinalizedCna}
       />
     </div>
   );

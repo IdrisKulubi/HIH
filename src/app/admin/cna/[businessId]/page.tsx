@@ -5,7 +5,7 @@ import { businesses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { listCnaDiagnosticsForBusiness } from "@/lib/actions/cna";
 import { getAdminCnaBusinessOverview } from "@/lib/actions/role-cna";
-import { CnaDiagnosticForm } from "@/components/admin/cna/CnaDiagnosticForm";
+import { CnaFinalizeCdpButton } from "@/components/admin/cna/CnaFinalizeCdpButton";
 import {
   Table,
   TableBody,
@@ -93,6 +93,9 @@ export default async function AdminCnaBusinessPage({
               <p className="mt-1 text-3xl font-semibold text-slate-900">
                 {roleBased.data.result?.overallScore ?? 0}%
               </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Status: <span className="font-medium">{roleBased.data.assessment.status}</span>
+              </p>
               <div className="mt-4 space-y-2">
                 {roleBased.data.result?.roleCompletions.map((r) => (
                   <div key={r.role} className="flex items-center justify-between text-sm">
@@ -102,6 +105,13 @@ export default async function AdminCnaBusinessPage({
                     </span>
                   </div>
                 ))}
+              </div>
+              <div className="mt-4">
+                <CnaFinalizeCdpButton
+                  businessId={businessId}
+                  assessmentId={roleBased.data.assessment.id}
+                  disabled={roleBased.data.assessment.status === "archived"}
+                />
               </div>
             </div>
             <div className="overflow-x-auto rounded-lg border bg-card">
@@ -135,12 +145,7 @@ export default async function AdminCnaBusinessPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium">Legacy diagnostic (A-L)</h2>
-        <CnaDiagnosticForm businessId={businessId} />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">History</h2>
+        <h2 className="text-lg font-medium">Legacy A-L history</h2>
         {!history.success || !history.data?.length ? (
           <p className="text-sm text-muted-foreground">
             {history.error ?? "No diagnostics recorded yet."}

@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import type { CdpPlanFull, CdpPlanListItem } from "@/lib/actions/cdp";
 import {
   addCdpSessionActionItem,
+  approveCdpSupportSession,
   buildCdpCsvExport,
+  convertCdpGapToActivity,
   createCdpActivity,
   createCdpKeyResult,
   createCdpObjective,
@@ -17,6 +19,8 @@ import {
   deleteCdpObjective,
   deleteCdpSupportSession,
   deleteCdpWeeklyMilestone,
+  dismissCdpGap,
+  generateCdpFromFinalizedCna,
   getCdpPipelineCompletenessForPlan,
   importCdpSummariesFromLatestCna,
   saveCdpFocusSummaries,
@@ -26,6 +30,7 @@ import {
   updateCdpSessionActionItem,
   updateCdpWeeklyMilestone,
   upsertCdpActivityProgress,
+  type FinalizedCnaForCdp,
 } from "@/lib/actions/cdp";
 import {
   CDP_FOCUS_AREAS,
@@ -46,6 +51,11 @@ import {
   parseOutcomeMetric,
   sumObjectiveWeightedScores,
 } from "@/lib/cdp/okr-scoring";
+import {
+  CDP_INTERVENTION_CATALOG,
+  getInterventionByKey,
+} from "@/lib/cdp/intervention-catalog";
+import { expectedSessionType } from "@/lib/cdp/session-rules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,12 +105,14 @@ export function CdpWorkspace({
   plans,
   initialPlan,
   hasCnaForImport,
+  latestFinalizedCna,
 }: {
   businessId: number;
   businessName: string;
   plans: CdpPlanListItem[];
   initialPlan: CdpPlanFull | null;
   hasCnaForImport: boolean;
+  latestFinalizedCna: FinalizedCnaForCdp | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -145,6 +157,22 @@ export function CdpWorkspace({
         return;
       }
       toast.success("CDP plan created");
+      router.push(`/admin/cdp/${businessId}?planId=${res.data.id}`);
+    });
+  };
+
+  const handleGenerateFromCna = () => {
+    if (!latestFinalizedCna) return;
+    start(async () => {
+      const res = await generateCdpFromFinalizedCna({
+        businessId,
+        assessmentId: latestFinalizedCna.id,
+      });
+      if (!res.success || !res.data) {
+        toast.error(res.error ?? "Could not generate CDP");
+        return;
+      }
+      toast.success("CDP generated from finalized CNA");
       router.push(`/admin/cdp/${businessId}?planId=${res.data.id}`);
     });
   };
@@ -220,12 +248,29 @@ export function CdpWorkspace({
 
   if (!initialPlan) {
     return (
-      <div className="max-w-lg space-y-4 rounded-lg border bg-card p-6">
+      <div className="max-w-2xl space-y-5 rounded-lg border bg-card p-6">
         <h2 className="text-lg font-medium">Create a Capacity Development Plan</h2>
         <p className="text-sm text-muted-foreground">
           {businessName} — no CDP yet. Creating a plan opens the full A–L diagnostic summary, activity plan,
           session log, and quarterly progress tracker.
         </p>
+        {latestFinalizedCna ? (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-sm font-medium text-emerald-950">
+              Finalized CNA #{latestFinalizedCna.id} is ready.
+            </p>
+            <p className="mt-1 text-xs text-emerald-800">
+              Locked {latestFinalizedCna.lockedAt ? new Date(latestFinalizedCna.lockedAt).toLocaleString() : "recently"}.
+            </p>
+            <Button type="button" className="mt-3" onClick={handleGenerateFromCna} disabled={pending}>
+              {pending ? "Generating..." : "Generate CDP from CNA"}
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            No finalized role-based CNA is available yet. Finalize the CNA first, then generate the CDP here.
+          </div>
+        )}
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -351,8 +396,9 @@ export function CdpWorkspace({
         </p>
       </div>
 
-      <Tabs defaultValue="summary" className="space-y-4">
+      <Tabs defaultValue="gaps" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="gaps">Gap Board</TabsTrigger>
           <TabsTrigger value="summary">Summary (A–L)</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
           <TabsTrigger value="okr">OKRs</TabsTrigger>
@@ -363,7 +409,18 @@ export function CdpWorkspace({
           <TabsTrigger value="endline">Endline</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="gaps">
+          <CdpGapBoardPanel plan={initialPlan} disabled={pending} />
+        </TabsContent>
+
         <TabsContent value="summary" className="space-y-4">
+          <CdpSummaryCards
+            rows={summaryRows}
+            disabled={pending}
+            onRowsChange={setSummaryRows}
+            onSave={handleSaveSummaries}
+          />
+          <div className="hidden">
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
@@ -478,6 +535,7 @@ export function CdpWorkspace({
           <Button type="button" onClick={handleSaveSummaries} disabled={pending}>
             {pending ? "Saving…" : "Save diagnostic summary"}
           </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="activities">
@@ -508,6 +566,276 @@ export function CdpWorkspace({
           <CdpEndlinePanel plan={initialPlan} disabled={pending} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function CdpSummaryCards({
+  rows,
+  disabled,
+  onRowsChange,
+  onSave,
+}: {
+  rows: EditableSummary[];
+  disabled: boolean;
+  onRowsChange: (updater: (prev: EditableSummary[]) => EditableSummary[]) => void;
+  onSave: () => void;
+}) {
+  const updateRow = (idx: number, patch: Partial<EditableSummary>) => {
+    onRowsChange((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium">Diagnostic Summary</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              A clean plan-level view of the A-L diagnostic. Use the Gap Board for question-level actions and this
+              summary for the final CDP narrative.
+            </p>
+          </div>
+          <Button type="button" onClick={onSave} disabled={disabled}>
+            {disabled ? "Saving..." : "Save summary"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {rows.map((row, idx) => {
+          const priority = priorityFromScore0to10(row.score0to10);
+          const tone =
+            priority === "high"
+              ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/25 dark:text-red-300"
+              : priority === "medium"
+                ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-300"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-300";
+
+          return (
+            <section key={row.focusCode} className="rounded-md border bg-card p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+                      {row.focusCode}
+                    </span>
+                    <h4 className="text-sm font-semibold">{CDP_FOCUS_AREAS[row.focusCode].label}</h4>
+                  </div>
+                  <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-xs ${tone}`}>
+                    {priorityLabel(priority)}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Score</Label>
+                  <select
+                    className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm"
+                    value={row.score0to10}
+                    onChange={(e) => updateRow(idx, { score0to10: Number(e.target.value) as 0 | 5 | 10 })}
+                  >
+                    {SCORE_OPTIONS.map((score) => (
+                      <option key={score} value={score}>
+                        {score}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-xs">Key gaps</Label>
+                  <Textarea
+                    rows={6}
+                    value={row.keyGaps ?? ""}
+                    onChange={(e) => updateRow(idx, { keyGaps: e.target.value })}
+                    className="min-h-32 resize-y text-sm leading-relaxed"
+                  />
+                </div>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-xs">Recommended intervention</Label>
+                  <Textarea
+                    rows={4}
+                    value={row.recommendedIntervention ?? ""}
+                    onChange={(e) => updateRow(idx, { recommendedIntervention: e.target.value })}
+                    className="min-h-24 resize-y text-sm leading-relaxed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Responsible staff</Label>
+                  <Input
+                    value={row.responsibleStaff ?? ""}
+                    onChange={(e) => updateRow(idx, { responsibleStaff: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Target date</Label>
+                  <Input
+                    type="date"
+                    value={row.targetDate ? String(row.targetDate).slice(0, 10) : ""}
+                    onChange={(e) => updateRow(idx, { targetDate: e.target.value })}
+                  />
+                </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CdpGapBoardPanel({ plan, disabled }: { plan: CdpPlanFull; disabled: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const gaps = plan.gapItems ?? [];
+  const openCount = gaps.filter((gap) => gap.status === "open").length;
+  const convertedCount = gaps.filter((gap) => gap.status === "converted").length;
+  const dismissedCount = gaps.filter((gap) => gap.status === "dismissed").length;
+
+  const convert = (formData: FormData) => {
+    start(async () => {
+      const res = await convertCdpGapToActivity({
+        gapId: Number(formData.get("gapId")),
+        interventionKey: String(formData.get("interventionKey") ?? "") || null,
+        targetDate: String(formData.get("targetDate") ?? "") || null,
+        responsibleStaff: String(formData.get("responsibleStaff") ?? "") || null,
+      });
+      if (!res.success) toast.error(res.error ?? "Failed");
+      else {
+        toast.success("Gap converted to activity");
+        router.refresh();
+      }
+    });
+  };
+
+  const dismiss = (formData: FormData) => {
+    start(async () => {
+      const res = await dismissCdpGap({
+        gapId: Number(formData.get("gapId")),
+        dismissalReason: String(formData.get("dismissalReason") ?? ""),
+      });
+      if (!res.success) toast.error(res.error ?? "Failed");
+      else {
+        toast.success("Gap dismissed");
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border bg-card p-4">
+        <h3 className="text-sm font-medium">CNA Gap Board</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Poor and Fair CNA responses are converted into CDP interventions here. Activation requires every high and
+          medium gap to be converted or dismissed with a reason.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className="rounded border px-2 py-1">Open: {openCount}</span>
+          <span className="rounded border px-2 py-1">Converted: {convertedCount}</span>
+          <span className="rounded border px-2 py-1">Dismissed: {dismissedCount}</span>
+        </div>
+      </div>
+
+      {gaps.length === 0 ? (
+        <div className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">
+          No Poor/Fair CNA gaps were generated for this plan.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {gaps.map((gap) => {
+            const selected = getInterventionByKey(gap.selectedInterventionKey);
+            return (
+              <div key={gap.id} className="rounded-md border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="font-mono font-medium">{gap.focusCode}</span>
+                      <span>{gap.focusName}</span>
+                      <span className={gap.priority === "high" ? "text-red-700" : "text-amber-700"}>
+                        {gap.priority}
+                      </span>
+                      <span className="capitalize">{gap.ratingLabel}</span>
+                      <span className="capitalize">{gap.reviewerRole.replace(/_/g, " ")}</span>
+                      <span className="capitalize">Status: {gap.status}</span>
+                    </div>
+                    <p className="text-sm font-medium">{gap.questionText}</p>
+                    {gap.reviewerComment ? (
+                      <p className="text-xs text-muted-foreground">Reviewer note: {gap.reviewerComment}</p>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground">
+                      Recommended: {selected ? `${selected.trainingSection} (${selected.outputDocuments})` : gap.recommendedIntervention ?? "Select an intervention"}
+                    </p>
+                    {gap.dismissalReason ? (
+                      <p className="text-xs text-muted-foreground">Dismissed reason: {gap.dismissalReason}</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {gap.status === "open" ? (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[1.5fr_1fr]">
+                    <form
+                      className="grid gap-2 sm:grid-cols-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        convert(new FormData(e.currentTarget));
+                      }}
+                    >
+                      <input type="hidden" name="gapId" value={gap.id} />
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>Intervention</Label>
+                        <select
+                          name="interventionKey"
+                          defaultValue={gap.selectedInterventionKey ?? ""}
+                          className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        >
+                          {CDP_INTERVENTION_CATALOG.map((entry) => (
+                            <option key={entry.key} value={entry.key}>
+                              {entry.week ? `Week ${entry.week}: ` : ""}
+                              {entry.trainingSection}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Target date</Label>
+                        <Input name="targetDate" type="date" required />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Responsible staff</Label>
+                        <Input name="responsibleStaff" required />
+                      </div>
+                      <Button type="submit" size="sm" disabled={disabled || pending} className="sm:col-span-2">
+                        Convert to activity
+                      </Button>
+                    </form>
+
+                    <form
+                      className="space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        dismiss(new FormData(e.currentTarget));
+                      }}
+                    >
+                      <input type="hidden" name="gapId" value={gap.id} />
+                      <Label>Dismiss reason</Label>
+                      <Textarea name="dismissalReason" rows={3} required />
+                      <Button type="submit" size="sm" variant="outline" disabled={disabled || pending}>
+                        Dismiss gap
+                      </Button>
+                    </form>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1287,6 +1615,8 @@ function CdpSessionsPanel({
         nextSteps: String(formData.get("nextSteps") ?? ""),
         followUpDate: String(formData.get("followUpDate") ?? "") || null,
         bootcampWeek: bootcampWeek != null && Number.isFinite(bootcampWeek) ? bootcampWeek : null,
+        sessionType: String(formData.get("sessionType") ?? "") as "physical" | "virtual",
+        meetingLink: String(formData.get("meetingLink") ?? "") || null,
         evidenceUrls: evidenceLines.length ? evidenceLines : null,
         initialActionDescriptions: actionLines.length ? actionLines : null,
       });
@@ -1311,6 +1641,17 @@ function CdpSessionsPanel({
     });
   };
 
+  const approve = (id: number) => {
+    start(async () => {
+      const res = await approveCdpSupportSession(id);
+      if (!res.success) toast.error(res.error ?? "Failed");
+      else {
+        toast.success("Session approved");
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-2">
@@ -1329,11 +1670,39 @@ function CdpSessionsPanel({
         >
           <div className="space-y-1">
             <Label htmlFor="sessionNumber">Session #</Label>
-            <Input id="sessionNumber" name="sessionNumber" type="number" min={1} required />
+            <Input
+              id="sessionNumber"
+              name="sessionNumber"
+              type="number"
+              min={1}
+              max={6}
+              required
+              onChange={(e) => {
+                const n = Number(e.currentTarget.value);
+                const select = e.currentTarget.form?.elements.namedItem("sessionType") as HTMLSelectElement | null;
+                if (select && Number.isFinite(n)) select.value = expectedSessionType(n);
+              }}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="sessionDate">Date</Label>
             <Input id="sessionDate" name="sessionDate" type="datetime-local" required />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sessionType">Session type</Label>
+            <select
+              id="sessionType"
+              name="sessionType"
+              defaultValue="virtual"
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="physical">Physical</option>
+              <option value="virtual">Virtual</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="meetingLink">Meeting link</Label>
+            <Input id="meetingLink" name="meetingLink" placeholder="Required for virtual unless evidence is added" />
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="focusCodes">Focus codes (e.g. A,C,F)</Label>
@@ -1435,6 +1804,25 @@ function CdpSessionsPanel({
           )}
         </TableBody>
       </Table>
+
+      {plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
+        <div className="flex flex-wrap gap-2">
+          {plan.supportSessions
+            .filter((s) => s.approvalStatus !== "approved")
+            .map((s) => (
+              <Button
+                key={s.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => approve(s.id)}
+                disabled={disabled || pending}
+              >
+                Approve session {s.sessionNumber}
+              </Button>
+            ))}
+        </div>
+      ) : null}
 
       <SessionActionItemsBlock plan={plan} disabled={disabled} />
 

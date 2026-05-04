@@ -254,6 +254,13 @@ export const cdpReviewCycleStatusEnum = pgEnum('cdp_review_cycle_status', [
   'done',
   'blocked',
 ]);
+export const cdpGapPriorityEnum = pgEnum('cdp_gap_priority', ['high', 'medium']);
+export const cdpGapStatusEnum = pgEnum('cdp_gap_status', ['open', 'converted', 'dismissed']);
+export const cdpSessionTypeEnum = pgEnum('cdp_session_type', ['physical', 'virtual']);
+export const cdpSessionApprovalStatusEnum = pgEnum('cdp_session_approval_status', [
+  'pending',
+  'approved',
+]);
 
 export const cnaReviewerRoleEnum = pgEnum('cna_reviewer_role', [
   'mentor',
@@ -919,6 +926,10 @@ export const capacityDevelopmentPlans = pgTable(
       () => cnaDiagnostics.id,
       { onDelete: 'set null' }
     ),
+    linkedCnaAssessmentId: integer('linked_cna_assessment_id').references(
+      () => cnaAssessments.id,
+      { onDelete: 'set null' }
+    ),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     /** When set, diagnostic A–L scores should not be edited without clearing this timestamp. */
     diagnosticLockedAt: timestamp('diagnostic_locked_at'),
@@ -930,6 +941,9 @@ export const capacityDevelopmentPlans = pgTable(
   (table) => ({
     businessIdx: index('capacity_development_plans_business_id_idx').on(table.businessId),
     statusIdx: index('capacity_development_plans_status_idx').on(table.status),
+    linkedCnaAssessmentIdx: index('capacity_development_plans_linked_cna_assessment_idx').on(
+      table.linkedCnaAssessmentId
+    ),
   })
 );
 
@@ -952,6 +966,51 @@ export const cdpFocusSummary = pgTable(
   (table) => ({
     planIdx: index('cdp_focus_summary_plan_id_idx').on(table.planId),
     planFocusUq: uniqueIndex('cdp_focus_summary_plan_focus_uq').on(table.planId, table.focusCode),
+  })
+);
+
+export const cdpGapItems = pgTable(
+  'cdp_gap_items',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    assessmentId: integer('assessment_id')
+      .notNull()
+      .references(() => cnaAssessments.id, { onDelete: 'cascade' }),
+    questionResponseId: integer('question_response_id')
+      .notNull()
+      .references(() => cnaQuestionResponses.id, { onDelete: 'cascade' }),
+    activityId: integer('activity_id').references(() => cdpActivities.id, {
+      onDelete: 'set null',
+    }),
+    focusCode: cdpFocusCodeEnum('focus_code').notNull(),
+    focusName: text('focus_name').notNull(),
+    questionText: text('question_text').notNull(),
+    reviewerRole: cnaReviewerRoleEnum('reviewer_role').notNull(),
+    ratingLabel: cnaRatingEnum('rating_label').notNull(),
+    priority: cdpGapPriorityEnum('priority').notNull(),
+    reviewerComment: text('reviewer_comment'),
+    status: cdpGapStatusEnum('status').default('open').notNull(),
+    recommendedIntervention: text('recommended_intervention'),
+    selectedInterventionKey: text('selected_intervention_key'),
+    dismissalReason: text('dismissal_reason'),
+    convertedAt: timestamp('converted_at'),
+    dismissedAt: timestamp('dismissed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('cdp_gap_items_plan_id_idx').on(table.planId),
+    assessmentIdx: index('cdp_gap_items_assessment_id_idx').on(table.assessmentId),
+    responseIdx: index('cdp_gap_items_question_response_id_idx').on(table.questionResponseId),
+    statusIdx: index('cdp_gap_items_status_idx').on(table.status),
+    priorityIdx: index('cdp_gap_items_priority_idx').on(table.priority),
+    planResponseUq: uniqueIndex('cdp_gap_items_plan_response_uq').on(
+      table.planId,
+      table.questionResponseId
+    ),
   })
 );
 
@@ -997,6 +1056,13 @@ export const cdpBusinessSupportSessions = pgTable(
     nextSteps: text('next_steps'),
     followUpDate: date('follow_up_date'),
     conductedById: text('conducted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    sessionType: cdpSessionTypeEnum('session_type').default('virtual').notNull(),
+    approvalStatus: cdpSessionApprovalStatusEnum('approval_status')
+      .default('pending')
+      .notNull(),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at'),
+    meetingLink: text('meeting_link'),
     /** Optional link to 13-week bootcamp curriculum week (1–13). */
     bootcampWeek: integer('bootcamp_week'),
     evidenceUrls: text('evidence_urls')
@@ -1734,6 +1800,9 @@ export const cnaAssessmentsRelations = relations(cnaAssessments, ({ one, many })
   }),
   roleReviews: many(cnaRoleReviews),
   responses: many(cnaQuestionResponses),
+  linkedCapacityDevelopmentPlans: many(capacityDevelopmentPlans, {
+    relationName: 'cnaAssessmentLinkedCdpPlans',
+  }),
 }));
 
 export const cnaRoleReviewsRelations = relations(cnaRoleReviews, ({ one, many }) => ({
@@ -1791,7 +1860,13 @@ export const capacityDevelopmentPlansRelations = relations(
       references: [cnaDiagnostics.id],
       relationName: 'cnaLinkedCdpPlans',
     }),
+    linkedCnaAssessment: one(cnaAssessments, {
+      fields: [capacityDevelopmentPlans.linkedCnaAssessmentId],
+      references: [cnaAssessments.id],
+      relationName: 'cnaAssessmentLinkedCdpPlans',
+    }),
     focusSummaries: many(cdpFocusSummary),
+    gapItems: many(cdpGapItems),
     activities: many(cdpActivities),
     supportSessions: many(cdpBusinessSupportSessions),
     objectives: many(cdpObjectives),
@@ -1810,12 +1885,32 @@ export const cdpFocusSummaryRelations = relations(cdpFocusSummary, ({ one }) => 
   }),
 }));
 
+export const cdpGapItemsRelations = relations(cdpGapItems, ({ one }) => ({
+  plan: one(capacityDevelopmentPlans, {
+    fields: [cdpGapItems.planId],
+    references: [capacityDevelopmentPlans.id],
+  }),
+  assessment: one(cnaAssessments, {
+    fields: [cdpGapItems.assessmentId],
+    references: [cnaAssessments.id],
+  }),
+  questionResponse: one(cnaQuestionResponses, {
+    fields: [cdpGapItems.questionResponseId],
+    references: [cnaQuestionResponses.id],
+  }),
+  activity: one(cdpActivities, {
+    fields: [cdpGapItems.activityId],
+    references: [cdpActivities.id],
+  }),
+}));
+
 export const cdpActivitiesRelations = relations(cdpActivities, ({ one, many }) => ({
   plan: one(capacityDevelopmentPlans, {
     fields: [cdpActivities.planId],
     references: [capacityDevelopmentPlans.id],
   }),
   progressReviews: many(cdpActivityProgressReviews),
+  gapItems: many(cdpGapItems),
   linkedBdsInterventions: many(bdsInterventions),
 }));
 
@@ -1830,6 +1925,11 @@ export const cdpBusinessSupportSessionsRelations = relations(
       fields: [cdpBusinessSupportSessions.conductedById],
       references: [users.id],
       relationName: 'cdpBssConductedBy',
+    }),
+    approvedBy: one(users, {
+      fields: [cdpBusinessSupportSessions.approvedById],
+      references: [users.id],
+      relationName: 'cdpBssApprovedBy',
     }),
     actionItems: many(cdpSessionActionItems),
   })
@@ -2516,6 +2616,9 @@ export type NewCapacityDevelopmentPlan = typeof capacityDevelopmentPlans.$inferI
 
 export type CdpFocusSummaryRow = typeof cdpFocusSummary.$inferSelect;
 export type NewCdpFocusSummaryRow = typeof cdpFocusSummary.$inferInsert;
+
+export type CdpGapItem = typeof cdpGapItems.$inferSelect;
+export type NewCdpGapItem = typeof cdpGapItems.$inferInsert;
 
 export type CdpActivity = typeof cdpActivities.$inferSelect;
 export type NewCdpActivity = typeof cdpActivities.$inferInsert;

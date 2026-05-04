@@ -90,9 +90,17 @@ export type OkrObjectiveWeightBlock = {
 };
 
 export type ActivationContext = {
+  linkedCnaAssessmentStatus?: string | null;
   focusSummaries: CdpFocusSummaryRow[];
   activities: Pick<CdpActivity, "focusCode" | "intervention" | "targetDate">[];
   objectivesForKrs: OkrObjectiveWeightBlock[];
+  gapItems?: {
+    status: "open" | "converted" | "dismissed";
+    priority: "high" | "medium";
+    dismissalReason: string | null;
+    activityId: number | null;
+  }[];
+  weeklyMilestones?: unknown[];
 };
 
 /**
@@ -100,7 +108,30 @@ export type ActivationContext = {
  * Returns first error message or null if OK.
  */
 export function assertCdpActivationReadiness(ctx: ActivationContext): string | null {
-  const { focusSummaries, activities, objectivesForKrs } = ctx;
+  const { linkedCnaAssessmentStatus, focusSummaries, activities, objectivesForKrs } = ctx;
+
+  if (linkedCnaAssessmentStatus && linkedCnaAssessmentStatus !== "locked") {
+    return "Linked CNA assessment must be finalized and locked before the CDP can be activated.";
+  }
+
+  if (ctx.gapItems && ctx.gapItems.length > 0) {
+    const unresolved = ctx.gapItems.find((gap) => gap.status === "open");
+    if (unresolved) {
+      return "All high and medium CNA gaps must be converted to an activity or dismissed with a reason.";
+    }
+    const badDismissal = ctx.gapItems.find(
+      (gap) => gap.status === "dismissed" && !String(gap.dismissalReason ?? "").trim()
+    );
+    if (badDismissal) {
+      return "Dismissed CNA gaps require a dismissal reason.";
+    }
+    const badConversion = ctx.gapItems.find(
+      (gap) => gap.status === "converted" && gap.activityId == null
+    );
+    if (badConversion) {
+      return "Converted CNA gaps must be linked to a CDP activity.";
+    }
+  }
 
   if (focusSummaries.length < 12) {
     return "Diagnostic summary must include all 12 focus areas (A–L).";
@@ -121,6 +152,12 @@ export function assertCdpActivationReadiness(ctx: ActivationContext): string | n
 
   const krErr = keyResultsWeightsValidPerObjectives(objectivesForKrs);
   if (krErr) return krErr;
+
+  if (ctx.gapItems && ctx.gapItems.some((gap) => gap.status === "converted")) {
+    if (!ctx.weeklyMilestones || ctx.weeklyMilestones.length === 0) {
+      return "Add at least one workplan milestone before activating a generated CDP.";
+    }
+  }
 
   const needsIntervention = new Set<CdpFocusCode>();
   for (const s of focusSummaries) {

@@ -105,10 +105,10 @@ export type AdminCnaBusinessOverview = {
 
 async function getOrCreateAssessment(businessId: number, userId: string) {
   const existing = await db.query.cnaAssessments.findFirst({
-    where: and(eq(cnaAssessments.businessId, businessId), eq(cnaAssessments.status, "in_progress")),
+    where: eq(cnaAssessments.businessId, businessId),
     orderBy: [desc(cnaAssessments.updatedAt)],
   });
-  if (existing) return existing;
+  if (existing && existing.status !== "archived") return existing;
 
   const [created] = await db
     .insert(cnaAssessments)
@@ -434,5 +434,82 @@ export async function submitCnaRoleReview(
   } catch (e) {
     console.error("submitCnaRoleReview", e);
     return errorResponse("Failed to submit CNA review");
+  }
+}
+
+export async function finalizeRoleBasedCna(
+  businessId: number
+): Promise<ActionResponse<{ assessmentId: number }>> {
+  try {
+    const actor = await requireCnaRole();
+    if (!actor.ok) return errorResponse(actor.error);
+    if (!actor.isAdmin) return errorResponse("Only admin or oversight can finalize CNA.");
+
+    const assessment = await db.query.cnaAssessments.findFirst({
+      where: eq(cnaAssessments.businessId, businessId),
+      orderBy: [desc(cnaAssessments.updatedAt)],
+      with: {
+        roleReviews: true,
+        responses: true,
+      },
+    });
+    if (!assessment) return errorResponse("No role-based CNA found for this business.");
+    if (assessment.status === "locked") {
+      return successResponse({ assessmentId: assessment.id });
+    }
+    if (assessment.status === "archived") return errorResponse("Archived CNA cannot be finalized.");
+
+    const questions = await db.query.cnaQuestionBank.findMany({
+      where: eq(cnaQuestionBank.isActive, true),
+      orderBy: [asc(cnaQuestionBank.sectionCode), asc(cnaQuestionBank.sortOrder)],
+    });
+    const result = computeRoleBasedCnaResult(
+      questions.map((q) => ({
+        id: q.id,
+        sectionCode: q.sectionCode,
+        sectionName: q.sectionName,
+        assignedRole: q.assignedRole,
+      })),
+      assessment.responses.map((r) => ({
+        questionId: r.questionId,
+        ratingLabel: r.ratingLabel,
+        scoreValue: r.scoreValue,
+      }))
+    );
+
+    const incomplete = result.roleCompletions.find((r) => !r.isComplete);
+    if (incomplete) {
+      return errorResponse(
+        `${incomplete.role.replace(/_/g, " ")} CNA is incomplete (${incomplete.answeredQuestions}/${incomplete.totalQuestions}).`
+      );
+    }
+
+    const submittedRoles = new Set(
+      assessment.roleReviews
+        .filter((review) => review.status === "submitted")
+        .map((review) => review.role)
+    );
+    const missingSubmitted = CNA_REVIEWER_ROLES.find((role) => !submittedRoles.has(role));
+    if (missingSubmitted) {
+      return errorResponse(`${missingSubmitted.replace(/_/g, " ")} review must be submitted before finalizing.`);
+    }
+
+    await db
+      .update(cnaAssessments)
+      .set({
+        status: "locked",
+        submittedAt: assessment.submittedAt ?? new Date(),
+        lockedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(cnaAssessments.id, assessment.id));
+
+    revalidatePath("/admin/cna");
+    revalidatePath(`/admin/cna/${businessId}`);
+    revalidatePath(`/admin/cdp/${businessId}`);
+    return successResponse({ assessmentId: assessment.id });
+  } catch (e) {
+    console.error("finalizeRoleBasedCna", e);
+    return errorResponse("Failed to finalize CNA");
   }
 }
