@@ -390,30 +390,23 @@ export function CdpWorkspace({
         </div>
         <p className="text-xs text-muted-foreground w-full max-w-3xl">
           <strong>Mark active</strong> requires: scores 0 / 5 / 10 only; <strong>key gaps</strong> filled for every
-          score of 0 or 5; within each objective, key result weights total <strong>100%</strong>; every{" "}
-          <strong>high</strong> and <strong>medium</strong> priority focus has an activity with intervention text and
-          a target date.
+          score of 0 or 5; every <strong>high</strong> and <strong>medium</strong> priority focus has an activity
+          with responsible staff, intervention text, and a target date.
         </p>
       </div>
 
-      <Tabs defaultValue="gaps" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="gaps">Gap Board</TabsTrigger>
-          <TabsTrigger value="summary">Summary (A–L)</TabsTrigger>
-          <TabsTrigger value="activities">Activities</TabsTrigger>
-          <TabsTrigger value="okr">OKRs</TabsTrigger>
-          <TabsTrigger value="workplan">Workplan</TabsTrigger>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="endline">Endline</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="plan">CDP Plan</TabsTrigger>
+          <TabsTrigger value="sessions">Session Log</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="gaps">
+        <TabsContent value="legacy-gaps" className="hidden">
           <CdpGapBoardPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
-        <TabsContent value="summary" className="space-y-4">
+        <TabsContent value="overview" className="space-y-4">
           <CdpSummaryCards
             rows={summaryRows}
             disabled={pending}
@@ -538,15 +531,17 @@ export function CdpWorkspace({
           </div>
         </TabsContent>
 
-        <TabsContent value="activities">
+        <TabsContent value="plan">
+          <CdpPrioritySummary plan={initialPlan} />
           <CdpActivitiesPanel plan={initialPlan} businessId={businessId} disabled={pending} />
+          <CdpProgressPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
-        <TabsContent value="okr">
+        <TabsContent value="legacy-okr" className="hidden">
           <CdpOkrPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
-        <TabsContent value="workplan">
+        <TabsContent value="legacy-workplan" className="hidden">
           <CdpWorkplanPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
@@ -554,15 +549,15 @@ export function CdpWorkspace({
           <CdpSessionsPanel plan={initialPlan} businessId={businessId} disabled={pending} />
         </TabsContent>
 
-        <TabsContent value="progress">
+        <TabsContent value="legacy-progress" className="hidden">
           <CdpProgressPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
-        <TabsContent value="pipeline">
+        <TabsContent value="legacy-pipeline" className="hidden">
           <CdpPipelinePanel pipeline={pipeline} onRefresh={() => router.refresh()} />
         </TabsContent>
 
-        <TabsContent value="endline">
+        <TabsContent value="legacy-endline" className="hidden">
           <CdpEndlinePanel plan={initialPlan} disabled={pending} />
         </TabsContent>
       </Tabs>
@@ -581,6 +576,7 @@ function CdpSummaryCards({
   onRowsChange: (updater: (prev: EditableSummary[]) => EditableSummary[]) => void;
   onSave: () => void;
 }) {
+  const [showAllAreas, setShowAllAreas] = useState(false);
   const updateRow = (idx: number, patch: Partial<EditableSummary>) => {
     onRowsChange((prev) => {
       const next = [...prev];
@@ -588,6 +584,11 @@ function CdpSummaryCards({
       return next;
     });
   };
+
+  const priorityRows = rows
+    .map((row, idx) => ({ row, idx }))
+    .filter(({ row }) => priorityFromScore0to10(row.score0to10) !== "low");
+  const visibleRows = showAllAreas ? rows.map((row, idx) => ({ row, idx })) : priorityRows;
 
   return (
     <div className="space-y-4">
@@ -604,10 +605,17 @@ function CdpSummaryCards({
             {disabled ? "Saving..." : "Save summary"}
           </Button>
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full border px-2 py-1">Priority areas: {priorityRows.length}</span>
+          <span className="rounded-full border px-2 py-1">All focus areas: {rows.length}</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowAllAreas((v) => !v)}>
+            {showAllAreas ? "Show priority only" : "Show all A-L areas"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        {rows.map((row, idx) => {
+        {visibleRows.map(({ row, idx }) => {
           const priority = priorityFromScore0to10(row.score0to10);
           const tone =
             priority === "high"
@@ -836,6 +844,51 @@ function CdpGapBoardPanel({ plan, disabled }: { plan: CdpPlanFull; disabled: boo
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function CdpPrioritySummary({ plan }: { plan: CdpPlanFull }) {
+  const prioritySummaries = plan.focusSummaries.filter(
+    (row) => priorityFromScore0to10(row.score0to10) !== "low"
+  );
+  const openGaps = plan.gapItems.filter((gap) => gap.status === "open").length;
+  const incompleteActivities = plan.activities.filter(
+    (activity) =>
+      !String(activity.intervention ?? "").trim() ||
+      !String(activity.responsibleStaff ?? "").trim() ||
+      !activity.targetDate
+  ).length;
+  const missingOutcomes = plan.activities.filter(
+    (activity) => !activity.progressReviews.some((review) => review.outcomeAchieved === true)
+  ).length;
+  const pendingSessions = plan.supportSessions.filter(
+    (session) => session.approvalStatus !== "approved"
+  ).length;
+
+  return (
+    <div className="mb-4 grid gap-3 md:grid-cols-4">
+      <div className="rounded-md border bg-card p-4">
+        <p className="text-xs text-muted-foreground">Priority areas</p>
+        <p className="mt-1 text-2xl font-semibold">{prioritySummaries.length}</p>
+      </div>
+      <div className="rounded-md border bg-card p-4">
+        <p className="text-xs text-muted-foreground">Open CNA gaps</p>
+        <p className="mt-1 text-2xl font-semibold">{openGaps}</p>
+      </div>
+      <div className="rounded-md border bg-card p-4">
+        <p className="text-xs text-muted-foreground">Incomplete activities</p>
+        <p className="mt-1 text-2xl font-semibold">{incompleteActivities}</p>
+      </div>
+      <div className="rounded-md border bg-card p-4">
+        <p className="text-xs text-muted-foreground">Pending sessions</p>
+        <p className="mt-1 text-2xl font-semibold">{pendingSessions}</p>
+      </div>
+      {missingOutcomes > 0 ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-4 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          {missingOutcomes} activity rows still need an outcome achieved marker.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1320,6 +1373,14 @@ function CdpActivitiesPanel({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
+  const priorityFocusCodes = plan.focusSummaries
+    .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
+    .map((row) => row.focusCode);
+  const activityFocusOptions = priorityFocusCodes.length > 0 ? priorityFocusCodes : CDP_FOCUS_CODES;
+  const focusGroups = activityFocusOptions.map((code) => ({
+    code,
+    sessions: plan.supportSessions.filter((session) => session.focusCode === code),
+  }));
 
   const submitAdd = (formData: FormData) => {
     start(async () => {
@@ -1373,7 +1434,7 @@ function CdpActivitiesPanel({
           <div className="space-y-1">
             <Label>Focus code</Label>
             <select name="focusCode" className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm" required>
-              {CDP_FOCUS_CODES.map((c) => (
+              {activityFocusOptions.map((c) => (
                 <option key={c} value={c}>
                   {c} — {CDP_FOCUS_AREAS[c].label}
                 </option>
@@ -1409,6 +1470,48 @@ function CdpActivitiesPanel({
           </Button>
         </form>
       ) : null}
+
+      <div className="hidden">
+        {focusGroups.map(({ code, sessions }) => (
+          <section key={code} className="rounded-md border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+                    {code}
+                  </span>
+                  <h3 className="text-sm font-semibold">{CDP_FOCUS_AREAS[code].label}</h3>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {sessions.length} session{sessions.length === 1 ? "" : "s"} logged
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {sessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sessions logged for this focus area.</p>
+              ) : (
+                sessions.map((session) => (
+                  <div key={session.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">Session {session.sessionNumber}</span>
+                      <span className="rounded-full border px-2 py-0.5 text-xs capitalize">
+                        {session.approvalStatus}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {session.sessionDate ? new Date(session.sessionDate).toLocaleString() : "No date"} ·{" "}
+                      {session.sessionType}
+                      {session.durationHours ? ` · ${session.durationHours} hrs` : ""}
+                    </p>
+                    {session.agenda ? <p className="mt-2 text-xs">{session.agenda}</p> : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
 
       <Table>
         <TableHeader>
@@ -1582,6 +1685,13 @@ function CdpSessionsPanel({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
+  const priorityFocusCodes = plan.focusSummaries
+    .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
+    .map((row) => row.focusCode);
+  const focusGroups = (priorityFocusCodes.length > 0 ? priorityFocusCodes : CDP_FOCUS_CODES).map((code) => ({
+    code,
+    sessions: plan.supportSessions.filter((session) => session.focusCode === code),
+  }));
 
   const submitAdd = (formData: FormData) => {
     const rawCodes = String(formData.get("focusCodes") ?? "")
@@ -1604,6 +1714,7 @@ function CdpSessionsPanel({
     start(async () => {
       const res = await createCdpSupportSession({
         planId: plan.id,
+        focusCode: formData.get("focusCode") as (typeof CDP_FOCUS_CODES)[number],
         sessionNumber: Number(formData.get("sessionNumber")),
         sessionDate: String(formData.get("sessionDate")),
         focusCodes,
@@ -1668,6 +1779,21 @@ function CdpSessionsPanel({
             submitAdd(new FormData(e.currentTarget));
           }}
         >
+          <div className="space-y-1">
+            <Label htmlFor="focusCode">Focus area</Label>
+            <select
+              id="focusCode"
+              name="focusCode"
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+              required
+            >
+              {CDP_FOCUS_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {code} - {CDP_FOCUS_AREAS[code].label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-1">
             <Label htmlFor="sessionNumber">Session #</Label>
             <Input
@@ -1759,10 +1885,53 @@ function CdpSessionsPanel({
         </form>
       ) : null}
 
+      <div className="grid gap-3 lg:grid-cols-2">
+        {focusGroups.map(({ code, sessions }) => (
+          <section key={code} className="rounded-md border bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
+                    {code}
+                  </span>
+                  <h3 className="text-sm font-semibold">{CDP_FOCUS_AREAS[code].label}</h3>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {sessions.length} session{sessions.length === 1 ? "" : "s"} logged
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {sessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sessions logged for this focus area.</p>
+              ) : (
+                sessions.map((session) => (
+                  <div key={session.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">Session {session.sessionNumber}</span>
+                      <span className="rounded-full border px-2 py-0.5 text-xs capitalize">
+                        {session.approvalStatus}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {session.sessionDate ? new Date(session.sessionDate).toLocaleString() : "No date"} -{" "}
+                      {session.sessionType}
+                      {session.durationHours ? ` - ${session.durationHours} hrs` : ""}
+                    </p>
+                    {session.agenda ? <p className="mt-2 text-xs">{session.agenda}</p> : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>#</TableHead>
+            <TableHead>Focus</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Bootcamp</TableHead>
             <TableHead>Codes</TableHead>
@@ -1773,7 +1942,7 @@ function CdpSessionsPanel({
         <TableBody>
           {plan.supportSessions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground text-sm">
+              <TableCell colSpan={7} className="text-muted-foreground text-sm">
                 No sessions logged.
               </TableCell>
             </TableRow>
@@ -1781,6 +1950,7 @@ function CdpSessionsPanel({
             plan.supportSessions.map((s) => (
               <TableRow key={s.id}>
                 <TableCell>{s.sessionNumber}</TableCell>
+                <TableCell className="font-mono text-xs">{s.focusCode}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap">
                   {s.sessionDate ? new Date(s.sessionDate).toLocaleString() : "—"}
                 </TableCell>

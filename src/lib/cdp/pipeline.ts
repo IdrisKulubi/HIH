@@ -150,9 +150,6 @@ export function assertCdpActivationReadiness(ctx: ActivationContext): string | n
     }
   }
 
-  const krErr = keyResultsWeightsValidPerObjectives(objectivesForKrs);
-  if (krErr) return krErr;
-
   if (ctx.gapItems && ctx.gapItems.some((gap) => gap.status === "converted")) {
     if (!ctx.weeklyMilestones || ctx.weeklyMilestones.length === 0) {
       return "Add at least one workplan milestone before activating a generated CDP.";
@@ -289,7 +286,7 @@ export function computeCdpPipelineCompleteness(input: PipelineCompletenessInput)
 
   const interventionsForPriorityGaps = everyHighMediumHasActivity(focusSummaries, activities);
 
-  const okrsWeightedTo100 = keyResultsWeightsValidPerObjectives(objectivesForKrs) == null;
+  const okrsWeightedTo100 = true;
 
   const sessionsOrBootcampComplete = sessionsGateMet(supportSessions);
 

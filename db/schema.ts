@@ -1045,6 +1045,7 @@ export const cdpBusinessSupportSessions = pgTable(
     planId: integer('plan_id')
       .notNull()
       .references(() => capacityDevelopmentPlans.id, { onDelete: 'cascade' }),
+    focusCode: cdpFocusCodeEnum('focus_code').notNull().default('A'),
     sessionNumber: integer('session_number').notNull(),
     sessionDate: timestamp('session_date').notNull(),
     focusCodes: text('focus_codes').array().notNull().default(sql`ARRAY[]::text[]`),
@@ -1074,7 +1075,15 @@ export const cdpBusinessSupportSessions = pgTable(
   },
   (table) => ({
     planIdx: index('cdp_business_support_sessions_plan_id_idx').on(table.planId),
-    planSessionUq: uniqueIndex('cdp_bss_plan_session_uq').on(table.planId, table.sessionNumber),
+    planFocusIdx: index('cdp_business_support_sessions_plan_focus_idx').on(
+      table.planId,
+      table.focusCode
+    ),
+    planFocusSessionUq: uniqueIndex('cdp_bss_plan_focus_session_uq').on(
+      table.planId,
+      table.focusCode,
+      table.sessionNumber
+    ),
   })
 );
 

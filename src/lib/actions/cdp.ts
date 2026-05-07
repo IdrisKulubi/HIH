@@ -910,6 +910,7 @@ export async function deleteCdpActivity(activityId: number): Promise<ActionRespo
 
 const sessionCreateSchema = z.object({
   planId: z.number().int().positive(),
+  focusCode: cdpFocusCodeSchema,
   sessionNumber: z.number().int().min(1).max(999),
   sessionDate: z.string().min(1),
   focusCodes: z.array(cdpFocusCodeSchema).default([]),
@@ -949,6 +950,8 @@ export async function createCdpSupportSession(
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
 
     const n = parsed.data.sessionNumber;
+    const focusCodes =
+      parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
     const sessionType = parsed.data.sessionType ?? expectedSessionType(n);
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
     const evidenceGate = validateSessionEvidence({
@@ -963,6 +966,7 @@ export async function createCdpSupportSession(
       const prev = await db.query.cdpBusinessSupportSessions.findFirst({
         where: and(
           eq(cdpBusinessSupportSessions.planId, parsed.data.planId),
+          eq(cdpBusinessSupportSessions.focusCode, parsed.data.focusCode),
           eq(cdpBusinessSupportSessions.sessionNumber, n - 1)
         ),
         with: {
@@ -978,9 +982,10 @@ export async function createCdpSupportSession(
         .insert(cdpBusinessSupportSessions)
         .values({
           planId: parsed.data.planId,
+          focusCode: parsed.data.focusCode,
           sessionNumber: parsed.data.sessionNumber,
           sessionDate,
-          focusCodes: parsed.data.focusCodes,
+          focusCodes,
           agenda: parsed.data.agenda?.trim() || null,
           supportType: parsed.data.supportType?.trim() || null,
           durationHours:
@@ -1016,7 +1021,7 @@ export async function createCdpSupportSession(
     return successResponse({ id: newId, businessId: plan.businessId });
   } catch (e) {
     console.error("createCdpSupportSession", e);
-    return errorResponse("Failed to create session (check session # is unique for this plan).");
+    return errorResponse("Failed to create session (check session # is unique for this focus area).");
   }
 }
 
@@ -1047,6 +1052,8 @@ export async function updateCdpSupportSession(
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
 
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
+    const focusCodes =
+      parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
     const sessionType = parsed.data.sessionType ?? expectedSessionType(parsed.data.sessionNumber);
     const evidenceGate = validateSessionEvidence({
       sessionNumber: parsed.data.sessionNumber,
@@ -1059,9 +1066,10 @@ export async function updateCdpSupportSession(
     await db
       .update(cdpBusinessSupportSessions)
       .set({
+        focusCode: parsed.data.focusCode,
         sessionNumber: parsed.data.sessionNumber,
         sessionDate,
-        focusCodes: parsed.data.focusCodes,
+        focusCodes,
         agenda: parsed.data.agenda?.trim() || null,
         supportType: parsed.data.supportType?.trim() || null,
         durationHours:
