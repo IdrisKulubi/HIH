@@ -20,6 +20,7 @@ import {
   cnaDiagnostics,
   cnaQuestionBank,
   cnaQuestionResponses,
+  cnaRoleReviews,
   cnaScores,
   kycProfiles,
   type CapacityDevelopmentPlan,
@@ -51,6 +52,8 @@ import {
   type PipelineCompleteness,
 } from "@/lib/cdp/pipeline";
 import { computeRoleBasedCnaResult } from "@/lib/cna/role-based-scoring";
+import { listQualifiedCnaBusinessRows } from "@/lib/cna/qualified-businesses";
+import { CNA_REVIEWER_ROLES } from "@/lib/cna/role-based-types";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { stringify } from "csv-stringify/sync";
@@ -119,6 +122,130 @@ export type FinalizedCnaForCdp = {
   lockedAt: Date | null;
   submittedAt: Date | null;
 };
+
+export type CdpWorkflowRow = {
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  applicantEmail: string;
+  sector: string;
+  cnaStatus: "not_started" | "in_progress" | "ready_to_finalize" | "locked";
+  cnaStatusLabel: string;
+  submittedRoleCount: number;
+  requiredRoleCount: number;
+  cdpStatus: "not_generated" | "draft" | "active" | "archived";
+  cdpStatusLabel: string;
+  planId: number | null;
+  actionLabel: string;
+  actionHref: string;
+};
+
+function titleCaseStatus(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export async function getCdpWorkflowRows(): Promise<ActionResponse<CdpWorkflowRow[]>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const businessesForCdp = await listQualifiedCnaBusinessRows();
+    const rows: CdpWorkflowRow[] = [];
+
+    for (const business of businessesForCdp) {
+      const [assessment, latestPlan] = await Promise.all([
+        db.query.cnaAssessments.findFirst({
+          where: eq(cnaAssessments.businessId, business.businessId),
+          orderBy: [desc(cnaAssessments.updatedAt)],
+          columns: {
+            id: true,
+            status: true,
+            lockedAt: true,
+            updatedAt: true,
+          },
+          with: {
+            roleReviews: {
+              orderBy: [asc(cnaRoleReviews.role)],
+              columns: {
+                role: true,
+                status: true,
+              },
+            },
+          },
+        }),
+        db.query.capacityDevelopmentPlans.findFirst({
+          where: eq(capacityDevelopmentPlans.businessId, business.businessId),
+          orderBy: [desc(capacityDevelopmentPlans.updatedAt)],
+          columns: {
+            id: true,
+            status: true,
+            linkedCnaAssessmentId: true,
+          },
+        }),
+      ]);
+
+      const submittedRoles = new Set(
+        assessment?.roleReviews
+          .filter((review) => review.status === "submitted")
+          .map((review) => review.role) ?? []
+      );
+      const submittedRoleCount = submittedRoles.size;
+      const requiredRoleCount = CNA_REVIEWER_ROLES.length;
+      const allRolesSubmitted = CNA_REVIEWER_ROLES.every((role) => submittedRoles.has(role));
+
+      let cnaStatus: CdpWorkflowRow["cnaStatus"] = "not_started";
+      if (assessment?.status === "locked") cnaStatus = "locked";
+      else if (assessment && allRolesSubmitted) cnaStatus = "ready_to_finalize";
+      else if (assessment) cnaStatus = "in_progress";
+
+      const cdpStatus = (latestPlan?.status ?? "not_generated") as CdpWorkflowRow["cdpStatus"];
+
+      let actionLabel = "Start CNA";
+      let actionHref = `/admin/cna/${business.businessId}`;
+
+      if (latestPlan) {
+        actionLabel = "Open CDP";
+        actionHref = `/admin/cdp/${business.businessId}?planId=${latestPlan.id}`;
+      } else if (cnaStatus === "locked") {
+        actionLabel = "Generate CDP";
+        actionHref = `/admin/cdp/${business.businessId}`;
+      } else if (cnaStatus === "ready_to_finalize") {
+        actionLabel = "Finalize CNA";
+        actionHref = `/admin/cna/${business.businessId}`;
+      } else if (cnaStatus === "in_progress") {
+        actionLabel = "Complete CNA";
+        actionHref = `/admin/cna/${business.businessId}`;
+      }
+
+      rows.push({
+        ...business,
+        cnaStatus,
+        cnaStatusLabel:
+          cnaStatus === "not_started"
+            ? "Not started"
+            : cnaStatus === "in_progress"
+              ? "In progress"
+              : cnaStatus === "ready_to_finalize"
+                ? "Ready to finalize"
+                : "Finalized",
+        submittedRoleCount,
+        requiredRoleCount,
+        cdpStatus,
+        cdpStatusLabel: latestPlan ? titleCaseStatus(latestPlan.status) : "Not generated",
+        planId: latestPlan?.id ?? null,
+        actionLabel,
+        actionHref,
+      });
+    }
+
+    return successResponse(rows);
+  } catch (e) {
+    console.error("getCdpWorkflowRows", e);
+    return errorResponse("Failed to load CDP workflow queue");
+  }
+}
 
 export async function listCdpPlansForBusiness(
   businessId: number

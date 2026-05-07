@@ -150,8 +150,8 @@ export function AdminNavbar() {
                     <span className="text-xs text-muted-foreground">Capacity Needs Assessment</span>
                   </NavItem>
                   <NavItem href="/admin/cdp" icon={<Target className="h-4 w-4 text-emerald-500" />}>
-                    <span className="font-medium text-emerald-600">CDP</span>
-                    <span className="text-xs text-muted-foreground">Capacity Development Plan</span>
+                    <span className="font-medium text-emerald-600">CDP Work Queue</span>
+                    <span className="text-xs text-muted-foreground">Generate and manage CDPs</span>
                   </NavItem>
                   <NavItem href="/admin/mentorship" icon={<Users className="h-4 w-4 text-violet-500" />}>
                     <span className="font-medium text-violet-600">Mentorship</span>

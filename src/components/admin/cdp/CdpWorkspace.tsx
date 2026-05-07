@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CdpPlanFull, CdpPlanListItem } from "@/lib/actions/cdp";
 import {
@@ -11,7 +12,6 @@ import {
   createCdpActivity,
   createCdpKeyResult,
   createCdpObjective,
-  createCdpPlan,
   createCdpSupportSession,
   createCdpWeeklyMilestone,
   deleteCdpActivity,
@@ -140,27 +140,6 @@ export function CdpWorkspace({
     };
   }, [planId, initialPlan]);
 
-  const handleCreatePlan = (formData: FormData) => {
-    const diagnosticDate = String(formData.get("diagnosticDate") ?? "");
-    const cdpReviewDate = String(formData.get("cdpReviewDate") ?? "");
-    start(async () => {
-      const res = await createCdpPlan({
-        businessId,
-        diagnosticDate,
-        cdpReviewDate: cdpReviewDate || null,
-        leadStaffId: null,
-        notes: null,
-        linkedCnaDiagnosticId: null,
-      });
-      if (!res.success || !res.data) {
-        toast.error(res.error ?? "Could not create plan");
-        return;
-      }
-      toast.success("CDP plan created");
-      router.push(`/admin/cdp/${businessId}?planId=${res.data.id}`);
-    });
-  };
-
   const handleGenerateFromCna = () => {
     if (!latestFinalizedCna) return;
     start(async () => {
@@ -248,11 +227,14 @@ export function CdpWorkspace({
 
   if (!initialPlan) {
     return (
-      <div className="max-w-2xl space-y-5 rounded-lg border bg-card p-6">
-        <h2 className="text-lg font-medium">Create a Capacity Development Plan</h2>
+      <div className="max-w-3xl space-y-5 rounded-lg border bg-card p-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">CDP setup</p>
+          <h2 className="mt-2 text-lg font-semibold">Generate the CDP from the finalized CNA</h2>
+        </div>
         <p className="text-sm text-muted-foreground">
-          {businessName} — no CDP yet. Creating a plan opens the full A–L diagnostic summary, activity plan,
-          session log, and quarterly progress tracker.
+          Generate the plan from the finalized CNA so scores, priority areas, gaps, and interventions are carried
+          forward automatically for {businessName}.
         </p>
         {latestFinalizedCna ? (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
@@ -267,29 +249,16 @@ export function CdpWorkspace({
             </Button>
           </div>
         ) : (
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            No finalized role-based CNA is available yet. Finalize the CNA first, then generate the CDP here.
+          <div className="rounded-lg border border-dashed p-5">
+            <p className="text-sm font-medium text-slate-950">CNA must be finalized first.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Complete and lock the role-based CNA, then return here to generate the CDP automatically.
+            </p>
+            <Button asChild className="mt-4">
+              <Link href={`/admin/cna/${businessId}`}>Open CNA for this business</Link>
+            </Button>
           </div>
         )}
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleCreatePlan(new FormData(e.currentTarget));
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="diagnosticDate">Date of diagnostic</Label>
-            <Input id="diagnosticDate" name="diagnosticDate" type="date" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="cdpReviewDate">CDP review date (optional)</Label>
-            <Input id="cdpReviewDate" name="cdpReviewDate" type="date" />
-          </div>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Creating…" : "Create CDP plan"}
-          </Button>
-        </form>
       </div>
     );
   }
