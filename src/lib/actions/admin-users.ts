@@ -7,6 +7,22 @@ import { auth } from "@/auth";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
+export const USER_MANAGEMENT_ROLES = [
+    "applicant",
+    "admin",
+    "technical_reviewer",
+    "reviewer_1",
+    "reviewer_2",
+    "oversight",
+    "a2f_officer",
+    "mentor",
+    "bds_edo",
+    "investment_analyst",
+    "mel",
+] as const;
+
+export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];
+
 // Types
 export interface UserListItem {
     id: string;
@@ -119,7 +135,7 @@ export async function createAdminUser(
     email: string,
     firstName: string,
     lastName: string,
-    role: "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2" = "admin"
+    role: UserManagementRole = "admin"
 ): Promise<{ success: boolean; data?: { userId: string }; error?: string }> {
     try {
         await verifyAdminAccess();
@@ -178,7 +194,7 @@ export async function createAdminUser(
 // Update user role
 export async function updateUserRole(
     userId: string,
-    newRole: "applicant" | "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2"
+    newRole: UserManagementRole
 ): Promise<{ success: boolean; error?: string }> {
     try {
         await verifyAdminAccess();

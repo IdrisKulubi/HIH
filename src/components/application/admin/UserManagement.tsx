@@ -5,7 +5,8 @@ import {
     searchUsers,
     createAdminUser,
     updateUserRole,
-    type UserListItem
+    type UserListItem,
+    type UserManagementRole,
 } from "@/lib/actions/admin-users";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -42,10 +43,18 @@ import { cn } from "@/lib/utils";
 const ROLES = [
     { value: "applicant", label: "Applicant", color: "bg-gray-100 text-gray-700" },
     { value: "admin", label: "Admin", color: "bg-blue-100 text-blue-700" },
+    { value: "oversight", label: "Oversight", color: "bg-indigo-100 text-indigo-700" },
     { value: "technical_reviewer", label: "Technical Reviewer", color: "bg-purple-100 text-purple-700" },
     { value: "reviewer_1", label: "Reviewer 1", color: "bg-cyan-100 text-cyan-700" },
     { value: "reviewer_2", label: "Reviewer 2", color: "bg-amber-100 text-amber-700" },
-];
+    { value: "a2f_officer", label: "A2F Officer", color: "bg-sky-100 text-sky-700" },
+    { value: "mentor", label: "CNA Mentor", color: "bg-emerald-100 text-emerald-700" },
+    { value: "bds_edo", label: "BDS / EDO", color: "bg-teal-100 text-teal-700" },
+    { value: "investment_analyst", label: "Investment Analyst", color: "bg-orange-100 text-orange-700" },
+    { value: "mel", label: "MEL", color: "bg-rose-100 text-rose-700" },
+] satisfies { value: UserManagementRole; label: string; color: string }[];
+
+const CREATE_USER_ROLES = ROLES.filter((role) => role.value !== "applicant");
 
 export function UserManagement() {
     const [users, setUsers] = useState<UserListItem[]>([]);
@@ -59,7 +68,7 @@ export function UserManagement() {
     const [newUserEmail, setNewUserEmail] = useState("");
     const [newUserFirstName, setNewUserFirstName] = useState("");
     const [newUserLastName, setNewUserLastName] = useState("");
-    const [newUserRole, setNewUserRole] = useState<"admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2">("admin");
+    const [newUserRole, setNewUserRole] = useState<UserManagementRole>("admin");
 
     // Debounced search function
     const performSearch = useCallback(async (query: string) => {
@@ -93,7 +102,7 @@ export function UserManagement() {
         try {
             const result = await updateUserRole(
                 userId,
-                newRole as "applicant" | "admin" | "technical_reviewer"
+                newRole as UserManagementRole
             );
             if (result.success) {
                 toast.success("Role updated successfully");
@@ -215,23 +224,18 @@ export function UserManagement() {
                                     <Select
                                         value={newUserRole}
                                         onValueChange={(value) =>
-                                            setNewUserRole(value as "admin" | "technical_reviewer" | "reviewer_1" | "reviewer_2")
+                                            setNewUserRole(value as UserManagementRole)
                                         }
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select role" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="admin">Admin</SelectItem>
-                                            <SelectItem value="technical_reviewer">
-                                                Technical Reviewer
-                                            </SelectItem>
-                                            <SelectItem value="reviewer_1">
-                                                Reviewer 1
-                                            </SelectItem>
-                                            <SelectItem value="reviewer_2">
-                                                Reviewer 2
-                                            </SelectItem>
+                                            {CREATE_USER_ROLES.map((role) => (
+                                                <SelectItem key={role.value} value={role.value}>
+                                                    {role.label}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
