@@ -5,9 +5,8 @@ import {
     searchUsers,
     createAdminUser,
     updateUserRole,
-    type UserListItem,
-    type UserManagementRole,
 } from "@/lib/actions/admin-users";
+import type { UserListItem, UserManagementRole } from "@/lib/users/roles";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
