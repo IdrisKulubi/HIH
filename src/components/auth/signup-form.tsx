@@ -75,7 +75,7 @@ export function SignupForm({ callbackUrl }: SignupFormProps) {
       setSuccess(result.message || "Account created successfully! You will be redirected shortly.");
       setStep("success");
       setTimeout(() => {
-        signIn("credentials", { email, password, callbackUrl: callbackUrl || "/apply" });
+        signIn("credentials", { email, password, callbackUrl: callbackUrl || "/post-login" });
       }, 2000);
     } else {
       setError(result.error || "Invalid or expired verification code.");

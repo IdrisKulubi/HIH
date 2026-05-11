@@ -8,6 +8,7 @@ import { SignupForm } from "./signup-form";
 import { EmailLoginForm } from "./email-login-form";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { getRoleHomePath } from "@/lib/users/role-home";
 
 interface AuthCardProps {
   callbackUrl?: string;
@@ -17,7 +18,7 @@ interface AuthCardProps {
 export function AuthCard({ callbackUrl, defaultTab = "signin" }: AuthCardProps) {
   const { data: session } = useSession();
   if (session) {
-    redirect("/");
+    redirect(getRoleHomePath(session.user.role));
   }
   return (
     <div className="w-full max-w-lg">
@@ -66,7 +67,7 @@ export function AuthCard({ callbackUrl, defaultTab = "signin" }: AuthCardProps) 
                 <Button
                   variant="outline"
                   className="w-full py-6 text-base font-medium rounded-xl border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all shadow-sm"
-                  onClick={() => signIn("google", { callbackUrl: callbackUrl || "/apply" })}
+                  onClick={() => signIn("google", { callbackUrl: callbackUrl || "/post-login" })}
                 >
                   <svg
                     className="mr-3 h-5 w-5"

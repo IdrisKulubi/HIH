@@ -35,8 +35,8 @@ export function EmailLoginForm({ callbackUrl }: EmailLoginFormProps) {
 
     if (result?.error) {
       setError("Invalid email or password. Please try again.");
-    } else if (result?.url) {
-      window.location.href = callbackUrl || result.url;
+    } else {
+      window.location.href = callbackUrl || "/post-login";
     }
   };
 

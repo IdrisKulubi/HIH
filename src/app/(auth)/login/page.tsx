@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 function LoginPageContent() {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") === "signup" ? "signup" : "signin";
+  const callbackUrl = searchParams.get("callbackUrl") ?? undefined;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] relative overflow-hidden">
@@ -17,7 +18,7 @@ function LoginPageContent() {
       <div className="absolute bottom-0 -right-20 w-[600px] h-[600px] bg-brand-red/5 rounded-full blur-[120px]"></div>
 
       <div className="relative z-10 w-full flex justify-center p-4">
-        <AuthCard defaultTab={defaultTab} />
+        <AuthCard defaultTab={defaultTab} callbackUrl={callbackUrl} />
       </div>
     </div>
   );

@@ -16,8 +16,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, FileText, LogIn, Clock, ShieldCheck } from "lucide-react";
+import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard } from "lucide-react";
 import { areApplicationsOpen } from "@/lib/config";
+import { getRoleHomePath } from "@/lib/users/role-home";
+
+const STAFF_ROLES = [
+  "admin",
+  "oversight",
+  "reviewer_1",
+  "reviewer_2",
+  "technical_reviewer",
+  "a2f_officer",
+  "mentor",
+  "bds_edo",
+  "investment_analyst",
+  "mel",
+];
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -187,6 +201,12 @@ export function Header() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
+                      <Link href={getRoleHomePath(session.user.role)} className="flex items-center">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link href="/profile" className="flex items-center">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
@@ -194,7 +214,7 @@ export function Header() {
                     </DropdownMenuItem>
 
                     {/* Hide My Application for reviewers */}
-                    {!['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(session.user.role || '') && (
+                    {!STAFF_ROLES.includes(session.user.role || '') && (
                       <DropdownMenuItem asChild>
                         <Link href="/profile?tab=application" className="flex items-center">
                           <FileText className="mr-2 h-4 w-4" />
@@ -203,7 +223,7 @@ export function Header() {
                       </DropdownMenuItem>
                     )}
 
-                    {!['admin', 'oversight', 'reviewer_1', 'reviewer_2', 'technical_reviewer', 'a2f_officer'].includes(session.user.role || '') && (
+                    {!STAFF_ROLES.includes(session.user.role || '') && (
                       <DropdownMenuItem asChild>
                         <Link href="/kyc" className="flex items-center">
                           <ShieldCheck className="mr-2 h-4 w-4" />
