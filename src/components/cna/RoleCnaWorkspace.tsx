@@ -29,7 +29,13 @@ function roleLabel(role: string) {
   }
 }
 
-export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace }) {
+export function RoleCnaWorkspace({
+  workspace,
+  showHeader = true,
+}: {
+  workspace: CnaRoleWorkspace;
+  showHeader?: boolean;
+}) {
   const [pendingQuestionId, setPendingQuestionId] = useState<number | null>(null);
   const [submitting, startSubmitTransition] = useTransition();
   const [messages, setMessages] = useState<Record<number, string>>({});
@@ -100,6 +106,7 @@ export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace })
 
   return (
     <div className="space-y-6">
+      {showHeader ? (
       <div className="rounded-lg border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -114,6 +121,7 @@ export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace })
           </div>
         </div>
       </div>
+      ) : null}
 
       {grouped.map(([section, questions]) => (
         <section key={section} className="space-y-3">
@@ -184,7 +192,7 @@ export function RoleCnaWorkspace({ workspace }: { workspace: CnaRoleWorkspace })
       <div className="flex flex-wrap items-center justify-end gap-3 rounded-lg border bg-card p-4">
         {submitMessage ? <p className="text-sm text-muted-foreground">{submitMessage}</p> : null}
         <Button onClick={submitReview} disabled={!workspace.canSubmit || submitting}>
-          {submitting ? "Submitting..." : "Submit CNA review"}
+          {submitting ? "Submitting..." : `Submit ${roleLabel(workspace.viewerRole)} review`}
         </Button>
       </div>
     </div>

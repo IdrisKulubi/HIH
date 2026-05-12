@@ -60,7 +60,7 @@ import { stringify } from "csv-stringify/sync";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 
-const ADMIN_ROLES = ["admin", "oversight"] as const;
+const ADMIN_ROLES = ["admin", "oversight", "mentor", "bds_edo", "investment_analyst", "mel"] as const;
 
 function isPhase2Admin(role?: string | null) {
   return !!role && ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number]);

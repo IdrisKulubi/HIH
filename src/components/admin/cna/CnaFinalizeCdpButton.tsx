@@ -11,10 +11,12 @@ export function CnaFinalizeCdpButton({
   businessId,
   assessmentId,
   disabled,
+  redirectToPlan = true,
 }: {
   businessId: number;
   assessmentId: number;
   disabled?: boolean;
+  redirectToPlan?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -40,7 +42,11 @@ export function CnaFinalizeCdpButton({
             return;
           }
           toast.success("CNA finalized and CDP generated");
-          router.push(`/admin/cdp/${businessId}?planId=${generated.data.id}`);
+          if (redirectToPlan) {
+            router.push(`/admin/cdp/${businessId}?planId=${generated.data.id}`);
+          } else {
+            router.refresh();
+          }
         });
       }}
     >

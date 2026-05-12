@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RoleCnaWorkspace } from "@/components/cna/RoleCnaWorkspace";
-import { getCnaRoleWorkspace } from "@/lib/actions/role-cna";
+import { AllRolesCnaBusinessPage } from "@/components/cna/AllRolesCnaBusinessPage";
 
 export default async function MentorCnaBusinessPage({
   params,
@@ -12,18 +10,11 @@ export default async function MentorCnaBusinessPage({
   const businessId = Number(idStr);
   if (!Number.isFinite(businessId)) notFound();
 
-  const workspace = await getCnaRoleWorkspace(businessId, "mentor");
-
   return (
-    <div className="container mx-auto space-y-6 px-4 py-8">
-      <Link href="/mentor/cna" className="text-sm font-medium text-sky-700 hover:underline">
-        Back to mentor CNA list
-      </Link>
-      {!workspace.success || !workspace.data ? (
-        <p className="text-sm text-destructive">{workspace.error ?? "Failed to load CNA workspace"}</p>
-      ) : (
-        <RoleCnaWorkspace workspace={workspace.data} />
-      )}
-    </div>
+    <AllRolesCnaBusinessPage
+      businessId={businessId}
+      backHref="/mentor/cna"
+      backLabel="Back to mentor CNA list"
+    />
   );
 }

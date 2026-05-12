@@ -54,6 +54,15 @@ function roleHome(role: CnaReviewerRole) {
   }
 }
 
+function revalidateRoleCnaPaths(businessId: number) {
+  for (const role of CNA_REVIEWER_ROLES) {
+    revalidatePath(roleHome(role));
+    revalidatePath(`${roleHome(role)}/${businessId}`);
+  }
+  revalidatePath("/admin/cna");
+  revalidatePath(`/admin/cna/${businessId}`);
+}
+
 async function requireCnaRole(): Promise<
   | { ok: true; userId: string; role: CnaReviewerRole; isAdmin: false }
   | { ok: true; userId: string; role: null; isAdmin: true }
@@ -154,7 +163,6 @@ export async function getCnaRoleWorkspace(
 
     const viewerRole = requestedRole ?? actor.role;
     if (!viewerRole) return errorResponse("Select a CNA reviewer role.");
-    if (!actor.isAdmin && actor.role !== viewerRole) return errorResponse("Unauthorized");
 
     if (!(await isBusinessInQualifiedCnaCohort(businessId))) {
       return errorResponse("CNA is only available for businesses that passed final due diligence.");
@@ -296,7 +304,7 @@ export async function saveCnaQuestionResponse(
     const parsed = saveResponseSchema.safeParse(input);
     if (!parsed.success) return errorResponse("Invalid CNA response");
 
-    const effectiveRole = actor.isAdmin ? parsed.data.reviewerRole : actor.role;
+    const effectiveRole = parsed.data.reviewerRole ?? actor.role;
     if (!effectiveRole) return errorResponse("Select the reviewer role for this response.");
 
     const question = await db.query.cnaQuestionBank.findFirst({
@@ -380,10 +388,7 @@ export async function saveCnaQuestionResponse(
       })
       .where(eq(cnaRoleReviews.id, roleReview.id));
 
-    revalidatePath(roleHome(effectiveRole));
-    revalidatePath(`${roleHome(effectiveRole)}/${parsed.data.businessId}`);
-    revalidatePath("/admin/cna");
-    revalidatePath(`/admin/cna/${parsed.data.businessId}`);
+    revalidateRoleCnaPaths(parsed.data.businessId);
     return successResponse({ assessmentId: assessment.id });
   } catch (e) {
     console.error("saveCnaQuestionResponse", e);
@@ -405,7 +410,7 @@ export async function submitCnaRoleReview(
     const parsed = submitReviewSchema.safeParse(input);
     if (!parsed.success) return errorResponse("Invalid review");
 
-    const effectiveRole = actor.isAdmin ? parsed.data.reviewerRole : actor.role;
+    const effectiveRole = parsed.data.reviewerRole ?? actor.role;
     if (!effectiveRole) return errorResponse("Select the reviewer role to submit.");
 
     const workspace = await getCnaRoleWorkspace(parsed.data.businessId, effectiveRole);
@@ -426,10 +431,7 @@ export async function submitCnaRoleReview(
       })
       .where(eq(cnaRoleReviews.id, workspace.data.roleReview.id));
 
-    revalidatePath(roleHome(effectiveRole));
-    revalidatePath(`${roleHome(effectiveRole)}/${parsed.data.businessId}`);
-    revalidatePath("/admin/cna");
-    revalidatePath(`/admin/cna/${parsed.data.businessId}`);
+    revalidateRoleCnaPaths(parsed.data.businessId);
     return successResponse({ assessmentId: workspace.data.assessment.id });
   } catch (e) {
     console.error("submitCnaRoleReview", e);
@@ -443,7 +445,6 @@ export async function finalizeRoleBasedCna(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
-    if (!actor.isAdmin) return errorResponse("Only admin or oversight can finalize CNA.");
 
     const assessment = await db.query.cnaAssessments.findFirst({
       where: eq(cnaAssessments.businessId, businessId),
@@ -504,8 +505,7 @@ export async function finalizeRoleBasedCna(
       })
       .where(eq(cnaAssessments.id, assessment.id));
 
-    revalidatePath("/admin/cna");
-    revalidatePath(`/admin/cna/${businessId}`);
+    revalidateRoleCnaPaths(businessId);
     revalidatePath(`/admin/cdp/${businessId}`);
     return successResponse({ assessmentId: assessment.id });
   } catch (e) {
