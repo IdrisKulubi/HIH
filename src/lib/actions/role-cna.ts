@@ -31,15 +31,27 @@ import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import type { BusinessListRow } from "./cna";
 
-const CNA_MANAGEMENT_ROLES = ["admin", "oversight"] as const;
-const CNA_ALL_VIEW_ROLES = ["admin", "oversight", "redo"] as const;
+const CNA_MANAGEMENT_ROLES = [
+  "admin",
+  "oversight",
+  "redo",
+  "mentor",
+  "bds_edo",
+  "investment_analyst",
+  "mel",
+] as const;
+const CNA_FINALIZE_ROLES = ["admin", "oversight", "redo"] as const;
 
 function isAdminRole(role?: string | null) {
-  return !!role && CNA_ALL_VIEW_ROLES.includes(role as (typeof CNA_ALL_VIEW_ROLES)[number]);
+  return !!role && CNA_MANAGEMENT_ROLES.includes(role as (typeof CNA_MANAGEMENT_ROLES)[number]);
 }
 
 function canManageCna(role?: string | null) {
   return !!role && CNA_MANAGEMENT_ROLES.includes(role as (typeof CNA_MANAGEMENT_ROLES)[number]);
+}
+
+function canFinalizeCna(role?: string | null) {
+  return !!role && CNA_FINALIZE_ROLES.includes(role as (typeof CNA_FINALIZE_ROLES)[number]);
 }
 
 function isCnaReviewerRole(role?: string | null): role is CnaReviewerRole {
@@ -69,16 +81,28 @@ function revalidateRoleCnaPaths(businessId: number) {
 }
 
 async function requireCnaRole(): Promise<
-  | { ok: true; userId: string; role: CnaReviewerRole; isAdmin: false; canManage: false }
-  | { ok: true; userId: string; role: null; isAdmin: true; canManage: boolean }
+  | { ok: true; userId: string; sessionRole: string | null; role: CnaReviewerRole; isAdmin: false; canManage: false; canFinalize: false }
+  | { ok: true; userId: string; sessionRole: string | null; role: null; isAdmin: true; canManage: boolean; canFinalize: boolean }
   | { ok: false; error: string }
 > {
   const session = await auth();
   const userId = session?.user?.id;
   const role = session?.user?.role ?? null;
   if (!userId) return { ok: false, error: "Unauthorized" };
-  if (isAdminRole(role)) return { ok: true, userId, role: null, isAdmin: true, canManage: canManageCna(role) };
-  if (isCnaReviewerRole(role)) return { ok: true, userId, role, isAdmin: false, canManage: false };
+  if (isAdminRole(role)) {
+    return {
+      ok: true,
+      userId,
+      sessionRole: role,
+      role: null,
+      isAdmin: true,
+      canManage: canManageCna(role),
+      canFinalize: canFinalizeCna(role),
+    };
+  }
+  if (isCnaReviewerRole(role)) {
+    return { ok: true, userId, sessionRole: role, role, isAdmin: false, canManage: false, canFinalize: false };
+  }
   return { ok: false, error: "Unauthorized" };
 }
 
@@ -463,7 +487,7 @@ export async function finalizeRoleBasedCna(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
-    if (!actor.canManage) return errorResponse("Only admin or oversight can finalize CNA.");
+    if (!actor.canFinalize) return errorResponse("Only admin, oversight, or REDO can finalize CNA.");
 
     const assessment = await db.query.cnaAssessments.findFirst({
       where: eq(cnaAssessments.businessId, businessId),
