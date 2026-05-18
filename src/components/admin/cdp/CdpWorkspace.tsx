@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { CdpPlanFull, CdpPlanListItem } from "@/lib/actions/cdp";
+import type { CdpEvidenceFile, CdpPlanFull, CdpPlanListItem } from "@/lib/actions/cdp";
 import {
   addCdpSessionActionItem,
   approveCdpSupportSession,
@@ -28,7 +28,6 @@ import {
   submitCdpEndline,
   updateCdpPlan,
   updateCdpSessionActionItem,
-  updateCdpWeeklyMilestone,
   upsertCdpActivityProgress,
   type FinalizedCnaForCdp,
 } from "@/lib/actions/cdp";
@@ -56,6 +55,8 @@ import {
   getInterventionByKey,
 } from "@/lib/cdp/intervention-catalog";
 import { expectedSessionType } from "@/lib/cdp/session-rules";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
+import { useUploadThing } from "@/utils/uploadthing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +71,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { FileText, Loader2, Trash2, UploadCloud } from "lucide-react";
 
 const SCORE_OPTIONS = [0, 5, 10] as const;
 
@@ -77,6 +79,9 @@ const QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 const PROGRESS_STATUSES = ["not_started", "in_progress", "done", "blocked"] as const;
 
 type EditableSummary = CdpFocusSummaryInput;
+type CdpSessionEvidenceFile = CdpEvidenceFile;
+
+const CDP_APPROVER_ROLES = ["admin", "oversight", "redo"] as const;
 
 function normalizeScore(v: number): 0 | 5 | 10 {
   if (v === 0 || v === 5 || v === 10) return v;
@@ -106,6 +111,8 @@ export function CdpWorkspace({
   initialPlan,
   hasCnaForImport,
   latestFinalizedCna,
+  currentUserRole,
+  currentUserId,
 }: {
   businessId: number;
   businessName: string;
@@ -113,6 +120,8 @@ export function CdpWorkspace({
   initialPlan: CdpPlanFull | null;
   hasCnaForImport: boolean;
   latestFinalizedCna: FinalizedCnaForCdp | null;
+  currentUserRole: string;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -123,14 +132,7 @@ export function CdpWorkspace({
   const planId = initialPlan?.id;
 
   useEffect(() => {
-    if (initialPlan) setSummaryRows(summaryRowsFromPlan(initialPlan));
-  }, [initialPlan?.id]);
-
-  useEffect(() => {
-    if (!planId) {
-      setPipeline(null);
-      return;
-    }
+    if (!planId) return;
     let cancelled = false;
     getCdpPipelineCompletenessForPlan(planId).then((res) => {
       if (!cancelled && res.success && res.data) setPipeline(res.data);
@@ -515,7 +517,13 @@ export function CdpWorkspace({
         </TabsContent>
 
         <TabsContent value="sessions">
-          <CdpSessionsPanel plan={initialPlan} businessId={businessId} disabled={pending} />
+          <CdpSessionsPanel
+            plan={initialPlan}
+            businessId={businessId}
+            disabled={pending}
+            currentUserRole={currentUserRole}
+            currentUserId={currentUserId}
+          />
         </TabsContent>
 
         <TabsContent value="legacy-progress" className="hidden">
@@ -1474,6 +1482,25 @@ function CdpActivitiesPanel({
                       {session.durationHours ? ` · ${session.durationHours} hrs` : ""}
                     </p>
                     {session.agenda ? <p className="mt-2 text-xs">{session.agenda}</p> : null}
+                    {session.evidenceNotes ? (
+                      <p className="mt-2 text-xs text-slate-700">{session.evidenceNotes}</p>
+                    ) : null}
+                    {((session.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {((session.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).map((file, index) => (
+                          <a
+                            key={`${file.url}-${index}`}
+                            href={getDocumentViewerHref(file.url, file.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -1646,14 +1673,46 @@ function CdpSessionsPanel({
   plan,
   businessId,
   disabled,
+  currentUserRole,
+  currentUserId,
 }: {
   plan: CdpPlanFull;
   businessId: number;
   disabled: boolean;
+  currentUserRole: string;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState<CdpSessionEvidenceFile[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const canApproveSessions = CDP_APPROVER_ROLES.includes(currentUserRole as (typeof CDP_APPROVER_ROLES)[number]);
+  const { startUpload, isUploading } = useUploadThing("cdpEvidenceUploader", {
+    uploadProgressGranularity: "fine",
+    onUploadProgress: setUploadProgress,
+    onClientUploadComplete: (res) => {
+      const uploaded = (res ?? []).reduce<CdpSessionEvidenceFile[]>((files, file) => {
+          const url = file.serverData?.fileUrl ?? file.ufsUrl;
+          if (!url) return files;
+          files.push({
+            url,
+            name: file.serverData?.fileName ?? file.name ?? "evidence",
+            type: file.serverData?.fileType ?? file.type ?? "application/octet-stream",
+            uploadedById: file.serverData?.uploadedBy ?? currentUserId,
+            uploadedAt: new Date().toISOString(),
+          });
+          return files;
+        }, []);
+      setEvidenceFiles((prev) => [...prev, ...uploaded]);
+      setUploadProgress(0);
+      if (uploaded.length > 0) toast.success("Evidence uploaded");
+    },
+    onUploadError: (error) => {
+      setUploadProgress(0);
+      toast.error(error.message || "Evidence upload failed");
+    },
+  });
   const priorityFocusCodes = plan.focusSummaries
     .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
     .map((row) => row.focusCode);
@@ -1697,13 +1756,16 @@ function CdpSessionsPanel({
         bootcampWeek: bootcampWeek != null && Number.isFinite(bootcampWeek) ? bootcampWeek : null,
         sessionType: String(formData.get("sessionType") ?? "") as "physical" | "virtual",
         meetingLink: String(formData.get("meetingLink") ?? "") || null,
+        evidenceNotes: String(formData.get("evidenceNotes") ?? "") || null,
         evidenceUrls: evidenceLines.length ? evidenceLines : null,
+        evidenceFiles: evidenceFiles.length ? evidenceFiles : null,
         initialActionDescriptions: actionLines.length ? actionLines : null,
       });
       if (!res.success) toast.error(res.error ?? "Failed");
       else {
         toast.success("Session logged");
         setShowAdd(false);
+        setEvidenceFiles([]);
         router.refresh();
       }
     });
@@ -1836,8 +1898,71 @@ function CdpSessionsPanel({
             <Input id="bootcampWeek" name="bootcampWeek" type="number" min={1} max={13} />
           </div>
           <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="evidenceNotes">Evidence notes</Label>
+            <Textarea
+              id="evidenceNotes"
+              name="evidenceNotes"
+              rows={2}
+              placeholder="Summarize outputs delivered, documents attached, or links captured."
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="evidenceFiles">Supporting evidence/documents</Label>
+            <div className="rounded-md border border-dashed bg-slate-50 p-3">
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md px-4 py-5 text-center text-sm text-slate-600 hover:bg-slate-100">
+                {isUploading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-700" />
+                ) : (
+                  <UploadCloud className="h-5 w-5 text-slate-700" />
+                )}
+                <span>
+                  {isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, photos, assessments, or plans"}
+                </span>
+                <input
+                  id="evidenceFiles"
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                  disabled={isUploading || pending}
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = "";
+                    if (files.length > 0) void startUpload(files);
+                  }}
+                />
+              </label>
+              {evidenceFiles.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {evidenceFiles.map((file, index) => (
+                    <div key={`${file.url}-${index}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm">
+                      <a
+                        href={getDocumentViewerHref(file.url, file.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 items-center gap-2 text-sky-700 hover:underline"
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{file.name}</span>
+                      </a>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-destructive"
+                        onClick={() => setEvidenceFiles((prev) => prev.filter((_, i) => i !== index))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="evidenceUrls">Evidence URLs (one per line)</Label>
-            <Textarea id="evidenceUrls" name="evidenceUrls" rows={2} placeholder="https://…" />
+            <Textarea id="evidenceUrls" name="evidenceUrls" rows={2} placeholder="https://..." />
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="initialActionDescriptions">Follow-up action items (one per line)</Label>
@@ -1905,13 +2030,14 @@ function CdpSessionsPanel({
             <TableHead>Bootcamp</TableHead>
             <TableHead>Codes</TableHead>
             <TableHead>Duration</TableHead>
+            <TableHead>Evidence</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {plan.supportSessions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-muted-foreground text-sm">
+              <TableCell colSpan={8} className="text-muted-foreground text-sm">
                 No sessions logged.
               </TableCell>
             </TableRow>
@@ -1926,6 +2052,28 @@ function CdpSessionsPanel({
                 <TableCell className="text-xs">{s.bootcampWeek ?? "—"}</TableCell>
                 <TableCell className="text-xs">{(s.focusCodes ?? []).join(", ") || "—"}</TableCell>
                 <TableCell className="text-xs">{s.durationHours ?? "—"}</TableCell>
+                <TableCell className="text-xs">
+                  {((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      {((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).slice(0, 2).map((file, index) => (
+                        <a
+                          key={`${file.url}-${index}`}
+                          href={getDocumentViewerHref(file.url, file.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex max-w-[180px] items-center gap-1 text-sky-700 hover:underline"
+                        >
+                          <FileText className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{file.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (s.evidenceUrls ?? []).length > 0 ? (
+                    <span>{s.evidenceUrls.length} URL{s.evidenceUrls.length === 1 ? "" : "s"}</span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <Button
                     type="button"
@@ -1944,10 +2092,10 @@ function CdpSessionsPanel({
         </TableBody>
       </Table>
 
-      {plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
+      {canApproveSessions && plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
         <div className="flex flex-wrap gap-2">
           {plan.supportSessions
-            .filter((s) => s.approvalStatus !== "approved")
+            .filter((s) => s.approvalStatus !== "approved" && s.conductedById !== currentUserId)
             .map((s) => (
               <Button
                 key={s.id}

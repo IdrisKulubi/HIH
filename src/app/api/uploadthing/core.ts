@@ -36,6 +36,42 @@ const documentUploader = f({
   return { uploadedBy: metadata.userId, fileName: file.name, fileUrl: file.url };
 });
 
+const cdpEvidenceUploader = f({
+  pdf: { maxFileSize: "16MB", maxFileCount: 6 },
+  image: { maxFileSize: "8MB", maxFileCount: 10 },
+  "application/msword": { maxFileSize: "16MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+    maxFileSize: "16MB",
+    maxFileCount: 6,
+  },
+  "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+    maxFileSize: "16MB",
+    maxFileCount: 6,
+  },
+  "text/csv": { maxFileSize: "8MB", maxFileCount: 6 },
+})
+  .middleware(async () => {
+    try {
+      const user = await authenticateUploadRequest();
+      if (!user?.id) {
+        throw new UploadThingError("Failed to authenticate user");
+      }
+      return { userId: user.id };
+    } catch (error) {
+      console.error("CDP evidence upload middleware error:", error);
+      throw new UploadThingError("Unauthorized");
+    }
+  })
+  .onUploadComplete(async ({ metadata, file }) => {
+    return {
+      uploadedBy: metadata.userId,
+      fileName: file.name,
+      fileUrl: file.url,
+      fileType: file.type ?? "application/octet-stream",
+    };
+  });
+
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     .middleware(async () => {
@@ -61,6 +97,7 @@ export const ourFileRouter = {
   taxComplianceUploader: documentUploader,
   registrationCertificateUploader: documentUploader,
   kycDocumentUploader: documentUploader,
+  cdpEvidenceUploader,
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter; 

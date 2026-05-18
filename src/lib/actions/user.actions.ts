@@ -8,7 +8,19 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 // Types for user management
-export type UserRole = 'applicant' | 'admin' | 'technical_reviewer' | 'reviewer_1' | 'reviewer_2';
+export type UserRole =
+  | 'applicant'
+  | 'admin'
+  | 'technical_reviewer'
+  | 'reviewer_1'
+  | 'reviewer_2'
+  | 'oversight'
+  | 'a2f_officer'
+  | 'mentor'
+  | 'bds_edo'
+  | 'investment_analyst'
+  | 'mel'
+  | 'redo';
 
 export interface CreateUserProfileData {
   firstName: string;

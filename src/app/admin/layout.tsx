@@ -16,9 +16,10 @@ export default async function AdminLayout({
 }>) {
   const session = await auth();
   const userRole = session?.user?.role || "";
+  const phase2Roles = ["admin", "oversight", "redo", "mentor", "bds_edo", "investment_analyst", "mel"];
 
-  // Block non-admin users from accessing admin pages (except oversight)
-  if (userRole !== "admin" && userRole !== "oversight") {
+  // Block non-admin users from accessing admin pages, except Phase 2 CDP/CNA staff.
+  if (!phase2Roles.includes(userRole)) {
     // Redirect reviewers to their dashboard, others to home
     const isReviewer = ["reviewer_1", "reviewer_2", "technical_reviewer"].includes(userRole);
     redirect(isReviewer ? "/reviewer" : "/");

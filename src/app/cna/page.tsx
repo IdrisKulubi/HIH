@@ -12,6 +12,8 @@ import {
 import { CDP_FOCUS_AREAS, priorityFromScore0to10, priorityLabel } from "@/lib/cdp/focus-areas";
 import { sumObjectiveWeightedScores } from "@/lib/cdp/okr-scoring";
 import { computeCdpTopRiskFocus, sumKeyResultWeightsPercent } from "@/lib/cdp/pipeline";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
+import type { CdpEvidenceFile } from "@/lib/actions/cdp";
 
 export default async function EnterpriseCnaPage() {
   await requireKycVerified();
@@ -211,6 +213,7 @@ export default async function EnterpriseCnaPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Focus</TableHead>
                   <TableHead>Agenda</TableHead>
+                  <TableHead>Evidence</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -222,6 +225,27 @@ export default async function EnterpriseCnaPage() {
                     </TableCell>
                     <TableCell className="text-xs">{(s.focusCodes ?? []).join(", ") || "—"}</TableCell>
                     <TableCell className="text-sm max-w-md">{s.agenda ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {((s.evidenceFiles as CdpEvidenceFile[] | null) ?? []).length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {((s.evidenceFiles as CdpEvidenceFile[] | null) ?? []).map((file, index) => (
+                            <a
+                              key={`${file.url}-${index}`}
+                              href={getDocumentViewerHref(file.url, file.name)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sky-700 hover:underline"
+                            >
+                              {file.name}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (s.evidenceUrls ?? []).length > 0 ? (
+                        `${s.evidenceUrls.length} URL${s.evidenceUrls.length === 1 ? "" : "s"}`
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

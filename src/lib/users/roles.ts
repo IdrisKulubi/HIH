@@ -10,6 +10,7 @@ export const USER_MANAGEMENT_ROLES = [
   "bds_edo",
   "investment_analyst",
   "mel",
+  "redo",
 ] as const;
 
 export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];

@@ -31,10 +31,15 @@ import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import type { BusinessListRow } from "./cna";
 
-const ADMIN_ROLES = ["admin", "oversight"] as const;
+const CNA_MANAGEMENT_ROLES = ["admin", "oversight"] as const;
+const CNA_ALL_VIEW_ROLES = ["admin", "oversight", "redo"] as const;
 
 function isAdminRole(role?: string | null) {
-  return !!role && ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number]);
+  return !!role && CNA_ALL_VIEW_ROLES.includes(role as (typeof CNA_ALL_VIEW_ROLES)[number]);
+}
+
+function canManageCna(role?: string | null) {
+  return !!role && CNA_MANAGEMENT_ROLES.includes(role as (typeof CNA_MANAGEMENT_ROLES)[number]);
 }
 
 function isCnaReviewerRole(role?: string | null): role is CnaReviewerRole {
@@ -64,16 +69,16 @@ function revalidateRoleCnaPaths(businessId: number) {
 }
 
 async function requireCnaRole(): Promise<
-  | { ok: true; userId: string; role: CnaReviewerRole; isAdmin: false }
-  | { ok: true; userId: string; role: null; isAdmin: true }
+  | { ok: true; userId: string; role: CnaReviewerRole; isAdmin: false; canManage: false }
+  | { ok: true; userId: string; role: null; isAdmin: true; canManage: boolean }
   | { ok: false; error: string }
 > {
   const session = await auth();
   const userId = session?.user?.id;
   const role = session?.user?.role ?? null;
   if (!userId) return { ok: false, error: "Unauthorized" };
-  if (isAdminRole(role)) return { ok: true, userId, role: null, isAdmin: true };
-  if (isCnaReviewerRole(role)) return { ok: true, userId, role, isAdmin: false };
+  if (isAdminRole(role)) return { ok: true, userId, role: null, isAdmin: true, canManage: canManageCna(role) };
+  if (isCnaReviewerRole(role)) return { ok: true, userId, role, isAdmin: false, canManage: false };
   return { ok: false, error: "Unauthorized" };
 }
 
@@ -102,6 +107,8 @@ export type CnaRoleWorkspace = {
   responses: CnaQuestionResponse[];
   result: CnaAssessmentResult;
   viewerRole: CnaReviewerRole;
+  editableRole: CnaReviewerRole | null;
+  canManage: boolean;
   canSubmit: boolean;
 };
 
@@ -163,6 +170,9 @@ export async function getCnaRoleWorkspace(
 
     const viewerRole = requestedRole ?? actor.role;
     if (!viewerRole) return errorResponse("Select a CNA reviewer role.");
+    if (!actor.isAdmin && actor.role !== viewerRole) {
+      return errorResponse("You can only open your assigned CNA workstream.");
+    }
 
     if (!(await isBusinessInQualifiedCnaCohort(businessId))) {
       return errorResponse("CNA is only available for businesses that passed final due diligence.");
@@ -215,10 +225,12 @@ export async function getCnaRoleWorkspace(
       },
       assessment,
       roleReview,
-      questions: roleQuestions,
+      questions: actor.isAdmin ? roleQuestions : allQuestions,
       responses,
       result,
       viewerRole,
+      editableRole: actor.canManage ? viewerRole : actor.role,
+      canManage: actor.canManage,
       canSubmit: roleQuestions.every((q) => responses.some((r) => r.questionId === q.id)),
     });
   } catch (e) {
@@ -306,6 +318,9 @@ export async function saveCnaQuestionResponse(
 
     const effectiveRole = parsed.data.reviewerRole ?? actor.role;
     if (!effectiveRole) return errorResponse("Select the reviewer role for this response.");
+    if (!actor.canManage && actor.role !== effectiveRole) {
+      return errorResponse("You can only edit your assigned CNA workstream.");
+    }
 
     const question = await db.query.cnaQuestionBank.findFirst({
       where: eq(cnaQuestionBank.id, parsed.data.questionId),
@@ -412,6 +427,9 @@ export async function submitCnaRoleReview(
 
     const effectiveRole = parsed.data.reviewerRole ?? actor.role;
     if (!effectiveRole) return errorResponse("Select the reviewer role to submit.");
+    if (!actor.canManage && actor.role !== effectiveRole) {
+      return errorResponse("You can only submit your assigned CNA workstream.");
+    }
 
     const workspace = await getCnaRoleWorkspace(parsed.data.businessId, effectiveRole);
     if (!workspace.success || !workspace.data) {
@@ -445,6 +463,7 @@ export async function finalizeRoleBasedCna(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
+    if (!actor.canManage) return errorResponse("Only admin or oversight can finalize CNA.");
 
     const assessment = await db.query.cnaAssessments.findFirst({
       where: eq(cnaAssessments.businessId, businessId),

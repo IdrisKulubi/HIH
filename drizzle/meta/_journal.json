@@ -120,6 +120,34 @@
       "when": 1777500000000,
       "tag": "0016_cdp_activity_progress_reviews_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1777600000000,
+      "tag": "0017_cna_role_based_assessments",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1777700000000,
+      "tag": "0018_cdp_cna_gap_board",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777800000000,
+      "tag": "0019_cdp_v4_focus_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777900000000,
+      "tag": "0020_redo_cdp_evidence",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +22,7 @@ import { getRoleHomePath } from "@/lib/users/role-home";
 const STAFF_ROLES = [
   "admin",
   "oversight",
+  "redo",
   "reviewer_1",
   "reviewer_2",
   "technical_reviewer",

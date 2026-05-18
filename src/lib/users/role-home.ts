@@ -3,6 +3,7 @@ export function getRoleHomePath(role?: string | null) {
     case "admin":
       return "/admin";
     case "oversight":
+    case "redo":
       return "/oversight";
     case "a2f_officer":
       return "/a2f";

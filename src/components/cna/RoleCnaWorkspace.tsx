@@ -14,12 +14,14 @@ const RATING_OPTIONS: { value: CnaRating; label: string }[] = [
   { value: "great", label: "Great" },
 ];
 
+type CnaQuestionRow = CnaRoleWorkspace["questions"][number];
+
 function roleLabel(role: string) {
   switch (role) {
     case "mentor":
-      return "Mentor";
+      return "TA";
     case "bds_edo":
-      return "BDS / EDO";
+      return "BA / EDO";
     case "investment_analyst":
       return "Investment Analyst";
     case "mel":
@@ -47,7 +49,7 @@ export function RoleCnaWorkspace({
   );
 
   const grouped = useMemo(() => {
-    const map = new Map<string, typeof workspace.questions>();
+    const map = new Map<string, CnaQuestionRow[]>();
     for (const question of workspace.questions) {
       const key = `${question.sectionCode} - ${question.sectionName}`;
       const rows = map.get(key) ?? [];
@@ -130,6 +132,9 @@ export function RoleCnaWorkspace({
             {questions.map((question) => {
               const response = responseByQuestion.get(question.id);
               const msg = messages[question.id];
+              const canEditQuestion = workspace.canManage
+                ? question.assignedRole === workspace.viewerRole
+                : question.assignedRole === workspace.editableRole;
               return (
                 <form
                   key={question.id}
@@ -145,6 +150,11 @@ export function RoleCnaWorkspace({
                         <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                       )}
                       <p className="text-sm font-medium leading-6 text-slate-900">{question.questionText}</p>
+                      {!canEditQuestion ? (
+                        <Badge variant="outline" className="h-6 text-xs">
+                          View only: {roleLabel(question.assignedRole)}
+                        </Badge>
+                      ) : null}
                     </div>
                     <Textarea
                       name="comment"
@@ -152,6 +162,7 @@ export function RoleCnaWorkspace({
                       defaultValue={response?.comment ?? ""}
                       placeholder="Add reason or evidence note"
                       className="text-sm"
+                      readOnly={!canEditQuestion}
                     />
                     {msg ? (
                       <p className={msg === "Saved" ? "text-xs text-emerald-700" : "text-xs text-amber-700"}>
@@ -171,16 +182,19 @@ export function RoleCnaWorkspace({
                             name="ratingLabel"
                             value={option.value}
                             defaultChecked={response?.ratingLabel === option.value}
+                            disabled={!canEditQuestion}
                             className="sr-only"
                           />
                           {option.label}
                         </label>
                       ))}
                     </div>
-                    <Button type="submit" variant="outline" disabled={pendingQuestionId === question.id}>
-                      <Save className="mr-2 size-4" />
-                      {pendingQuestionId === question.id ? "Saving..." : "Save"}
-                    </Button>
+                    {canEditQuestion ? (
+                      <Button type="submit" variant="outline" disabled={pendingQuestionId === question.id}>
+                        <Save className="mr-2 size-4" />
+                        {pendingQuestionId === question.id ? "Saving..." : "Save"}
+                      </Button>
+                    ) : null}
                   </div>
                 </form>
               );

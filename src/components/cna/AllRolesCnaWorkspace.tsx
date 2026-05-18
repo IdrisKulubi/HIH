@@ -10,9 +10,9 @@ import type { CnaReviewerRole } from "@/lib/cna/role-based-types";
 function roleLabel(role: CnaReviewerRole) {
   switch (role) {
     case "mentor":
-      return "Mentor";
+      return "TA";
     case "bds_edo":
-      return "BDS / EDO";
+      return "BA / EDO";
     case "investment_analyst":
       return "Investment Analyst";
     case "mel":

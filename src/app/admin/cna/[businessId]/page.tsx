@@ -15,6 +15,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+function cnaRoleLabel(role: string) {
+  switch (role) {
+    case "mentor":
+      return "TA";
+    case "bds_edo":
+      return "BA / EDO";
+    case "investment_analyst":
+      return "Investment Analyst";
+    case "mel":
+      return "MEL";
+    default:
+      return role.replace(/_/g, " ");
+  }
+}
+
 export default async function AdminCnaBusinessPage({
   params,
 }: {
@@ -59,13 +74,13 @@ export default async function AdminCnaBusinessPage({
             href={`/mentor/cna/${businessId}`}
             className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
           >
-            Submit Mentor review
+            Submit TA review
           </Link>
           <Link
             href={`/bds/cna/${businessId}`}
             className="rounded-md border px-3 py-1.5 font-medium text-sky-700 hover:bg-sky-50"
           >
-            Submit BDS / EDO review
+            Submit BA / EDO review
           </Link>
           <Link
             href={`/investment/cna/${businessId}`}
@@ -99,7 +114,7 @@ export default async function AdminCnaBusinessPage({
               <div className="mt-4 space-y-2">
                 {roleBased.data.result?.roleCompletions.map((r) => (
                   <div key={r.role} className="flex items-center justify-between text-sm">
-                    <span className="capitalize">{r.role.replace(/_/g, " ")}</span>
+                    <span>{cnaRoleLabel(r.role)}</span>
                     <span className={r.isComplete ? "text-emerald-700" : "text-amber-700"}>
                       {r.answeredQuestions}/{r.totalQuestions}
                     </span>

@@ -5,6 +5,7 @@ import { businesses, cnaDiagnostics } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getCdpPlanFull, getLatestFinalizedCnaForCdp, listCdpPlansForBusiness } from "@/lib/actions/cdp";
 import { CdpWorkspace } from "@/components/admin/cdp/CdpWorkspace";
+import { auth } from "@/auth";
 
 export default async function AdminCdpBusinessPage({
   params,
@@ -17,6 +18,7 @@ export default async function AdminCdpBusinessPage({
   const { planId: planIdStr } = await searchParams;
   const businessId = Number(idStr);
   if (!Number.isFinite(businessId)) notFound();
+  const session = await auth();
 
   const business = await db.query.businesses.findFirst({
     where: eq(businesses.id, businessId),
@@ -76,6 +78,8 @@ export default async function AdminCdpBusinessPage({
         initialPlan={initialPlan}
         hasCnaForImport={!!latestCna}
         latestFinalizedCna={latestFinalizedCna}
+        currentUserRole={session?.user?.role ?? ""}
+        currentUserId={session?.user?.id ?? ""}
       />
     </div>
   );

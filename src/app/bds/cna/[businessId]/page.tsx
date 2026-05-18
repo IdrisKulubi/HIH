@@ -14,7 +14,7 @@ export default async function BdsCnaBusinessPage({
     <AllRolesCnaBusinessPage
       businessId={businessId}
       backHref="/bds/cna"
-      backLabel="Back to BDS / EDO CNA list"
+      backLabel="Back to BA / EDO CNA list"
     />
   );
 }

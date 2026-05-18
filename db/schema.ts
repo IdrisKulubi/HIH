@@ -48,7 +48,8 @@ export const userRoleEnum = pgEnum('user_role', [
   'mentor',
   'bds_edo',
   'investment_analyst',
-  'mel'
+  'mel',
+  'redo'
 ]);
 
 export const fundingSourceEnum = pgEnum('funding_source', [
@@ -1066,10 +1067,22 @@ export const cdpBusinessSupportSessions = pgTable(
     meetingLink: text('meeting_link'),
     /** Optional link to 13-week bootcamp curriculum week (1–13). */
     bootcampWeek: integer('bootcamp_week'),
+    evidenceNotes: text('evidence_notes'),
     evidenceUrls: text('evidence_urls')
       .array()
       .notNull()
       .default(sql`ARRAY[]::text[]`),
+    evidenceFiles: jsonb('evidence_files')
+      .$type<
+        {
+          url: string;
+          name: string;
+          type: string;
+          uploadedById: string | null;
+          uploadedAt: string;
+        }[]
+      >()
+      .default([]),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

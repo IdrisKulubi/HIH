@@ -13,8 +13,8 @@ export default async function OversightDashboard() {
         redirect("/auth/login");
     }
 
-    // Only allow oversight and admin
-    if (user.role !== "oversight" && user.role !== "admin") {
+    // Only allow oversight, REDO, and admin
+    if (user.role !== "oversight" && user.role !== "admin" && user.role !== "redo") {
         redirect("/");
     }
 
@@ -29,11 +29,11 @@ export default async function OversightDashboard() {
                         </h1>
                         <Badge className="bg-purple-100 text-purple-700">
                             <ShieldCheck className="h-3 w-3 mr-1" weight="fill" />
-                            Final Approver
+                            {user.role === "redo" ? "REDO Approver" : "Final Approver"}
                         </Badge>
                     </div>
                     <p className="text-slate-500">
-                        Review and approve Due Diligence assessments submitted by Reviewer 1s
+                        Review assigned approvals and CDP session logs
                     </p>
                 </div>
 
@@ -44,7 +44,7 @@ export default async function OversightDashboard() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <ClipboardText className="h-5 w-5 text-purple-600" weight="duotone" />
-                                Pending Approvals
+                                Pending DD Approvals
                             </CardTitle>
                             <CardDescription>
                                 DD assessments awaiting your review and approval
@@ -54,6 +54,26 @@ export default async function OversightDashboard() {
                             <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 shadow-sm transition-all py-6 text-base font-medium">
                                 <Link href="/oversight/approvals">
                                     View Pending Approvals
+                                    <ArrowRight className="ml-2 h-5 w-5" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-emerald-50/30">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <ClipboardText className="h-5 w-5 text-emerald-700" weight="duotone" />
+                                CDP Session Logs
+                            </CardTitle>
+                            <CardDescription>
+                                Open the CDP queue to approve submitted session logs
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button asChild className="w-full bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all py-6 text-base font-medium">
+                                <Link href="/admin/cdp">
+                                    View CDP Queue
                                     <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>
                             </Button>
