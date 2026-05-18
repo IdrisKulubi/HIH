@@ -5,6 +5,15 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+const ADMIN_SHELL_ROLES = [
+    "admin",
+    "oversight",
+    "redo",
+    "mentor",
+    "bds_edo",
+    "investment_analyst",
+    "mel",
+];
 
 export function AdminRoleGuard() {
     const { data: session, status } = useSession();
@@ -16,7 +25,7 @@ export function AdminRoleGuard() {
             if (status === "loading") return;
 
             const role = session?.user?.role;
-            const allowed = role === "admin" || role === "oversight";
+            const allowed = ADMIN_SHELL_ROLES.includes(role || "");
             if (!allowed) {
                 console.warn("[AdminRoleGuard] Unauthorized admin shell access, redirecting...");
                 const isReviewer = ["reviewer_1", "reviewer_2", "technical_reviewer"].includes(role || "");

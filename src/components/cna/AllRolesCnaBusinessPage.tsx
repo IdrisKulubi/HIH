@@ -17,16 +17,25 @@ export async function AllRolesCnaBusinessPage({
   );
 
   const failed = results.find((result) => !result.success || !result.data);
-  const workspaces = results.flatMap((result) => (result.success && result.data ? [result.data] : []));
+  const allRoleWorkspaces = results.flatMap((result) => (result.success && result.data ? [result.data] : []));
+  const ownWorkspace = failed ? await getCnaRoleWorkspace(businessId) : null;
+  const workspaces =
+    failed && ownWorkspace?.success && ownWorkspace.data
+      ? [ownWorkspace.data]
+      : allRoleWorkspaces;
+  const loadError =
+    failed && (!ownWorkspace?.success || !ownWorkspace.data)
+      ? ownWorkspace?.error ?? failed.error
+      : null;
 
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
       <Link href={backHref} className="text-sm font-medium text-sky-700 hover:underline">
         {backLabel}
       </Link>
-      {failed || workspaces.length === 0 ? (
+      {loadError || workspaces.length === 0 ? (
         <p className="text-sm text-destructive">
-          {failed?.error ?? "Failed to load CNA workspace"}
+          {loadError ?? "Failed to load CNA workspace"}
         </p>
       ) : (
         <AllRolesCnaWorkspace workspaces={workspaces} />
