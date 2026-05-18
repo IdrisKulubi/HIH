@@ -40,7 +40,15 @@ const CNA_MANAGEMENT_ROLES = [
   "investment_analyst",
   "mel",
 ] as const;
-const CNA_FINALIZE_ROLES = ["admin", "oversight", "redo"] as const;
+const CNA_FINALIZE_ROLES = [
+  "admin",
+  "oversight",
+  "redo",
+  "mentor",
+  "bds_edo",
+  "investment_analyst",
+  "mel",
+] as const;
 
 function isAdminRole(role?: string | null) {
   return !!role && CNA_MANAGEMENT_ROLES.includes(role as (typeof CNA_MANAGEMENT_ROLES)[number]);
@@ -487,7 +495,7 @@ export async function finalizeRoleBasedCna(
   try {
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
-    if (!actor.canFinalize) return errorResponse("Only admin, oversight, or REDO can finalize CNA.");
+    if (!actor.canFinalize) return errorResponse("Only CNA staff can finalize CNA.");
 
     const assessment = await db.query.cnaAssessments.findFirst({
       where: eq(cnaAssessments.businessId, businessId),
