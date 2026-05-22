@@ -68,7 +68,7 @@ const CDP_STAFF_ROLES = [
   "investment_analyst",
   "mel",
 ] as const;
-const CDP_MANAGER_ROLES = ["admin", "oversight"] as const;
+const CDP_MANAGER_ROLES = ["admin", "oversight", "redo", "bds_edo"] as const;
 const CDP_APPROVER_ROLES = ["admin", "oversight", "redo"] as const;
 const CDP_WORKSTREAM_ROLES = ["mentor", "bds_edo", "investment_analyst", "mel"] as const;
 

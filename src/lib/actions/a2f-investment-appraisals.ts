@@ -54,7 +54,8 @@ export interface CreateAppraisalInput {
     content: Partial<AppraisalContent>;
 }
 
-const A2F_ROLES = ['admin', 'a2f_officer'] as const;
+const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
+const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: All appraisals for a pipeline entry
@@ -63,7 +64,7 @@ const A2F_ROLES = ['admin', 'a2f_officer'] as const;
 export async function getAppraisals(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -228,7 +229,7 @@ export async function recordIcApproval(
 ): Promise<ActionResponse<{ approvedBy: string[]; fullyApproved: boolean }>> {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return errorResponse("Unauthorized");
         }
 

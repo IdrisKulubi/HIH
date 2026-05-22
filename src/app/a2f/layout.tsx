@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     description: "Access to Finance & Investment Management Portal",
 };
 
-const A2F_ALLOWED_ROLES = ["admin", "a2f_officer", "oversight"];
+const A2F_ALLOWED_ROLES = ["admin", "a2f_officer", "oversight", "redo", "bds_edo"];
 
 export default async function A2fLayout({
     children,

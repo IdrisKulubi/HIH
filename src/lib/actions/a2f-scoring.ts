@@ -22,7 +22,8 @@ import {
 // Re-export types only for consumers that import from this file
 export type { RepayableGrantScores, MatchingGrantScores, ScoringPayload };
 
-const A2F_ROLES = ['admin', 'a2f_officer'] as const;
+const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
+const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CALCULATE: action_calculateA2FScore
@@ -122,7 +123,7 @@ export async function action_calculateA2FScore(
 export async function getA2fScores(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -146,7 +147,7 @@ export async function getA2fScores(a2fId: number) {
 export async function getA2fScoringBreakdown(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return { success: false, message: "Unauthorized" };
         }
 

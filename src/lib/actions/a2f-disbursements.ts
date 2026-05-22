@@ -56,7 +56,8 @@ export interface AmortizationSchedule {
     schedule: AmortizationInstalment[];
 }
 
-const A2F_ROLES = ['admin', 'a2f_officer'] as const;
+const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
+const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOG: action_logDisbursement
@@ -206,7 +207,7 @@ export async function verifyTransaction(
 export async function getDisbursementLedger(agreementId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -262,7 +263,7 @@ export async function getAmortizationSchedule(
 ): Promise<ActionResponse<AmortizationSchedule>> {
     try {
         const session = await auth();
-        if (!session?.user || !['admin', 'a2f_officer', 'oversight'].includes(session.user.role || '')) {
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
             return errorResponse("Unauthorized");
         }
 

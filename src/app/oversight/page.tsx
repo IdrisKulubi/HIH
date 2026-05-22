@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ArrowRight, ClipboardText, Lightning } from "@phosphor-icons/react/dist/ssr";
+import { ShieldCheck, ArrowRight, ClipboardText, Lightning, Bank } from "@phosphor-icons/react/dist/ssr";
 
 export default async function OversightDashboard() {
     const user = await getCurrentUser();
@@ -74,6 +74,26 @@ export default async function OversightDashboard() {
                             <Button asChild className="w-full bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all py-6 text-base font-medium">
                                 <Link href="/admin/cdp">
                                     View CDP Queue
+                                    <ArrowRight className="ml-2 h-5 w-5" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-cyan-200 shadow-sm hover:shadow-md transition-shadow bg-cyan-50/30">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Bank className="h-5 w-5 text-cyan-700" weight="duotone" />
+                                A2F Portal
+                            </CardTitle>
+                            <CardDescription>
+                                Access A2F pipeline, scoring, DD, contracts, and disbursements
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button asChild className="w-full bg-cyan-700 hover:bg-cyan-800 shadow-sm transition-all py-6 text-base font-medium">
+                                <Link href="/a2f">
+                                    Open A2F Portal
                                     <ArrowRight className="ml-2 h-5 w-5" />
                                 </Link>
                             </Button>

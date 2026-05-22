@@ -26,6 +26,7 @@ import {
   saveCdpFocusSummaries,
   setCdpDiagnosticLocked,
   submitCdpEndline,
+  updateCdpActivity,
   updateCdpPlan,
   updateCdpSessionActionItem,
   upsertCdpActivityProgress,
@@ -71,7 +72,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { FileText, Loader2, Trash2, UploadCloud } from "lucide-react";
+import { FileText, Loader2, Pencil, Trash2, UploadCloud } from "lucide-react";
 
 const SCORE_OPTIONS = [0, 5, 10] as const;
 
@@ -540,6 +541,12 @@ export function CdpWorkspace({
       </Tabs>
     </div>
   );
+}
+
+function dateInputValue(value: string | Date | null | undefined) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
 function CdpSummaryCards({
@@ -1350,6 +1357,7 @@ function CdpActivitiesPanel({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<number | null>(null);
   const priorityFocusCodes = plan.focusSummaries
     .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
     .map((row) => row.focusCode);
@@ -1387,6 +1395,27 @@ function CdpActivitiesPanel({
       if (!res.success) toast.error(res.error ?? "Failed");
       else {
         toast.success("Deleted");
+        router.refresh();
+      }
+    });
+  };
+
+  const submitEdit = (activityId: number, formData: FormData) => {
+    start(async () => {
+      const res = await updateCdpActivity({
+        activityId,
+        focusCode: formData.get("focusCode") as (typeof CDP_FOCUS_CODES)[number],
+        gapChallenge: String(formData.get("gapChallenge") ?? ""),
+        intervention: String(formData.get("intervention") ?? ""),
+        supportType: String(formData.get("supportType") ?? ""),
+        deliveryMethod: String(formData.get("deliveryMethod") ?? ""),
+        responsibleStaff: String(formData.get("responsibleStaff") ?? ""),
+        targetDate: String(formData.get("targetDate") ?? "") || null,
+      });
+      if (!res.success) toast.error(res.error ?? "Failed");
+      else {
+        toast.success("Activity updated");
+        setEditingActivityId(null);
         router.refresh();
       }
     });
@@ -1529,30 +1558,109 @@ function CdpActivitiesPanel({
           ) : (
             plan.activities.map((a) => (
               <TableRow key={a.id}>
+                {editingActivityId === a.id ? (
+                  <TableCell colSpan={5} className="bg-muted/30">
+                    <form
+                      className="grid gap-3 py-2 sm:grid-cols-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        submitEdit(a.id, new FormData(e.currentTarget));
+                      }}
+                    >
+                      <div className="space-y-1">
+                        <Label>Focus code</Label>
+                        <select
+                          name="focusCode"
+                          className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                          defaultValue={a.focusCode}
+                          required
+                        >
+                          {CDP_FOCUS_CODES.map((c) => (
+                            <option key={c} value={c}>
+                              {c} - {CDP_FOCUS_AREAS[c].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`targetDate-${a.id}`}>Target date</Label>
+                        <Input id={`targetDate-${a.id}`} name="targetDate" type="date" defaultValue={dateInputValue(a.targetDate)} />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label htmlFor={`gapChallenge-${a.id}`}>Gap / challenge</Label>
+                        <Textarea id={`gapChallenge-${a.id}`} name="gapChallenge" rows={2} defaultValue={a.gapChallenge ?? ""} />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label htmlFor={`intervention-${a.id}`}>Capacity dev. activity / intervention</Label>
+                        <Textarea id={`intervention-${a.id}`} name="intervention" rows={2} defaultValue={a.intervention ?? ""} required />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`supportType-${a.id}`}>Type of support</Label>
+                        <Input id={`supportType-${a.id}`} name="supportType" defaultValue={a.supportType ?? ""} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`deliveryMethod-${a.id}`}>Delivery method</Label>
+                        <Input id={`deliveryMethod-${a.id}`} name="deliveryMethod" defaultValue={a.deliveryMethod ?? ""} />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label htmlFor={`responsibleStaff-${a.id}`}>Responsible staff</Label>
+                        <Input id={`responsibleStaff-${a.id}`} name="responsibleStaff" defaultValue={a.responsibleStaff ?? ""} />
+                      </div>
+                      <div className="flex flex-wrap gap-2 sm:col-span-2">
+                        <Button type="submit" size="sm" disabled={pending}>
+                          {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Save changes
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingActivityId(null)}
+                          disabled={pending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  </TableCell>
+                ) : (
+                  <>
                 <TableCell className="font-mono">{a.focusCode}</TableCell>
                 <TableCell className="text-sm max-w-md">{a.intervention}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{a.supportType ?? "—"}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap">{a.targetDate ?? "—"}</TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => remove(a.id)}
-                    disabled={disabled || pending}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingActivityId(a.id)}
+                      disabled={disabled || pending}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => remove(a.id)}
+                      disabled={disabled || pending}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </TableCell>
+                  </>
+                )}
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
-      <p className="text-xs text-muted-foreground">
-        Business #{businessId} — edit inline in a future iteration; for now delete and re-add to change details.
-      </p>
+      <p className="text-xs text-muted-foreground">Business #{businessId} - use Edit to update logged activities.</p>
     </div>
   );
 }

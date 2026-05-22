@@ -14,9 +14,14 @@ export default async function BdsCnaPage() {
             Select a business and complete only the BA / EDO diagnostic questions.
           </p>
         </div>
-        <Link href="/admin/cdp" className="rounded-md border px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
-          Open CDP work queue
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/cdp" className="rounded-md border px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
+            Open CDP work queue
+          </Link>
+          <Link href="/a2f" className="rounded-md border px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50">
+            Open A2F portal
+          </Link>
+        </div>
       </div>
       {!res.success || !res.data ? (
         <p className="text-sm text-destructive">{res.error ?? "Failed to load businesses"}</p>
