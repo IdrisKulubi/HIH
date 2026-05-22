@@ -1358,10 +1358,7 @@ function CdpActivitiesPanel({
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
   const [editingActivityId, setEditingActivityId] = useState<number | null>(null);
-  const priorityFocusCodes = plan.focusSummaries
-    .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
-    .map((row) => row.focusCode);
-  const activityFocusOptions = priorityFocusCodes.length > 0 ? priorityFocusCodes : CDP_FOCUS_CODES;
+  const activityFocusOptions = CDP_FOCUS_CODES;
   const focusGroups = activityFocusOptions.map((code) => ({
     code,
     sessions: plan.supportSessions.filter((session) => session.focusCode === code),
