@@ -181,10 +181,12 @@ export async function getA2fPipelineEntry(a2fId: number) {
                         business: {
                             with: { applicant: true },
                         },
+                        kycProfile: true,
                     },
                 },
                 a2fOfficer: { with: { userProfile: true } },
                 dueDiligenceReports: { orderBy: [desc(a2fDueDiligenceReports.createdAt)] },
+                matchingGrantApplications: true,
                 scoringRecords: { orderBy: [desc(a2fScoring.createdAt)] },
                 grantAgreements: {
                     with: { transactions: { orderBy: [desc(disbursementsAndRepayments.transactionDate)] } },
@@ -208,7 +210,6 @@ export async function getA2fPipelineEntry(a2fId: number) {
 
 interface CreateA2fEntryInput {
     applicationId: number;
-    instrumentType: A2fInstrumentType;
     requestedAmount: number;
     notes?: string;
 }
@@ -239,7 +240,7 @@ export async function createA2fPipelineEntry(
             .insert(a2fPipeline)
             .values({
                 applicationId: input.applicationId,
-                instrumentType: input.instrumentType,
+                instrumentType: 'matching_grant',
                 requestedAmount: String(input.requestedAmount),
                 status: 'a2f_pipeline',
                 a2fOfficerId: session.user.id,

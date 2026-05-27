@@ -56,13 +56,6 @@ export interface ContractTemplateVariables {
 const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
 const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
 
-// Default repayable grant terms (from spec)
-const REPAYABLE_DEFAULTS = {
-    termMonths: 24,
-    interestRate: 6.0,
-    gracePeriodMonths: 3,
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Grant agreement for a pipeline entry
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,16 +133,11 @@ export async function action_generateContract(
         });
         if (!application) return errorResponse("Application not found");
 
-        // Apply defaults for Repayable grants
-        const termMonths = input.termMonths ?? (input.agreementType === 'repayable' ? REPAYABLE_DEFAULTS.termMonths : 0);
-        const interestRate = input.interestRate ?? (input.agreementType === 'repayable' ? REPAYABLE_DEFAULTS.interestRate : 0);
-        const gracePeriodMonths = input.gracePeriodMonths ?? (input.agreementType === 'repayable' ? REPAYABLE_DEFAULTS.gracePeriodMonths : 0);
-
-        // Calculate repayment start date (today + grace period)
+        const termMonths = 0;
+        const interestRate = 0;
+        const gracePeriodMonths = 0;
         const repaymentStart = new Date();
-        repaymentStart.setMonth(repaymentStart.getMonth() + gracePeriodMonths + 1);
-        const firstRepaymentDue = new Date(repaymentStart);
-        firstRepaymentDue.setDate(15); // Repayments due on the 15th per spec
+        const firstRepaymentDue = new Date();
 
         const biz = application.business;
         const templateVars: ContractTemplateVariables = {
@@ -159,9 +147,7 @@ export async function action_generateContract(
             county: biz.county ?? biz.city,
             agreementType: input.agreementType === 'matching'
                 ? 'Matching Grant Agreement'
-                : input.agreementType === 'repayable'
-                    ? 'Repayable Grant Agreement'
-                    : 'Working Capital Agreement',
+                : 'Working Capital Agreement',
             totalProjectAmount: formatCurrency(input.totalProjectAmount),
             hihContribution: formatCurrency(input.hihContribution),
             enterpriseContribution: formatCurrency(input.enterpriseContribution ?? 0),
@@ -249,7 +235,7 @@ export async function sendOfferLetter(
         // Send Resend email with offer letter link
         await sendEmail({
             to: biz.applicant.email,
-            subject: `Your ${agreement.agreementType === 'repayable' ? 'Repayable' : 'Matching'} Grant Offer Letter — BIRE Programme`,
+            subject: `Your Matching Grant Offer Letter — BIRE Programme`,
             react: React.createElement(OfferLetterEmailTemplate, {
                 applicantName,
                 enterpriseName: biz.name,
@@ -392,7 +378,7 @@ function OfferLetterEmailTemplate({
             'p',
             null,
             `We are pleased to inform you that Hand-in-Hand (HiH) has issued a `,
-            React.createElement('strong', null, `${agreementType === 'repayable' ? 'Repayable' : agreementType === 'matching' ? 'Matching' : 'Working Capital'} Grant Offer`),
+            React.createElement('strong', null, `${agreementType === 'matching' ? 'Matching' : 'Working Capital'} Grant Offer`),
             ` for your enterprise, `,
             React.createElement('strong', null, enterpriseName),
             `.`

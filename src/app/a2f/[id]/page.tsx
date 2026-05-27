@@ -4,13 +4,13 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getA2fPipelineEntry, advancePipelineStatus, type A2fPipelineStatus } from "@/lib/actions/a2f-pipeline";
+import { getA2fPipelineEntry, type A2fPipelineStatus } from "@/lib/actions/a2f-pipeline";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_LABELS } from "@/lib/a2f-constants";
 import { getA2fScoringBreakdown } from "@/lib/actions/a2f-scoring";
 import { getGrantAgreement } from "@/lib/actions/a2f-contracts";
 import { getDisbursementLedger } from "@/lib/actions/a2f-disbursements";
 import {
-    Card, CardContent, CardHeader, CardTitle, CardDescription,
+    Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,11 +18,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
-    ArrowLeft, Buildings, MapPin, User, Coins, FileText,
-    ChartLine, ClipboardText, CheckCircle, Circle, ArrowRight,
-    CurrencyDollar, Handshake, CalendarCheck, Warning,
-    ArrowsClockwise, PencilSimple, Eye,
+    Buildings, Coins, FileText,
+    ChartLine, ClipboardText, CheckCircle, ArrowRight,
+    CurrencyDollar, Handshake, CalendarCheck,
+    Package, PenNib, ListChecks,
 } from "@phosphor-icons/react";
+import { MatchingGrantOfficialUsePanel } from "@/components/a2f/matching-grant-official-use-panel";
+import {
+    buildWorkflowChecklist,
+    getWorkflowNextAction,
+    type WorkflowItemStatus,
+} from "@/lib/a2f-workflow";
+import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE CONFIG
@@ -30,16 +37,29 @@ import {
 
 // PIPELINE_STAGE_LABELS imported from @/lib/a2f-constants
 
-const STAGE_ACTIONS: Record<string, { label: string; href?: string; nextStage?: A2fPipelineStatus; icon: React.ElementType }> = {
-    a2f_pipeline:          { label: "Begin Initial DD",        href:      "due-diligence",  icon: ClipboardText },
-    due_diligence_initial: { label: "Go to DD Workspace",      href:      "due-diligence",  icon: ClipboardText },
-    pre_ic_scoring:        { label: "Go to Scoring",           href:      "scoring",         icon: ChartLine },
-    ic_appraisal_review:   { label: "Go to Appraisal",         href:      "appraisal",       icon: FileText },
-    offer_issued:          { label: "Generate Contract",        href:      "contracts",       icon: Handshake },
-    contracting:           { label: "View Contract",            href:      "contracts",       icon: Handshake },
-    disbursement_active:   { label: "Log Disbursement",         href:      "disbursements",   icon: CurrencyDollar },
-    post_ta_monitoring:    { label: "Post-TA Report",           href:      "due-diligence?stage=post_ta", icon: CalendarCheck },
+const STAGE_ACTIONS: Record<string, { label: string; href?: string; icon: React.ElementType }> = {
+    a2f_pipeline:          { label: "Complete MG application", href: "matching-grant", icon: PenNib },
+    due_diligence_initial: { label: "Go to DD Workspace",      href: "due-diligence",  icon: ClipboardText },
+    pre_ic_scoring:        { label: "Go to Scoring",           href: "scoring",        icon: ChartLine },
+    ic_appraisal_review:   { label: "Go to GAIR / IC",         href: "appraisal",      icon: FileText },
+    offer_issued:          { label: "Generate Contract",       href: "contracts",      icon: Handshake },
+    contracting:           { label: "View Contract",           href: "contracts",      icon: Handshake },
+    disbursement_active:   { label: "Grant management",        href: "grant-management", icon: Package },
+    post_ta_monitoring:    { label: "Post-TA Report",          href: "due-diligence?stage=post_ta", icon: CalendarCheck },
 };
+
+const CHECKLIST_STATUS: Record<WorkflowItemStatus, string> = {
+    complete: "bg-emerald-100 text-emerald-700",
+    in_progress: "bg-blue-100 text-blue-700",
+    pending: "bg-muted text-muted-foreground",
+    blocked: "bg-red-100 text-red-700",
+};
+
+function scoringBadgeClass(scoring: { qualificationStatus?: string }) {
+    if (scoring.qualificationStatus === "Qualified") return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    if (scoring.qualificationStatus === "Ineligible - Revenue") return "bg-red-100 text-red-700 border-red-200";
+    return "bg-amber-100 text-amber-700 border-amber-200";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE
@@ -59,7 +79,6 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [ledger, setLedger] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [advancing, setAdvancing] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -87,19 +106,8 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
         setLoading(false);
     };
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
     useEffect(() => { loadData(); }, [a2fId]);
-
-    const handleAdvance = async (nextStage: A2fPipelineStatus) => {
-        setAdvancing(true);
-        const res = await advancePipelineStatus(a2fId, nextStage);
-        setAdvancing(false);
-        if (res.success) {
-            toast.success(res.message ?? "Stage advanced");
-            loadData();
-        } else {
-            toast.error(res.error ?? "Failed to advance stage");
-        }
-    };
 
     if (loading) {
         return (
@@ -122,28 +130,59 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     const stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
     const biz = entry.application?.business;
     const applicant = biz?.applicant;
+    const mgRecord = entry.matchingGrantApplications?.[0] ?? null;
+    const gairAppraisal = entry.investmentAppraisals?.find(
+        (item: { documentType?: string }) => item.documentType === "gair"
+    ) ?? null;
+
+    const workflowEntry = { ...entry, grantAgreement: agreement };
+    const nextAction = getWorkflowNextAction(a2fId, workflowEntry);
+    const checklist = buildWorkflowChecklist(a2fId, workflowEntry);
 
     return (
-        <div className="container mx-auto px-4 py-8 space-y-6 max-w-6xl">
-            {/* ── Back + header ── */}
-            <div className="flex items-center gap-3">
-                <Button variant="ghost" size="sm" asChild className="gap-1.5">
-                    <Link href="/a2f">
-                        <ArrowLeft className="size-4" /> Pipeline
-                    </Link>
-                </Button>
-                <Separator orientation="vertical" className="h-5" />
-                <h1 className="text-xl font-bold truncate">{biz?.name}</h1>
-                <Badge
-                    className={
-                        entry.instrumentType === "matching_grant"
-                            ? "bg-blue-100 text-blue-700 border border-blue-200"
-                            : "bg-purple-100 text-purple-700 border border-purple-200"
-                    }
-                >
-                    {entry.instrumentType === "matching_grant" ? "Matching Grant" : "Repayable Grant"}
-                </Badge>
-            </div>
+        <div className="space-y-6">
+            <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white">
+                <CardContent className="pt-5 pb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Next step</p>
+                        <p className="text-lg font-bold text-emerald-950 mt-0.5">{nextAction.label}</p>
+                        <p className="text-sm text-emerald-800/90 mt-1 max-w-xl">{nextAction.description}</p>
+                    </div>
+                    <Button asChild className="bg-emerald-700 hover:bg-emerald-800 shrink-0">
+                        <Link href={nextAction.href}>
+                            Continue
+                            <ArrowRight className="size-4 ml-1.5" />
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <ListChecks weight="duotone" className="size-5 text-emerald-600" />
+                        Workflow checklist
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    {checklist.map(item => (
+                        <Link
+                            key={item.id}
+                            href={item.href}
+                            className="flex items-center gap-3 rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                        >
+                            <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded", CHECKLIST_STATUS[item.status])}>
+                                {item.status.replace("_", " ")}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{item.label}</p>
+                                <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                            </div>
+                            <ArrowRight className="size-4 text-muted-foreground shrink-0" />
+                        </Link>
+                    ))}
+                </CardContent>
+            </Card>
 
             {/* ── Main grid ── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -195,16 +234,17 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                 </Card>
             </div>
 
-            {/* ── Pipeline progress ── */}
             <Card>
                 <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Pipeline Progress</CardTitle>
-                        <span className="text-sm text-muted-foreground font-medium">{progressPct}% complete</span>
-                    </div>
-                    <Progress value={progressPct} className="h-2 mt-2" />
+                    <details className="group">
+                        <summary className="flex cursor-pointer list-none items-center justify-between">
+                            <CardTitle className="text-base">Pipeline stage</CardTitle>
+                            <span className="text-sm text-muted-foreground font-medium">{progressPct}% · {PIPELINE_STAGE_LABELS[entry.status as A2fPipelineStatus]}</span>
+                        </summary>
+                        <Progress value={progressPct} className="h-2 mt-3" />
+                    </details>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                     <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
                         {PIPELINE_STAGE_ORDER.map((stage, idx) => {
                             const isDone = idx < currentStageIdx;
@@ -273,11 +313,7 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                                 <ChartLine weight="duotone" className="size-5 text-violet-600" />
                                 Pre-IC Scoring Summary
                             </CardTitle>
-                            <Badge className={
-                                scoring.percentage >= 70 ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                                scoring.percentage >= 50 ? "bg-amber-100 text-amber-700 border-amber-200" :
-                                "bg-red-100 text-red-700 border-red-200"
-                            }>
+                            <Badge className={scoringBadgeClass(scoring)}>
                                 {scoring.totalScore}/{scoring.maxTotal} pts ({scoring.percentage}%)
                             </Badge>
                         </div>
@@ -299,9 +335,25 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                                 </div>
                             ))}
                         </div>
+                        {scoring.qualificationStatus && (
+                            <p className="mt-3 text-xs font-medium text-muted-foreground">
+                                Qualification Status: {scoring.qualificationStatus}
+                                {scoring.qualifyingScore ? ` (threshold ${scoring.qualifyingScore}/${scoring.maxTotal})` : ""}
+                            </p>
+                        )}
                     </CardContent>
                 </Card>
             )}
+
+            <MatchingGrantOfficialUsePanel
+                    a2fId={a2fId}
+                    applicationId={entry.applicationId}
+                    mgApp={mgRecord}
+                    scoring={scoring}
+                    ddReports={entry.dueDiligenceReports}
+                    gairAppraisal={gairAppraisal}
+                    onSaved={loadData}
+            />
 
             {/* ── Financial summary (if disbursing) ── */}
             {agreement && ledger && (
@@ -338,9 +390,11 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
             {/* ── Quick links ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
+                    { label: "MG Application", icon: ClipboardText, href: `matching-grant`, count: entry.matchingGrantApplications?.length },
                     { label: "DD Reports", icon: ClipboardText, href: `due-diligence`, count: entry.dueDiligenceReports?.length },
                     { label: "Scoring", icon: ChartLine, href: `scoring`, count: entry.scoringRecords?.length },
                     { label: "Appraisals", icon: FileText, href: `appraisal`, count: entry.investmentAppraisals?.length },
+                    { label: "Grant Mgmt", icon: Package, href: `grant-management`, count: undefined },
                     { label: "Disbursements", icon: CurrencyDollar, href: `disbursements`, count: ledger?.transactions?.length },
                 ].map(({ label, icon: Icon, href, count }) => (
                     <Button key={label} variant="outline" className="h-auto py-3 flex-col gap-1" asChild>

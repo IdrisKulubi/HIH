@@ -9,6 +9,7 @@ import {
     type A2fPipelineListItem,
 } from "@/lib/actions/a2f-pipeline";
 import { createA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
+import { getPipelineListHint } from "@/lib/a2f-workflow";
 import { getQualifiedApplications } from "@/lib/actions/due-diligence";
 import { toast } from "sonner";
 import {
@@ -55,11 +56,6 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }>
     post_ta_monitoring:  { label: "Post-TA Monitor",    color: "text-green-700",   bg: "bg-green-100" },
 };
 
-const INSTRUMENT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-    matching_grant:  { label: "Matching",  color: "text-blue-700",  bg: "bg-blue-50 border border-blue-200" },
-    repayable_grant: { label: "Repayable", color: "text-purple-700", bg: "bg-purple-50 border border-purple-200" },
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE (wrapped with Suspense for useSearchParams)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,8 +68,6 @@ function A2fDashboardContent() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
-    const [instrumentFilter, setInstrumentFilter] = useState("all");
-
     // Create entry dialog
     const [showCreate, setShowCreate] = useState(false);
     const [qualifiedApps, setQualifiedApps] = useState<Array<{ applicationId: number; businessName: string }>>([]);
@@ -81,10 +75,7 @@ function A2fDashboardContent() {
 
     // Multi-select state: map of applicationId → { instrumentType, requestedAmount }
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [perAppConfig, setPerAppConfig] = useState<Record<number, {
-        instrumentType: "matching_grant" | "repayable_grant";
-        requestedAmount: string;
-    }>>({});
+    const [perAppConfig, setPerAppConfig] = useState<Record<number, { requestedAmount: string }>>({});
     const [appPickerOpen, setAppPickerOpen] = useState(false);
     const [appSearch, setAppSearch] = useState("");
 
@@ -104,10 +95,9 @@ function A2fDashboardContent() {
         const active = pipeline.filter(p =>
             !["post_ta_monitoring", "a2f_pipeline"].includes(p.status)
         ).length;
-        const matching = pipeline.filter(p => p.instrumentType === "matching_grant").length;
-        const repayable = pipeline.filter(p => p.instrumentType === "repayable_grant").length;
+        const inIcReview = pipeline.filter(p => p.status === "ic_appraisal_review").length;
         const totalDisbursed = pipeline.reduce((s, p) => s + p.totalDisbursed, 0);
-        return { total, active, matching, repayable, totalDisbursed };
+        return { total, active, inIcReview, totalDisbursed };
     }, [pipeline]);
 
     // Filtered data
@@ -120,10 +110,9 @@ function A2fDashboardContent() {
                 || p.applicantEmail.toLowerCase().includes(term)
                 || String(p.applicationId).includes(term);
             const matchStatus = statusFilter === "all" || p.status === statusFilter;
-            const matchInstrument = instrumentFilter === "all" || p.instrumentType === instrumentFilter;
-            return matchSearch && matchStatus && matchInstrument;
+            return matchSearch && matchStatus;
         });
-    }, [pipeline, search, statusFilter, instrumentFilter]);
+    }, [pipeline, search, statusFilter]);
 
     const handleOpenCreate = async () => {
         const res = await getQualifiedApplications();
@@ -155,7 +144,7 @@ function A2fDashboardContent() {
                 next.add(appId);
                 setPerAppConfig(cfg => ({
                     ...cfg,
-                    [appId]: { instrumentType: "matching_grant", requestedAmount: "" },
+                    [appId]: { requestedAmount: "" },
                 }));
             }
             return next;
@@ -180,7 +169,6 @@ function A2fDashboardContent() {
             const cfg = perAppConfig[appId];
             const res = await createA2fPipelineEntry({
                 applicationId: appId,
-                instrumentType: cfg.instrumentType,
                 requestedAmount: Number(cfg.requestedAmount),
             });
             if (res.success) {
@@ -224,10 +212,10 @@ function A2fDashboardContent() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
                         <Kanban weight="duotone" className="size-7 text-emerald-600" />
-                        A2F Investment Pipeline
+                        Matching Grant Pipeline
                     </h1>
                     <p className="text-muted-foreground text-sm mt-0.5">
-                        Manage enterprises through the Access to Finance investment lifecycle
+                        Manage enterprises through the Matching Grant investment lifecycle
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -243,7 +231,7 @@ function A2fDashboardContent() {
             </div>
 
             {/* ── Stats ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card className="border-l-4 border-l-emerald-500">
                     <CardContent className="pt-4 pb-4">
                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Entries</p>
@@ -251,18 +239,11 @@ function A2fDashboardContent() {
                         <p className="text-xs text-muted-foreground mt-1">{stats.active} actively progressing</p>
                     </CardContent>
                 </Card>
-                <Card className="border-l-4 border-l-blue-500">
+                <Card className="border-l-4 border-l-violet-500">
                     <CardContent className="pt-4 pb-4">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Matching Grants</p>
-                        <p className="text-3xl font-bold mt-1 text-blue-700">{stats.matching}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Co-investment model</p>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-purple-500">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Repayable Grants</p>
-                        <p className="text-3xl font-bold mt-1 text-purple-700">{stats.repayable}</p>
-                        <p className="text-xs text-muted-foreground mt-1">24-month term, 6% p.a.</p>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">In IC Review</p>
+                        <p className="text-3xl font-bold mt-1 text-violet-700">{stats.inIcReview}</p>
+                        <p className="text-xs text-muted-foreground mt-1">GAIR / committee stage</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-amber-500">
@@ -308,21 +289,11 @@ function A2fDashboardContent() {
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Select value={instrumentFilter} onValueChange={setInstrumentFilter}>
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="All instruments" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Instruments</SelectItem>
-                                <SelectItem value="matching_grant">Matching Grant</SelectItem>
-                                <SelectItem value="repayable_grant">Repayable Grant</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {(search || statusFilter !== "all" || instrumentFilter !== "all") && (
+                        {(search || statusFilter !== "all") && (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => { setSearch(""); setStatusFilter("all"); setInstrumentFilter("all"); }}
+                                onClick={() => { setSearch(""); setStatusFilter("all"); }}
                             >
                                 <X className="size-3.5 mr-1" />
                                 Clear filters
@@ -361,9 +332,9 @@ function A2fDashboardContent() {
                                 <TableRow className="bg-muted/30">
                                     <TableHead className="pl-6">Enterprise</TableHead>
                                     <TableHead>Applicant</TableHead>
-                                    <TableHead>Instrument</TableHead>
                                     <TableHead>Stage</TableHead>
                                     <TableHead>Officer</TableHead>
+                                    <TableHead>Next</TableHead>
                                     <TableHead className="text-right">Amount (KES)</TableHead>
                                     <TableHead className="text-right pr-6">Actions</TableHead>
                                 </TableRow>
@@ -371,7 +342,6 @@ function A2fDashboardContent() {
                             <TableBody>
                                 {filtered.map(entry => {
                                     const stage = STAGE_CONFIG[entry.status] ?? { label: entry.status, color: "text-gray-600", bg: "bg-gray-100" };
-                                    const instrument = INSTRUMENT_CONFIG[entry.instrumentType] ?? { label: entry.instrumentType, color: "text-gray-600", bg: "bg-gray-50" };
                                     return (
                                         <TableRow key={entry.id} className="hover:bg-muted/30">
                                             <TableCell className="pl-6">
@@ -396,11 +366,6 @@ function A2fDashboardContent() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${instrument.color} ${instrument.bg}`}>
-                                                    {instrument.label}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>
                                                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${stage.color} ${stage.bg}`}>
                                                     {stage.label}
                                                 </span>
@@ -409,6 +374,9 @@ function A2fDashboardContent() {
                                                 <span className="text-sm text-muted-foreground">
                                                     {entry.officerName ?? <span className="italic opacity-60">Unassigned</span>}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-xs text-muted-foreground">{getPipelineListHint(entry)}</span>
                                             </TableCell>
                                             <TableCell className="text-right text-sm font-medium">
                                                 {Number(entry.requestedAmount).toLocaleString("en-KE")}
@@ -435,10 +403,10 @@ function A2fDashboardContent() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Plus className="size-4" />
-                            Add to A2F Pipeline
+                            Add to Matching Grant Pipeline
                         </DialogTitle>
                         <DialogDescription>
-                            Search and select one or more DD-qualified enterprises, then configure each grant instrument.
+                            Search and select DD-qualified enterprises, then enter the requested grant amount for each.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -559,7 +527,7 @@ function A2fDashboardContent() {
                                     <div className="space-y-3 pr-1">
                                         {Array.from(selectedIds).map(id => {
                                             const app = qualifiedApps.find(a => a.applicationId === id);
-                                            const cfg = perAppConfig[id] ?? { instrumentType: "matching_grant", requestedAmount: "" };
+                                            const cfg = perAppConfig[id] ?? { requestedAmount: "" };
                                             return (
                                                 <div key={id} className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
                                                     <div className="flex items-center gap-2">
@@ -569,41 +537,21 @@ function A2fDashboardContent() {
                                                         <p className="text-sm font-semibold truncate flex-1">{app?.businessName}</p>
                                                         <span className="text-xs text-muted-foreground shrink-0">#{id}</span>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <div className="space-y-1">
-                                                            <Label className="text-xs">Instrument</Label>
-                                                            <Select
-                                                                value={cfg.instrumentType}
-                                                                onValueChange={v => setPerAppConfig(c => ({
-                                                                    ...c,
-                                                                    [id]: { ...c[id], instrumentType: v as "matching_grant" | "repayable_grant" },
-                                                                }))}
-                                                            >
-                                                                <SelectTrigger className="h-8 text-xs">
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="matching_grant">Matching Grant</SelectItem>
-                                                                    <SelectItem value="repayable_grant">Repayable (24m @ 6%)</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <Label className="text-xs">Amount (KES)</Label>
-                                                            <div className="relative">
-                                                                <CurrencyDollar className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
-                                                                <Input
-                                                                    type="number"
-                                                                    placeholder="0.00"
-                                                                    className="h-8 pl-6 text-xs"
-                                                                    value={cfg.requestedAmount}
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Requested grant amount (KES)</Label>
+                                                        <div className="relative">
+                                                            <CurrencyDollar className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+                                                            <Input
+                                                                type="number"
+                                                                placeholder="0.00"
+                                                                className="h-8 pl-6 text-xs"
+                                                                value={cfg.requestedAmount}
                                                                     onChange={e => setPerAppConfig(c => ({
                                                                         ...c,
                                                                         [id]: { ...c[id], requestedAmount: e.target.value },
                                                                     }))}
                                                                 />
                                                             </div>
-                                                        </div>
                                                     </div>
                                                 </div>
                                             );

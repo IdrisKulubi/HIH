@@ -6,47 +6,55 @@ import {
     investmentAppraisals,
     a2fPipeline,
     a2fDueDiligenceReports,
+    a2fMatchingGrantApplications,
+    a2fScoring,
     applications,
-    businesses,
-    applicants,
 } from "../../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { advancePipelineStatus } from "./a2f-pipeline";
 import { ActionResponse, successResponse, errorResponse } from "./types";
+import {
+    MATCHING_GRANT_MAX_TOTAL,
+    MATCHING_GRANT_QUALIFYING_SCORE,
+    getMatchingGrantQualification,
+    normalizeMatchingGrantScores,
+    type MatchingGrantScores,
+} from "@/lib/a2f-constants";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
+export type A2fDocumentType = "gair" | "investment_memo";
+export type IcDecision = "approved" | "approved_with_conditions" | "deferred" | "declined";
 
-export type A2fDocumentType = 'gair' | 'investment_memo';
-
-/**
- * JSONB content structure for GAIR / Investment Memo.
- * Auto-populated from DD reports; edited in rich-text workspace.
- */
 export interface AppraisalContent {
-    // Auto-populated from DD
     businessBackground: string;
     marketContext: string;
-    // Key narrative sections
     briefComments: string;
     assessmentOfTeam: string;
     keyRisksAndIssues: string;
     mitigations: string;
-    // Financial analysis
     sourceOfFunds: string;
     usesOfFunds: string;
-    // SWOT
     strengths: string;
     weaknesses: string;
     opportunities: string;
     threats: string;
-    // IC recommendation
     recommendedAmount: string;
     recommendedInstrument: string;
     icRecommendation: string;
     conditions: string;
+    businessOverview?: string;
+    caseForFinancing?: string;
+    amountRequestedAndBudget?: string;
+    useOfFunds?: string;
+    otherFundingLeverage?: string;
+    financialOverviewAndProjections?: string;
+    projectTeam?: string;
+    socioEconomicImpact?: string;
+    innovationAspects?: string;
+    mitigationConsiderations?: string;
+    conclusionAndRecommendation?: string;
+    scoringSummary?: string;
+    dataSources?: string;
 }
 
 export interface CreateAppraisalInput {
@@ -54,12 +62,15 @@ export interface CreateAppraisalInput {
     content: Partial<AppraisalContent>;
 }
 
-const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
-const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+export interface RecordIcDecisionInput {
+    decision: IcDecision;
+    approvedGrantAmount?: number;
+    decisionNotes?: string;
+    decisionConditions?: string;
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET: All appraisals for a pipeline entry
-// ─────────────────────────────────────────────────────────────────────────────
+const A2F_ROLES = ["admin", "a2f_officer", "redo", "bds_edo"] as const;
+const A2F_READ_ROLES = ["admin", "a2f_officer", "oversight", "redo", "bds_edo"] as const;
 
 export async function getAppraisals(a2fId: number) {
     try {
@@ -80,11 +91,6 @@ export async function getAppraisals(a2fId: number) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET: Auto-populate appraisal from DD + application data
-// Returns pre-filled content object ready for the rich-text workspace.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export async function getAutoPopulatedAppraisalContent(
     a2fId: number,
     documentType: A2fDocumentType
@@ -95,7 +101,6 @@ export async function getAutoPopulatedAppraisalContent(
             return errorResponse("Unauthorized");
         }
 
-        // Fetch pipeline + application tree
         const pipeline = await db.query.a2fPipeline.findFirst({
             where: eq(a2fPipeline.id, a2fId),
         });
@@ -107,58 +112,175 @@ export async function getAutoPopulatedAppraisalContent(
                 business: { with: { applicant: true } },
             },
         });
-        if (!application) return errorResponse("Application not found");
+        if (!application?.business) return errorResponse("Application not found");
 
-        // Fetch latest Initial DD report for auto-population
-        const ddReport = await db.query.a2fDueDiligenceReports.findFirst({
-            where: and(
-                eq(a2fDueDiligenceReports.a2fId, a2fId),
-                eq(a2fDueDiligenceReports.stage, 'initial'),
-                eq(a2fDueDiligenceReports.isComplete, true)
-            ),
-        });
+        const [ddReport, matchingGrantApplication, latestScore] = await Promise.all([
+            db.query.a2fDueDiligenceReports.findFirst({
+                where: and(
+                    eq(a2fDueDiligenceReports.a2fId, a2fId),
+                    eq(a2fDueDiligenceReports.stage, "initial"),
+                    eq(a2fDueDiligenceReports.isComplete, true)
+                ),
+            }),
+            db.query.a2fMatchingGrantApplications.findFirst({
+                where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+            }),
+            db.query.a2fScoring.findFirst({
+                where: eq(a2fScoring.a2fId, a2fId),
+                orderBy: [desc(a2fScoring.createdAt)],
+            }),
+        ]);
 
         const biz = application.business;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ddOverview = ddReport?.companyOverview as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ddFinancial = ddReport?.financialDd as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ddImpact = ddReport?.impactEsg as any;
+        const ddOverview = asRecord(ddReport?.companyOverview);
+        const ddFinancial = asRecord(ddReport?.financialDd);
+        const ddImpact = asRecord(ddReport?.impactEsg);
+        const mg = matchingGrantApplication;
+        const enterpriseIdentification = asRecord(mg?.enterpriseIdentification);
+        const leadEntrepreneur = asRecord(mg?.leadEntrepreneur);
+        const programmeEngagement = asRecord(mg?.programmeEngagement);
+        const businessOverview = asRecord(mg?.businessOverview);
+        const financialOverview = asRecord(mg?.financialOverview);
+        const otherFunding = asRecord(mg?.otherFunding);
+        const financialProjections = asRecord(mg?.financialProjections);
+        const impact = asRecord(mg?.impact);
+        const governanceCompliance = asRecord(mg?.governanceCompliance);
+        const declaration = asRecord(mg?.declaration);
+        const budgetItems = asRecordArray(mg?.budgetItems);
+        const implementationMilestones = asRecordArray(mg?.implementationMilestones);
+        const jobCreationPlan = asRecordArray(mg?.jobCreationPlan);
+        const supportingDocuments = asRecordArray(mg?.supportingDocuments);
+        const scoreSummary = buildMatchingGrantScoreSummary(latestScore);
+        const requestedAmount = mg?.bireGrantAmount ?? pipeline.requestedAmount;
+        const totalProjectAmount = mg?.totalProjectAmount ?? pipeline.requestedAmount;
+        const enterpriseContribution = mg?.enterpriseContributionAmount ?? "0";
+        const applicantName = `${biz.applicant?.firstName ?? ""} ${biz.applicant?.lastName ?? ""}`.trim();
+
+        const populatedBusinessOverview = multiline(
+            line("Enterprise", enterpriseIdentification.name ?? biz.name),
+            line("Lead entrepreneur", leadEntrepreneur.name ?? applicantName),
+            line("Track", mg?.track ?? application.track),
+            line("Sector", enterpriseIdentification.sector ?? biz.sector),
+            line("Location", enterpriseIdentification.location ?? biz.county ?? biz.city),
+            line("Ownership", enterpriseIdentification.ownershipStructure),
+            line("Current employees", businessOverview.currentEmployees ?? biz.fullTimeEmployeesTotal),
+            line("Business description", businessOverview.description ?? biz.description),
+            line("Products/services", businessOverview.productsServices),
+            line("Target customers", businessOverview.targetCustomers),
+            line("Programme support received", programmeEngagement.supportReceived),
+            list("Indicators to be tracked", implementationMilestones.map((item) => item.indicator ?? item.output))
+        );
+
+        const populatedCaseForFinancing = multiline(
+            line("Project title", mg?.projectTitle),
+            line("Funding need", mg?.fundingNeed),
+            line("Consequence if grant is not awarded", mg?.withoutGrantImpact),
+            line("Business case", businessOverview.growthOpportunity ?? businessOverview.businessCase),
+            line("CAPEX-only confirmation", mg?.capexOnlyConfirmed ? "Confirmed" : "Not yet confirmed"),
+            line("Co-investment source", mg?.coInvestmentSource),
+            line("Co-investment justification", mg?.coInvestmentJustification)
+        );
+
+        const useOfFunds = buildBudgetSummary(budgetItems, totalProjectAmount, requestedAmount, enterpriseContribution);
+        const scoringConclusion = scoreSummary?.qualificationStatus === "Qualified"
+            ? "The case is ready for Investment Committee review, subject to final appraisal checks and IC decision."
+            : "The case requires qualification review before Investment Committee progression.";
 
         const content: Partial<AppraisalContent> = {
-            businessBackground: ddOverview?.companyHistory
-                ?? `${biz.name} is a ${biz.sector ?? 'business'} enterprise operating in ${biz.county ?? biz.city}, established for ${biz.yearsOperational} year(s). ${biz.description}`,
-            marketContext: ddOverview?.businessModel ?? biz.problemSolved ?? '',
-            sourceOfFunds: ddFinancial?.grantUtilizationPlan ?? '',
-            usesOfFunds: `Total project: KES ${pipeline.requestedAmount}. Requested from HiH: KES ${pipeline.requestedAmount}.`,
-            strengths: ddOverview?.missionVision ?? '',
-            opportunities: ddImpact?.socioEconomicImpacts ?? '',
-            recommendedAmount: pipeline.requestedAmount,
-            recommendedInstrument: pipeline.instrumentType === 'repayable_grant' ? 'Repayable Grant' : 'Matching Grant',
-            // Narrative fields — left blank for officer to fill
-            briefComments: '',
-            assessmentOfTeam: '',
-            keyRisksAndIssues: ddReport?.exitStrategy ?? '',
-            mitigations: '',
-            weaknesses: '',
-            threats: '',
-            icRecommendation: documentType === 'gair'
-                ? 'Subject to IC approval, recommend proceeding to contracting.'
-                : '',
-            conditions: '',
+            businessBackground: populatedBusinessOverview
+                || text(ddOverview.companyHistory)
+                || `${biz.name} is a ${biz.sector ?? "business"} enterprise operating in ${biz.county ?? biz.city}, established for ${biz.yearsOperational} year(s). ${biz.description ?? ""}`.trim(),
+            marketContext: multiline(
+                line("Market demand", businessOverview.marketDemand),
+                line("Scalability", businessOverview.scalability),
+                line("Differentiation", businessOverview.differentiation),
+                line("DD business model", ddOverview.businessModel),
+                biz.problemSolved
+            ),
+            sourceOfFunds: multiline(
+                line("BIRE grant requested", money(requestedAmount)),
+                line("Enterprise contribution", money(enterpriseContribution)),
+                line("Co-investment source", mg?.coInvestmentSource),
+                line("Other funding/leverage", otherFunding.description ?? otherFunding.sources),
+                line("DD source notes", ddFinancial.grantUtilizationPlan)
+            ),
+            usesOfFunds: useOfFunds,
+            strengths: multiline(businessOverview.strengths, scoreSummary?.highlights, ddOverview.missionVision),
+            opportunities: multiline(impact.valueChainEffects, impact.communityEffects, ddImpact.socioEconomicImpacts),
+            recommendedAmount: String(requestedAmount ?? ""),
+            recommendedInstrument: "Matching Grant",
+            briefComments: populatedCaseForFinancing,
+            assessmentOfTeam: multiline(
+                line("Founder education", leadEntrepreneur.education),
+                line("Founder experience", leadEntrepreneur.experience),
+                line("Project team", governanceCompliance.projectTeam)
+            ),
+            keyRisksAndIssues: multiline(governanceCompliance.risks, businessOverview.weaknesses, ddReport?.exitStrategy),
+            mitigations: multiline(governanceCompliance.mitigationPlan, governanceCompliance.controls),
+            weaknesses: multiline(businessOverview.weaknesses, governanceCompliance.complianceGaps),
+            threats: multiline(businessOverview.threats, governanceCompliance.externalRisks),
+            icRecommendation: documentType === "gair"
+                ? scoreSummary?.qualificationStatus === "Qualified"
+                    ? "Subject to IC approval, recommend proceeding to contracting with the Matching Grant case."
+                    : "Review qualification evidence before IC decision."
+                : "",
+            conditions: "",
+            businessOverview: populatedBusinessOverview,
+            caseForFinancing: populatedCaseForFinancing,
+            amountRequestedAndBudget: multiline(
+                line("Total project budget", money(totalProjectAmount)),
+                line("Amount requested from BIRE", money(requestedAmount)),
+                line("Enterprise contribution", money(enterpriseContribution))
+            ),
+            useOfFunds,
+            otherFundingLeverage: multiline(
+                line("Other funding", otherFunding.description ?? otherFunding.sources),
+                line("Leverage notes", otherFunding.leverageNotes ?? mg?.coInvestmentJustification)
+            ),
+            financialOverviewAndProjections: multiline(
+                line("Current annual revenue", financialOverview.currentAnnualRevenue ?? biz.revenueLastYear),
+                line("Revenue growth trend", financialOverview.revenueGrowthTrend),
+                line("Gross margin", financialOverview.grossMargin),
+                line("Projected revenue growth", financialProjections.projectedRevenueGrowth),
+                line("Projection assumptions", financialProjections.assumptions)
+            ),
+            projectTeam: multiline(
+                line("Lead entrepreneur", leadEntrepreneur.name ?? applicantName),
+                line("Education", leadEntrepreneur.education),
+                line("Experience", leadEntrepreneur.experience),
+                line("Team", governanceCompliance.projectTeam)
+            ),
+            socioEconomicImpact: multiline(
+                list("Job creation plan", jobCreationPlan.map(formatRecord)),
+                line("Inclusion", impact.inclusion),
+                line("Environmental/climate impact", impact.environmentalClimate),
+                line("Community/value chain impact", impact.valueChainEffects ?? impact.communityEffects)
+            ),
+            innovationAspects: multiline(
+                line("Technology or process innovation", businessOverview.innovation),
+                line("Operational efficiency improvement", businessOverview.operationalEfficiency),
+                line("Market reach improvement", businessOverview.marketReach)
+            ),
+            mitigationConsiderations: multiline(governanceCompliance.mitigationPlan, governanceCompliance.controls),
+            conclusionAndRecommendation: documentType === "gair"
+                ? multiline(scoreSummary?.summary, scoringConclusion)
+                : "",
+            scoringSummary: scoreSummary?.summary,
+            dataSources: multiline(
+                mg ? "Matching Grant application data captured in the system." : "No Matching Grant application record found; populated from legacy application/DD fields where available.",
+                latestScore ? "Latest A2F scoring record included." : "No scoring record found.",
+                ddReport ? "Initial due diligence report included." : "No complete initial due diligence report found.",
+                supportingDocuments.length ? list("Supporting documents", supportingDocuments.map(formatRecord)) : "",
+                line("Applicant declaration", declaration.confirmedBy ?? declaration.applicantName)
+            ),
         };
 
-        return successResponse(content, "Content auto-populated from DD reports and application data");
+        return successResponse(content, "Content auto-populated from Matching Grant application, scoring, DD, and application data");
     } catch (error) {
         console.error("Error auto-populating appraisal:", error);
         return errorResponse("Failed to auto-populate appraisal content");
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE / UPDATE: Appraisal document
-// ─────────────────────────────────────────────────────────────────────────────
 
 export async function createOrUpdateAppraisal(
     a2fId: number,
@@ -208,7 +330,8 @@ export async function createOrUpdateAppraisal(
             recordId = inserted.id;
         }
 
-        revalidatePath(`/admin/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}/appraisal`);
 
         return successResponse({ id: recordId }, `${input.documentType.toUpperCase()} saved successfully`);
     } catch (error) {
@@ -216,12 +339,6 @@ export async function createOrUpdateAppraisal(
         return errorResponse("Failed to save appraisal");
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RECORD: IC member approval
-// Tracks which IC members have approved the appraisal.
-// Once all required members approve, advances pipeline to Offer Issued.
-// ─────────────────────────────────────────────────────────────────────────────
 
 export async function recordIcApproval(
     appraisalId: number,
@@ -257,18 +374,18 @@ export async function recordIcApproval(
             })
             .where(eq(investmentAppraisals.id, appraisalId));
 
-        // If fully approved and it's a GAIR, advance pipeline to Offer Issued
-        if (fullyApproved && appraisal.documentType === 'gair') {
+        if (fullyApproved && appraisal.documentType === "gair") {
             const pipeline = await db.query.a2fPipeline.findFirst({
                 where: eq(a2fPipeline.id, appraisal.a2fId),
             });
 
-            if (pipeline?.status === 'ic_appraisal_review') {
-                await advancePipelineStatus(appraisal.a2fId, 'offer_issued');
+            if (pipeline?.status === "ic_appraisal_review") {
+                await advancePipelineStatus(appraisal.a2fId, "offer_issued");
             }
         }
 
-        revalidatePath(`/admin/a2f/${appraisal.a2fId}`);
+        revalidatePath(`/a2f/${appraisal.a2fId}`);
+        revalidatePath(`/a2f/${appraisal.a2fId}/appraisal`);
 
         return successResponse(
             { approvedBy: updatedApprovals, fullyApproved },
@@ -280,9 +397,77 @@ export async function recordIcApproval(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SAVE: Generated document URL (after PDF export)
-// ─────────────────────────────────────────────────────────────────────────────
+export async function recordIcDecision(
+    appraisalId: number,
+    input: RecordIcDecisionInput
+): Promise<ActionResponse<{ decision: IcDecision; advanced: boolean }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
+        const appraisal = await db.query.investmentAppraisals.findFirst({
+            where: eq(investmentAppraisals.id, appraisalId),
+        });
+
+        if (!appraisal) return errorResponse("Appraisal not found");
+        if (!["approved", "approved_with_conditions", "deferred", "declined"].includes(input.decision)) {
+            return errorResponse("Invalid IC decision");
+        }
+
+        const isApproval = input.decision === "approved" || input.decision === "approved_with_conditions";
+        const approvedAmount = input.approvedGrantAmount ?? Number((appraisal.content as Partial<AppraisalContent>)?.recommendedAmount ?? 0);
+
+        if (isApproval && (!Number.isFinite(approvedAmount) || approvedAmount <= 0)) {
+            return errorResponse("Approved grant amount is required for approved cases.");
+        }
+
+        if (input.decision === "approved_with_conditions" && !input.decisionConditions?.trim()) {
+            return errorResponse("Approval conditions are required when approving with conditions.");
+        }
+
+        await db
+            .update(investmentAppraisals)
+            .set({
+                icDecision: input.decision,
+                approvedGrantAmount: isApproval ? String(approvedAmount) : null,
+                decisionNotes: input.decisionNotes?.trim() || null,
+                decisionConditions: input.decisionConditions?.trim() || null,
+                decidedById: session.user.id,
+                decidedAt: new Date(),
+                icApprovalStatus: isApproval,
+                approvedBy: isApproval ? [session.user.id] : [],
+                updatedAt: new Date(),
+            })
+            .where(eq(investmentAppraisals.id, appraisalId));
+
+        let advanced = false;
+        if (isApproval && appraisal.documentType === "gair") {
+            const pipeline = await db.query.a2fPipeline.findFirst({
+                where: eq(a2fPipeline.id, appraisal.a2fId),
+            });
+
+            if (pipeline?.status === "ic_appraisal_review") {
+                await advancePipelineStatus(appraisal.a2fId, "offer_issued");
+                advanced = true;
+            }
+        }
+
+        revalidatePath(`/a2f/${appraisal.a2fId}`);
+        revalidatePath(`/a2f/${appraisal.a2fId}/appraisal`);
+
+        return successResponse(
+            { decision: input.decision, advanced },
+            isApproval
+                ? "IC decision recorded. Approved case is ready for contracting."
+                : "IC decision recorded. Case will not advance to contracting."
+        );
+    } catch (error) {
+        console.error("Error recording IC decision:", error);
+        return errorResponse("Failed to record IC decision");
+    }
+}
 
 export async function saveAppraisalDocumentUrl(
     appraisalId: number,
@@ -304,4 +489,109 @@ export async function saveAppraisalDocumentUrl(
         console.error("Error saving document URL:", error);
         return errorResponse("Failed to save document URL");
     }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+    return Array.isArray(value)
+        ? value.filter((item): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item))
+        : [];
+}
+
+function text(value: unknown): string {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+}
+
+function line(label: string, value: unknown): string {
+    const clean = text(value);
+    return clean ? `${label}: ${clean}` : "";
+}
+
+function multiline(...parts: Array<unknown>): string {
+    return parts.map(text).filter(Boolean).join("\n");
+}
+
+function list(label: string, items: unknown[]): string {
+    const rows = items.map(text).filter(Boolean);
+    return rows.length ? `${label}:\n${rows.map((item) => `- ${item}`).join("\n")}` : "";
+}
+
+function money(value: unknown): string {
+    const amount = Number(value ?? 0);
+    return `KES ${amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatRecord(record: Record<string, unknown>): string {
+    return Object.entries(record)
+        .filter(([, value]) => text(value))
+        .map(([key, value]) => `${humanize(key)}: ${text(value)}`)
+        .join("; ");
+}
+
+function humanize(key: string): string {
+    return key
+        .replace(/([A-Z])/g, " $1")
+        .replace(/[_-]+/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .trim();
+}
+
+function buildBudgetSummary(
+    budgetItems: Array<Record<string, unknown>>,
+    totalProjectAmount: unknown,
+    requestedAmount: unknown,
+    enterpriseContribution: unknown
+): string {
+    const rows = budgetItems.map((item) => {
+        const description = text(item.item ?? item.description ?? item.name);
+        const amount = text(item.amount) ? money(item.amount) : "";
+        const category = text(item.category);
+        const supplier = text(item.supplier);
+        return [description, amount, category, supplier].filter(Boolean).join(" | ");
+    }).filter(Boolean);
+
+    return multiline(
+        line("Total project budget", money(totalProjectAmount)),
+        line("BIRE grant requested", money(requestedAmount)),
+        line("Enterprise contribution", money(enterpriseContribution)),
+        list("Budget items", rows)
+    );
+}
+
+function buildMatchingGrantScoreSummary(latestScore: { instrumentType: string; scores: unknown } | undefined | null) {
+    if (!latestScore || latestScore.instrumentType !== "matching_grant") return null;
+
+    const scores = normalizeMatchingGrantScores(latestScore.scores as Partial<MatchingGrantScores>);
+    const totalScore = Object.values(scores).reduce((sum, value) => sum + Number(value ?? 0), 0);
+    const qualificationStatus = getMatchingGrantQualification(totalScore, scores.currentAnnualRevenue);
+    const categories = [
+        ["Financial Readiness & Co-Investment", scores.currentAnnualRevenue + scores.revenueGrowthTrend + scores.coInvestmentCommitment, 20],
+        ["Market & Scalability Potential", scores.marketDemandEvidence + scores.businessModelScalability + scores.competitiveDifferentiation, 25],
+        ["Impact & Inclusion Potential", scores.projectedDecentJobs + scores.inclusionTargeting + scores.environmentalClimateImpact, 30],
+        ["Investment Plan & Leverage Potential", scores.useOfFundsQuality + scores.leveragePotential, 15],
+        ["Innovation", scores.innovation, 10],
+    ] as const;
+
+    const highlights = categories
+        .filter(([, earned, max]) => earned / max >= 0.75)
+        .map(([category, earned, max]) => `${category} (${earned}/${max})`)
+        .join("; ");
+
+    return {
+        qualificationStatus,
+        highlights: highlights ? `Scoring strengths: ${highlights}.` : "",
+        summary: multiline(
+            `Matching Grant score: ${totalScore}/${MATCHING_GRANT_MAX_TOTAL}.`,
+            `Qualification threshold: >= ${MATCHING_GRANT_QUALIFYING_SCORE} and revenue score greater than 0.`,
+            `Revenue score: ${scores.currentAnnualRevenue}/10.`,
+            `Qualification status: ${qualificationStatus}.`,
+            list("Category breakdown", categories.map(([category, earned, max]) => `${category}: ${earned}/${max}`))
+        ),
+    };
 }

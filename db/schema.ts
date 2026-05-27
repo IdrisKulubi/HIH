@@ -2348,6 +2348,53 @@ export const a2fPipeline = pgTable('a2f_pipeline', {
 }));
 
 /**
+ * Captures the systemised Matching Grant Application Form for a pipeline entry.
+ * Repeatable form sections are stored as JSONB arrays/objects while core grant
+ * amounts and controls remain queryable for scoring, GAIR, and grant management.
+ */
+export const a2fMatchingGrantApplications = pgTable('a2f_matching_grant_applications', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  track: applicationTrackEnum('track').notNull(),
+  status: varchar('status', { length: 32 }).default('draft').notNull(),
+  submittedById: text('submitted_by_id').references(() => users.id, { onDelete: 'set null' }),
+
+  totalProjectAmount: decimal('total_project_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  bireGrantAmount: decimal('bire_grant_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  enterpriseContributionAmount: decimal('enterprise_contribution_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  coInvestmentSource: text('co_investment_source'),
+  coInvestmentJustification: text('co_investment_justification'),
+  projectTitle: text('project_title'),
+  fundingNeed: text('funding_need'),
+  withoutGrantImpact: text('without_grant_impact'),
+  capexOnlyConfirmed: boolean('capex_only_confirmed').default(false).notNull(),
+
+  enterpriseIdentification: jsonb('enterprise_identification').$type<Record<string, unknown>>().default({}),
+  leadEntrepreneur: jsonb('lead_entrepreneur').$type<Record<string, unknown>>().default({}),
+  programmeEngagement: jsonb('programme_engagement').$type<Record<string, unknown>>().default({}),
+  businessOverview: jsonb('business_overview').$type<Record<string, unknown>>().default({}),
+  financialOverview: jsonb('financial_overview').$type<Record<string, unknown>>().default({}),
+  budgetItems: jsonb('budget_items').$type<Array<Record<string, unknown>>>().default([]),
+  otherFunding: jsonb('other_funding').$type<Record<string, unknown>>().default({}),
+  implementationMilestones: jsonb('implementation_milestones').$type<Array<Record<string, unknown>>>().default([]),
+  financialProjections: jsonb('financial_projections').$type<Record<string, unknown>>().default({}),
+  jobCreationPlan: jsonb('job_creation_plan').$type<Array<Record<string, unknown>>>().default([]),
+  impact: jsonb('impact').$type<Record<string, unknown>>().default({}),
+  governanceCompliance: jsonb('governance_compliance').$type<Record<string, unknown>>().default({}),
+  supportingDocuments: jsonb('supporting_documents').$type<Array<Record<string, unknown>>>().default([]),
+  declaration: jsonb('declaration').$type<Record<string, unknown>>().default({}),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdUnique: uniqueIndex('a2f_matching_grant_applications_a2f_id_unique').on(table.a2fId),
+  statusIdx: index('a2f_matching_grant_applications_status_idx').on(table.status),
+  trackIdx: index('a2f_matching_grant_applications_track_idx').on(table.track),
+}));
+
+/**
  * Stores the full 11-category Due Diligence data per pipeline entry.
  * Each stage (INITIAL, PRE_IC, POST_TA) gets its own record.
  *
@@ -2432,6 +2479,12 @@ export const investmentAppraisals = pgTable('investment_appraisals', {
   content: jsonb('content').notNull(),
   icApprovalStatus: boolean('ic_approval_status').default(false).notNull(),
   approvedBy: jsonb('approved_by').$type<string[]>().default([]),
+  icDecision: varchar('ic_decision', { length: 40 }),
+  approvedGrantAmount: decimal('approved_grant_amount', { precision: 14, scale: 2 }),
+  decisionNotes: text('decision_notes'),
+  decisionConditions: text('decision_conditions'),
+  decidedById: text('decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at'),
   generatedDocumentUrl: text('generated_document_url'),
   preparedById: text('prepared_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -2484,6 +2537,9 @@ export const disbursementsAndRepayments = pgTable('disbursements_and_repayments'
   agreementId: integer('agreement_id')
     .notNull()
     .references(() => grantAgreements.id, { onDelete: 'cascade' }),
+  milestoneId: integer('milestone_id').references(() => a2fGrantMilestones.id, { onDelete: 'set null' }),
+  procurementItemId: integer('procurement_item_id').references(() => a2fProcurementItems.id, { onDelete: 'set null' }),
+  trancheLabel: varchar('tranche_label', { length: 120 }),
   transactionType: a2fTransactionTypeEnum('transaction_type').notNull(),
   amount: decimal('amount', { precision: 14, scale: 2 }).notNull(),
   transactionDate: timestamp('transaction_date').notNull(),
@@ -2497,9 +2553,74 @@ export const disbursementsAndRepayments = pgTable('disbursements_and_repayments'
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   agreementIdIdx: index('disbursements_agreement_id_idx').on(table.agreementId),
+  milestoneIdIdx: index('disbursements_milestone_id_idx').on(table.milestoneId),
+  procurementItemIdIdx: index('disbursements_procurement_item_id_idx').on(table.procurementItemId),
   transactionTypeIdx: index('disbursements_transaction_type_idx').on(table.transactionType),
   statusIdx: index('disbursements_status_idx').on(table.status),
   transactionDateIdx: index('disbursements_transaction_date_idx').on(table.transactionDate),
+}));
+
+/**
+ * Tracks approved Matching Grant procurement items from request through delivery.
+ * This is intentionally linked to the A2F case first; an agreement may be added once contracting is complete.
+ */
+export const a2fProcurementItems = pgTable('a2f_procurement_items', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  agreementId: integer('agreement_id').references(() => grantAgreements.id, { onDelete: 'set null' }),
+  itemName: varchar('item_name', { length: 255 }).notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 120 }).default('productive_equipment'),
+  supplierName: varchar('supplier_name', { length: 255 }),
+  selectedQuoteAmount: decimal('selected_quote_amount', { precision: 14, scale: 2 }).default('0'),
+  bireContributionAmount: decimal('bire_contribution_amount', { precision: 14, scale: 2 }).default('0'),
+  enterpriseContributionAmount: decimal('enterprise_contribution_amount', { precision: 14, scale: 2 }).default('0'),
+  procurementStatus: varchar('procurement_status', { length: 40 }).default('planned').notNull(),
+  quoteDocuments: jsonb('quote_documents').$type<Array<Record<string, unknown>>>().default([]),
+  purchaseOrderUrl: text('purchase_order_url'),
+  invoiceUrl: text('invoice_url'),
+  deliveryNoteUrl: text('delivery_note_url'),
+  verificationDocumentUrl: text('verification_document_url'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_procurement_items_a2f_id_idx').on(table.a2fId),
+  agreementIdIdx: index('a2f_procurement_items_agreement_id_idx').on(table.agreementId),
+  statusIdx: index('a2f_procurement_items_status_idx').on(table.procurementStatus),
+}));
+
+/**
+ * Tracks implementation milestones, tranche readiness, verification evidence, and monitoring notes.
+ */
+export const a2fGrantMilestones = pgTable('a2f_grant_milestones', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  agreementId: integer('agreement_id').references(() => grantAgreements.id, { onDelete: 'set null' }),
+  milestoneName: varchar('milestone_name', { length: 255 }).notNull(),
+  description: text('description'),
+  trancheLabel: varchar('tranche_label', { length: 120 }),
+  plannedCompletionDate: date('planned_completion_date'),
+  actualCompletionDate: date('actual_completion_date'),
+  verificationMethod: text('verification_method'),
+  evidenceUrl: text('evidence_url'),
+  status: varchar('status', { length: 40 }).default('planned').notNull(),
+  issues: text('issues'),
+  correctiveActions: text('corrective_actions'),
+  verifiedById: text('verified_by_id').references(() => users.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at'),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_grant_milestones_a2f_id_idx').on(table.a2fId),
+  agreementIdIdx: index('a2f_grant_milestones_agreement_id_idx').on(table.agreementId),
+  statusIdx: index('a2f_grant_milestones_status_idx').on(table.status),
 }));
 
 // --- Relations ---
@@ -2514,9 +2635,23 @@ export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
     references: [users.id],
   }),
   dueDiligenceReports: many(a2fDueDiligenceReports),
+  matchingGrantApplications: many(a2fMatchingGrantApplications),
   scoringRecords: many(a2fScoring),
   investmentAppraisals: many(investmentAppraisals),
   grantAgreements: many(grantAgreements),
+  procurementItems: many(a2fProcurementItems),
+  grantMilestones: many(a2fGrantMilestones),
+}));
+
+export const a2fMatchingGrantApplicationsRelations = relations(a2fMatchingGrantApplications, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fMatchingGrantApplications.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  submittedBy: one(users, {
+    fields: [a2fMatchingGrantApplications.submittedById],
+    references: [users.id],
+  }),
 }));
 
 export const a2fDueDiligenceReportsRelations = relations(a2fDueDiligenceReports, ({ one }) => ({
@@ -2558,6 +2693,8 @@ export const grantAgreementsRelations = relations(grantAgreements, ({ one, many 
     references: [a2fPipeline.id],
   }),
   transactions: many(disbursementsAndRepayments),
+  procurementItems: many(a2fProcurementItems),
+  grantMilestones: many(a2fGrantMilestones),
 }));
 
 export const disbursementsAndRepaymentsRelations = relations(disbursementsAndRepayments, ({ one }) => ({
@@ -2565,8 +2702,50 @@ export const disbursementsAndRepaymentsRelations = relations(disbursementsAndRep
     fields: [disbursementsAndRepayments.agreementId],
     references: [grantAgreements.id],
   }),
+  grantMilestone: one(a2fGrantMilestones, {
+    fields: [disbursementsAndRepayments.milestoneId],
+    references: [a2fGrantMilestones.id],
+  }),
+  procurementItem: one(a2fProcurementItems, {
+    fields: [disbursementsAndRepayments.procurementItemId],
+    references: [a2fProcurementItems.id],
+  }),
   verifiedBy: one(users, {
     fields: [disbursementsAndRepayments.verifiedById],
+    references: [users.id],
+  }),
+}));
+
+export const a2fProcurementItemsRelations = relations(a2fProcurementItems, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fProcurementItems.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  grantAgreement: one(grantAgreements, {
+    fields: [a2fProcurementItems.agreementId],
+    references: [grantAgreements.id],
+  }),
+  createdBy: one(users, {
+    fields: [a2fProcurementItems.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const a2fGrantMilestonesRelations = relations(a2fGrantMilestones, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fGrantMilestones.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  grantAgreement: one(grantAgreements, {
+    fields: [a2fGrantMilestones.agreementId],
+    references: [grantAgreements.id],
+  }),
+  verifiedBy: one(users, {
+    fields: [a2fGrantMilestones.verifiedById],
+    references: [users.id],
+  }),
+  createdBy: one(users, {
+    fields: [a2fGrantMilestones.createdById],
     references: [users.id],
   }),
 }));
@@ -2575,6 +2754,9 @@ export const disbursementsAndRepaymentsRelations = relations(disbursementsAndRep
 
 export type A2fPipeline = typeof a2fPipeline.$inferSelect;
 export type NewA2fPipeline = typeof a2fPipeline.$inferInsert;
+
+export type A2fMatchingGrantApplication = typeof a2fMatchingGrantApplications.$inferSelect;
+export type NewA2fMatchingGrantApplication = typeof a2fMatchingGrantApplications.$inferInsert;
 
 export type A2fDueDiligenceReport = typeof a2fDueDiligenceReports.$inferSelect;
 export type NewA2fDueDiligenceReport = typeof a2fDueDiligenceReports.$inferInsert;
@@ -2590,6 +2772,12 @@ export type NewGrantAgreement = typeof grantAgreements.$inferInsert;
 
 export type DisbursementOrRepayment = typeof disbursementsAndRepayments.$inferSelect;
 export type NewDisbursementOrRepayment = typeof disbursementsAndRepayments.$inferInsert;
+
+export type A2fProcurementItem = typeof a2fProcurementItems.$inferSelect;
+export type NewA2fProcurementItem = typeof a2fProcurementItems.$inferInsert;
+
+export type A2fGrantMilestone = typeof a2fGrantMilestones.$inferSelect;
+export type NewA2fGrantMilestone = typeof a2fGrantMilestones.$inferInsert;
 
 export type KycProfile = typeof kycProfiles.$inferSelect;
 export type NewKycProfile = typeof kycProfiles.$inferInsert;

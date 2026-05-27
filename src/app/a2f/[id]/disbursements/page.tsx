@@ -5,13 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { getGrantAgreement } from "@/lib/actions/a2f-contracts";
+import { getGrantManagementWorkspace } from "@/lib/actions/a2f-grant-management";
 import {
     action_logDisbursement,
     verifyTransaction,
     getDisbursementLedger,
-    getAmortizationSchedule,
     type LogTransactionInput,
-    type AmortizationSchedule,
 } from "@/lib/actions/a2f-disbursements";
 import {
     Card, CardContent, CardHeader, CardTitle, CardDescription,
@@ -55,107 +54,10 @@ function statusBadge(status: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AMORTIZATION TABLE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function AmortizationTable({ schedule }: { schedule: AmortizationSchedule }) {
-    const [showAll, setShowAll] = useState(false);
-    const rows = showAll ? schedule.schedule : schedule.schedule.slice(0, 12);
-
-    return (
-        <Card>
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <CalendarBlank weight="duotone" className="size-5 text-violet-600" />
-                        Amortization Schedule
-                    </CardTitle>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>Principal: <strong>{fmt(schedule.principal)}</strong></span>
-                        <span>Rate: <strong>{schedule.interestRatePa}% p.a.</strong></span>
-                        <span>EMI: <strong>{fmt(schedule.monthlyInstalment)}</strong></span>
-                    </div>
-                </div>
-                <CardDescription>
-                    {schedule.termMonths}-month schedule · {schedule.gracePeriodMonths}-month grace · Total repayable: {fmt(schedule.totalRepayable)}
-                    (interest: {fmt(schedule.totalInterest)})
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="text-xs">
-                                <TableHead className="w-12">#</TableHead>
-                                <TableHead>Due Date</TableHead>
-                                <TableHead className="text-right">Opening Bal.</TableHead>
-                                <TableHead className="text-right">Principal</TableHead>
-                                <TableHead className="text-right">Interest</TableHead>
-                                <TableHead className="text-right">Total Due</TableHead>
-                                <TableHead className="text-right">Closing Bal.</TableHead>
-                                <TableHead className="text-center">Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {rows.map(row => (
-                                <TableRow
-                                    key={row.month}
-                                    className={
-                                        row.isOverdue  ? "bg-red-50 hover:bg-red-100" :
-                                        row.isPaid     ? "bg-emerald-50/60 hover:bg-emerald-50" :
-                                        row.isGracePeriod ? "bg-blue-50/40" :
-                                        ""
-                                    }
-                                >
-                                    <TableCell className="font-mono text-xs text-muted-foreground">{row.month}</TableCell>
-                                    <TableCell className="text-xs font-medium">
-                                        {format(new Date(row.dueDate), "dd MMM yyyy")}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs">{fmt(row.openingBalance)}</TableCell>
-                                    <TableCell className="text-right text-xs">
-                                        {row.isGracePeriod ? <span className="text-muted-foreground">—</span> : fmt(row.principalPayment)}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs">{fmt(row.interestPayment)}</TableCell>
-                                    <TableCell className="text-right text-xs font-semibold">{fmt(row.totalPayment)}</TableCell>
-                                    <TableCell className="text-right text-xs">{fmt(row.closingBalance)}</TableCell>
-                                    <TableCell className="text-center">
-                                        {row.isOverdue ? (
-                                            <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] gap-0.5">
-                                                <Warning weight="fill" className="size-2.5" />Overdue
-                                            </Badge>
-                                        ) : row.isPaid ? (
-                                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] gap-0.5">
-                                                <CheckCircle weight="fill" className="size-2.5" />Paid
-                                            </Badge>
-                                        ) : row.isGracePeriod ? (
-                                            <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px]">Grace</Badge>
-                                        ) : (
-                                            <Badge className="bg-muted text-muted-foreground border text-[10px]">Upcoming</Badge>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                {schedule.schedule.length > 12 && (
-                    <div className="flex justify-center py-3 border-t">
-                        <Button variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="text-xs gap-1">
-                            {showAll ? "Show less" : `Show all ${schedule.schedule.length} months`}
-                        </Button>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // TRANSACTION LEDGER
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TransactionLedger({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transactions,
     onVerify,
     verifying,
@@ -181,6 +83,7 @@ function TransactionLedger({
                     <TableRow className="text-xs">
                         <TableHead>Ref</TableHead>
                         <TableHead>Type</TableHead>
+                        <TableHead>Control</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead>Proof</TableHead>
@@ -198,6 +101,9 @@ function TransactionLedger({
                         status: string;
                         notes: string | null;
                         rejectionReason: string | null;
+                        trancheLabel?: string | null;
+                        grantMilestone?: { milestoneName: string; trancheLabel: string | null } | null;
+                        procurementItem?: { itemName: string } | null;
                     }) => (
                         <TableRow key={tx.id}>
                             <TableCell className="font-mono text-xs text-muted-foreground">
@@ -215,6 +121,17 @@ function TransactionLedger({
                                     }
                                     {tx.transactionType === "disbursement" ? "Disbursement" : "Repayment"}
                                 </span>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                                {tx.grantMilestone ? (
+                                    <div>
+                                        <p className="font-medium">{tx.grantMilestone.trancheLabel ?? tx.trancheLabel ?? "Milestone"}</p>
+                                        <p className="text-muted-foreground">{tx.grantMilestone.milestoneName}</p>
+                                        {tx.procurementItem && <p className="text-muted-foreground">{tx.procurementItem.itemName}</p>}
+                                    </div>
+                                ) : (
+                                    <span className="text-muted-foreground">â€”</span>
+                                )}
                             </TableCell>
                             <TableCell className="text-xs">
                                 {format(new Date(tx.transactionDate), "dd MMM yyyy")}
@@ -285,17 +202,21 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
     const [agreement, setAgreement] = useState<any>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [ledger, setLedger] = useState<any>(null);
-    const [amortization, setAmortization] = useState<AmortizationSchedule | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [grantControls, setGrantControls] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [verifying, setVerifying] = useState<number | null>(null);
 
     // Log transaction form
     const [showLogDialog, setShowLogDialog] = useState(false);
-    const [txType, setTxType] = useState<"disbursement" | "repayment">("disbursement");
+    const txType = "disbursement" as const;
     const [txAmount, setTxAmount] = useState("");
     const [txDate, setTxDate] = useState(new Date().toISOString().split("T")[0]);
     const [txProofUrl, setTxProofUrl] = useState("");
     const [txNotes, setTxNotes] = useState("");
+    const [txMilestoneId, setTxMilestoneId] = useState("");
+    const [txProcurementItemId, setTxProcurementItemId] = useState("");
+    const [txTrancheLabel, setTxTrancheLabel] = useState("");
     const [logging, setLogging] = useState(false);
 
     const loadData = useCallback(async () => {
@@ -305,20 +226,18 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
             const agr = agreementRes.data;
             setAgreement(agr);
 
-            const [ledgerRes, amortRes] = await Promise.all([
-                getDisbursementLedger(agr.id),
-                agr.agreementType === "repayable" ? getAmortizationSchedule(agr.id) : Promise.resolve(null),
-            ]);
-
+            const ledgerRes = await getDisbursementLedger(agr.id);
             if (ledgerRes.success) setLedger(ledgerRes.data);
-            if (amortRes && "success" in amortRes && amortRes.success && amortRes.data) {
-                setAmortization(amortRes.data as AmortizationSchedule);
-            }
         }
+        const controlsRes = await getGrantManagementWorkspace(a2fId);
+        if (controlsRes.success) setGrantControls(controlsRes.data);
         setLoading(false);
     }, [a2fId]);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadData();
+    }, [loadData]);
 
     async function handleLogTransaction() {
         if (!txAmount || parseFloat(txAmount) <= 0) {
@@ -330,6 +249,9 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
             transactionType: txType,
             amount: parseFloat(txAmount),
             transactionDate: new Date(txDate),
+            milestoneId: txMilestoneId ? Number(txMilestoneId) : undefined,
+            procurementItemId: txProcurementItemId ? Number(txProcurementItemId) : undefined,
+            trancheLabel: txTrancheLabel.trim() || undefined,
             proofDocumentUrl: txProofUrl.trim() || undefined,
             notes: txNotes.trim() || undefined,
         };
@@ -339,6 +261,7 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
             toast.success(res.message ?? "Transaction logged");
             setShowLogDialog(false);
             setTxAmount(""); setTxProofUrl(""); setTxNotes("");
+            setTxMilestoneId(""); setTxProcurementItemId(""); setTxTrancheLabel("");
             loadData();
         } else {
             toast.error(res.error ?? "Failed to log transaction");
@@ -396,33 +319,25 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
     }
 
     const summary = ledger?.summary ?? { totalDisbursed: 0, totalRepaid: 0, pendingCount: 0 };
-    const outstanding = Math.max(0, summary.totalDisbursed - summary.totalRepaid);
-    const isRepayable = agreement.agreementType === "repayable";
-
-    // Overdue count from amortization
-    const overdueCount = amortization?.schedule.filter(r => r.isOverdue).length ?? 0;
+    const remaining = Math.max(0, Number(agreement.hihContribution) - summary.totalDisbursed);
+    const verifiedMilestones = (grantControls?.milestones ?? []).filter((item: { status: string }) => item.status === "verified");
+    const procurementItems = grantControls?.procurementItems ?? [];
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
-            {/* ── Header ── */}
-            <div className="flex items-center gap-3 mb-6">
-                <Button variant="ghost" size="sm" asChild className="gap-1.5">
-                    <Link href={`/a2f/${a2fId}`}>
-                        <ArrowLeft className="size-4" /> Entry Overview
-                    </Link>
-                </Button>
-                <Separator orientation="vertical" className="h-5" />
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <CurrencyDollar weight="duotone" className="size-5 text-amber-600 shrink-0" />
-                    <h1 className="text-lg font-bold">Financial Tracking Dashboard</h1>
+        <div className="space-y-6">
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                        <CurrencyDollar weight="duotone" className="size-5 text-amber-600" />
+                        Disbursements
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        Log tranche disbursements linked to verified grant milestones.
+                    </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <Badge className={
-                        isRepayable
-                            ? "bg-purple-100 text-purple-700 border border-purple-200"
-                            : "bg-blue-100 text-blue-700 border border-blue-200"
-                    }>
-                        {isRepayable ? "Repayable Grant" : agreement.agreementType === "matching" ? "Matching Grant" : "Working Capital"}
+                    <Badge className="bg-blue-100 text-blue-700 border border-blue-200">
+                        Matching Grant
                     </Badge>
                     {!agreement.isFullyExecuted && (
                         <Badge className="bg-amber-100 text-amber-700 border border-amber-200 gap-1">
@@ -432,19 +347,7 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                 </div>
             </div>
 
-            {/* ── Overdue warning ── */}
-            {overdueCount > 0 && (
-                <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-3 flex items-center gap-3">
-                    <Warning weight="fill" className="size-5 text-red-600 shrink-0" />
-                    <p className="text-sm font-semibold text-red-900">
-                        {overdueCount} instalment{overdueCount > 1 ? "s" : ""} overdue
-                        <span className="font-normal text-red-700 ml-1.5">— payments were due by the 15th of the respective month.</span>
-                    </p>
-                </div>
-            )}
-
-            {/* ── Summary cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <SummaryCard
                     label="Total Approved"
                     value={fmt(agreement.hihContribution)}
@@ -456,15 +359,10 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                     color="blue"
                 />
                 <SummaryCard
-                    label={isRepayable ? "Total Repaid" : "Receipts Verified"}
-                    value={fmt(summary.totalRepaid)}
-                    color="violet"
-                />
-                <SummaryCard
-                    label="Outstanding Balance"
-                    value={fmt(outstanding)}
-                    color={outstanding > 0 ? "amber" : "emerald"}
-                    badge={summary.pendingCount > 0 ? `${summary.pendingCount} pending` : undefined}
+                    label="Remaining to disburse"
+                    value={fmt(remaining)}
+                    color={remaining > 0 ? "amber" : "emerald"}
+                    badge={summary.pendingCount > 0 ? `${summary.pendingCount} pending verification` : undefined}
                 />
             </div>
 
@@ -488,7 +386,7 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                         Transaction Ledger
                     </CardTitle>
                     <CardDescription>
-                        All disbursements and repayments for this agreement. Pending transactions require admin verification.
+                        All tranche disbursements for this agreement. Pending transactions require admin verification.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -500,30 +398,21 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                 </CardContent>
             </Card>
 
-            {/* ── Amortization Schedule (Repayable only) ── */}
-            {isRepayable && amortization && (
-                <AmortizationTable schedule={amortization} />
-            )}
-
-            {/* ── Working Capital Accountability note ── */}
-            {!isRepayable && (
-                <Card className="border-dashed">
-                    <CardContent className="pt-5 pb-5">
-                        <div className="flex items-start gap-3">
-                            <div className="rounded-lg bg-blue-50 p-2">
-                                <Receipt weight="duotone" className="size-5 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="font-semibold text-sm">Accountability Portal</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    For Matching / Working Capital grants, enterprises upload expenditure receipts as proof of utilisation.
-                                    Use the <strong>Log Transaction</strong> button above to record repayments or verified receipts, then verify each one.
-                                </p>
-                            </div>
+            <Card className="border-dashed">
+                <CardContent className="pt-5 pb-5">
+                    <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-blue-50 p-2">
+                            <Receipt weight="duotone" className="size-5 text-blue-600" />
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                        <div>
+                            <p className="font-semibold text-sm">Milestone-linked disbursements</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Verify grant milestones in Grant Management first, then log each disbursement against the approved tranche with proof of payment.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* ── DIALOG: Log Transaction ── */}
             <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
@@ -534,32 +423,18 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                             Log Transaction
                         </DialogTitle>
                         <DialogDescription>
-                            Record a disbursement or repayment for this grant agreement. All transactions are pending until verified by an admin.
+                            Record a tranche disbursement for this matching grant agreement. Transactions are pending until verified by an admin.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <Label>Transaction Type</Label>
-                                <Select value={txType} onValueChange={v => setTxType(v as "disbursement" | "repayment")}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="disbursement">Disbursement</SelectItem>
-                                        <SelectItem value="repayment">Repayment</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label>Amount (KES)</Label>
-                                <Input
-                                    type="number"
-                                    placeholder="e.g. 500000"
-                                    value={txAmount}
-                                    onChange={e => setTxAmount(e.target.value)}
-                                />
-                            </div>
+                        <div className="space-y-1.5">
+                            <Label>Amount (KES)</Label>
+                            <Input
+                                type="number"
+                                placeholder="e.g. 500000"
+                                value={txAmount}
+                                onChange={e => setTxAmount(e.target.value)}
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <Label>Transaction Date</Label>
@@ -569,6 +444,54 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                                 onChange={e => setTxDate(e.target.value)}
                             />
                         </div>
+                        <div className="rounded-lg border bg-blue-50/40 p-3 space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label>Verified Milestone / Tranche</Label>
+                                    <Select value={txMilestoneId} onValueChange={(value) => {
+                                        setTxMilestoneId(value);
+                                        const selected = verifiedMilestones.find((item: { id: number }) => String(item.id) === value);
+                                        setTxTrancheLabel(selected?.trancheLabel ?? "");
+                                    }}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select verified milestone" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {verifiedMilestones.map((item: { id: number; milestoneName: string; trancheLabel: string | null }) => (
+                                                <SelectItem key={item.id} value={String(item.id)}>
+                                                    {item.trancheLabel ? `${item.trancheLabel} - ${item.milestoneName}` : item.milestoneName}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {!verifiedMilestones.length && (
+                                        <p className="text-xs text-blue-700">
+                                            Verify at least one grant milestone in Grant Management before logging a Matching Grant disbursement.
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Procurement Item <span className="text-muted-foreground">(optional)</span></Label>
+                                    <Select value={txProcurementItemId || "none"} onValueChange={(value) => setTxProcurementItemId(value === "none" ? "" : value)}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">No specific item</SelectItem>
+                                            {procurementItems.map((item: { id: number; itemName: string }) => (
+                                                <SelectItem key={item.id} value={String(item.id)}>{item.itemName}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Tranche Label</Label>
+                                    <Input
+                                        placeholder="e.g. Tranche 1"
+                                        value={txTrancheLabel}
+                                        onChange={e => setTxTrancheLabel(e.target.value)}
+                                    />
+                                </div>
+                            </div>
                         <div className="space-y-1.5">
                             <Label>Proof Document URL <span className="text-muted-foreground">(optional)</span></Label>
                             <Input

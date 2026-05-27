@@ -5,10 +5,10 @@ import db from "../../../db/drizzle";
 import {
     disbursementsAndRepayments,
     grantAgreements,
+    a2fGrantMilestones,
+    a2fProcurementItems,
     a2fPipeline,
     applications,
-    businesses,
-    applicants,
 } from "../../../db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -27,6 +27,9 @@ export interface LogTransactionInput {
     transactionType: TransactionType;
     amount: number;
     transactionDate: Date;
+    milestoneId?: number;
+    procurementItemId?: number;
+    trancheLabel?: string;
     proofDocumentUrl?: string;
     notes?: string;
 }
@@ -85,6 +88,56 @@ export async function action_logDisbursement(
             return errorResponse("Cannot log disbursements — grant agreement has not been fully executed (signed)");
         }
 
+        let milestone: typeof a2fGrantMilestones.$inferSelect | null = null;
+        let procurementItem: typeof a2fProcurementItems.$inferSelect | null = null;
+
+        if (input.milestoneId) {
+            milestone = await db.query.a2fGrantMilestones.findFirst({
+                where: and(
+                    eq(a2fGrantMilestones.id, input.milestoneId),
+                    eq(a2fGrantMilestones.a2fId, agreement.a2fId)
+                ),
+            }) ?? null;
+            if (!milestone) return errorResponse("Selected grant milestone was not found for this A2F case.");
+        }
+
+        if (input.procurementItemId) {
+            procurementItem = await db.query.a2fProcurementItems.findFirst({
+                where: and(
+                    eq(a2fProcurementItems.id, input.procurementItemId),
+                    eq(a2fProcurementItems.a2fId, agreement.a2fId)
+                ),
+            }) ?? null;
+            if (!procurementItem) return errorResponse("Selected procurement item was not found for this A2F case.");
+        }
+
+        if (input.transactionType === 'disbursement' && agreement.agreementType === 'matching') {
+            if (!milestone) {
+                return errorResponse("Matching Grant disbursements must be linked to a grant milestone/tranche.");
+            }
+            if (milestone.status !== 'verified') {
+                return errorResponse("Selected milestone must be verified before disbursement can be logged.");
+            }
+        }
+
+        const [disbursementTotals] = await db
+            .select({
+                committed: sql<number>`
+                    COALESCE(SUM(CASE WHEN ${disbursementsAndRepayments.transactionType} = 'disbursement'
+                    AND ${disbursementsAndRepayments.status} IN ('pending', 'verified')
+                    THEN ${disbursementsAndRepayments.amount}::numeric ELSE 0 END), 0)::float`,
+            })
+            .from(disbursementsAndRepayments)
+            .where(eq(disbursementsAndRepayments.agreementId, agreementId));
+
+        if (input.transactionType === 'disbursement') {
+            const approvedAmount = Number(agreement.hihContribution ?? 0);
+            const committed = Number(disbursementTotals?.committed ?? 0);
+            if (committed + input.amount > approvedAmount) {
+                return errorResponse("Disbursement exceeds the approved grant amount when pending and verified disbursements are included.");
+            }
+        }
+
         // Fetch enterprise details for the confirmation email
         const pipeline = await db.query.a2fPipeline.findFirst({
             where: eq(a2fPipeline.id, agreement.a2fId),
@@ -101,6 +154,9 @@ export async function action_logDisbursement(
             .insert(disbursementsAndRepayments)
             .values({
                 agreementId,
+                milestoneId: milestone?.id ?? null,
+                procurementItemId: procurementItem?.id ?? null,
+                trancheLabel: input.trancheLabel?.trim() || milestone?.trancheLabel || null,
                 transactionType: input.transactionType,
                 amount: String(input.amount),
                 transactionDate: input.transactionDate,
@@ -134,8 +190,9 @@ export async function action_logDisbursement(
             }
         }
 
-        revalidatePath(`/admin/a2f/${agreement.a2fId}`);
-        revalidatePath('/admin/a2f');
+        revalidatePath(`/a2f/${agreement.a2fId}`);
+        revalidatePath(`/a2f/${agreement.a2fId}/disbursements`);
+        revalidatePath(`/a2f/${agreement.a2fId}/grant-management`);
 
         return successResponse(
             { id: transaction.id },
@@ -213,7 +270,11 @@ export async function getDisbursementLedger(agreementId: number) {
 
         const transactions = await db.query.disbursementsAndRepayments.findMany({
             where: eq(disbursementsAndRepayments.agreementId, agreementId),
-            with: { verifiedBy: { with: { userProfile: true } } },
+            with: {
+                verifiedBy: { with: { userProfile: true } },
+                grantMilestone: true,
+                procurementItem: true,
+            },
             orderBy: [desc(disbursementsAndRepayments.transactionDate)],
         });
 

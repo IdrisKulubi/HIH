@@ -1,0 +1,307 @@
+"use server";
+
+import { auth } from "@/auth";
+import db from "../../../db/drizzle";
+import {
+    a2fMatchingGrantApplications,
+    a2fPipeline,
+} from "../../../db/schema";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { ActionResponse, errorResponse, successResponse } from "./types";
+import {
+    parseFinancialOverview,
+    parseGovernanceCompliance,
+    serializeFinancialOverview,
+    validateMatchingGrantSubmitFields,
+    type MatchingGrantOfficialUse,
+} from "@/lib/matching-grant-form-types";
+import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
+
+const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
+const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+
+export type MatchingGrantApplicationStatus = "draft" | "submitted";
+
+export interface MatchingGrantApplicationInput {
+    status?: MatchingGrantApplicationStatus;
+    totalProjectAmount: number;
+    bireGrantAmount: number;
+    enterpriseContributionAmount: number;
+    coInvestmentSource?: string;
+    coInvestmentJustification?: string;
+    projectTitle?: string;
+    fundingNeed?: string;
+    withoutGrantImpact?: string;
+    capexOnlyConfirmed: boolean;
+    enterpriseIdentification?: Record<string, unknown>;
+    leadEntrepreneur?: Record<string, unknown>;
+    programmeEngagement?: Record<string, unknown>;
+    businessOverview?: Record<string, unknown>;
+    financialOverview?: Record<string, unknown>;
+    budgetItems?: Array<Record<string, unknown>>;
+    otherFunding?: Record<string, unknown>;
+    implementationMilestones?: Array<Record<string, unknown>>;
+    financialProjections?: Record<string, unknown>;
+    jobCreationPlan?: Array<Record<string, unknown>>;
+    impact?: Record<string, unknown>;
+    governanceCompliance?: Record<string, unknown>;
+    supportingDocuments?: Array<Record<string, unknown>>;
+    declaration?: Record<string, unknown>;
+}
+
+export interface MatchingGrantValidation {
+    bireSharePct: number;
+    enterpriseSharePct: number;
+    warnings: string[];
+}
+
+export async function getMatchingGrantApplication(a2fId: number) {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
+        const application = await db.query.a2fMatchingGrantApplications.findFirst({
+            where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+            with: {
+                submittedBy: { with: { userProfile: true } },
+            },
+        });
+
+        return successResponse(application ?? null);
+    } catch (error) {
+        console.error("Error loading Matching Grant application:", error);
+        return errorResponse("Failed to load Matching Grant application");
+    }
+}
+
+export async function saveMatchingGrantApplication(
+    a2fId: number,
+    input: MatchingGrantApplicationInput
+): Promise<ActionResponse<{ id: number; validation: MatchingGrantValidation }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized. Admin or A2F Officer access required.");
+        }
+
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, a2fId),
+            with: {
+                application: {
+                    with: { business: true },
+                },
+            },
+        });
+
+        if (!pipeline) return errorResponse("A2F pipeline entry not found");
+        if (pipeline.instrumentType !== "matching_grant") {
+            return errorResponse("Matching Grant application can only be captured for Matching Grant pipeline entries.");
+        }
+        if (!pipeline.application?.track) {
+            return errorResponse("Application track is required before saving a Matching Grant application.");
+        }
+
+        const validation = validateMatchingGrantApplication(input);
+        const track = pipeline.application.track as A2fEnterpriseTrack;
+        const fallbackRevenue = Number(pipeline.application.business?.revenueLastYear ?? 0);
+        const submitError = validateMatchingGrantSubmitFields({
+            status: input.status,
+            track,
+            capexOnlyConfirmed: input.capexOnlyConfirmed,
+            enterpriseIdentification: input.enterpriseIdentification,
+            leadEntrepreneur: input.leadEntrepreneur,
+            financialOverview: input.financialOverview,
+            budgetItems: input.budgetItems,
+            declaration: input.declaration,
+            fallbackRevenue,
+        });
+        if (submitError) return errorResponse(submitError);
+
+        const financialPayload = serializeFinancialOverview(
+            parseFinancialOverview(input.financialOverview),
+            track,
+            fallbackRevenue
+        );
+
+        const values = {
+            a2fId,
+            track: pipeline.application.track,
+            status: input.status ?? "draft",
+            submittedById: session.user.id,
+            totalProjectAmount: String(input.totalProjectAmount || 0),
+            bireGrantAmount: String(input.bireGrantAmount || 0),
+            enterpriseContributionAmount: String(input.enterpriseContributionAmount || 0),
+            coInvestmentSource: input.coInvestmentSource ?? null,
+            coInvestmentJustification: input.coInvestmentJustification ?? null,
+            projectTitle: input.projectTitle ?? null,
+            fundingNeed: input.fundingNeed ?? null,
+            withoutGrantImpact: input.withoutGrantImpact ?? null,
+            capexOnlyConfirmed: input.capexOnlyConfirmed,
+            enterpriseIdentification: input.enterpriseIdentification ?? {},
+            leadEntrepreneur: input.leadEntrepreneur ?? {},
+            programmeEngagement: input.programmeEngagement ?? {},
+            businessOverview: input.businessOverview ?? {},
+            financialOverview: financialPayload,
+            budgetItems: input.budgetItems ?? [],
+            otherFunding: input.otherFunding ?? {},
+            implementationMilestones: input.implementationMilestones ?? [],
+            financialProjections: input.financialProjections ?? {},
+            jobCreationPlan: input.jobCreationPlan ?? [],
+            impact: input.impact ?? {},
+            governanceCompliance: input.governanceCompliance ?? {},
+            supportingDocuments: input.supportingDocuments ?? [],
+            declaration: input.declaration ?? {},
+            updatedAt: new Date(),
+        };
+
+        const existing = await db.query.a2fMatchingGrantApplications.findFirst({
+            where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+        });
+
+        let id: number;
+        if (existing) {
+            await db
+                .update(a2fMatchingGrantApplications)
+                .set(values)
+                .where(eq(a2fMatchingGrantApplications.id, existing.id));
+            id = existing.id;
+        } else {
+            const [inserted] = await db
+                .insert(a2fMatchingGrantApplications)
+                .values(values)
+                .returning({ id: a2fMatchingGrantApplications.id });
+            id = inserted.id;
+        }
+
+        revalidatePath(`/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}/matching-grant`);
+
+        return successResponse(
+            { id, validation },
+            input.status === "submitted" ? "Matching Grant application submitted" : "Matching Grant application saved"
+        );
+    } catch (error) {
+        console.error("Error saving Matching Grant application:", error);
+        return errorResponse("Failed to save Matching Grant application");
+    }
+}
+
+export async function saveMatchingGrantOfficialUse(
+    a2fId: number,
+    officialUse: MatchingGrantOfficialUse
+): Promise<ActionResponse<{ id: number }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized. Admin or A2F Officer access required.");
+        }
+
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, a2fId),
+            with: { application: true },
+        });
+
+        if (!pipeline) return errorResponse("A2F pipeline entry not found");
+        if (pipeline.instrumentType !== "matching_grant") {
+            return errorResponse("Official-use fields apply only to Matching Grant pipeline entries.");
+        }
+        if (!pipeline.application?.track) {
+            return errorResponse("Application track is required before saving official-use fields.");
+        }
+
+        const officerName =
+            session.user.name
+            || [session.user.firstName, session.user.lastName].filter(Boolean).join(" ")
+            || session.user.email
+            || "";
+
+        const signOffAt =
+            officialUse.reviewerSignOff.trim() && !officialUse.reviewerSignOffAt.trim()
+                ? new Date().toISOString().slice(0, 10)
+                : officialUse.reviewerSignOffAt;
+
+        const payload: MatchingGrantOfficialUse = {
+            ...officialUse,
+            receivedBy: officialUse.receivedBy.trim() || officerName,
+            reviewerSignOffAt: signOffAt,
+            referenceNumber: officialUse.referenceNumber.trim() || `MG-${a2fId}`,
+        };
+
+        const existing = await db.query.a2fMatchingGrantApplications.findFirst({
+            where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+        });
+
+        const governance = parseGovernanceCompliance(
+            (existing?.governanceCompliance ?? {}) as Record<string, unknown>
+        );
+        const governancePayload = {
+            ...governance,
+            officialUse: payload,
+        };
+
+        let id: number;
+        if (existing) {
+            await db
+                .update(a2fMatchingGrantApplications)
+                .set({
+                    governanceCompliance: governancePayload,
+                    updatedAt: new Date(),
+                })
+                .where(eq(a2fMatchingGrantApplications.id, existing.id));
+            id = existing.id;
+        } else {
+            const [inserted] = await db
+                .insert(a2fMatchingGrantApplications)
+                .values({
+                    a2fId,
+                    track: pipeline.application.track,
+                    status: "draft",
+                    submittedById: session.user.id,
+                    totalProjectAmount: "0",
+                    bireGrantAmount: "0",
+                    enterpriseContributionAmount: "0",
+                    capexOnlyConfirmed: false,
+                    governanceCompliance: governancePayload,
+                    updatedAt: new Date(),
+                })
+                .returning({ id: a2fMatchingGrantApplications.id });
+            id = inserted.id;
+        }
+
+        revalidatePath(`/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}/matching-grant`);
+
+        return successResponse({ id }, "Official-use record saved");
+    } catch (error) {
+        console.error("Error saving Matching Grant official-use fields:", error);
+        return errorResponse("Failed to save official-use fields");
+    }
+}
+
+function validateMatchingGrantApplication(input: MatchingGrantApplicationInput): MatchingGrantValidation {
+    const total = Number(input.totalProjectAmount || 0);
+    const bire = Number(input.bireGrantAmount || 0);
+    const enterprise = Number(input.enterpriseContributionAmount || 0);
+    const bireSharePct = total > 0 ? Math.round((bire / total) * 1000) / 10 : 0;
+    const enterpriseSharePct = total > 0 ? Math.round((enterprise / total) * 1000) / 10 : 0;
+    const warnings: string[] = [];
+
+    if (total <= 0) warnings.push("Total project amount must be greater than zero.");
+    if (Math.abs(total - (bire + enterprise)) > 1) {
+        warnings.push("BIRE grant and enterprise contribution should add up to the total project amount.");
+    }
+    if (bireSharePct > 70) {
+        warnings.push("BIRE grant share is above the standard 70% guidance and needs investment-case justification.");
+    }
+    if (enterpriseSharePct < 30) {
+        warnings.push("Enterprise contribution is below the standard 30% guidance and needs investment-case justification.");
+    }
+    if (!input.capexOnlyConfirmed) {
+        warnings.push("CAPEX-only confirmation is still pending.");
+    }
+
+    return { bireSharePct, enterpriseSharePct, warnings };
+}

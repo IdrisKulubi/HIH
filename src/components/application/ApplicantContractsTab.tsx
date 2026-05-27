@@ -153,13 +153,6 @@ export function ApplicantContractsTab() {
                             {contract.enterpriseContribution && parseFloat(contract.enterpriseContribution) > 0 && (
                                 <TermRow label="Your Contribution" value={fmt(contract.enterpriseContribution)} />
                             )}
-                            {contract.agreementType === "repayable" && (
-                                <>
-                                    <TermRow label="Term" value={`${contract.termMonths ?? 24} months`} />
-                                    <TermRow label="Interest Rate" value={`${contract.interestRate ?? "6.0"}% p.a.`} />
-                                    <TermRow label="Grace Period" value={`${contract.gracePeriodMonths ?? 3} months`} />
-                                </>
-                            )}
                             {contract.offerSentAt && (
                                 <TermRow label="Offer Sent" value={format(new Date(contract.offerSentAt), "dd MMM yyyy")} />
                             )}

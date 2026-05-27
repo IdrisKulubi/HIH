@@ -1,11 +1,7 @@
 /**
- * A2F module — shared constants, types, and pure helpers.
- * NOT a server action file — safe to import in both client and server components.
+ * A2F / Matching Grant module shared constants, types, and pure helpers.
+ * Safe to import in both client and server components.
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PIPELINE TYPES & CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type A2fPipelineStatus =
     | 'a2f_pipeline'
@@ -17,7 +13,9 @@ export type A2fPipelineStatus =
     | 'disbursement_active'
     | 'post_ta_monitoring';
 
-export type A2fInstrumentType = 'matching_grant' | 'repayable_grant';
+/** All pipeline entries use the Matching Grant instrument. */
+export type A2fInstrumentType = 'matching_grant';
+export type A2fEnterpriseTrack = 'foundation' | 'acceleration';
 
 export const PIPELINE_STAGE_ORDER: A2fPipelineStatus[] = [
     'a2f_pipeline',
@@ -41,74 +39,140 @@ export const PIPELINE_STAGE_LABELS: Record<A2fPipelineStatus, string> = {
     post_ta_monitoring:    'Post-TA Monitor',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SCORING TYPES & RUBRICS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Repayable Grant scoring breakdown — max 110 points */
-export interface RepayableGrantScores {
-    revenueCashFlow: number;         // max 15
-    debtServiceCoverage: number;     // max 10
-    collateralSecurity: number;      // max 10
-    marketScalabilityStrength: number; // max 25
-    impactInclusion: number;         // max 30
-    investmentPlanSafeguards: number; // max 10
-    bonusPoints: number;             // max 10
-}
-
-/** Matching Grant scoring breakdown — max 110 points */
+/** Matching Grant scoring breakdown - max 100 points, May 2026 A2F rubric. */
 export interface MatchingGrantScores {
-    ownContributionPct: number;          // max 15
-    financialManagementCapacity: number; // max 15
-    marketScalabilityPotential: number;  // max 25
-    impactInclusion: number;             // max 30
-    investmentLeverage: number;          // max 15
-    bonusPoints: number;                 // max 10
+    currentAnnualRevenue: number;       // max 10, revenue hard gate
+    revenueGrowthTrend: number;         // max 5
+    coInvestmentCommitment: number;     // max 5
+    marketDemandEvidence: number;       // max 8
+    businessModelScalability: number;   // max 8
+    competitiveDifferentiation: number; // max 9
+    projectedDecentJobs: number;        // max 10
+    inclusionTargeting: number;         // max 10
+    environmentalClimateImpact: number; // max 10
+    useOfFundsQuality: number;          // max 7
+    leveragePotential: number;          // max 8
+    innovation: number;                 // max 10
 }
 
-export const REPAYABLE_MAX_SCORES: Record<keyof RepayableGrantScores, number> = {
-    revenueCashFlow: 15,
-    debtServiceCoverage: 10,
-    collateralSecurity: 10,
-    marketScalabilityStrength: 25,
-    impactInclusion: 30,
-    investmentPlanSafeguards: 10,
-    bonusPoints: 10,
-};
+export const MATCHING_GRANT_MAX_TOTAL = 100;
+export const MATCHING_GRANT_QUALIFYING_SCORE = 60;
 
 export const MATCHING_MAX_SCORES: Record<keyof MatchingGrantScores, number> = {
-    ownContributionPct: 15,
-    financialManagementCapacity: 15,
-    marketScalabilityPotential: 25,
-    impactInclusion: 30,
-    investmentLeverage: 15,
-    bonusPoints: 10,
+    currentAnnualRevenue: 10,
+    revenueGrowthTrend: 5,
+    coInvestmentCommitment: 5,
+    marketDemandEvidence: 8,
+    businessModelScalability: 8,
+    competitiveDifferentiation: 9,
+    projectedDecentJobs: 10,
+    inclusionTargeting: 10,
+    environmentalClimateImpact: 10,
+    useOfFundsQuality: 7,
+    leveragePotential: 8,
+    innovation: 10,
 };
 
-export type ScoringPayload =
-    | { instrumentType: 'repayable_grant'; scores: RepayableGrantScores }
-    | { instrumentType: 'matching_grant'; scores: MatchingGrantScores };
+export type ScoringPayload = {
+    instrumentType: 'matching_grant';
+    scores: MatchingGrantScores;
+};
+
+export type MatchingGrantQualificationStatus =
+    | 'Qualified'
+    | 'Not Qualified - Score'
+    | 'Ineligible - Revenue'
+    | 'Refer for TA Support';
+
+/** Track-level revenue gate for Matching Grant application submit (May 2026 brief). */
+export function isMatchingGrantTrackEligible(
+    track: A2fEnterpriseTrack | null | undefined,
+    annualRevenue: number
+): boolean {
+    if (annualRevenue <= 0) return false;
+    if (track === 'acceleration') return annualRevenue > 3_000_000;
+    return annualRevenue >= 500_000 && annualRevenue <= 3_000_000;
+}
+
+/** User-facing message when revenue fails the track gate; null when eligible or revenue missing. */
+export function getMatchingGrantRevenueEligibilityMessage(
+    track: A2fEnterpriseTrack | null | undefined,
+    annualRevenue: number
+): string | null {
+    if (annualRevenue <= 0) {
+        return 'Annual revenue is required before submitting the Matching Grant application.';
+    }
+    if (track === 'acceleration') {
+        if (annualRevenue <= 3_000_000) {
+            return 'Accelerator Track enterprises must have annual revenue above KES 3,000,000. This application cannot be submitted.';
+        }
+        return null;
+    }
+    if (annualRevenue < 500_000) {
+        return 'Foundation Track enterprises must have annual revenue from KES 500,000 to KES 3,000,000. Reported revenue is below the minimum.';
+    }
+    if (annualRevenue > 3_000_000) {
+        return 'Foundation Track enterprises must have annual revenue from KES 500,000 to KES 3,000,000. Reported revenue exceeds the Foundation range.';
+    }
+    return null;
+}
+
+export function getMatchingGrantRevenueScore(
+    track: A2fEnterpriseTrack | null | undefined,
+    annualRevenue: number
+): number {
+    if (track === 'acceleration') {
+        if (annualRevenue > 5_000_000) return 10;
+        if (annualRevenue >= 3_500_000 && annualRevenue <= 5_000_000) return 6;
+        if (annualRevenue >= 3_000_000 && annualRevenue < 3_500_000) return 3;
+        return 0;
+    }
+
+    if (annualRevenue > 2_000_000 && annualRevenue <= 3_000_000) return 10;
+    if (annualRevenue >= 1_000_000 && annualRevenue <= 2_000_000) return 6;
+    if (annualRevenue >= 500_000 && annualRevenue < 1_000_000) return 3;
+    return 0;
+}
+
+export function getMatchingGrantQualification(
+    totalScore: number,
+    revenueScore: number
+): MatchingGrantQualificationStatus {
+    if (revenueScore <= 0) return 'Ineligible - Revenue';
+    if (totalScore >= MATCHING_GRANT_QUALIFYING_SCORE) return 'Qualified';
+    return 'Refer for TA Support';
+}
+
+export function normalizeMatchingGrantScores(
+    scores: Partial<MatchingGrantScores>,
+    revenueScore?: number
+): MatchingGrantScores {
+    return {
+        currentAnnualRevenue: revenueScore ?? Number(scores.currentAnnualRevenue ?? 0),
+        revenueGrowthTrend: Number(scores.revenueGrowthTrend ?? 0),
+        coInvestmentCommitment: Number(scores.coInvestmentCommitment ?? 0),
+        marketDemandEvidence: Number(scores.marketDemandEvidence ?? 0),
+        businessModelScalability: Number(scores.businessModelScalability ?? 0),
+        competitiveDifferentiation: Number(scores.competitiveDifferentiation ?? 0),
+        projectedDecentJobs: Number(scores.projectedDecentJobs ?? 0),
+        inclusionTargeting: Number(scores.inclusionTargeting ?? 0),
+        environmentalClimateImpact: Number(scores.environmentalClimateImpact ?? 0),
+        useOfFundsQuality: Number(scores.useOfFundsQuality ?? 0),
+        leveragePotential: Number(scores.leveragePotential ?? 0),
+        innovation: Number(scores.innovation ?? 0),
+    };
+}
 
 /**
- * Pure validation — checks every category score stays within its cap.
+ * Pure validation - checks every category score stays within its cap.
  * Returns an error string, or null if valid.
  */
 export function validateScoringWeights(payload: ScoringPayload): string | null {
-    if (payload.instrumentType === 'repayable_grant') {
-        const s = payload.scores;
-        for (const [key, max] of Object.entries(REPAYABLE_MAX_SCORES) as [keyof RepayableGrantScores, number][]) {
-            const val = s[key];
-            if (val < 0 || val > max) {
-                return `'${key}' must be between 0 and ${max}. Got ${val}.`;
-            }
-        }
-    } else {
-        const s = payload.scores;
-        for (const [key, max] of Object.entries(MATCHING_MAX_SCORES) as [keyof MatchingGrantScores, number][]) {
-            const val = s[key];
-            if (val < 0 || val > max) {
-                return `'${key}' must be between 0 and ${max}. Got ${val}.`;
-            }
+    const s = payload.scores;
+    for (const [key, max] of Object.entries(MATCHING_MAX_SCORES) as [keyof MatchingGrantScores, number][]) {
+        const val = s[key];
+        if (val < 0 || val > max) {
+            return `'${key}' must be between 0 and ${max}. Got ${val}.`;
         }
     }
     return null;

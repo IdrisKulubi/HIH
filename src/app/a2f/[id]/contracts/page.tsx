@@ -67,58 +67,6 @@ function fmt(amount: string | number | null | undefined) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 1 — Generate Contract Form
-// ─────────────────────────────────────────────────────────────────────────────
-
-function GenerateContractStep({
-    instrumentType,
-    onSuccess,
-}: {
-    instrumentType: "repayable_grant" | "matching_grant";
-    onSuccess: () => void;
-}) {
-    const defaultType: A2fAgreementType =
-        instrumentType === "repayable_grant" ? "repayable" : "matching";
-
-    const [agreementType, setAgreementType] = useState<A2fAgreementType>(defaultType);
-    const [totalProject, setTotalProject] = useState("");
-    const [hihContrib, setHihContrib] = useState("");
-    const [entContrib, setEntContrib] = useState("");
-    const [termMonths, setTermMonths] = useState("24");
-    const [interestRate, setInterestRate] = useState("6");
-    const [gracePeriod, setGracePeriod] = useState("3");
-    const [saving, setSaving] = useState(false);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleGenerate = async (a2fId: number) => {
-        if (!totalProject || !hihContrib) {
-            toast.error("Total project amount and HiH contribution are required");
-            return;
-        }
-        setSaving(true);
-        const input: GrantAgreementInput = {
-            agreementType,
-            totalProjectAmount: parseFloat(totalProject),
-            hihContribution: parseFloat(hihContrib),
-            enterpriseContribution: entContrib ? parseFloat(entContrib) : undefined,
-            termMonths: agreementType === "repayable" ? parseInt(termMonths) : undefined,
-            interestRate: agreementType === "repayable" ? parseFloat(interestRate) : undefined,
-            gracePeriodMonths: agreementType === "repayable" ? parseInt(gracePeriod) : undefined,
-        };
-        const res = await action_generateContract(a2fId, input);
-        setSaving(false);
-        if (res.success) {
-            toast.success(res.message ?? "Grant agreement created");
-            onSuccess();
-        } else {
-            toast.error(res.error ?? "Failed to generate agreement");
-        }
-    };
-
-    return { agreementType, setAgreementType, totalProject, setTotalProject, hihContrib, setHihContrib, entContrib, setEntContrib, termMonths, setTermMonths, interestRate, setInterestRate, gracePeriod, setGracePeriod, saving, handleGenerate };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -137,9 +85,6 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     const [totalProject, setTotalProject] = useState("");
     const [hihContrib, setHihContrib] = useState("");
     const [entContrib, setEntContrib] = useState("");
-    const [termMonths, setTermMonths] = useState("24");
-    const [interestRate, setInterestRate] = useState("6");
-    const [gracePeriod, setGracePeriod] = useState("3");
     const [generating, setGenerating] = useState(false);
 
     // Send offer letter state
@@ -160,9 +105,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
         ]);
         if (entryRes.success) {
             setEntry(entryRes.data);
-            const instrType: A2fAgreementType =
-                entryRes.data?.instrumentType === "repayable_grant" ? "repayable" : "matching";
-            setAgreementType(instrType);
+            setAgreementType("matching");
         }
         if (agreementRes.success) setAgreement(agreementRes.data ?? null);
         setLoading(false);
@@ -181,13 +124,10 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
         }
         setGenerating(true);
         const input: GrantAgreementInput = {
-            agreementType,
+            agreementType: "matching",
             totalProjectAmount: parseFloat(totalProject),
             hihContribution: parseFloat(hihContrib),
             enterpriseContribution: entContrib ? parseFloat(entContrib) : undefined,
-            termMonths: agreementType === "repayable" ? parseInt(termMonths) : undefined,
-            interestRate: agreementType === "repayable" ? parseFloat(interestRate) : undefined,
-            gracePeriodMonths: agreementType === "repayable" ? parseInt(gracePeriod) : undefined,
         };
         const res = await action_generateContract(a2fId, input);
         setGenerating(false);
@@ -320,21 +260,6 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                     </CardHeader>
                     <CardContent className="space-y-5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Agreement Type */}
-                            <div className="space-y-1.5">
-                                <Label>Agreement Type</Label>
-                                <Select value={agreementType} onValueChange={v => setAgreementType(v as A2fAgreementType)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="matching">Matching Grant Agreement</SelectItem>
-                                        <SelectItem value="repayable">Repayable Grant Agreement</SelectItem>
-                                        <SelectItem value="working_capital">Working Capital Agreement</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
                             {/* Total Project Amount */}
                             <div className="space-y-1.5">
                                 <Label>Total Project Amount (KES)</Label>
@@ -357,49 +282,15 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                 />
                             </div>
 
-                            {/* Enterprise Contribution (Matching only) */}
-                            {agreementType === "matching" && (
-                                <div className="space-y-1.5">
-                                    <Label>Enterprise Co-Contribution (KES)</Label>
-                                    <Input
-                                        type="number"
-                                        placeholder="e.g. 1000000"
-                                        value={entContrib}
-                                        onChange={e => setEntContrib(e.target.value)}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Repayable terms */}
-                            {agreementType === "repayable" && (
-                                <>
-                                    <div className="space-y-1.5">
-                                        <Label>Term (months)</Label>
-                                        <Input
-                                            type="number"
-                                            value={termMonths}
-                                            onChange={e => setTermMonths(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Interest Rate (% p.a.)</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.1"
-                                            value={interestRate}
-                                            onChange={e => setInterestRate(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Grace Period (months)</Label>
-                                        <Input
-                                            type="number"
-                                            value={gracePeriod}
-                                            onChange={e => setGracePeriod(e.target.value)}
-                                        />
-                                    </div>
-                                </>
-                            )}
+                            <div className="space-y-1.5">
+                                <Label>Enterprise Co-Contribution (KES)</Label>
+                                <Input
+                                    type="number"
+                                    placeholder="e.g. 1000000"
+                                    value={entContrib}
+                                    onChange={e => setEntContrib(e.target.value)}
+                                />
+                            </div>
                         </div>
 
                         {/* Preview of template variables */}
@@ -409,15 +300,8 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                 <p>Enterprise: <span className="font-medium text-foreground">{biz?.name}</span></p>
                                 <p>Total Project: <span className="font-medium text-foreground">{fmt(totalProject)}</span></p>
                                 <p>HiH Contribution: <span className="font-medium text-foreground">{fmt(hihContrib)}</span></p>
-                                {agreementType === "matching" && entContrib && (
+                                {entContrib && (
                                     <p>Enterprise Contribution: <span className="font-medium text-foreground">{fmt(entContrib)}</span></p>
-                                )}
-                                {agreementType === "repayable" && (
-                                    <>
-                                        <p>Term: <span className="font-medium text-foreground">{termMonths} months</span></p>
-                                        <p>Interest Rate: <span className="font-medium text-foreground">{interestRate}% p.a.</span></p>
-                                        <p>Grace Period: <span className="font-medium text-foreground">{gracePeriod} months (interest-only)</span></p>
-                                    </>
                                 )}
                             </div>
                         )}
@@ -456,18 +340,11 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                                <InfoRow label="Agreement Type"    value={agreement.agreementType === "repayable" ? "Repayable Grant" : agreement.agreementType === "matching" ? "Matching Grant" : "Working Capital"} />
+                                <InfoRow label="Agreement Type"    value="Matching Grant" />
                                 <InfoRow label="Total Project"     value={fmt(agreement.totalProjectAmount)} />
                                 <InfoRow label="HiH Contribution"  value={fmt(agreement.hihContribution)} />
                                 {parseFloat(agreement.enterpriseContribution ?? "0") > 0 && (
                                     <InfoRow label="Enterprise Contribution" value={fmt(agreement.enterpriseContribution)} />
-                                )}
-                                {agreement.agreementType === "repayable" && (
-                                    <>
-                                        <InfoRow label="Term"         value={`${agreement.termMonths ?? 24} months`} />
-                                        <InfoRow label="Interest Rate" value={`${agreement.interestRate ?? "6.0"}% p.a.`} />
-                                        <InfoRow label="Grace Period"  value={`${agreement.gracePeriodMonths ?? 3} months`} />
-                                    </>
                                 )}
                                 {agreement.offerSentAt && (
                                     <InfoRow label="Offer Sent"  value={format(new Date(agreement.offerSentAt), "dd MMM yyyy, HH:mm")} />
