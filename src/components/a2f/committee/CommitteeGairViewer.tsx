@@ -78,15 +78,15 @@ export function CommitteeGairViewer({ a2fId }: { a2fId: number }) {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="size-4" />
+                    <FileText className="size-4 text-brand-blue" weight="duotone" />
                     GAIR (read-only)
                 </CardTitle>
                 <CardDescription>
                     Expand sections to review the investment appraisal prepared by the A2F team.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
-                <Accordion type="multiple" className="w-full">
+            <CardContent className="pt-0">
+                <Accordion type="multiple" className="w-full space-y-1">
                     {filledSections.map((field) => (
                         <AccordionItem key={field.key} value={field.key}>
                             <AccordionTrigger className="text-sm font-medium">

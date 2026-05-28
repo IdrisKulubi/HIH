@@ -16,7 +16,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle, Scales } from "@phosphor-icons/react";
+
+const DECISION_HINTS: Record<IcDecision, string> = {
+    approved: "Officer may proceed to agreement once this is recorded.",
+    approved_with_conditions: "List conditions clearly; officer must satisfy them before agreement.",
+    deferred: "Case returns to the officer for further work. Amount is not required.",
+    declined: "Case does not proceed to agreement. Amount is not required.",
+};
 
 interface CommitteeDecisionPanelProps {
     appraisalId: number;
@@ -30,7 +37,6 @@ interface CommitteeDecisionPanelProps {
 
 export function CommitteeDecisionPanel({
     appraisalId,
-    a2fId,
     initialDecision,
     initialApprovedAmount,
     initialNotes,
@@ -46,6 +52,8 @@ export function CommitteeDecisionPanel({
     const [decisionNotes, setDecisionNotes] = useState(initialNotes ?? "");
     const [decisionConditions, setDecisionConditions] = useState(initialConditions ?? "");
     const [recording, setRecording] = useState(false);
+
+    const amountDisabled = decision === "deferred" || decision === "declined";
 
     async function handleRecord() {
         setRecording(true);
@@ -68,44 +76,49 @@ export function CommitteeDecisionPanel({
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-base">Committee decision</CardTitle>
+        <Card className="border-brand-blue/20 shadow-sm">
+            <CardHeader className="pb-3 bg-brand-blue/5 rounded-t-lg border-b border-brand-blue/10">
+                <CardTitle className="text-base flex items-center gap-2">
+                    <Scales weight="duotone" className="size-4 text-brand-blue" />
+                    Committee decision
+                </CardTitle>
                 <CardDescription>
-                    Approve, approve with conditions, defer, or decline before the officer may issue the agreement.
+                    Record the outcome before the officer may issue the agreement.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                        <Label>Decision</Label>
-                        <Select
-                            value={decision}
-                            onValueChange={(v) => setDecision(v as IcDecision)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="approved">Approved</SelectItem>
-                                <SelectItem value="approved_with_conditions">
-                                    Approved with conditions
-                                </SelectItem>
-                                <SelectItem value="deferred">Deferred</SelectItem>
-                                <SelectItem value="declined">Declined</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>Approved grant amount (KES)</Label>
-                        <Input
-                            type="number"
-                            min="0"
-                            value={approvedGrantAmount}
-                            onChange={(e) => setApprovedGrantAmount(e.target.value)}
-                            disabled={decision === "deferred" || decision === "declined"}
-                        />
-                    </div>
+            <CardContent className="space-y-4 pt-4">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    {DECISION_HINTS[decision]}
+                </p>
+                <div className="space-y-1.5">
+                    <Label>Decision</Label>
+                    <Select
+                        value={decision}
+                        onValueChange={(v) => setDecision(v as IcDecision)}
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="approved">Approved</SelectItem>
+                            <SelectItem value="approved_with_conditions">
+                                Approved with conditions
+                            </SelectItem>
+                            <SelectItem value="deferred">Deferred</SelectItem>
+                            <SelectItem value="declined">Declined</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Approved grant amount (KES)</Label>
+                    <Input
+                        type="number"
+                        min="0"
+                        value={approvedGrantAmount}
+                        onChange={(e) => setApprovedGrantAmount(e.target.value)}
+                        disabled={amountDisabled}
+                        placeholder={amountDisabled ? "Not applicable" : "Enter amount"}
+                    />
                 </div>
                 <div className="space-y-1.5">
                     <Label>Conditions</Label>
@@ -122,12 +135,13 @@ export function CommitteeDecisionPanel({
                         value={decisionNotes}
                         onChange={(e) => setDecisionNotes(e.target.value)}
                         rows={3}
+                        placeholder="Rationale visible to the programme team."
                     />
                 </div>
                 <Button
                     onClick={handleRecord}
                     disabled={recording}
-                    className="gap-2 bg-violet-700 hover:bg-violet-800"
+                    className="w-full gap-2 bg-brand-blue hover:bg-brand-blue-dark text-white"
                 >
                     <CheckCircle className="size-4" />
                     {recording ? "Recording…" : "Record committee decision"}

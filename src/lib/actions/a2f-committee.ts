@@ -37,6 +37,7 @@ export interface CommitteePipelineListItem {
     totalScore: number | null;
     qualificationStatus: string | null;
     revenueEligible: boolean | null;
+    hasGair: boolean;
     icDecision: string | null;
     updatedAt: string;
 }
@@ -231,6 +232,7 @@ export async function getCommitteePipelineList(): Promise<
                 totalScore,
                 qualificationStatus,
                 revenueEligible,
+                hasGair: Boolean(gair),
                 icDecision: gair?.icDecision ?? null,
                 updatedAt: entry.updatedAt.toISOString(),
             };

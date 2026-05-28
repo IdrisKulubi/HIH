@@ -40,21 +40,7 @@ import {
     Buildings, MapPin, User, ArrowsClockwise,
     CheckCircle, CurrencyDollar, CaretUpDown, Check,
 } from "@phosphor-icons/react";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STAGE CONFIG
-// ─────────────────────────────────────────────────────────────────────────────
-
-const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-    a2f_pipeline:        { label: "In Pipeline",       color: "text-slate-700",   bg: "bg-slate-100" },
-    due_diligence_initial: { label: "Initial DD",      color: "text-blue-700",    bg: "bg-blue-100" },
-    pre_ic_scoring:      { label: "Pre-IC Scoring",    color: "text-violet-700",  bg: "bg-violet-100" },
-    ic_appraisal_review: { label: "IC Appraisal",      color: "text-amber-700",   bg: "bg-amber-100" },
-    offer_issued:        { label: "Offer Issued",       color: "text-orange-700",  bg: "bg-orange-100" },
-    contracting:         { label: "Contracting",        color: "text-cyan-700",    bg: "bg-cyan-100" },
-    disbursement_active: { label: "Disbursing",         color: "text-emerald-700", bg: "bg-emerald-100" },
-    post_ta_monitoring:  { label: "Post-TA Monitor",    color: "text-green-700",   bg: "bg-green-100" },
-};
+import { STAGE_CONFIG, getStageStyle } from "@/lib/a2f-pipeline-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE (wrapped with Suspense for useSearchParams)
@@ -341,7 +327,7 @@ function A2fDashboardContent() {
                             </TableHeader>
                             <TableBody>
                                 {filtered.map(entry => {
-                                    const stage = STAGE_CONFIG[entry.status] ?? { label: entry.status, color: "text-gray-600", bg: "bg-gray-100" };
+                                    const stage = getStageStyle(entry.status);
                                     return (
                                         <TableRow key={entry.id} className="hover:bg-muted/30">
                                             <TableCell className="pl-6">

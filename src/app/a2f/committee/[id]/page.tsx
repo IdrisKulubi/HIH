@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
     getCommitteeCaseDetail,
@@ -11,12 +11,50 @@ import { CommitteeDecisionPanel } from "@/components/a2f/committee/CommitteeDeci
 import { CommitteeScoreOverridePanel } from "@/components/a2f/committee/CommitteeScoreOverridePanel";
 import { CommitteeGairViewer } from "@/components/a2f/committee/CommitteeGairViewer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ArrowLeft, FileText, Buildings } from "@phosphor-icons/react";
-import { PIPELINE_STAGE_LABELS, type A2fPipelineStatus } from "@/lib/a2f-constants";
+import { ArrowLeft, FileText, Warning } from "@phosphor-icons/react";
+import { IcDecisionBadge, PipelineStageBadge, RevenueGateBadge } from "@/components/a2f/PipelineBadges";
+
+function EnterpriseFacts({
+    pipeline,
+}: {
+    pipeline: CommitteeCaseDetail["pipeline"];
+}) {
+    const facts: { label: string; value: ReactNode }[] = [
+        { label: "Applicant", value: pipeline.applicantName },
+        { label: "Email", value: pipeline.applicantEmail },
+        {
+            label: "Stage",
+            value: <PipelineStageBadge status={pipeline.status} />,
+        },
+        { label: "Track", value: <span className="capitalize">{pipeline.track ?? "—"}</span> },
+        {
+            label: "Revenue gate",
+            value: <RevenueGateBadge eligible={pipeline.revenueEligible} />,
+        },
+        {
+            label: "Annual revenue",
+            value: `KES ${pipeline.annualRevenue.toLocaleString("en-KE")}`,
+        },
+    ];
+    if (pipeline.county) facts.push({ label: "County", value: pipeline.county });
+    if (pipeline.sector) facts.push({ label: "Sector", value: pipeline.sector });
+
+    return (
+        <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+            {facts.map(({ label, value }) => (
+                <div key={label} className="rounded-lg border bg-card px-3 py-2.5">
+                    <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        {label}
+                    </dt>
+                    <dd className="mt-1 font-medium text-foreground">{value}</dd>
+                </div>
+            ))}
+        </dl>
+    );
+}
 
 export default function CommitteeCasePage({
     params,
@@ -42,17 +80,24 @@ export default function CommitteeCasePage({
 
     if (loading) {
         return (
-            <div className="container mx-auto px-4 py-8 space-y-4">
-                <Skeleton className="h-8 w-64" />
-                <Skeleton className="h-40" />
-                <Skeleton className="h-96" />
+            <div className="container mx-auto px-4 py-8 max-w-6xl space-y-6">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-10 w-96" />
+                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                    <div className="space-y-4">
+                        <Skeleton className="h-40 rounded-xl" />
+                        <Skeleton className="h-64 rounded-xl" />
+                        <Skeleton className="h-48 rounded-xl" />
+                    </div>
+                    <Skeleton className="h-80 rounded-xl" />
+                </div>
             </div>
         );
     }
 
     if (!detail) {
         return (
-            <div className="container mx-auto px-4 py-8">
+            <div className="container mx-auto px-4 py-8 max-w-6xl">
                 <p className="text-muted-foreground">Case not found.</p>
                 <Button variant="link" asChild className="px-0 mt-2">
                     <Link href="/a2f/committee">Back to cases</Link>
@@ -64,115 +109,106 @@ export default function CommitteeCasePage({
     const { pipeline, scoring, gair } = detail;
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-5xl">
-            <div className="mb-6 flex items-center gap-3">
-                <Button variant="ghost" size="sm" asChild className="gap-1.5">
+        <div className="container mx-auto px-4 py-8 max-w-6xl space-y-6">
+            <div className="space-y-3">
+                <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2 text-brand-blue hover:text-brand-blue-dark">
                     <Link href="/a2f/committee">
                         <ArrowLeft className="size-4" /> All cases
                     </Link>
                 </Button>
-                <Badge className="gap-1.5">
-                    <Buildings className="size-3" />
-                    {pipeline.businessName}
-                </Badge>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">{pipeline.businessName}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Application #{pipeline.applicationId}
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <PipelineStageBadge status={pipeline.status} />
+                        {gair && <IcDecisionBadge decision={gair.icDecision} />}
+                    </div>
+                </div>
             </div>
 
-            <Card className="mb-6">
-                <CardHeader>
-                    <CardTitle>{pipeline.businessName}</CardTitle>
-                    <CardDescription>
-                        {pipeline.applicantName} · {pipeline.applicantEmail}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
+            {!gair && (
+                <div
+                    className="rounded-xl border border-brand-blue/20 bg-brand-blue/5 px-4 py-3 flex gap-3 text-sm text-slate-800"
+                    role="status"
+                >
+                    <Warning className="size-5 shrink-0 text-brand-blue mt-0.5" weight="duotone" />
                     <p>
-                        <span className="text-muted-foreground">Stage: </span>
-                        {PIPELINE_STAGE_LABELS[pipeline.status as A2fPipelineStatus] ?? pipeline.status}
+                        No GAIR has been prepared yet. The Access to Finance Officer must complete the
+                        investment appraisal before you can record a committee decision.
                     </p>
-                    <p>
-                        <span className="text-muted-foreground">Track: </span>
-                        <span className="capitalize">{pipeline.track ?? "—"}</span>
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Revenue gate: </span>
-                        {pipeline.revenueEligible ? "Eligible" : "Ineligible"}
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Annual revenue: </span>
-                        KES {pipeline.annualRevenue.toLocaleString("en-KE")}
-                    </p>
-                    {pipeline.county && (
-                        <p>
-                            <span className="text-muted-foreground">County: </span>
-                            {pipeline.county}
-                        </p>
-                    )}
-                    {pipeline.sector && (
-                        <p>
-                            <span className="text-muted-foreground">Sector: </span>
-                            {pipeline.sector}
-                        </p>
-                    )}
-                </CardContent>
-            </Card>
+                </div>
+            )}
 
-            {gair && (
-                <div className="mb-6 space-y-4">
-                    {gair.scoringSummary && (
+            <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+                <div className="space-y-6 min-w-0">
+                    <section>
+                        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                            Enterprise
+                        </h2>
+                        <EnterpriseFacts pipeline={pipeline} />
+                    </section>
+
+                    {gair?.scoringSummary && (
                         <Card>
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base flex items-center gap-2">
-                                    <FileText className="size-4" />
+                                    <FileText className="size-4 text-brand-blue" />
                                     Scoring summary
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                                <p className="text-sm whitespace-pre-wrap text-muted-foreground leading-relaxed">
                                     {gair.scoringSummary}
                                 </p>
                             </CardContent>
                         </Card>
                     )}
-                    <CommitteeGairViewer a2fId={a2fId} />
+
+                    {gair && <CommitteeGairViewer a2fId={a2fId} />}
+
+                    {scoring ? (
+                        <div className="space-y-4">
+                            <CommitteeScoringBreakdown scoring={scoring} />
+                            <CommitteeScoreOverridePanel
+                                a2fId={a2fId}
+                                currentScores={scoring.rawScores}
+                                onOverride={load}
+                            />
+                        </div>
+                    ) : (
+                        <Card>
+                            <CardContent className="py-6 text-sm text-muted-foreground">
+                                No scoring recorded yet. The officer or reviewer must complete scoring
+                                before committee review.
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
-            )}
 
-            {!gair && (
-                <Card className="mb-6 border-amber-200 bg-amber-50">
-                    <CardContent className="py-4 text-sm text-amber-900">
-                        No GAIR has been prepared yet. The A2F Officer must prepare the GAIR before committee decision.
-                    </CardContent>
-                </Card>
-            )}
-
-            {scoring ? (
-                <div className="mb-6">
-                    <CommitteeScoringBreakdown scoring={scoring} />
-                    <CommitteeScoreOverridePanel
-                        a2fId={a2fId}
-                        currentScores={scoring.rawScores}
-                        onOverride={load}
-                    />
-                </div>
-            ) : (
-                <Card className="mb-6">
-                    <CardContent className="py-6 text-sm text-muted-foreground">
-                        No scoring recorded yet.
-                    </CardContent>
-                </Card>
-            )}
-
-            {gair ? (
-                <CommitteeDecisionPanel
-                    appraisalId={gair.id}
-                    a2fId={a2fId}
-                    initialDecision={gair.icDecision}
-                    initialApprovedAmount={gair.approvedGrantAmount ?? undefined}
-                    initialNotes={gair.decisionNotes ?? undefined}
-                    initialConditions={gair.decisionConditions ?? undefined}
-                    onRecorded={load}
-                />
-            ) : null}
+                <aside className="lg:sticky lg:top-20 space-y-4">
+                    {gair ? (
+                        <CommitteeDecisionPanel
+                            appraisalId={gair.id}
+                            a2fId={a2fId}
+                            initialDecision={gair.icDecision}
+                            initialApprovedAmount={gair.approvedGrantAmount ?? undefined}
+                            initialNotes={gair.decisionNotes ?? undefined}
+                            initialConditions={gair.decisionConditions ?? undefined}
+                            onRecorded={load}
+                        />
+                    ) : (
+                        <Card className="border-dashed">
+                            <CardContent className="py-6 text-sm text-muted-foreground">
+                                Committee decision will be available once the GAIR is prepared.
+                            </CardContent>
+                        </Card>
+                    )}
+                </aside>
+            </div>
         </div>
     );
 }
