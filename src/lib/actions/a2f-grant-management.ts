@@ -247,8 +247,8 @@ export async function saveGrantMilestone(a2fId: number, input: GrantMilestoneInp
             milestoneName: input.milestoneName.trim(),
             description: input.description?.trim() || null,
             trancheLabel: input.trancheLabel?.trim() || null,
-            plannedCompletionDate: input.plannedCompletionDate || null,
-            actualCompletionDate: input.actualCompletionDate || null,
+            plannedCompletionDate: dateValue(input.plannedCompletionDate),
+            actualCompletionDate: dateValue(input.actualCompletionDate),
             verificationMethod: input.verificationMethod?.trim() || null,
             evidenceUrl: input.evidenceUrl?.trim() || null,
             status,
@@ -307,5 +307,9 @@ function numberValue(value: unknown): number {
 
 function dateValue(value: unknown): string | null {
     const clean = text(value);
-    return clean || null;
+    if (!clean) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+    const parsed = new Date(clean);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
 }

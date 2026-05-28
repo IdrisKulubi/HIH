@@ -16,6 +16,11 @@ import { advancePipelineStatus } from "./a2f-pipeline";
 import { sendEmail } from "@/lib/email";
 import { ActionResponse, successResponse, errorResponse } from "./types";
 import React from "react";
+import type { ContractTemplateVariables } from "@/lib/contract-template-types";
+import { offerLetterFilename, renderOfferLetterPdfBuffer } from "@/lib/offer-letter-export";
+import { UTApi, UTFile } from "uploadthing/server";
+
+export type { ContractTemplateVariables } from "@/lib/contract-template-types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -35,22 +40,6 @@ export interface GrantAgreementInput {
     interestRate?: number;
     /** Defaults: 3 months for Repayable */
     gracePeriodMonths?: number;
-}
-
-export interface ContractTemplateVariables {
-    enterpriseName: string;
-    applicantName: string;
-    applicantEmail: string;
-    county: string;
-    agreementType: string;
-    totalProjectAmount: string;
-    hihContribution: string;
-    enterpriseContribution: string;
-    termMonths: number;
-    interestRate: number;
-    gracePeriodMonths: number;
-    repaymentStartDate: string;
-    firstRepaymentDue: string;
 }
 
 const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
@@ -88,7 +77,12 @@ export async function getGrantAgreement(a2fId: number) {
 export async function action_generateContract(
     a2fId: number,
     input: GrantAgreementInput
-): Promise<ActionResponse<{ agreementId: number; templateVars: ContractTemplateVariables }>> {
+): Promise<ActionResponse<{
+    agreementId: number;
+    templateVars: ContractTemplateVariables;
+    offerLetterUrl?: string | null;
+    offerLetterWarning?: string;
+}>> {
     try {
         const session = await auth();
         if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
@@ -179,12 +173,24 @@ export async function action_generateContract(
             await advancePipelineStatus(a2fId, 'contracting');
         }
 
+        const offerLetterResult = await storeGeneratedOfferLetter(agreement.id, templateVars);
+
         revalidatePath(`/admin/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}/contracts`);
         revalidatePath('/admin/a2f');
 
+        const message = offerLetterResult.url
+            ? "Grant agreement created. Offer letter PDF is ready to review and send."
+            : "Grant agreement created. Offer letter PDF could not be generated — use Regenerate offer letter on the Contracts page.";
+
         return successResponse(
-            { agreementId: agreement.id, templateVars },
-            "Grant agreement created. Template variables ready for document generation."
+            {
+                agreementId: agreement.id,
+                templateVars,
+                offerLetterUrl: offerLetterResult.url ?? null,
+                offerLetterWarning: offerLetterResult.error,
+            },
+            message
         );
     } catch (error) {
         console.error("Error generating contract:", error);
@@ -196,6 +202,44 @@ export async function action_generateContract(
 // SEND OFFER LETTER
 // Saves offer letter URL and triggers Resend email to the applicant.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export async function regenerateOfferLetter(
+    agreementId: number
+): Promise<ActionResponse<{ offerLetterUrl: string }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized. Admin or A2F Officer access required.");
+        }
+
+        const agreement = await db.query.grantAgreements.findFirst({
+            where: eq(grantAgreements.id, agreementId),
+        });
+        if (!agreement) return errorResponse("Grant agreement not found");
+        if (agreement.offerSentAt) {
+            return errorResponse("Cannot regenerate offer letter after it has been sent to the applicant.");
+        }
+
+        const templateVars = await buildTemplateVarsForAgreement(agreement.a2fId, agreement);
+        if (!templateVars) return errorResponse("Could not load agreement data for offer letter");
+
+        const offerLetterResult = await storeGeneratedOfferLetter(agreementId, templateVars);
+        if (!offerLetterResult.url) {
+            return errorResponse(offerLetterResult.error ?? "Failed to regenerate offer letter");
+        }
+
+        revalidatePath(`/a2f/${agreement.a2fId}/contracts`);
+        revalidatePath(`/admin/a2f/${agreement.a2fId}`);
+
+        return successResponse(
+            { offerLetterUrl: offerLetterResult.url },
+            "Offer letter PDF regenerated successfully."
+        );
+    } catch (error) {
+        console.error("Error regenerating offer letter:", error);
+        return errorResponse("Failed to regenerate offer letter");
+    }
+}
 
 export async function sendOfferLetter(
     agreementId: number,
@@ -223,10 +267,15 @@ export async function sendOfferLetter(
         });
         if (!application) return errorResponse("Application not found");
 
+        const resolvedUrl = offerLetterUrl.trim() || agreement.offerLetterUrl?.trim() || "";
+        if (!resolvedUrl) {
+            return errorResponse("Generate or attach an offer letter before sending.");
+        }
+
         // Persist offer letter URL + timestamp
         await db
             .update(grantAgreements)
-            .set({ offerLetterUrl, offerSentAt: new Date(), updatedAt: new Date() })
+            .set({ offerLetterUrl: resolvedUrl, offerSentAt: new Date(), updatedAt: new Date() })
             .where(eq(grantAgreements.id, agreementId));
 
         const biz = application.business;
@@ -240,12 +289,13 @@ export async function sendOfferLetter(
                 applicantName,
                 enterpriseName: biz.name,
                 agreementType: agreement.agreementType,
-                offerLetterUrl,
+                offerLetterUrl: resolvedUrl,
                 hihContribution: agreement.hihContribution,
             }),
         });
 
         revalidatePath(`/admin/a2f/${agreement.a2fId}`);
+        revalidatePath(`/a2f/${agreement.a2fId}/contracts`);
 
         return successResponse(undefined, `Offer letter sent to ${biz.applicant.email}`);
     } catch (error) {
@@ -429,4 +479,72 @@ function formatCurrency(amount: number): string {
 
 function formatDate(date: Date): string {
     return date.toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+async function storeGeneratedOfferLetter(
+    agreementId: number,
+    templateVars: ContractTemplateVariables
+): Promise<{ url?: string; error?: string }> {
+    try {
+        const buffer = await renderOfferLetterPdfBuffer(templateVars);
+        const filename = offerLetterFilename(templateVars.enterpriseName, agreementId);
+        const utapi = new UTApi();
+        const file = new UTFile([buffer], filename, { type: "application/pdf" });
+        const uploadResult = await utapi.uploadFiles([file]);
+        const uploaded = uploadResult[0];
+        if (!uploaded || uploaded.error) {
+            return { error: uploaded?.error?.message ?? "Failed to upload offer letter PDF" };
+        }
+
+        const url = uploaded.data.url;
+        await db
+            .update(grantAgreements)
+            .set({ offerLetterUrl: url, updatedAt: new Date() })
+            .where(eq(grantAgreements.id, agreementId));
+
+        return { url };
+    } catch (error) {
+        console.error("storeGeneratedOfferLetter:", error);
+        return { error: error instanceof Error ? error.message : "Failed to generate offer letter PDF" };
+    }
+}
+
+type GrantAgreementRow = typeof grantAgreements.$inferSelect;
+
+async function buildTemplateVarsForAgreement(
+    a2fId: number,
+    agreement: GrantAgreementRow
+): Promise<ContractTemplateVariables | null> {
+    const pipeline = await db.query.a2fPipeline.findFirst({
+        where: eq(a2fPipeline.id, a2fId),
+    });
+    if (!pipeline) return null;
+
+    const application = await db.query.applications.findFirst({
+        where: eq(applications.id, pipeline.applicationId),
+        with: { business: { with: { applicant: true } } },
+    });
+    if (!application) return null;
+
+    const biz = application.business;
+    const repaymentStart = new Date();
+    const firstRepaymentDue = new Date();
+
+    return {
+        enterpriseName: biz.name,
+        applicantName: `${biz.applicant.firstName} ${biz.applicant.lastName}`.trim(),
+        applicantEmail: biz.applicant.email,
+        county: biz.county ?? biz.city,
+        agreementType: agreement.agreementType === 'matching'
+            ? 'Matching Grant Agreement'
+            : 'Working Capital Agreement',
+        totalProjectAmount: formatCurrency(Number(agreement.totalProjectAmount)),
+        hihContribution: formatCurrency(Number(agreement.hihContribution)),
+        enterpriseContribution: formatCurrency(Number(agreement.enterpriseContribution ?? 0)),
+        termMonths: agreement.termMonths ?? 0,
+        interestRate: Number(agreement.interestRate ?? 0),
+        gracePeriodMonths: agreement.gracePeriodMonths ?? 0,
+        repaymentStartDate: formatDate(repaymentStart),
+        firstRepaymentDue: formatDate(firstRepaymentDue),
+    };
 }

@@ -320,7 +320,8 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
 
     const summary = ledger?.summary ?? { totalDisbursed: 0, totalRepaid: 0, pendingCount: 0 };
     const remaining = Math.max(0, Number(agreement.hihContribution) - summary.totalDisbursed);
-    const verifiedMilestones = (grantControls?.milestones ?? []).filter((item: { status: string }) => item.status === "verified");
+    const allMilestones = (grantControls?.milestones ?? []) as Array<{ id: number; milestoneName: string; trancheLabel: string | null; status: string }>;
+    const verifiedMilestones = allMilestones.filter((item) => item.status === "verified");
     const procurementItems = grantControls?.procurementItems ?? [];
 
     return (
@@ -449,23 +450,37 @@ export default function DisbursementsPage({ params }: { params: Promise<{ id: st
                                     <Label>Verified Milestone / Tranche</Label>
                                     <Select value={txMilestoneId} onValueChange={(value) => {
                                         setTxMilestoneId(value);
-                                        const selected = verifiedMilestones.find((item: { id: number }) => String(item.id) === value);
+                                        const selected = allMilestones.find((item) => String(item.id) === value);
                                         setTxTrancheLabel(selected?.trancheLabel ?? "");
                                     }}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select verified milestone" />
+                                            <SelectValue placeholder={allMilestones.length ? "Select milestone" : "No milestones yet"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {verifiedMilestones.map((item: { id: number; milestoneName: string; trancheLabel: string | null }) => (
-                                                <SelectItem key={item.id} value={String(item.id)}>
-                                                    {item.trancheLabel ? `${item.trancheLabel} - ${item.milestoneName}` : item.milestoneName}
-                                                </SelectItem>
-                                            ))}
+                                            {allMilestones.map((item) => {
+                                                const isVerified = item.status === "verified";
+                                                const label = item.trancheLabel ? `${item.trancheLabel} - ${item.milestoneName}` : item.milestoneName;
+                                                return (
+                                                    <SelectItem key={item.id} value={String(item.id)} disabled={!isVerified}>
+                                                        <span className="flex items-center gap-2">
+                                                            <span>{label}</span>
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${isVerified ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                                                {isVerified ? "verified" : item.status.replace(/_/g, " ")}
+                                                            </span>
+                                                        </span>
+                                                    </SelectItem>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                     {!verifiedMilestones.length && (
                                         <p className="text-xs text-blue-700">
-                                            Verify at least one grant milestone in Grant Management before logging a Matching Grant disbursement.
+                                            {allMilestones.length
+                                                ? "Milestones exist but none are verified. "
+                                                : "No milestones yet. "}
+                                            <Link href={`/a2f/${a2fId}/grant-management`} className="underline font-medium">
+                                                Open Grant Management
+                                            </Link>{" "}to {allMilestones.length ? "mark a milestone as verified" : "add and verify a milestone"}.
                                         </p>
                                     )}
                                 </div>

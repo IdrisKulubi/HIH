@@ -10,9 +10,12 @@ import {
     sendOfferLetter,
     recordSignedContract,
     getGrantAgreement,
+    regenerateOfferLetter,
     type A2fAgreementType,
     type GrantAgreementInput,
 } from "@/lib/actions/a2f-contracts";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
+import { UploadButton } from "@/utils/uploadthing";
 import {
     Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
@@ -91,6 +94,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     const [offerLetterUrl, setOfferLetterUrl] = useState("");
     const [sending, setSending] = useState(false);
     const [showSendDialog, setShowSendDialog] = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
 
     // Upload signed contract state
     const [signedUrl, setSignedUrl] = useState("");
@@ -113,6 +117,12 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
 
     useEffect(() => { loadData(); }, [loadData]);
 
+    useEffect(() => {
+        if (showSendDialog) {
+            setOfferLetterUrl(agreement?.offerLetterUrl ?? "");
+        }
+    }, [showSendDialog, agreement?.offerLetterUrl]);
+
     const wfState = workflowState(agreement);
     const currentStepIdx = WORKFLOW_STEPS.findIndex(s => s.key === wfState);
 
@@ -132,6 +142,9 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
         const res = await action_generateContract(a2fId, input);
         setGenerating(false);
         if (res.success) {
+            if (res.data?.offerLetterWarning) {
+                toast.warning(res.data.offerLetterWarning);
+            }
             toast.success(res.message ?? "Grant agreement created");
             loadData();
         } else {
@@ -141,12 +154,13 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
 
     // ── Send Offer Letter ──
     async function handleSendOffer() {
-        if (!offerLetterUrl.trim()) {
-            toast.error("Please enter the offer letter URL");
+        const urlToSend = offerLetterUrl.trim() || agreement?.offerLetterUrl?.trim() || "";
+        if (!urlToSend) {
+            toast.error("Generate or attach an offer letter before sending");
             return;
         }
         setSending(true);
-        const res = await sendOfferLetter(agreement.id, offerLetterUrl.trim());
+        const res = await sendOfferLetter(agreement.id, urlToSend);
         setSending(false);
         if (res.success) {
             toast.success(res.message ?? "Offer letter sent");
@@ -155,6 +169,19 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
             loadData();
         } else {
             toast.error(res.error ?? "Failed to send offer letter");
+        }
+    }
+
+    async function handleRegenerateOfferLetter() {
+        if (!agreement?.id) return;
+        setRegenerating(true);
+        const res = await regenerateOfferLetter(agreement.id);
+        setRegenerating(false);
+        if (res.success) {
+            toast.success(res.message ?? "Offer letter regenerated");
+            loadData();
+        } else {
+            toast.error(res.error ?? "Failed to regenerate offer letter");
         }
     }
 
@@ -188,6 +215,9 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     }
 
     const biz = entry?.application?.business;
+    const offerLetterHref = agreement?.offerLetterUrl
+        ? getDocumentViewerHref(agreement.offerLetterUrl, "offer-letter.pdf")
+        : null;
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -356,6 +386,57 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                         </CardContent>
                     </Card>
 
+                    {(wfState === "generated" || agreement.offerLetterUrl) && (
+                        <Card className={!agreement.offerLetterUrl ? "border-amber-200 bg-amber-50/30" : undefined}>
+                            <CardContent className="pt-5 pb-5">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className={`rounded-lg p-2 ${agreement.offerLetterUrl ? "bg-slate-100" : "bg-amber-100"}`}>
+                                            <FilePdf
+                                                weight="duotone"
+                                                className={`size-5 ${agreement.offerLetterUrl ? "text-slate-700" : "text-amber-700"}`}
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold">Offer letter PDF</p>
+                                            <p className="text-sm text-muted-foreground mt-0.5">
+                                                {agreement.offerLetterUrl
+                                                    ? "Generated from the agreement terms. Review before sending to the applicant."
+                                                    : "No PDF is stored yet (upload may have failed when the agreement was created). Generate one now before sending."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {offerLetterHref && (
+                                            <Button asChild variant="outline" size="sm" className="gap-1.5">
+                                                <a href={offerLetterHref} target="_blank" rel="noreferrer">
+                                                    <DownloadSimple className="size-4" />
+                                                    View / Download PDF
+                                                </a>
+                                            </Button>
+                                        )}
+                                        {wfState === "generated" && (
+                                            <Button
+                                                variant={agreement.offerLetterUrl ? "ghost" : "default"}
+                                                size="sm"
+                                                className={!agreement.offerLetterUrl ? "gap-1.5 bg-emerald-700 hover:bg-emerald-800" : undefined}
+                                                onClick={handleRegenerateOfferLetter}
+                                                disabled={regenerating}
+                                            >
+                                                <FilePdf className="size-4" />
+                                                {regenerating
+                                                    ? "Generating..."
+                                                    : agreement.offerLetterUrl
+                                                      ? "Regenerate offer letter"
+                                                      : "Generate offer letter PDF"}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Offer Letter Card */}
                     {wfState === "generated" && (
                         <Card className="border-blue-200 bg-blue-50/40">
@@ -368,13 +449,17 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                         <div>
                                             <p className="font-semibold text-blue-900">Next Step: Send Offer Letter</p>
                                             <p className="text-sm text-blue-700 mt-0.5">
-                                                Upload the generated offer letter PDF to your file store (UploadThing / Drive), then paste the URL below to send it to the applicant via email.
+                                                {agreement.offerLetterUrl
+                                                    ? "Review the offer letter PDF, then send it to the applicant by email."
+                                                    : "Use Generate offer letter PDF in the section above, then send to the applicant."}
                                             </p>
                                         </div>
                                     </div>
                                     <Button
                                         onClick={() => setShowSendDialog(true)}
-                                        className="shrink-0 bg-blue-700 hover:bg-blue-800 gap-1.5"
+                                        disabled={!agreement.offerLetterUrl}
+                                        title={!agreement.offerLetterUrl ? "Generate the offer letter PDF first" : undefined}
+                                        className="shrink-0 bg-blue-700 hover:bg-blue-800 gap-1.5 disabled:opacity-50"
                                     >
                                         <PaperPlaneTilt className="size-4" />
                                         Send Offer Letter
@@ -398,9 +483,9 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                             <p className="text-sm text-amber-700 mt-0.5">
                                                 The offer letter was emailed to the applicant. Once they sign and return it, record the signed document URL below.
                                             </p>
-                                            {agreement.offerLetterUrl && (
+                                            {offerLetterHref && (
                                                 <a
-                                                    href={agreement.offerLetterUrl}
+                                                    href={offerLetterHref}
                                                     target="_blank"
                                                     rel="noreferrer"
                                                     className="inline-flex items-center gap-1 text-xs text-blue-700 hover:underline mt-1.5 font-medium"
@@ -470,13 +555,29 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                             Send Offer Letter
                         </DialogTitle>
                         <DialogDescription>
-                            Paste the URL of the generated offer letter PDF. An email will be sent to the applicant automatically.
+                            {agreement?.offerLetterUrl
+                                ? "The stored offer letter PDF will be emailed to the applicant. You can override the URL below if needed."
+                                : "Enter an offer letter PDF URL, or regenerate the PDF on the Contracts page before sending."}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
-                        <Label>Offer Letter URL</Label>
+                        {agreement?.offerLetterUrl && offerLetterHref && (
+                            <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                                <p className="text-xs text-muted-foreground mb-1">Stored offer letter</p>
+                                <a
+                                    href={offerLetterHref}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 font-medium text-blue-700 hover:underline"
+                                >
+                                    <DownloadSimple className="size-3.5" />
+                                    Preview PDF
+                                </a>
+                            </div>
+                        )}
+                        <Label>Offer letter URL {agreement?.offerLetterUrl ? "(optional override)" : ""}</Label>
                         <Input
-                            placeholder="https://utfs.io/f/abc123..."
+                            placeholder={agreement?.offerLetterUrl ? agreement.offerLetterUrl : "https://utfs.io/f/abc123..."}
                             value={offerLetterUrl}
                             onChange={e => setOfferLetterUrl(e.target.value)}
                         />
@@ -504,10 +605,37 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                             Record Signed Agreement
                         </DialogTitle>
                         <DialogDescription>
-                            Paste the URL of the applicant&apos;s signed and returned PDF. This will mark the agreement as fully executed.
+                            Upload the applicant&apos;s signed PDF, or paste a URL. This will mark the agreement as fully executed.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
+                        <div className="space-y-2">
+                            <Label>Upload signed agreement (PDF or image)</Label>
+                            <UploadButton
+                                endpoint="signedContractUploader"
+                                onClientUploadComplete={(res) => {
+                                    const url = res?.[0]?.url ?? res?.[0]?.ufsUrl;
+                                    if (url) {
+                                        setSignedUrl(url);
+                                        toast.success("File uploaded. Click Mark as Executed to finalize.");
+                                    }
+                                }}
+                                onUploadError={(error) => {
+                                    toast.error(error.message || "Upload failed");
+                                }}
+                                appearance={{
+                                    button: "ut-ready:bg-emerald-700 ut-ready:hover:bg-emerald-800 ut-uploading:bg-emerald-600 h-9 text-sm px-3",
+                                    container: "items-start gap-1",
+                                    allowedContent: "text-xs text-muted-foreground",
+                                }}
+                            />
+                        </div>
+
+                        <div className="relative my-2">
+                            <Separator />
+                            <span className="absolute inset-0 -top-2 mx-auto w-fit bg-background px-2 text-[10px] uppercase tracking-wider text-muted-foreground">or paste URL</span>
+                        </div>
+
                         <Label>Signed Document URL</Label>
                         <Input
                             placeholder="https://utfs.io/f/signed_abc123..."

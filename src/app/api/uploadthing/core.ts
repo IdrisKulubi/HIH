@@ -4,12 +4,25 @@ import { auth } from "@/auth";
 
 const f = createUploadthing();
 
+const A2F_UPLOAD_ROLES = ["admin", "a2f_officer", "redo", "bds_edo"] as const;
+
 const authenticateUploadRequest = async () => {
   const session = await auth();
   if (!session?.user?.id) {
     throw new UploadThingError("Unauthorized");
   }
-  return { id: session.user.id };
+  return { id: session.user.id, role: session.user.role };
+};
+
+const authenticateA2fUploadRequest = async () => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new UploadThingError("Unauthorized");
+  }
+  if (!A2F_UPLOAD_ROLES.includes(session.user.role as (typeof A2F_UPLOAD_ROLES)[number])) {
+    throw new UploadThingError("Unauthorized");
+  }
+  return { userId: session.user.id };
 };
 
 // Define a reusable document uploader configuration
@@ -98,6 +111,41 @@ export const ourFileRouter = {
   registrationCertificateUploader: documentUploader,
   kycDocumentUploader: documentUploader,
   cdpEvidenceUploader,
+  signedContractUploader: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    image: { maxFileSize: "8MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      try {
+        const user = await authenticateA2fUploadRequest();
+        return { userId: user.userId };
+      } catch (error) {
+        console.error("Signed contract upload middleware error:", error);
+        throw new UploadThingError("Unauthorized");
+      }
+    })
+    .onUploadComplete(async ({ metadata, file }) => ({
+      uploadedBy: metadata.userId,
+      fileName: file.name,
+      fileUrl: file.url,
+    })),
+  offerLetterUploader: f({
+    pdf: { maxFileSize: "8MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      try {
+        const user = await authenticateA2fUploadRequest();
+        return { userId: user.userId };
+      } catch (error) {
+        console.error("Offer letter upload middleware error:", error);
+        throw new UploadThingError("Unauthorized");
+      }
+    })
+    .onUploadComplete(async ({ metadata, file }) => ({
+      uploadedBy: metadata.userId,
+      fileName: file.name,
+      fileUrl: file.url,
+    })),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter; 
