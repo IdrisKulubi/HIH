@@ -45,6 +45,7 @@ export const userRoleEnum = pgEnum('user_role', [
   'reviewer_2',
   'oversight',
   'a2f_officer',
+  'a2f_committee',
   'mentor',
   'bds_edo',
   'investment_analyst',
@@ -2463,6 +2464,25 @@ export const a2fScoring = pgTable('a2f_scoring', {
   scorerIdIdx: index('a2f_scoring_scorer_id_idx').on(table.scorerId),
 }));
 
+/** Audit trail when the A2F Committee overrides officer scoring. */
+export const a2fScoringOverrides = pgTable('a2f_scoring_overrides', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  previousScores: jsonb('previous_scores').notNull(),
+  newScores: jsonb('new_scores').notNull(),
+  previousTotal: integer('previous_total').notNull(),
+  newTotal: integer('new_total').notNull(),
+  reason: text('reason').notNull(),
+  createdById: text('created_by_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_scoring_overrides_a2f_id_idx').on(table.a2fId),
+}));
+
 /**
  * Stores Investment Committee documents — GAIR and Investment Memos.
  * Auto-populated from DD reports; supports multi-member IC approval.
@@ -2637,6 +2657,7 @@ export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
   dueDiligenceReports: many(a2fDueDiligenceReports),
   matchingGrantApplications: many(a2fMatchingGrantApplications),
   scoringRecords: many(a2fScoring),
+  scoringOverrides: many(a2fScoringOverrides),
   investmentAppraisals: many(investmentAppraisals),
   grantAgreements: many(grantAgreements),
   procurementItems: many(a2fProcurementItems),
@@ -2672,6 +2693,17 @@ export const a2fScoringRelations = relations(a2fScoring, ({ one }) => ({
   }),
   scorer: one(users, {
     fields: [a2fScoring.scorerId],
+    references: [users.id],
+  }),
+}));
+
+export const a2fScoringOverridesRelations = relations(a2fScoringOverrides, ({ one }) => ({
+  a2fPipeline: one(a2fPipeline, {
+    fields: [a2fScoringOverrides.a2fId],
+    references: [a2fPipeline.id],
+  }),
+  createdBy: one(users, {
+    fields: [a2fScoringOverrides.createdById],
     references: [users.id],
   }),
 }));

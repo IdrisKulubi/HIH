@@ -36,6 +36,7 @@ import {
     Clock, Signature, Warning, Buildings, ArrowRight, DownloadSimple,
     Link as LinkIcon, SealCheck,
 } from "@phosphor-icons/react";
+import { isCommitteeApprovedForContracting } from "@/lib/a2f-access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -215,6 +216,10 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     }
 
     const biz = entry?.application?.business;
+    const gairAppraisal = entry?.investmentAppraisals?.find(
+        (a: { documentType?: string }) => a.documentType === "gair"
+    );
+    const committeeApproved = isCommitteeApprovedForContracting(gairAppraisal?.icDecision);
     const offerLetterHref = agreement?.offerLetterUrl
         ? getDocumentViewerHref(agreement.offerLetterUrl, "offer-letter.pdf")
         : null;
@@ -240,6 +245,27 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                     </Badge>
                 )}
             </div>
+
+            {!committeeApproved && (
+                <Card className="mb-6 border-amber-200 bg-amber-50">
+                    <CardContent className="py-4 flex gap-3 items-start">
+                        <Warning className="size-5 text-amber-700 shrink-0 mt-0.5" />
+                        <div className="text-sm text-amber-900">
+                            <p className="font-medium">Committee approval required</p>
+                            <p className="mt-1 text-amber-800">
+                                Agreement generation and offer letters are blocked until the Access to
+                                Finance Committee records an approved or approved-with-conditions decision.
+                                {gairAppraisal?.icDecision
+                                    ? ` Current decision: ${String(gairAppraisal.icDecision).replace(/_/g, " ")}.`
+                                    : " No committee decision recorded yet."}
+                            </p>
+                            <Button variant="link" className="h-auto p-0 mt-2 text-amber-900" asChild>
+                                <Link href={`/a2f/committee/${a2fId}`}>Open committee case</Link>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* ── Workflow progress ── */}
             <Card className="mb-6">
@@ -337,7 +363,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                         )}
 
                         <div className="flex justify-end">
-                            <Button onClick={handleGenerate} disabled={generating} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+                            <Button onClick={handleGenerate} disabled={generating || !committeeApproved} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
                                 <FilePdf className="size-4" />
                                 {generating ? "Generating..." : "Generate Agreement"}
                             </Button>
@@ -457,8 +483,14 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                     </div>
                                     <Button
                                         onClick={() => setShowSendDialog(true)}
-                                        disabled={!agreement.offerLetterUrl}
-                                        title={!agreement.offerLetterUrl ? "Generate the offer letter PDF first" : undefined}
+                                        disabled={!agreement.offerLetterUrl || !committeeApproved}
+                                        title={
+                                            !committeeApproved
+                                                ? "Committee approval required"
+                                                : !agreement.offerLetterUrl
+                                                  ? "Generate the offer letter PDF first"
+                                                  : undefined
+                                        }
                                         className="shrink-0 bg-blue-700 hover:bg-blue-800 gap-1.5 disabled:opacity-50"
                                     >
                                         <PaperPlaneTilt className="size-4" />

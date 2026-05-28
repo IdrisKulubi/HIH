@@ -27,6 +27,7 @@ const STAFF_ROLES = [
   "reviewer_2",
   "technical_reviewer",
   "a2f_officer",
+  "a2f_committee",
   "mentor",
   "bds_edo",
   "investment_analyst",

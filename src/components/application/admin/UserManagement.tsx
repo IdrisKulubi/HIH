@@ -48,6 +48,7 @@ const ROLES = [
     { value: "reviewer_1", label: "Reviewer 1", color: "bg-cyan-100 text-cyan-700" },
     { value: "reviewer_2", label: "Reviewer 2", color: "bg-amber-100 text-amber-700" },
     { value: "a2f_officer", label: "A2F Officer", color: "bg-sky-100 text-sky-700" },
+    { value: "a2f_committee", label: "A2F Committee", color: "bg-violet-100 text-violet-700" },
     { value: "mentor", label: "TA", color: "bg-emerald-100 text-emerald-700" },
     { value: "bds_edo", label: "BA / EDO", color: "bg-teal-100 text-teal-700" },
     { value: "investment_analyst", label: "Investment Analyst", color: "bg-orange-100 text-orange-700" },

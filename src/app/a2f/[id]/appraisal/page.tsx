@@ -47,6 +47,7 @@ import {
     SealCheck,
 } from "@phosphor-icons/react";
 import { downloadGairDocx, exportGairPdf } from "@/lib/gair-export";
+import { useSession } from "next-auth/react";
 
 type AppraisalRecord = {
     id: number;
@@ -123,6 +124,10 @@ function shouldBlockGairExport(
 export default function AppraisalPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const a2fId = Number(id);
+    const { data: session } = useSession();
+    const userRole = session?.user?.role ?? "";
+    const canRecordIcDecision =
+        userRole !== "a2f_officer" && userRole !== "a2f_committee";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
@@ -367,55 +372,80 @@ export default function AppraisalPage({ params }: { params: Promise<{ id: string
                         </DropdownMenu>
                     </div>
                     <Separator />
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <Label>IC Decision</Label>
-                            <Select value={decision} onValueChange={(value) => setDecision(value as IcDecision)}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="approved">Approved</SelectItem>
-                                    <SelectItem value="approved_with_conditions">Approved with conditions</SelectItem>
-                                    <SelectItem value="deferred">Deferred</SelectItem>
-                                    <SelectItem value="declined">Declined</SelectItem>
-                                </SelectContent>
-                            </Select>
+                    {canRecordIcDecision ? (
+                        <>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label>IC Decision</Label>
+                                    <Select value={decision} onValueChange={(value) => setDecision(value as IcDecision)}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="approved">Approved</SelectItem>
+                                            <SelectItem value="approved_with_conditions">Approved with conditions</SelectItem>
+                                            <SelectItem value="deferred">Deferred</SelectItem>
+                                            <SelectItem value="declined">Declined</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Approved Grant Amount (KES)</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={approvedGrantAmount}
+                                        onChange={(event) => setApprovedGrantAmount(event.target.value)}
+                                        disabled={decision === "deferred" || decision === "declined"}
+                                    />
+                                </div>
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label>Decision Conditions</Label>
+                                    <Textarea
+                                        value={decisionConditions}
+                                        onChange={(event) => setDecisionConditions(event.target.value)}
+                                        rows={3}
+                                        placeholder="Required for approval with conditions; optional for other decisions."
+                                    />
+                                </div>
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <Label>Decision Notes</Label>
+                                    <Textarea
+                                        value={decisionNotes}
+                                        onChange={(event) => setDecisionNotes(event.target.value)}
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end">
+                                <Button onClick={handleRecordDecision} disabled={!existingGair || recordingDecision} variant="outline" className="gap-2">
+                                    <CheckCircle className="size-4" />
+                                    {recordingDecision ? "Recording..." : "Record IC Decision"}
+                                </Button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2">
+                            <p className="font-medium">Committee decision</p>
+                            {decisionLabel ? (
+                                <p>
+                                    {decisionLabel}
+                                    {existingGair?.approvedGrantAmount
+                                        ? ` · KES ${Number(existingGair.approvedGrantAmount).toLocaleString("en-KE")}`
+                                        : ""}
+                                </p>
+                            ) : (
+                                <p className="text-muted-foreground">Pending committee review.</p>
+                            )}
+                            {userRole === "a2f_officer" && (
+                                <Button variant="link" className="h-auto p-0" asChild>
+                                    <Link href={`/a2f/committee/${a2fId}`}>
+                                        Open committee case (read-only)
+                                    </Link>
+                                </Button>
+                            )}
                         </div>
-                        <div className="space-y-1.5">
-                            <Label>Approved Grant Amount (KES)</Label>
-                            <Input
-                                type="number"
-                                min="0"
-                                value={approvedGrantAmount}
-                                onChange={(event) => setApprovedGrantAmount(event.target.value)}
-                                disabled={decision === "deferred" || decision === "declined"}
-                            />
-                        </div>
-                        <div className="space-y-1.5 md:col-span-2">
-                            <Label>Decision Conditions</Label>
-                            <Textarea
-                                value={decisionConditions}
-                                onChange={(event) => setDecisionConditions(event.target.value)}
-                                rows={3}
-                                placeholder="Required for approval with conditions; optional for other decisions."
-                            />
-                        </div>
-                        <div className="space-y-1.5 md:col-span-2">
-                            <Label>Decision Notes</Label>
-                            <Textarea
-                                value={decisionNotes}
-                                onChange={(event) => setDecisionNotes(event.target.value)}
-                                rows={3}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end">
-                        <Button onClick={handleRecordDecision} disabled={!existingGair || recordingDecision} variant="outline" className="gap-2">
-                            <CheckCircle className="size-4" />
-                            {recordingDecision ? "Recording..." : "Record IC Decision"}
-                        </Button>
-                    </div>
+                    )}
                 </CardContent>
             </Card>
 

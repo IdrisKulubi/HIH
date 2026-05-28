@@ -13,8 +13,9 @@ import { and, eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 
-const A2F_ROLES = ["admin", "a2f_officer", "redo", "bds_edo"] as const;
-const A2F_READ_ROLES = ["admin", "a2f_officer", "oversight", "redo", "bds_edo"] as const;
+import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 export type ProcurementStatus = "planned" | "quotes_requested" | "supplier_selected" | "ordered" | "delivered" | "verified" | "cancelled";
 export type GrantMilestoneStatus = "planned" | "in_progress" | "submitted_for_verification" | "verified" | "delayed" | "blocked";

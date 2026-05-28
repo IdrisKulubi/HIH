@@ -55,6 +55,12 @@ function icDecided(entry: WorkflowEntryInput): boolean {
     return Boolean(gair?.icDecision);
 }
 
+function icCommitteeApproved(entry: WorkflowEntryInput): boolean {
+    const gair = gairAppraisal(entry);
+    const decision = gair?.icDecision;
+    return decision === "approved" || decision === "approved_with_conditions";
+}
+
 function hasAgreement(entry: WorkflowEntryInput): boolean {
     return Boolean(entry.grantAgreements?.length || entry.grantAgreement);
 }
@@ -177,15 +183,23 @@ export function getWorkflowNextAction(a2fId: number, entry: WorkflowEntryInput):
     }
     if (!icDecided(entry)) {
         return {
-            label: "Record IC decision",
-            description: "Capture approve, conditions, defer, or decline on the GAIR.",
+            label: "Await committee decision",
+            description: "Committee must approve, approve with conditions, defer, or decline on the GAIR.",
+            href: `${base}/appraisal`,
+        };
+    }
+    if (!icCommitteeApproved(entry)) {
+        const gair = gairAppraisal(entry);
+        return {
+            label: "Committee did not approve contracting",
+            description: `Decision: ${String(gair?.icDecision ?? "pending").replace(/_/g, " ")}. Agreement cannot be issued until approved.`,
             href: `${base}/appraisal`,
         };
     }
     if (!hasAgreement(entry)) {
         return {
             label: "Generate grant agreement",
-            description: "Create the matching grant offer and agreement.",
+            description: "Committee approved — create the matching grant offer and agreement.",
             href: `${base}/contracts`,
         };
     }

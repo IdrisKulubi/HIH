@@ -6,6 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import {
+    getApplicantMatchingGrantApplication,
+    getApplicantMatchingGrantDocumentSources,
+    getApplicantPipelineEntry,
+    saveApplicantMatchingGrantApplication,
+} from "@/lib/actions/a2f-applicant";
+import {
     getMatchingGrantApplication,
     getMatchingGrantDocumentSources,
     saveMatchingGrantApplication,
@@ -312,9 +318,13 @@ function fromRecord(record: any, fallback: FormState): FormState {
     };
 }
 
-export default function MatchingGrantApplicationPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = use(params);
-    const a2fId = Number(id);
+export function MatchingGrantApplicationWizard({
+    a2fId,
+    mode = "staff",
+}: {
+    a2fId: number;
+    mode?: "staff" | "applicant";
+}) {
     const searchParams = useSearchParams();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -330,9 +340,15 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
     const loadData = async () => {
         setLoading(true);
         const [entryRes, appRes, docSourcesRes] = await Promise.all([
-            getA2fPipelineEntry(a2fId),
-            getMatchingGrantApplication(a2fId),
-            getMatchingGrantDocumentSources(a2fId),
+            mode === "applicant"
+                ? getApplicantPipelineEntry(a2fId)
+                : getA2fPipelineEntry(a2fId),
+            mode === "applicant"
+                ? getApplicantMatchingGrantApplication(a2fId)
+                : getMatchingGrantApplication(a2fId),
+            mode === "applicant"
+                ? getApplicantMatchingGrantDocumentSources(a2fId)
+                : getMatchingGrantDocumentSources(a2fId),
         ]);
 
         if (entryRes.success && entryRes.data) {
@@ -526,7 +542,10 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
             }
         }
         setSaving(true);
-        const res = await saveMatchingGrantApplication(a2fId, toInput({ ...form, status }));
+        const res =
+            mode === "applicant"
+                ? await saveApplicantMatchingGrantApplication(a2fId, toInput({ ...form, status }))
+                : await saveMatchingGrantApplication(a2fId, toInput({ ...form, status }));
         setSaving(false);
 
         if (res.success) {
@@ -563,8 +582,8 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
         <div className="container mx-auto px-4 py-8 max-w-6xl pb-28">
             <div className="flex items-center gap-3 mb-6">
                 <Button variant="ghost" size="sm" asChild className="gap-1.5">
-                    <Link href={`/a2f/${a2fId}`}>
-                        <ArrowLeft className="size-4" /> Entry Overview
+                    <Link href={mode === "applicant" ? "/access-to-finance" : `/a2f/${a2fId}`}>
+                        <ArrowLeft className="size-4" /> {mode === "applicant" ? "Access to Finance" : "Entry Overview"}
                     </Link>
                 </Button>
                 <Separator orientation="vertical" className="h-5" />
@@ -1629,4 +1648,13 @@ function updateDocument(setForm: React.Dispatch<React.SetStateAction<FormState>>
         ...prev,
         documents: prev.documents.map((item, i) => i === index ? { ...item, ...patch } : item),
     }));
+}
+
+export default function MatchingGrantApplicationPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
+    const { id } = use(params);
+    return <MatchingGrantApplicationWizard a2fId={Number(id)} mode="staff" />;
 }

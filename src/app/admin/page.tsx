@@ -16,7 +16,9 @@ import {
   ShieldCheckIcon,
   EnvelopeSimpleIcon,
   CaretRightIcon,
-  ShieldIcon
+  ShieldIcon,
+  CoinsIcon,
+  ScalesIcon,
 } from "@phosphor-icons/react/dist/ssr"; // Use SSR import if needed, or standard
 import { getCurrentUser } from "@/lib/actions/user.actions";
 import { redirect } from "next/navigation";
@@ -139,6 +141,18 @@ export default async function AdminDashboard() {
                 title="Scoring Criteria"
                 description="Configure evaluation metrics & weights"
               /> */}
+              <QuickActionRow
+                href="/a2f"
+                icon={<CoinsIcon weight="duotone" className="w-5 h-5 text-emerald-600" />}
+                title="Matching Grant Portal"
+                description="A2F officer pipeline, scoring, GAIR, and grant management"
+              />
+              <QuickActionRow
+                href="/a2f/committee"
+                icon={<ScalesIcon weight="duotone" className="w-5 h-5 text-violet-600" />}
+                title="A2F Committee"
+                description="Committee review, score overrides, and approval decisions"
+              />
               <QuickActionRow
                 href="/admin/kyc"
                 icon={<ShieldIcon weight="duotone" className="w-5 h-5 text-sky-500" />}

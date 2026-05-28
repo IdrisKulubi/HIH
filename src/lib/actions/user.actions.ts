@@ -16,6 +16,7 @@ export type UserRole =
   | 'reviewer_2'
   | 'oversight'
   | 'a2f_officer'
+  | 'a2f_committee'
   | 'mentor'
   | 'bds_edo'
   | 'investment_analyst'

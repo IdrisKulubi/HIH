@@ -4,7 +4,9 @@ import { auth } from "@/auth";
 
 const f = createUploadthing();
 
-const A2F_UPLOAD_ROLES = ["admin", "a2f_officer", "redo", "bds_edo"] as const;
+import { A2F_STAFF_ROLES } from "@/lib/a2f-access";
+
+const A2F_UPLOAD_ROLES = A2F_STAFF_ROLES;
 
 const authenticateUploadRequest = async () => {
   const session = await auth();
@@ -123,6 +125,25 @@ export const ourFileRouter = {
         console.error("Signed contract upload middleware error:", error);
         throw new UploadThingError("Unauthorized");
       }
+    })
+    .onUploadComplete(async ({ metadata, file }) => ({
+      uploadedBy: metadata.userId,
+      fileName: file.name,
+      fileUrl: file.url,
+    })),
+  applicantSignedContractUploader: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    image: { maxFileSize: "8MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const session = await auth();
+      if (!session?.user?.id) {
+        throw new UploadThingError("Unauthorized");
+      }
+      if (session.user.role !== "applicant" && session.user.role !== "admin") {
+        throw new UploadThingError("Unauthorized");
+      }
+      return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => ({
       uploadedBy: metadata.userId,

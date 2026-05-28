@@ -120,8 +120,9 @@ export interface A2fDdReportInput {
     isComplete?: boolean;
 }
 
-const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
-const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Fetch DD report for a pipeline entry + stage

@@ -69,8 +69,9 @@ export interface RecordIcDecisionInput {
     decisionConditions?: string;
 }
 
-const A2F_ROLES = ["admin", "a2f_officer", "redo", "bds_edo"] as const;
-const A2F_READ_ROLES = ["admin", "a2f_officer", "oversight", "redo", "bds_edo"] as const;
+import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 export async function getAppraisals(a2fId: number) {
     try {
@@ -405,6 +406,11 @@ export async function recordIcDecision(
         const session = await auth();
         if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
             return errorResponse("Unauthorized");
+        }
+        if (session.user.role === "a2f_officer") {
+            return errorResponse(
+                "A2F Officers cannot record committee decisions. Use the committee dashboard or ask an admin."
+            );
         }
 
         const appraisal = await db.query.investmentAppraisals.findFirst({

@@ -7,6 +7,8 @@ export function getRoleHomePath(role?: string | null) {
       return "/oversight";
     case "a2f_officer":
       return "/a2f";
+    case "a2f_committee":
+      return "/a2f/committee";
     case "reviewer_1":
     case "reviewer_2":
     case "technical_reviewer":
@@ -20,6 +22,7 @@ export function getRoleHomePath(role?: string | null) {
     case "mel":
       return "/mel/cna";
     case "applicant":
+      return "/access-to-finance";
     default:
       return "/apply/closed";
   }

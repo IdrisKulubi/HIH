@@ -10,7 +10,7 @@ import {
     applicants,
     users,
 } from "../../../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { advancePipelineStatus } from "./a2f-pipeline";
 import { sendEmail } from "@/lib/email";
@@ -18,6 +18,12 @@ import { ActionResponse, successResponse, errorResponse } from "./types";
 import React from "react";
 import type { ContractTemplateVariables } from "@/lib/contract-template-types";
 import { offerLetterFilename, renderOfferLetterPdfBuffer } from "@/lib/offer-letter-export";
+import {
+    assertApplicantOwnsPipeline,
+    requireCommitteeApprovalForContracting,
+    A2F_READ_ROLES,
+    A2F_STAFF_ROLES,
+} from "@/lib/a2f-access";
 import { UTApi, UTFile } from "uploadthing/server";
 
 export type { ContractTemplateVariables } from "@/lib/contract-template-types";
@@ -42,8 +48,7 @@ export interface GrantAgreementInput {
     gracePeriodMonths?: number;
 }
 
-const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
-const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Grant agreement for a pipeline entry
@@ -120,6 +125,9 @@ export async function action_generateContract(
             where: eq(a2fPipeline.id, a2fId),
         });
         if (!pipeline) return errorResponse("Pipeline entry not found");
+
+        const committeeGate = await requireCommitteeApprovalForContracting(a2fId);
+        if (!committeeGate.ok) return errorResponse(committeeGate.error);
 
         const application = await db.query.applications.findFirst({
             where: eq(applications.id, pipeline.applicationId),
@@ -261,6 +269,9 @@ export async function sendOfferLetter(
         });
         if (!pipeline) return errorResponse("Pipeline entry not found");
 
+        const committeeGate = await requireCommitteeApprovalForContracting(agreement.a2fId);
+        if (!committeeGate.ok) return errorResponse(committeeGate.error);
+
         const application = await db.query.applications.findFirst({
             where: eq(applications.id, pipeline.applicationId),
             with: { business: { with: { applicant: true } } },
@@ -321,6 +332,26 @@ export async function recordSignedContract(
         });
         if (!agreement) return errorResponse("Grant agreement not found");
 
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, agreement.a2fId),
+            with: {
+                application: {
+                    with: {
+                        business: { with: { applicant: true } },
+                    },
+                },
+            },
+        });
+        if (!pipeline) return errorResponse("Pipeline entry not found");
+
+        const isApplicant = session.user.role === "applicant";
+        if (isApplicant) {
+            const owned = await assertApplicantOwnsPipeline(session.user.id, agreement.a2fId);
+            if (!owned.ok) return errorResponse(owned.error);
+        } else if (!A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
         await db
             .update(grantAgreements)
             .set({
@@ -331,18 +362,51 @@ export async function recordSignedContract(
             })
             .where(eq(grantAgreements.id, agreementId));
 
-        // Advance pipeline to Disbursement Active after contract is signed
-        const pipeline = await db.query.a2fPipeline.findFirst({
-            where: eq(a2fPipeline.id, agreement.a2fId),
-        });
+        if (pipeline.status === "contracting") {
+            await db
+                .update(a2fPipeline)
+                .set({ status: "disbursement_active", updatedAt: new Date() })
+                .where(eq(a2fPipeline.id, agreement.a2fId));
+        }
 
-        if (pipeline?.status === 'contracting') {
-            await advancePipelineStatus(agreement.a2fId, 'disbursement_active');
+        const biz = pipeline.application?.business;
+        const applicantEmail = biz?.applicant?.email;
+        if (isApplicant && pipeline.a2fOfficerId) {
+            const officer = await db.query.users.findFirst({
+                where: eq(users.id, pipeline.a2fOfficerId),
+            });
+            const officerEmail = officer?.email;
+            if (officerEmail && biz?.name) {
+                try {
+                    await sendEmail({
+                        to: officerEmail,
+                        subject: `Signed agreement uploaded — ${biz.name}`,
+                        react: React.createElement(
+                            "div",
+                            { style: { fontFamily: "Arial, sans-serif", padding: "20px" } },
+                            React.createElement("p", null, `The enterprise ${biz.name} has uploaded a signed grant agreement.`),
+                            React.createElement(
+                                "p",
+                                null,
+                                `Applicant: ${biz.applicant.firstName} ${biz.applicant.lastName} (${applicantEmail ?? "no email"})`
+                            ),
+                            React.createElement(
+                                "p",
+                                null,
+                                `Review the case in the Matching Grant portal.`
+                            )
+                        ),
+                    });
+                } catch (emailError) {
+                    console.error("Failed to notify A2F officer:", emailError);
+                }
+            }
         }
 
         revalidatePath(`/admin/a2f/${agreement.a2fId}`);
-        // Revalidate applicant-facing "Offers & Contracts" tab
-        revalidatePath('/profile/contracts');
+        revalidatePath(`/a2f/${agreement.a2fId}/contracts`);
+        revalidatePath("/profile/contracts");
+        revalidatePath("/access-to-finance/agreement");
 
         return successResponse(undefined, "Signed contract recorded. Pipeline advanced to Disbursement.");
     } catch (error) {
@@ -370,7 +434,7 @@ export async function getApplicantContracts() {
 
         // Find pipeline entries for their applications
         const pipelines = await db.query.a2fPipeline.findMany({
-            where: eq(a2fPipeline.applicationId, appIds[0]),
+            where: inArray(a2fPipeline.applicationId, appIds),
         });
 
         if (!pipelines.length) return { success: true, data: [] };

@@ -24,12 +24,12 @@ import {
     isMatchingGrantTrackEligible,
     PIPELINE_STAGE_ORDER,
 } from "@/lib/a2f-constants";
+import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
 
 // Re-export types only (no runtime value — safe in "use server" files)
 export type { A2fPipelineStatus, A2fInstrumentType };
 
-const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
-const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Pipeline list (dashboard view)

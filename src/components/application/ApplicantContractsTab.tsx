@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { getApplicantContracts, recordSignedContract } from "@/lib/actions/a2f-contracts";
+import { UploadButton } from "@/utils/uploadthing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,7 +170,7 @@ export function ApplicantContractsTab() {
                                     <div>
                                         <p className="font-semibold text-amber-900 text-sm">Action Required: Sign & Return</p>
                                         <p className="text-xs text-amber-700 mt-0.5">
-                                            Download your offer letter, print and sign it (or use an e-signature tool), then upload the signed PDF and paste the link below.
+                                            Download your offer letter, sign it, then upload the signed PDF below.
                                         </p>
                                     </div>
                                 </div>
@@ -223,19 +224,27 @@ export function ApplicantContractsTab() {
                             Submit Signed Agreement
                         </DialogTitle>
                         <DialogDescription>
-                            Upload your signed agreement to a cloud storage service (Google Drive, Dropbox, etc.), then paste the shareable link below.
+                            Upload your signed agreement PDF. Your Access to Finance officer will be notified.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
-                        <Label>Signed Document URL</Label>
-                        <Input
-                            placeholder="https://drive.google.com/file/d/..."
-                            value={signedUrl}
-                            onChange={e => setSignedUrl(e.target.value)}
+                        <Label>Signed agreement file</Label>
+                        <UploadButton
+                            endpoint="applicantSignedContractUploader"
+                            onClientUploadComplete={(files) => {
+                                const url = files[0]?.url;
+                                if (url) {
+                                    setSignedUrl(url);
+                                    toast.success("File uploaded — click Submit to finish");
+                                }
+                            }}
+                            onUploadError={(error) => {
+                                toast.error(error.message ?? "Upload failed");
+                            }}
                         />
-                        <p className="text-xs text-muted-foreground">
-                            Ensure the link is publicly accessible (view-only). Your A2F Officer will verify the document.
-                        </p>
+                        {signedUrl && (
+                            <p className="text-xs text-emerald-700 truncate">Ready: {signedUrl}</p>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => { setSelectedContract(null); setSignedUrl(""); }}>

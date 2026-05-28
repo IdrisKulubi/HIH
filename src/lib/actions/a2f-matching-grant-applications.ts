@@ -26,9 +26,15 @@ import {
     type MatchingGrantOfficialUse,
 } from "@/lib/matching-grant-form-types";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
+import {
+    A2F_STAFF_ROLES,
+    assertApplicantOwnsPipeline,
+    hasA2fRole,
+} from "@/lib/a2f-access";
+import { sendEmail } from "@/lib/email";
+import React from "react";
 
-const A2F_ROLES = ['admin', 'a2f_officer', 'redo', 'bds_edo'] as const;
-const A2F_READ_ROLES = ['admin', 'a2f_officer', 'oversight', 'redo', 'bds_edo'] as const;
+const A2F_ROLES = A2F_STAFF_ROLES;
 
 export type MatchingGrantApplicationStatus = "draft" | "submitted";
 
@@ -72,13 +78,26 @@ export interface MatchingGrantDocumentSources {
     savedSupportingDocuments: unknown;
 }
 
+async function assertMatchingGrantReadAccess(
+    userId: string,
+    role: string | undefined
+): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (hasA2fRole(role, "read")) return { ok: true };
+    if (role === "applicant") return { ok: true };
+    return { ok: false, error: "Unauthorized" };
+}
+
 export async function getMatchingGrantDocumentSources(
     a2fId: number
 ): Promise<ActionResponse<MatchingGrantDocumentSources>> {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
-            return errorResponse("Unauthorized");
+        if (!session?.user) return errorResponse("Unauthorized");
+        const readAuth = await assertMatchingGrantReadAccess(session.user.id, session.user.role);
+        if (!readAuth.ok) return errorResponse(readAuth.error);
+        if (session.user.role === "applicant") {
+            const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
+            if (!owned.ok) return errorResponse(owned.error);
         }
 
         const pipeline = await db.query.a2fPipeline.findFirst({
@@ -162,8 +181,12 @@ export async function getMatchingGrantDocumentSources(
 export async function getMatchingGrantApplication(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
-            return errorResponse("Unauthorized");
+        if (!session?.user) return errorResponse("Unauthorized");
+        const readAuth = await assertMatchingGrantReadAccess(session.user.id, session.user.role);
+        if (!readAuth.ok) return errorResponse(readAuth.error);
+        if (session.user.role === "applicant") {
+            const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
+            if (!owned.ok) return errorResponse(owned.error);
         }
 
         const application = await db.query.a2fMatchingGrantApplications.findFirst({
@@ -186,7 +209,13 @@ export async function saveMatchingGrantApplication(
 ): Promise<ActionResponse<{ id: number; validation: MatchingGrantValidation }>> {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+        if (!session?.user) return errorResponse("Unauthorized");
+
+        const isApplicant = session.user.role === "applicant";
+        if (isApplicant) {
+            const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
+            if (!owned.ok) return errorResponse(owned.error);
+        } else if (!A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
             return errorResponse("Unauthorized. Admin or A2F Officer access required.");
         }
 
@@ -194,7 +223,7 @@ export async function saveMatchingGrantApplication(
             where: eq(a2fPipeline.id, a2fId),
             with: {
                 application: {
-                    with: { business: true },
+                    with: { business: { with: { applicant: true } } },
                 },
             },
         });
@@ -294,6 +323,40 @@ export async function saveMatchingGrantApplication(
         revalidatePath(`/a2f/${a2fId}`);
         revalidatePath(`/a2f/${a2fId}/scoring`);
         revalidatePath(`/a2f/${a2fId}/matching-grant`);
+        revalidatePath(`/access-to-finance/application/${a2fId}`);
+
+        if (input.status === "submitted" && isApplicant && pipeline.application?.business?.applicant) {
+            const applicant = pipeline.application.business.applicant;
+            const enterpriseName = pipeline.application.business.name;
+            try {
+                await sendEmail({
+                    to: applicant.email,
+                    subject: "Matching Grant application received — BIRE Programme",
+                    react: React.createElement(
+                        "div",
+                        { style: { fontFamily: "Arial, sans-serif", maxWidth: "600px", padding: "20px" } },
+                        React.createElement("h2", { style: { color: "#0f766e" } }, "Application submitted"),
+                        React.createElement(
+                            "p",
+                            null,
+                            `Dear ${applicant.firstName} ${applicant.lastName},`
+                        ),
+                        React.createElement(
+                            "p",
+                            null,
+                            `We have received your Matching Grant application for ${enterpriseName}. Our Access to Finance team will review your submission and contact you if further information is needed.`
+                        ),
+                        React.createElement(
+                            "p",
+                            null,
+                            "You can return to your Access to Finance portal at any time to view your submission status."
+                        )
+                    ),
+                });
+            } catch (emailError) {
+                console.error("Failed to send Matching Grant submission email:", emailError);
+            }
+        }
 
         return successResponse(
             { id, validation },
