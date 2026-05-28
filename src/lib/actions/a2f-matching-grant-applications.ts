@@ -5,8 +5,15 @@ import db from "../../../db/drizzle";
 import {
     a2fMatchingGrantApplications,
     a2fPipeline,
+    capacityDevelopmentPlans,
+    kycProfiles,
 } from "../../../db/schema";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import type {
+    MgBusinessDocFields,
+    MgCdpEvidenceRef,
+    MgKycDocumentRef,
+} from "@/lib/mg-supporting-documents";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import {
@@ -54,6 +61,100 @@ export interface MatchingGrantValidation {
     bireSharePct: number;
     enterpriseSharePct: number;
     warnings: string[];
+}
+
+export interface MatchingGrantDocumentSources {
+    business: MgBusinessDocFields;
+    kycDocuments: MgKycDocumentRef[];
+    cdpEvidence: MgCdpEvidenceRef[];
+    savedSupportingDocuments: unknown;
+}
+
+export async function getMatchingGrantDocumentSources(
+    a2fId: number
+): Promise<ActionResponse<MatchingGrantDocumentSources>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, a2fId),
+            with: {
+                application: {
+                    with: { business: true },
+                },
+            },
+        });
+
+        if (!pipeline?.application?.business) {
+            return errorResponse("Pipeline entry or business not found");
+        }
+
+        const business = pipeline.application.business;
+        const applicationId = pipeline.applicationId;
+        const businessId = business.id;
+
+        const [kycProfile, cdpPlan, mgApp] = await Promise.all([
+            db.query.kycProfiles.findFirst({
+                where: eq(kycProfiles.applicationId, applicationId),
+                with: { documents: true },
+            }),
+            db.query.capacityDevelopmentPlans.findFirst({
+                where: eq(capacityDevelopmentPlans.businessId, businessId),
+                orderBy: [desc(capacityDevelopmentPlans.updatedAt)],
+                with: { supportSessions: true },
+            }),
+            db.query.a2fMatchingGrantApplications.findFirst({
+                where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+                columns: { supportingDocuments: true },
+            }),
+        ]);
+
+        const cdpEvidence: MgCdpEvidenceRef[] = [];
+        const seenUrls = new Set<string>();
+        for (const sessionRow of cdpPlan?.supportSessions ?? []) {
+            const files = (sessionRow.evidenceFiles ?? []) as Array<{ url?: string; name?: string }>;
+            for (const file of files) {
+                const url = typeof file.url === "string" ? file.url.trim() : "";
+                if (!url || seenUrls.has(url)) continue;
+                seenUrls.add(url);
+                cdpEvidence.push({
+                    url,
+                    name: typeof file.name === "string" && file.name.trim()
+                        ? file.name.trim()
+                        : url.split("/").pop() ?? "Evidence file",
+                });
+            }
+        }
+
+        const kycDocuments: MgKycDocumentRef[] = (kycProfile?.documents ?? [])
+            .filter((doc) => doc.fileUrl?.trim())
+            .map((doc) => ({
+                documentType: doc.documentType,
+                fileUrl: doc.fileUrl,
+                fileName: doc.fileName,
+            }));
+
+        return successResponse({
+            business: {
+                registrationCertificateUrl: business.registrationCertificateUrl,
+                taxComplianceUrl: business.taxComplianceUrl,
+                auditedAccountsUrl: business.auditedAccountsUrl,
+                financialRecordsUrl: business.financialRecordsUrl,
+                complianceDocumentsUrl: business.complianceDocumentsUrl,
+                salesEvidenceUrl: business.salesEvidenceUrl,
+                photosUrl: business.photosUrl,
+            },
+            kycDocuments,
+            cdpEvidence,
+            savedSupportingDocuments: mgApp?.supportingDocuments ?? [],
+        });
+    } catch (error) {
+        console.error("Error loading Matching Grant document sources:", error);
+        return errorResponse("Failed to load document sources");
+    }
 }
 
 export async function getMatchingGrantApplication(a2fId: number) {

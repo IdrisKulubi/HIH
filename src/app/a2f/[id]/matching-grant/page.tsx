@@ -1,14 +1,25 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import {
     getMatchingGrantApplication,
+    getMatchingGrantDocumentSources,
     saveMatchingGrantApplication,
     type MatchingGrantApplicationInput,
 } from "@/lib/actions/a2f-matching-grant-applications";
+import { MgSupportingDocumentRow as MgSupportingDocumentRowComponent } from "@/components/a2f/MgSupportingDocumentRow";
+import { WizardStepValidationAlert } from "@/components/a2f/WizardStepValidationAlert";
+import {
+    type MgSupportingDocumentRow,
+    countMandatoryMgDocumentsEnclosed,
+    defaultMgSupportingDocuments,
+    parseMgSupportingDocuments,
+    resolveMgDocumentSources,
+    serializeMgSupportingDocuments,
+} from "@/lib/mg-supporting-documents";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,10 +36,15 @@ import {
 } from "@/components/ui/select";
 import {
     ArrowLeft, ArrowRight, Calculator, FloppyDisk,
-    PaperPlaneTilt, Warning, ClipboardText, Buildings, User, UsersThree, Handshake, Coins, ShieldCheck, Check,
+    PaperPlaneTilt, ClipboardText, Buildings, User, UsersThree, Handshake, Coins, ShieldCheck, Check,
+    Plus, Trash,
 } from "@phosphor-icons/react";
 import {
     MG_WIZARD_STEPS,
+    flattenStepErrorsWithLabels,
+    getAllStepValidationErrors,
+    getFirstStepIndexWithErrors,
+    getGrantRequestGuidanceNotes,
     getStepValidationErrors,
     getWizardReviewSummary,
     wizardStorageKey,
@@ -51,9 +67,21 @@ import {
     type MatchingGrantOtherFunding,
     type MatchingGrantGovernanceCompliance,
     type MatchingGrantBudgetItem,
+    type MatchingGrantMilestoneRow,
+    type MatchingGrantJobRow,
     MATCHING_GRANT_CAPEX_CATEGORIES,
+    emptyOwnerRow,
     emptyOwners,
+    filterFilledOtherOwners,
+    emptyBudgetRow,
     emptyBudgetRows,
+    emptyMilestoneRow,
+    emptyMilestones,
+    emptyJobRow,
+    emptyJobs,
+    filterFilledBudgetItems,
+    filterFilledMilestones,
+    filterFilledJobs,
     seedFromPipeline,
     mergeMgRecordOverSeed,
     serializeEnterpriseIdentification,
@@ -66,32 +94,12 @@ import {
     parseOtherFunding,
     parseGovernanceCompliance,
     parseBudgetItems,
+    parseMilestones,
+    parseJobCreationPlan,
     validateBudgetUseOfFunds,
     resolveAnnualRevenueForEligibility,
 } from "@/lib/matching-grant-form-types";
 import { isMatchingGrantTrackEligible } from "@/lib/a2f-constants";
-
-type Milestone = {
-    activity: string;
-    completionDate: string;
-    tranche: string;
-    verificationMethod: string;
-};
-
-type JobRow = {
-    role: string;
-    women: number;
-    youth: number;
-    pwd: number;
-    total: number;
-};
-
-type SupportingDocument = {
-    document: string;
-    mandatory: string;
-    url: string;
-    confirmed: boolean;
-};
 
 type FormState = {
     status: "draft" | "submitted";
@@ -126,21 +134,10 @@ type FormState = {
     declarationName: string;
     declarationAccepted: boolean;
     budgetItems: MatchingGrantBudgetItem[];
-    milestones: Milestone[];
-    jobs: JobRow[];
-    documents: SupportingDocument[];
+    milestones: MatchingGrantMilestoneRow[];
+    jobs: MatchingGrantJobRow[];
+    documents: MgSupportingDocumentRow[];
 };
-
-const DEFAULT_DOCUMENTS: SupportingDocument[] = [
-    { document: "National ID / Passport of Lead Entrepreneur", mandatory: "Yes", url: "", confirmed: false },
-    { document: "Certificate of Business Registration / Incorporation", mandatory: "Yes", url: "", confirmed: false },
-    { document: "KRA PIN Certificate", mandatory: "Yes", url: "", confirmed: false },
-    { document: "Business Permit / Trade Licence", mandatory: "Yes", url: "", confirmed: false },
-    { document: "Bank / M-Pesa statements (last 6-12 months)", mandatory: "Yes", url: "", confirmed: false },
-    { document: "Financial statements / management accounts", mandatory: "If applicable", url: "", confirmed: false },
-    { document: "Business plan or executive summary", mandatory: "If applicable", url: "", confirmed: false },
-    { document: "Market contracts, purchase orders, or LPOs", mandatory: "If available", url: "", confirmed: false },
-];
 
 const EMPTY_FORM: FormState = {
     status: "draft",
@@ -175,9 +172,9 @@ const EMPTY_FORM: FormState = {
     declarationName: "",
     declarationAccepted: false,
     budgetItems: emptyBudgetRows(),
-    milestones: Array.from({ length: 5 }, () => ({ activity: "", completionDate: "", tranche: "", verificationMethod: "" })),
-    jobs: Array.from({ length: 4 }, () => ({ role: "", women: 0, youth: 0, pwd: 0, total: 0 })),
-    documents: DEFAULT_DOCUMENTS,
+    milestones: emptyMilestones(),
+    jobs: emptyJobs(),
+    documents: defaultMgSupportingDocuments(),
 };
 
 function numberValue(value: string) {
@@ -200,7 +197,10 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
         fundingNeed: data.fundingNeed,
         withoutGrantImpact: data.withoutGrantImpact,
         capexOnlyConfirmed: data.capexOnlyConfirmed,
-        enterpriseIdentification: serializeEnterpriseIdentification(data.enterprise, data.otherOwners),
+        enterpriseIdentification: serializeEnterpriseIdentification(
+            data.enterprise,
+            filterFilledOtherOwners(data.otherOwners)
+        ),
         leadEntrepreneur: { ...data.lead },
         programmeEngagement: { ...data.programme },
         businessOverview: {
@@ -214,15 +214,15 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
             sources: data.otherFunding.description,
         },
         governanceCompliance: { ...data.governance },
-        budgetItems: data.budgetItems.map(row => ({ ...row })) as Array<Record<string, unknown>>,
-        implementationMilestones: data.milestones,
+        budgetItems: filterFilledBudgetItems(data.budgetItems).map(row => ({ ...row })) as Array<Record<string, unknown>>,
+        implementationMilestones: filterFilledMilestones(data.milestones).map(row => ({ ...row })) as Array<Record<string, unknown>>,
         financialProjections: {
             projectedMonthlyRevenue: data.projectedMonthlyRevenue,
             projectedAnnualRevenue: data.projectedAnnualRevenue,
             projectedGrowthRate: data.projectedGrowthRate,
             assumptions: data.projectionAssumptions,
         },
-        jobCreationPlan: data.jobs,
+        jobCreationPlan: filterFilledJobs(data.jobs).map(row => ({ ...row })) as Array<Record<string, unknown>>,
         impact: {
             employmentTerms: data.employmentTerms,
             inclusionStrategy: data.inclusionStrategy,
@@ -231,7 +231,7 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
             communityImpact: data.communityImpact,
             innovationElement: data.innovationElement,
         },
-        supportingDocuments: data.documents,
+        supportingDocuments: serializeMgSupportingDocuments(data.documents),
         declaration: {
             applicantName: data.declarationName,
             accepted: data.declarationAccepted,
@@ -303,12 +303,10 @@ function fromRecord(record: any, fallback: FormState): FormState {
         innovationElement: String(impact.innovationElement ?? ""),
         declarationName: String(declaration.applicantName ?? fallback.declarationName),
         declarationAccepted: Boolean(declaration.accepted),
-        budgetItems: Array.isArray(record.budgetItems) && record.budgetItems.length
-            ? parseBudgetItems(record.budgetItems)
-            : fallback.budgetItems,
-        milestones: Array.isArray(record.implementationMilestones) && record.implementationMilestones.length ? record.implementationMilestones : fallback.milestones,
-        jobs: Array.isArray(record.jobCreationPlan) && record.jobCreationPlan.length ? record.jobCreationPlan : fallback.jobs,
-        documents: Array.isArray(record.supportingDocuments) && record.supportingDocuments.length ? record.supportingDocuments : fallback.documents,
+        budgetItems: parseBudgetItems(record.budgetItems),
+        milestones: parseMilestones(record.implementationMilestones),
+        jobs: parseJobCreationPlan(record.jobCreationPlan),
+        documents: parseMgSupportingDocuments(record.supportingDocuments),
     };
 }
 
@@ -323,12 +321,15 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
     const [saving, setSaving] = useState(false);
     const [activeStep, setActiveStep] = useState(0);
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+    const [showStepValidation, setShowStepValidation] = useState(false);
+    const validationAlertRef = useRef<HTMLDivElement>(null);
 
     const loadData = async () => {
         setLoading(true);
-        const [entryRes, appRes] = await Promise.all([
+        const [entryRes, appRes, docSourcesRes] = await Promise.all([
             getA2fPipelineEntry(a2fId),
             getMatchingGrantApplication(a2fId),
+            getMatchingGrantDocumentSources(a2fId),
         ]);
 
         if (entryRes.success && entryRes.data) {
@@ -341,7 +342,16 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
                 environmentalImpact: biz?.environmentalImpactDescription ?? "",
                 innovationElement: biz?.technologyIntegrationDescription ?? biz?.businessModelInnovation ?? "",
             };
-            setForm(fromRecord(appRes.success ? appRes.data : null, seeded));
+            const baseForm = fromRecord(appRes.success ? appRes.data : null, seeded);
+            const documents = docSourcesRes.success && docSourcesRes.data
+                ? resolveMgDocumentSources({
+                    business: docSourcesRes.data.business,
+                    kycDocuments: docSourcesRes.data.kycDocuments,
+                    cdpEvidence: docSourcesRes.data.cdpEvidence,
+                    savedRows: parseMgSupportingDocuments(docSourcesRes.data.savedSupportingDocuments),
+                })
+                : baseForm.documents;
+            setForm({ ...baseForm, documents });
         } else {
             toast.error("Pipeline entry not found");
         }
@@ -381,30 +391,16 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
 
     const grantShare = pct(form.bireGrantAmount, form.totalProjectAmount);
     const enterpriseShare = pct(form.enterpriseContributionAmount, form.totalProjectAmount);
-    const warnings = useMemo(() => {
-        const items: string[] = [];
-        if (form.totalProjectAmount <= 0) items.push("Total project amount is required.");
-        if (Math.abs(form.totalProjectAmount - (form.bireGrantAmount + form.enterpriseContributionAmount)) > 1) {
-            items.push("BIRE grant and enterprise contribution should add up to total project amount.");
-        }
-        if (grantShare > 70) items.push("BIRE share is above the standard 70% guidance.");
-        if (enterpriseShare < 30) items.push("Enterprise contribution is below the standard 30% guidance.");
-        if (!form.capexOnlyConfirmed) items.push("CAPEX-only confirmation is pending.");
-        if (!form.useOfFundsAcknowledged) {
-            items.push("Confirm the budget excludes ineligible uses (personal expenses, loan repayments, unrelated overheads).");
-        }
-        items.push(...validateBudgetUseOfFunds(form.budgetItems));
-        if (eligibilityRevenue <= 0) {
-            items.push("Annual revenue (2025 or latest year) is required for track eligibility.");
-        } else if (!revenueEligible) {
-            items.push(
-                track === "acceleration"
-                    ? "Accelerator Track requires annual revenue above KES 3,000,000."
-                    : "Foundation Track requires annual revenue from KES 500,000 to KES 3,000,000."
-            );
-        }
-        return items;
-    }, [enterpriseShare, form, grantShare, eligibilityRevenue, revenueEligible, track]);
+
+    const allStepErrors = useMemo(
+        () => getAllStepValidationErrors(form, wizardContext),
+        [form, wizardContext]
+    );
+
+    const reviewIssueGroups = useMemo(
+        () => flattenStepErrorsWithLabels(form, wizardContext),
+        [form, wizardContext]
+    );
 
     function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
         setForm(prev => ({ ...prev, [key]: value }));
@@ -417,40 +413,106 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
         [form, wizardContext]
     );
 
-    function goToStep(index: number) {
+    const grantGuidanceNotes = useMemo(
+        () => (currentStepId === "grant_request" ? getGrantRequestGuidanceNotes(form) : []),
+        [form, currentStepId]
+    );
+
+    const inlineValidationErrors = useMemo(() => {
+        if (!showStepValidation) return [];
+        return getStepValidationErrors(currentStepId, form, wizardContext);
+    }, [showStepValidation, currentStepId, form, wizardContext]);
+
+    function scrollToValidationAlert() {
+        requestAnimationFrame(() => {
+            validationAlertRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    }
+
+    function goToStep(index: number, options?: { clearErrors?: boolean }) {
         if (index < 0 || index >= MG_WIZARD_STEPS.length) return;
+        if (options?.clearErrors !== false) {
+            setShowStepValidation(false);
+        }
         setActiveStep(index);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function validateCurrentStep(): string[] {
+        return getStepValidationErrors(currentStepId, form, wizardContext);
     }
 
     function handleNext() {
-        const errors = getStepValidationErrors(currentStepId, form, wizardContext);
+        const errors = validateCurrentStep();
         if (errors.length > 0) {
-            toast.error(errors[0]);
+            setShowStepValidation(true);
+            toast.error(
+                `Fix ${errors.length} item(s) on ${MG_WIZARD_STEPS[activeStep]?.label ?? "this step"} before continuing.`
+            );
+            scrollToValidationAlert();
             return;
         }
+        setShowStepValidation(false);
         setCompletedSteps(prev => (prev.includes(activeStep) ? prev : [...prev, activeStep]));
         goToStep(activeStep + 1);
     }
 
     function handleBack() {
+        setShowStepValidation(false);
         goToStep(activeStep - 1);
     }
 
     function handleStepClick(index: number) {
-        const maxAccessible = Math.max(activeStep, ...completedSteps, 0);
-        if (index <= maxAccessible) {
+        if (index === activeStep) return;
+
+        if (index < activeStep) {
+            setShowStepValidation(false);
             goToStep(index);
             return;
         }
-        toast.error("Complete the current step before jumping ahead.");
+
+        for (let i = activeStep; i < index; i++) {
+            const stepId = MG_WIZARD_STEPS[i]?.id ?? "enterprise";
+            const errors = getStepValidationErrors(stepId, form, wizardContext);
+            if (errors.length > 0) {
+                if (i !== activeStep) {
+                    goToStep(i, { clearErrors: false });
+                }
+                setShowStepValidation(true);
+                toast.error(
+                    `Fix ${errors.length} item(s) on ${MG_WIZARD_STEPS[i]?.label ?? "this step"} before continuing.`
+                );
+                scrollToValidationAlert();
+                return;
+            }
+            setCompletedSteps(prev => (prev.includes(i) ? prev : [...prev, i]));
+        }
+
+        setShowStepValidation(false);
+        goToStep(index);
+    }
+
+    function goToStepWithIssues(index: number) {
+        goToStep(index, { clearErrors: false });
+        setShowStepValidation(true);
+        scrollToValidationAlert();
     }
 
     async function handleSave(status: "draft" | "submitted") {
         if (status === "submitted") {
-            const errors = getStepValidationErrors("documents", form, wizardContext);
-            if (errors.length > 0) {
-                toast.error(errors[0]);
-                goToStep(MG_WIZARD_STEPS.length - 1);
+            const firstIssueIndex = getFirstStepIndexWithErrors(form, wizardContext);
+            if (firstIssueIndex != null) {
+                const groups = flattenStepErrorsWithLabels(form, wizardContext);
+                const first = groups[0];
+                goToStep(firstIssueIndex, { clearErrors: false });
+                setShowStepValidation(true);
+                scrollToValidationAlert();
+                toast.error(
+                    first
+                        ? `Fix ${first.errors.length} item(s) on ${first.stepLabel} before submitting.`
+                        : "Complete all required steps before submitting."
+                );
+                scrollToValidationAlert();
                 return;
             }
         }
@@ -459,13 +521,17 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
         setSaving(false);
 
         if (res.success) {
+            setShowStepValidation(false);
             toast.success(res.message ?? "Matching Grant application saved");
             setForm(prev => ({ ...prev, status }));
             if (status === "submitted") {
                 setCompletedSteps(MG_WIZARD_STEPS.map((_, i) => i));
             }
             if (res.data?.validation.warnings.length) {
-                toast.warning(`${res.data.validation.warnings.length} validation note(s) need attention`);
+                const label = status === "submitted" ? "guidance note(s)" : "validation note(s)";
+                toast.info(
+                    `${res.data.validation.warnings.length} ${label} recorded (e.g. grant mix guidance). Submission was successful.`
+                );
             }
         } else {
             toast.error(res.error ?? "Failed to save Matching Grant application");
@@ -519,35 +585,54 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
                         {MG_WIZARD_STEPS.map((step, index) => {
                             const StepIcon = step.icon;
                             const isActive = index === activeStep;
-                            const isCompleted = completedSteps.includes(index);
+                            const stepErrorCount = allStepErrors[step.id]?.length ?? 0;
+                            const isCompleted = completedSteps.includes(index) && stepErrorCount === 0;
                             const maxAccessible = Math.max(activeStep, ...completedSteps, 0);
-                            const isAccessible = index <= maxAccessible;
+                            const isAccessible = index <= maxAccessible || index === activeStep + 1;
 
                             return (
                                 <button
                                     key={step.id}
                                     type="button"
                                     onClick={() => handleStepClick(index)}
-                                    disabled={!isAccessible}
+                                    disabled={!isAccessible && index > activeStep}
                                     className={cn(
                                         "w-full text-left rounded-lg p-3 transition-colors border",
                                         isActive && "border-blue-300 bg-blue-50/80",
                                         !isActive && isCompleted && "border-emerald-200 bg-emerald-50/50",
-                                        !isActive && !isCompleted && "border-transparent hover:bg-muted/50",
-                                        !isAccessible && "opacity-50 cursor-not-allowed"
+                                        !isActive && stepErrorCount > 0 && "border-red-200 bg-red-50/40",
+                                        !isActive && !isCompleted && stepErrorCount === 0 && "border-transparent hover:bg-muted/50",
+                                        !isAccessible && index > activeStep && "opacity-50 cursor-not-allowed"
                                     )}
                                 >
                                     <div className="flex items-start gap-2">
                                         <div className={cn(
                                             "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs",
-                                            isCompleted ? "bg-emerald-600 text-white" : isActive ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground"
+                                            stepErrorCount > 0 && !isActive
+                                                ? "bg-red-600 text-white"
+                                                : isCompleted
+                                                    ? "bg-emerald-600 text-white"
+                                                    : isActive
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-muted text-muted-foreground"
                                         )}>
-                                            {isCompleted ? <Check className="size-3.5" weight="bold" /> : index + 1}
+                                            {isCompleted ? (
+                                                <Check className="size-3.5" weight="bold" />
+                                            ) : stepErrorCount > 0 && !isActive ? (
+                                                stepErrorCount
+                                            ) : (
+                                                index + 1
+                                            )}
                                         </div>
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 flex-1">
                                             <p className="text-sm font-medium flex items-center gap-1.5">
                                                 <StepIcon className="size-4 shrink-0" />
                                                 {step.shortLabel}
+                                                {stepErrorCount > 0 && (
+                                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">
+                                                        {stepErrorCount}
+                                                    </Badge>
+                                                )}
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
                                         </div>
@@ -573,19 +658,12 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
                         </CardContent>
                     </Card>
 
-                    {warnings.length > 0 && (
-                        <Card className="border-amber-200 bg-amber-50/70">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm flex items-center gap-2">
-                                    <Warning weight="duotone" className="size-4 text-amber-600" />
-                                    Validation Notes
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-1">
-                                {warnings.map(item => <p key={item} className="text-xs text-amber-800">{item}</p>)}
-                            </CardContent>
-                        </Card>
-                    )}
+                    <div ref={validationAlertRef}>
+                        <WizardStepValidationAlert
+                            errors={inlineValidationErrors}
+                            guidanceNotes={grantGuidanceNotes}
+                        />
+                    </div>
 
                     <WizardStepContent
                         stepId={currentStepId}
@@ -596,7 +674,11 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
                     />
 
                     {currentStepId === "documents" && (
-                        <WizardReviewSummary summary={reviewSummary} warnings={warnings} />
+                        <WizardReviewSummary
+                            summary={reviewSummary}
+                            issueGroups={reviewIssueGroups}
+                            onGoToStep={goToStepWithIssues}
+                        />
                     )}
                 </div>
             </div>
@@ -735,6 +817,70 @@ function updateOwner(
     }));
 }
 
+function addOwner(setForm: React.Dispatch<React.SetStateAction<FormState>>) {
+    setForm(prev => ({
+        ...prev,
+        otherOwners: [...prev.otherOwners, emptyOwnerRow()],
+    }));
+}
+
+function removeOwner(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number) {
+    setForm(prev => ({
+        ...prev,
+        otherOwners: prev.otherOwners.length <= 1
+            ? prev.otherOwners
+            : prev.otherOwners.filter((_, i) => i !== index),
+    }));
+}
+
+function addBudget(setForm: React.Dispatch<React.SetStateAction<FormState>>) {
+    setForm(prev => ({
+        ...prev,
+        budgetItems: [...prev.budgetItems, emptyBudgetRow()],
+    }));
+}
+
+function removeBudget(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number) {
+    setForm(prev => ({
+        ...prev,
+        budgetItems: prev.budgetItems.length <= 1
+            ? prev.budgetItems
+            : prev.budgetItems.filter((_, i) => i !== index),
+    }));
+}
+
+function addMilestone(setForm: React.Dispatch<React.SetStateAction<FormState>>) {
+    setForm(prev => ({
+        ...prev,
+        milestones: [...prev.milestones, emptyMilestoneRow()],
+    }));
+}
+
+function removeMilestone(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number) {
+    setForm(prev => ({
+        ...prev,
+        milestones: prev.milestones.length <= 1
+            ? prev.milestones
+            : prev.milestones.filter((_, i) => i !== index),
+    }));
+}
+
+function addJob(setForm: React.Dispatch<React.SetStateAction<FormState>>) {
+    setForm(prev => ({
+        ...prev,
+        jobs: [...prev.jobs, emptyJobRow()],
+    }));
+}
+
+function removeJob(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number) {
+    setForm(prev => ({
+        ...prev,
+        jobs: prev.jobs.length <= 1
+            ? prev.jobs
+            : prev.jobs.filter((_, i) => i !== index),
+    }));
+}
+
 function EnterpriseIdentificationSection({ form, setForm }: { form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>> }) {
     return (
         <Card>
@@ -801,14 +947,43 @@ function OtherOwnersSection({ form, setForm }: { form: FormState; setForm: React
             </CardHeader>
             <CardContent className="space-y-3">
                 {form.otherOwners.map((row, index) => (
-                    <div key={index} className="grid gap-3 md:grid-cols-5 rounded-lg border p-3">
-                        <TextField label="Name" value={row.name} onChange={v => updateOwner(setForm, index, { name: v })} />
-                        <TextField label="Role" value={row.role} onChange={v => updateOwner(setForm, index, { role: v })} />
-                        <NumberField label="Ownership %" value={row.ownershipPct} onChange={v => updateOwner(setForm, index, { ownershipPct: v })} />
-                        <TextField label="Gender" value={row.gender} onChange={v => updateOwner(setForm, index, { gender: v })} />
-                        <TextField label="Category" value={row.category} onChange={v => updateOwner(setForm, index, { category: v })} />
+                    <div key={index} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                                Owner / partner {index + 1}
+                            </p>
+                            {form.otherOwners.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                                    onClick={() => removeOwner(setForm, index)}
+                                >
+                                    <Trash className="size-3.5" />
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-5">
+                            <TextField label="Name" value={row.name} onChange={v => updateOwner(setForm, index, { name: v })} />
+                            <TextField label="Role" value={row.role} onChange={v => updateOwner(setForm, index, { role: v })} />
+                            <NumberField label="Ownership %" value={row.ownershipPct} onChange={v => updateOwner(setForm, index, { ownershipPct: v })} />
+                            <TextField label="Gender" value={row.gender} onChange={v => updateOwner(setForm, index, { gender: v })} />
+                            <TextField label="Category" value={row.category} onChange={v => updateOwner(setForm, index, { category: v })} />
+                        </div>
                     </div>
                 ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => addOwner(setForm)}
+                >
+                    <Plus className="size-4" />
+                    Add owner / partner
+                </Button>
             </CardContent>
         </Card>
     );
@@ -960,7 +1135,9 @@ function WizardStepContent({
                                 <Checkbox
                                     id="declaration"
                                     checked={form.declarationAccepted}
-                                    onCheckedChange={checked => setField("declarationAccepted", Boolean(checked))}
+                                    onCheckedChange={checked =>
+                                        setField("declarationAccepted", checked === true)
+                                    }
                                 />
                                 <Label htmlFor="declaration" className="text-sm">
                                     Applicant declares that all information is true, complete, and subject to verification.
@@ -1056,10 +1233,12 @@ function BusinessImpactSection({
 
 function WizardReviewSummary({
     summary,
-    warnings,
+    issueGroups,
+    onGoToStep,
 }: {
     summary: ReturnType<typeof getWizardReviewSummary>;
-    warnings: string[];
+    issueGroups: ReturnType<typeof flattenStepErrorsWithLabels>;
+    onGoToStep: (index: number) => void;
 }) {
     return (
         <Card className="border-slate-200">
@@ -1067,25 +1246,53 @@ function WizardReviewSummary({
                 <CardTitle className="text-base">Review before submit</CardTitle>
                 <CardDescription>Confirm key details captured across all steps.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 text-sm">
-                <ReviewRow label="Enterprise" value={summary.enterpriseName} />
-                <ReviewRow label="Track" value={summary.trackLabel} />
-                <ReviewRow
-                    label="Annual revenue (eligibility)"
-                    value={summary.revenue > 0 ? `KES ${summary.revenue.toLocaleString("en-KE")}` : "Not set"}
-                />
-                <ReviewRow label="Revenue gate" value={summary.revenueEligible ? "Eligible" : summary.revenue > 0 ? "Ineligible" : "Pending"} />
-                <ReviewRow label="Total project" value={summary.totalProject > 0 ? `KES ${summary.totalProject.toLocaleString("en-KE")}` : "—"} />
-                <ReviewRow label="BIRE grant requested" value={summary.bireGrant > 0 ? `KES ${summary.bireGrant.toLocaleString("en-KE")}` : "—"} />
-                <ReviewRow label="Enterprise contribution" value={summary.enterpriseContribution > 0 ? `KES ${summary.enterpriseContribution.toLocaleString("en-KE")}` : "—"} />
-                <ReviewRow label="Budget line items" value={String(summary.budgetLines)} />
-                <ReviewRow label="Documents enclosed" value={`${summary.docsConfirmed} / ${summary.docsTotal}`} />
-                <ReviewRow label="Declaration" value={summary.declarationAccepted ? "Accepted" : "Pending"} />
-                <ReviewRow label="Use-of-funds confirmed" value={summary.useOfFundsAcknowledged ? "Yes" : "No"} />
-                {warnings.length > 0 && (
-                    <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                        <p className="text-xs font-medium text-amber-900 mb-1">{warnings.length} validation note(s) remain</p>
-                        <p className="text-xs text-amber-800">You can still save a draft; submit may be blocked until resolved.</p>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                    <ReviewRow label="Enterprise" value={summary.enterpriseName} />
+                    <ReviewRow label="Track" value={summary.trackLabel} />
+                    <ReviewRow
+                        label="Annual revenue (eligibility)"
+                        value={summary.revenue > 0 ? `KES ${summary.revenue.toLocaleString("en-KE")}` : "Not set"}
+                    />
+                    <ReviewRow label="Revenue gate" value={summary.revenueEligible ? "Eligible" : summary.revenue > 0 ? "Ineligible" : "Pending"} />
+                    <ReviewRow label="Total project" value={summary.totalProject > 0 ? `KES ${summary.totalProject.toLocaleString("en-KE")}` : "—"} />
+                    <ReviewRow label="BIRE grant requested" value={summary.bireGrant > 0 ? `KES ${summary.bireGrant.toLocaleString("en-KE")}` : "—"} />
+                    <ReviewRow label="Enterprise contribution" value={summary.enterpriseContribution > 0 ? `KES ${summary.enterpriseContribution.toLocaleString("en-KE")}` : "—"} />
+                    <ReviewRow label="Budget line items" value={String(summary.budgetLines)} />
+                    <ReviewRow label="Mandatory documents enclosed" value={`${summary.docsConfirmed} / ${summary.docsTotal}`} />
+                    <ReviewRow label="Declaration" value={summary.declarationAccepted ? "Accepted" : "Pending"} />
+                    <ReviewRow label="Use-of-funds confirmed" value={summary.useOfFundsAcknowledged ? "Yes" : "No"} />
+                </div>
+
+                {issueGroups.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50/70 dark:bg-red-950/20 dark:border-red-900/50 p-4 space-y-3">
+                        <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                            Complete these steps before submitting
+                        </p>
+                        {issueGroups.map((group) => (
+                            <div key={group.stepId} className="rounded-md border border-red-200/80 bg-background/60 p-3 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-sm font-medium">{group.stepLabel}</p>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={() => onGoToStep(group.stepIndex)}
+                                    >
+                                        Go to step
+                                    </Button>
+                                </div>
+                                <ul className="list-disc pl-5 space-y-1 text-xs text-red-800 dark:text-red-200/90">
+                                    {group.errors.map((item) => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                        <p className="text-xs text-muted-foreground">
+                            You can still save a draft; submit is blocked until all items above are resolved.
+                        </p>
                     </div>
                 )}
             </CardContent>
@@ -1120,11 +1327,27 @@ function TextField({ label, value, onChange, className, placeholder }: { label: 
     );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function NumberField({
+    label,
+    value,
+    onChange,
+    readOnly = false,
+}: {
+    label: string;
+    value: number;
+    onChange?: (value: number) => void;
+    readOnly?: boolean;
+}) {
     return (
         <div>
             <Label className="text-xs font-medium">{label}</Label>
-            <Input type="number" value={value} onChange={e => onChange(numberValue(e.target.value))} className="mt-1.5" />
+            <Input
+                type="number"
+                value={value}
+                readOnly={readOnly}
+                onChange={readOnly ? undefined : (e) => onChange?.(numberValue(e.target.value))}
+                className={cn("mt-1.5", readOnly && "bg-muted/50 cursor-default")}
+            />
         </div>
     );
 }
@@ -1158,6 +1381,23 @@ function RepeatingBudget({ form, setForm }: { form: FormState; setForm: React.Di
                 </div>
                 {form.budgetItems.map((row, index) => (
                     <div key={index} className="space-y-3 rounded-lg border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                                Budget line {index + 1}
+                            </p>
+                            {form.budgetItems.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                                    onClick={() => removeBudget(setForm, index)}
+                                >
+                                    <Trash className="size-3.5" />
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
                         <div className="grid gap-3 md:grid-cols-2">
                             <TextField label="Investment Item" value={row.item} onChange={value => updateBudget(setForm, index, { item: value })} />
                             <div>
@@ -1194,6 +1434,16 @@ function RepeatingBudget({ form, setForm }: { form: FormState; setForm: React.Di
                         </div>
                     </div>
                 ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => addBudget(setForm)}
+                >
+                    <Plus className="size-4" />
+                    Add budget line
+                </Button>
             </CardContent>
         </Card>
     );
@@ -1214,19 +1464,48 @@ function RepeatingMilestones({ form, setForm }: { form: FormState; setForm: Reac
             </CardHeader>
             <CardContent className="space-y-3">
                 {form.milestones.map((row, index) => (
-                    <div key={index} className="grid gap-3 md:grid-cols-4 rounded-lg border p-3">
-                        <TextField label="Activity / Milestone" value={row.activity} onChange={value => updateMilestone(setForm, index, { activity: value })} />
-                        <TextField label="Expected Completion" value={row.completionDate} onChange={value => updateMilestone(setForm, index, { completionDate: value })} />
-                        <TextField label="Disbursement Tranche" value={row.tranche} onChange={value => updateMilestone(setForm, index, { tranche: value })} />
-                        <TextField label="Verification Method" value={row.verificationMethod} onChange={value => updateMilestone(setForm, index, { verificationMethod: value })} />
+                    <div key={index} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                                Milestone {index + 1}
+                            </p>
+                            {form.milestones.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                                    onClick={() => removeMilestone(setForm, index)}
+                                >
+                                    <Trash className="size-3.5" />
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-4">
+                            <TextField label="Activity / Milestone" value={row.activity} onChange={value => updateMilestone(setForm, index, { activity: value })} />
+                            <TextField label="Expected Completion" value={row.completionDate} onChange={value => updateMilestone(setForm, index, { completionDate: value })} />
+                            <TextField label="Disbursement Tranche" value={row.tranche} onChange={value => updateMilestone(setForm, index, { tranche: value })} />
+                            <TextField label="Verification Method" value={row.verificationMethod} onChange={value => updateMilestone(setForm, index, { verificationMethod: value })} />
+                        </div>
                     </div>
                 ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => addMilestone(setForm)}
+                >
+                    <Plus className="size-4" />
+                    Add milestone
+                </Button>
             </CardContent>
         </Card>
     );
 }
 
-function updateMilestone(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<Milestone>) {
+function updateMilestone(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<MatchingGrantMilestoneRow>) {
     setForm(prev => ({
         ...prev,
         milestones: prev.milestones.map((item, i) => i === index ? { ...item, ...patch } : item),
@@ -1241,56 +1520,102 @@ function RepeatingJobs({ form, setForm }: { form: FormState; setForm: React.Disp
             </CardHeader>
             <CardContent className="space-y-3">
                 {form.jobs.map((row, index) => (
-                    <div key={index} className="grid gap-3 md:grid-cols-5 rounded-lg border p-3">
-                        <TextField label="Role / Job Type" value={row.role} onChange={value => updateJob(setForm, index, { role: value })} />
-                        <NumberField label="Women" value={row.women} onChange={value => updateJob(setForm, index, { women: value })} />
-                        <NumberField label="Youth" value={row.youth} onChange={value => updateJob(setForm, index, { youth: value })} />
-                        <NumberField label="PWD" value={row.pwd} onChange={value => updateJob(setForm, index, { pwd: value })} />
-                        <NumberField label="Total" value={row.total} onChange={value => updateJob(setForm, index, { total: value })} />
+                    <div key={index} className="rounded-lg border p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                                Job row {index + 1}
+                            </p>
+                            {form.jobs.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                                    onClick={() => removeJob(setForm, index)}
+                                >
+                                    <Trash className="size-3.5" />
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-5">
+                            <TextField label="Role / Job Type" value={row.role} onChange={value => updateJob(setForm, index, { role: value })} />
+                            <NumberField label="Women" value={row.women} onChange={value => updateJob(setForm, index, { women: value })} />
+                            <NumberField label="Youth" value={row.youth} onChange={value => updateJob(setForm, index, { youth: value })} />
+                            <NumberField label="PWD" value={row.pwd} onChange={value => updateJob(setForm, index, { pwd: value })} />
+                            <NumberField label="Total" value={jobHeadcountTotal(row)} readOnly />
+                        </div>
                     </div>
                 ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => addJob(setForm)}
+                >
+                    <Plus className="size-4" />
+                    Add job row
+                </Button>
             </CardContent>
         </Card>
     );
 }
 
-function updateJob(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<JobRow>) {
+function jobHeadcountTotal(row: Pick<MatchingGrantJobRow, "women" | "youth" | "pwd">): number {
+    return (row.women || 0) + (row.youth || 0) + (row.pwd || 0);
+}
+
+function updateJob(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<MatchingGrantJobRow>) {
     setForm(prev => ({
         ...prev,
-        jobs: prev.jobs.map((item, i) => i === index ? { ...item, ...patch } : item),
+        jobs: prev.jobs.map((item, i) => {
+            if (i !== index) return item;
+            const next = { ...item, ...patch };
+            if ("women" in patch || "youth" in patch || "pwd" in patch) {
+                next.total = jobHeadcountTotal(next);
+            }
+            return next;
+        }),
     }));
 }
 
 function SupportingDocuments({ form, setForm }: { form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>> }) {
+    const { enclosed, total } = countMandatoryMgDocumentsEnclosed(form.documents);
+    const progressPct = total > 0 ? Math.round((enclosed / total) * 100) : 0;
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="text-base">Supporting Documents</CardTitle>
+                <CardDescription>
+                    Files are pulled from the call-for-application, KYC, and CDP session evidence where available.
+                    Upload any missing mandatory documents below.
+                </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-                {form.documents.map((row, index) => (
-                    <div key={row.document} className="grid gap-3 md:grid-cols-[1fr_120px_1fr_100px] rounded-lg border p-3 items-end">
-                        <div>
-                            <Label className="text-xs font-medium">Document</Label>
-                            <p className="text-sm mt-1.5">{row.document}</p>
-                        </div>
-                        <div>
-                            <Label className="text-xs font-medium">Mandatory?</Label>
-                            <p className="text-sm mt-1.5">{row.mandatory}</p>
-                        </div>
-                        <TextField label="Document URL / Reference" value={row.url} onChange={value => updateDocument(setForm, index, { url: value })} />
-                        <div className="flex items-center gap-2 pb-2">
-                            <Checkbox checked={row.confirmed} onCheckedChange={checked => updateDocument(setForm, index, { confirmed: Boolean(checked) })} />
-                            <Label className="text-xs">Enclosed</Label>
-                        </div>
+            <CardContent className="space-y-4">
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">Mandatory documents enclosed</span>
+                        <span className="text-muted-foreground">
+                            {enclosed} of {total}
+                        </span>
                     </div>
+                    <Progress value={progressPct} className="h-2" />
+                </div>
+                {form.documents.map((row, index) => (
+                    <MgSupportingDocumentRowComponent
+                        key={row.document}
+                        row={row}
+                        onChange={patch => updateDocument(setForm, index, patch)}
+                    />
                 ))}
             </CardContent>
         </Card>
     );
 }
 
-function updateDocument(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<SupportingDocument>) {
+function updateDocument(setForm: React.Dispatch<React.SetStateAction<FormState>>, index: number, patch: Partial<MgSupportingDocumentRow>) {
     setForm(prev => ({
         ...prev,
         documents: prev.documents.map((item, i) => i === index ? { ...item, ...patch } : item),

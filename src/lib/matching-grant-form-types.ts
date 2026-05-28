@@ -209,6 +209,21 @@ export interface MatchingGrantBudgetItem {
     enterpriseContribution: number;
 }
 
+export interface MatchingGrantMilestoneRow {
+    activity: string;
+    completionDate: string;
+    tranche: string;
+    verificationMethod: string;
+}
+
+export interface MatchingGrantJobRow {
+    role: string;
+    women: number;
+    youth: number;
+    pwd: number;
+    total: number;
+}
+
 export const MATCHING_GRANT_CAPEX_CATEGORIES = [
     { value: "productive_equipment", label: "Productive equipment" },
     { value: "technology_adoption", label: "Technology adoption" },
@@ -238,25 +253,105 @@ export const EMPTY_GOVERNANCE_COMPLIANCE: MatchingGrantGovernanceCompliance = {
     notes: "",
 };
 
-export function emptyBudgetRows(count = 5): MatchingGrantBudgetItem[] {
-    return Array.from({ length: count }, () => ({
+export function emptyBudgetRow(): MatchingGrantBudgetItem {
+    return {
         item: "",
         category: "",
         confirmedEligible: false,
         totalCost: 0,
         bireGrant: 0,
         enterpriseContribution: 0,
-    }));
+    };
 }
 
-export function emptyOwners(count = 3): OtherOwner[] {
-    return Array.from({ length: count }, () => ({
+export function emptyBudgetRows(count = 1): MatchingGrantBudgetItem[] {
+    return Array.from({ length: count }, () => emptyBudgetRow());
+}
+
+export function emptyMilestoneRow(): MatchingGrantMilestoneRow {
+    return {
+        activity: "",
+        completionDate: "",
+        tranche: "",
+        verificationMethod: "",
+    };
+}
+
+export function emptyMilestones(count = 1): MatchingGrantMilestoneRow[] {
+    return Array.from({ length: count }, () => emptyMilestoneRow());
+}
+
+export function emptyJobRow(): MatchingGrantJobRow {
+    return {
+        role: "",
+        women: 0,
+        youth: 0,
+        pwd: 0,
+        total: 0,
+    };
+}
+
+export function emptyJobs(count = 1): MatchingGrantJobRow[] {
+    return Array.from({ length: count }, () => emptyJobRow());
+}
+
+export function emptyOwnerRow(): OtherOwner {
+    return {
         name: "",
         role: "",
         ownershipPct: 0,
         gender: "",
         category: "",
-    }));
+    };
+}
+
+export function emptyOwners(count = 1): OtherOwner[] {
+    return Array.from({ length: count }, () => emptyOwnerRow());
+}
+
+/** Drop rows with no meaningful data before persisting to JSONB. */
+export function filterFilledOtherOwners(owners: OtherOwner[]): OtherOwner[] {
+    return owners.filter(
+        (row) =>
+            row.name.trim() !== ""
+            || row.role.trim() !== ""
+            || row.gender.trim() !== ""
+            || row.category.trim() !== ""
+            || row.ownershipPct > 0
+    );
+}
+
+export function filterFilledBudgetItems(items: MatchingGrantBudgetItem[]): MatchingGrantBudgetItem[] {
+    return items.filter(
+        (row) =>
+            row.item.trim() !== ""
+            || row.category.trim() !== ""
+            || row.confirmedEligible
+            || row.totalCost > 0
+            || row.bireGrant > 0
+            || row.enterpriseContribution > 0
+    );
+}
+
+export function filterFilledMilestones(milestones: MatchingGrantMilestoneRow[]): MatchingGrantMilestoneRow[] {
+    return milestones.filter(
+        (row) =>
+            row.activity.trim() !== ""
+            || row.completionDate.trim() !== ""
+            || row.tranche.trim() !== ""
+            || row.verificationMethod.trim() !== ""
+    );
+}
+
+export function filterFilledJobs(jobs: MatchingGrantJobRow[]): MatchingGrantJobRow[] {
+    return jobs.filter(
+        (row) =>
+            row.role.trim() !== ""
+            || row.women > 0
+            || row.youth > 0
+            || row.pwd > 0
+            || row.total > 0
+    );
 }
 
 function str(value: unknown): string {
@@ -312,7 +407,7 @@ export function parseLeadEntrepreneur(raw: Record<string, unknown> | null | unde
 }
 
 export function parseOtherOwners(raw: unknown): OtherOwner[] {
-    if (!Array.isArray(raw) || raw.length === 0) return emptyOwners();
+    if (!Array.isArray(raw) || raw.length === 0) return [emptyOwnerRow()];
     return raw.map((item) => {
         const row = (item ?? {}) as Record<string, unknown>;
         return {
@@ -496,7 +591,7 @@ export function buildOfficialUseSeed(params: {
 }
 
 export function parseBudgetItems(raw: unknown): MatchingGrantBudgetItem[] {
-    if (!Array.isArray(raw) || raw.length === 0) return emptyBudgetRows();
+    if (!Array.isArray(raw) || raw.length === 0) return [emptyBudgetRow()];
     return raw.map((entry) => {
         const row = (entry ?? {}) as Record<string, unknown>;
         return {
@@ -506,6 +601,36 @@ export function parseBudgetItems(raw: unknown): MatchingGrantBudgetItem[] {
             totalCost: num(row.totalCost),
             bireGrant: num(row.bireGrant),
             enterpriseContribution: num(row.enterpriseContribution),
+        };
+    });
+}
+
+export function parseMilestones(raw: unknown): MatchingGrantMilestoneRow[] {
+    if (!Array.isArray(raw) || raw.length === 0) return [emptyMilestoneRow()];
+    return raw.map((entry) => {
+        const row = (entry ?? {}) as Record<string, unknown>;
+        return {
+            activity: str(row.activity),
+            completionDate: str(row.completionDate),
+            tranche: str(row.tranche),
+            verificationMethod: str(row.verificationMethod),
+        };
+    });
+}
+
+export function parseJobCreationPlan(raw: unknown): MatchingGrantJobRow[] {
+    if (!Array.isArray(raw) || raw.length === 0) return [emptyJobRow()];
+    return raw.map((entry) => {
+        const row = (entry ?? {}) as Record<string, unknown>;
+        const women = num(row.women);
+        const youth = num(row.youth);
+        const pwd = num(row.pwd);
+        return {
+            role: str(row.role),
+            women,
+            youth,
+            pwd,
+            total: women + youth + pwd,
         };
     });
 }

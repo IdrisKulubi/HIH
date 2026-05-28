@@ -25,6 +25,11 @@ import {
     resolveAnnualRevenueForEligibility,
     validateBudgetUseOfFunds,
 } from "@/lib/matching-grant-form-types";
+import {
+    type MgSupportingDocumentRow,
+    countMandatoryMgDocumentsEnclosed,
+    validateMandatoryMgDocuments,
+} from "@/lib/mg-supporting-documents";
 
 export type MgWizardStepId =
     | "enterprise"
@@ -47,7 +52,7 @@ export interface MatchingGrantWizardForm {
     declarationAccepted: boolean;
     useOfFundsAcknowledged: boolean;
     declarationName: string;
-    documents: Array<{ confirmed: boolean; mandatory: string }>;
+    documents: MgSupportingDocumentRow[];
 }
 
 export interface MatchingGrantWizardContext {
@@ -112,6 +117,26 @@ export function wizardStorageKey(a2fId: number) {
     return `mg-wizard-step-${a2fId}`;
 }
 
+function pct(part: number, total: number): number {
+    return total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
+}
+
+/** Non-blocking guidance shown only on the Grant Request step. */
+export function getGrantRequestGuidanceNotes(
+    form: MatchingGrantWizardForm
+): string[] {
+    const notes: string[] = [];
+    const grantShare = pct(form.bireGrantAmount, form.totalProjectAmount);
+    const enterpriseShare = pct(form.enterpriseContributionAmount, form.totalProjectAmount);
+    if (form.totalProjectAmount > 0 && grantShare > 70) {
+        notes.push("BIRE share is above the standard 70% guidance.");
+    }
+    if (form.totalProjectAmount > 0 && enterpriseShare < 30) {
+        notes.push("Enterprise contribution is below the standard 30% guidance.");
+    }
+    return notes;
+}
+
 export function getStepValidationErrors(
     stepId: MgWizardStepId,
     form: MatchingGrantWizardForm,
@@ -139,25 +164,37 @@ export function getStepValidationErrors(
             if (!form.projectTitle.trim()) errors.push("Project title is required.");
             if (form.totalProjectAmount <= 0) errors.push("Total project investment must be greater than zero.");
             if (!form.capexOnlyConfirmed) errors.push("Confirm CAPEX-only use for this grant request.");
+            if (
+                form.totalProjectAmount > 0
+                && Math.abs(form.totalProjectAmount - (form.bireGrantAmount + form.enterpriseContributionAmount)) > 1
+            ) {
+                errors.push("BIRE grant and enterprise contribution must add up to total project amount.");
+            }
             return errors;
         }
         case "business_impact":
             return [];
         case "investment_plan": {
+            const errors: string[] = [];
+            if (!form.useOfFundsAcknowledged) {
+                errors.push(
+                    "Confirm the budget excludes ineligible uses (personal expenses, loan repayments, unrelated overheads)."
+                );
+            }
             const filled = form.budgetItems.filter(row => row.item.trim());
             if (filled.length === 0) {
-                return ["Add at least one budget line item."];
+                errors.push("Add at least one budget line item.");
+            } else {
+                errors.push(...validateBudgetUseOfFunds(form.budgetItems));
             }
-            return validateBudgetUseOfFunds(form.budgetItems);
+            return errors;
         }
         case "documents": {
             const errors: string[] = [];
+            errors.push(...validateMandatoryMgDocuments(form.documents));
             if (!form.declarationName.trim()) errors.push("Applicant full name is required for declaration.");
             if (!form.declarationAccepted) {
                 errors.push("Applicant declaration must be accepted.");
-            }
-            if (!form.useOfFundsAcknowledged) {
-                errors.push("Confirm the budget excludes ineligible uses before submitting.");
             }
             return errors;
         }
@@ -166,14 +203,56 @@ export function getStepValidationErrors(
     }
 }
 
+export function getAllStepValidationErrors(
+    form: MatchingGrantWizardForm,
+    context: MatchingGrantWizardContext
+): Record<MgWizardStepId, string[]> {
+    const out = {} as Record<MgWizardStepId, string[]>;
+    for (const step of MG_WIZARD_STEPS) {
+        out[step.id] = getStepValidationErrors(step.id, form, context);
+    }
+    return out;
+}
+
+export function getFirstStepIndexWithErrors(
+    form: MatchingGrantWizardForm,
+    context: MatchingGrantWizardContext
+): number | null {
+    const all = getAllStepValidationErrors(form, context);
+    for (let i = 0; i < MG_WIZARD_STEPS.length; i++) {
+        const stepId = MG_WIZARD_STEPS[i].id;
+        if ((all[stepId]?.length ?? 0) > 0) return i;
+    }
+    return null;
+}
+
+export type StepErrorsGroup = {
+    stepId: MgWizardStepId;
+    stepLabel: string;
+    stepIndex: number;
+    errors: string[];
+};
+
+export function flattenStepErrorsWithLabels(
+    form: MatchingGrantWizardForm,
+    context: MatchingGrantWizardContext
+): StepErrorsGroup[] {
+    const all = getAllStepValidationErrors(form, context);
+    return MG_WIZARD_STEPS.map((step, stepIndex) => ({
+        stepId: step.id,
+        stepLabel: step.label,
+        stepIndex,
+        errors: all[step.id] ?? [],
+    })).filter((group) => group.errors.length > 0);
+}
+
 export function getWizardReviewSummary(
     form: MatchingGrantWizardForm,
     context: MatchingGrantWizardContext
 ) {
     const revenue = resolveAnnualRevenueForEligibility(form.financial, context.pipelineRevenue);
     const budgetLines = form.budgetItems.filter(row => row.item.trim()).length;
-    const docsConfirmed = form.documents.filter(d => d.confirmed).length;
-    const docsTotal = form.documents.length;
+    const { enclosed: docsConfirmed, total: docsTotal } = countMandatoryMgDocumentsEnclosed(form.documents);
 
     return {
         enterpriseName: form.enterprise.name || "—",
