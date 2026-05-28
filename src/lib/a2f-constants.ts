@@ -117,6 +117,133 @@ export function getMatchingGrantRevenueEligibilityMessage(
     return null;
 }
 
+export type RevenueGateActionId =
+    | 'assign_accelerator'
+    | 'assign_foundation'
+    | 'edit_revenue'
+    | 'open_mg_financials';
+
+export type RevenueGateAction = {
+    id: RevenueGateActionId;
+    label: string;
+    variant: 'default' | 'outline';
+};
+
+export type RevenueGateUxDetail = {
+    revenueScore: number;
+    isEligible: boolean;
+    ruleSummary: string;
+    ineligibilityReason: string | null;
+    suggestedAction: string | null;
+    /** Foundation track only: where reported revenue sits vs 500k–3M band */
+    foundationRangeHint: 'below' | 'within' | 'above' | null;
+    actions: RevenueGateAction[];
+};
+
+function buildRevenueGateActions(
+    track: A2fEnterpriseTrack | null | undefined,
+    annualRevenue: number,
+    isEligible: boolean
+): RevenueGateAction[] {
+    if (isEligible) return [];
+
+    const editRevenue: RevenueGateAction = {
+        id: 'edit_revenue',
+        label: 'Update verified revenue',
+        variant: 'outline',
+    };
+    const openFinancials: RevenueGateAction = {
+        id: 'open_mg_financials',
+        label: 'Open Financials step',
+        variant: 'outline',
+    };
+
+    if (annualRevenue <= 0) {
+        return [editRevenue, openFinancials];
+    }
+
+    if (track === 'acceleration') {
+        if (annualRevenue <= 3_000_000) {
+            return [
+                { id: 'assign_foundation', label: 'Assign Foundation track', variant: 'default' },
+                editRevenue,
+                openFinancials,
+            ];
+        }
+        return [];
+    }
+
+    if (annualRevenue > 3_000_000) {
+        return [
+            { id: 'assign_accelerator', label: 'Assign Accelerator track', variant: 'default' },
+            editRevenue,
+            openFinancials,
+        ];
+    }
+
+    if (annualRevenue < 500_000) {
+        return [editRevenue, openFinancials];
+    }
+
+    return [];
+}
+
+function formatKesAmount(amount: number): string {
+    return `KES ${amount.toLocaleString('en-KE')}`;
+}
+
+/** Actionable copy for scoring UI when revenue hard gate applies. */
+export function getRevenueGateUxDetail(
+    track: A2fEnterpriseTrack | null | undefined,
+    annualRevenue: number
+): RevenueGateUxDetail {
+    const revenueScore = getMatchingGrantRevenueScore(track, annualRevenue);
+    const isEligible = revenueScore > 0;
+    const ruleSummary = track === 'acceleration'
+        ? 'Accelerator requires verified annual revenue above KES 3,000,000.'
+        : 'Foundation requires verified annual revenue from KES 500,000 to KES 3,000,000 (inclusive).';
+
+    let ineligibilityReason: string | null = null;
+    let suggestedAction: string | null = null;
+    let foundationRangeHint: RevenueGateUxDetail['foundationRangeHint'] = null;
+
+    if (!isEligible) {
+        if (annualRevenue <= 0) {
+            ineligibilityReason = 'Annual revenue is not set on this application.';
+            suggestedAction = 'Enter verified annual revenue before scoring.';
+        } else if (track === 'acceleration') {
+            if (annualRevenue <= 3_000_000) {
+                ineligibilityReason = `Reported revenue (${formatKesAmount(annualRevenue)}) is at or below the Accelerator minimum of KES 3,000,000.`;
+                suggestedAction = 'Assign Foundation track if revenue is within KES 500,000–3,000,000, or update verified revenue.';
+            }
+        } else {
+            if (annualRevenue < 500_000) {
+                foundationRangeHint = 'below';
+                ineligibilityReason = `Reported revenue (${formatKesAmount(annualRevenue)}) is below the Foundation minimum of KES 500,000.`;
+                suggestedAction = 'Update verified revenue on the Matching Grant application.';
+            } else if (annualRevenue > 3_000_000) {
+                foundationRangeHint = 'above';
+                ineligibilityReason = `Reported revenue (${formatKesAmount(annualRevenue)}) exceeds the Foundation maximum of KES 3,000,000.`;
+                suggestedAction = 'Assign Accelerator track or correct verified revenue if the amount is wrong.';
+            }
+        }
+    } else if (track !== 'acceleration') {
+        foundationRangeHint = 'within';
+    }
+
+    const actions = buildRevenueGateActions(track, annualRevenue, isEligible);
+
+    return {
+        revenueScore,
+        isEligible,
+        ruleSummary,
+        ineligibilityReason,
+        suggestedAction,
+        foundationRangeHint,
+        actions,
+    };
+}
+
 export function getMatchingGrantRevenueScore(
     track: A2fEnterpriseTrack | null | undefined,
     annualRevenue: number

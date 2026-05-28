@@ -30,17 +30,23 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
     ArrowLeft,
     Buildings,
+    CaretDown,
     CheckCircle,
-    DownloadSimple,
+    Export,
     FileText,
     FloppyDisk,
     MagicWand,
-    Printer,
     SealCheck,
 } from "@phosphor-icons/react";
-import { downloadGairMarkdown, openGairPrintPreview } from "@/lib/gair-export";
+import { downloadGairDocx, exportGairPdf } from "@/lib/gair-export";
 
 type AppraisalRecord = {
     id: number;
@@ -82,6 +88,38 @@ const EMPTY_CONTENT: Partial<AppraisalContent> = {
     conditions: "",
 };
 
+const GAIR_SECTION_KEYS = SECTION_FIELDS.map((field) => field.key);
+
+function isGairContentEmpty(content: Partial<AppraisalContent>): boolean {
+    return GAIR_SECTION_KEYS.every(
+        (key) => !(typeof content[key] === "string" && content[key].trim())
+    );
+}
+
+function hasGairRecommendationContent(content: Partial<AppraisalContent>): boolean {
+    return Boolean(
+        content.recommendedInstrument?.trim()
+        || content.recommendedAmount?.trim()
+        || content.icRecommendation?.trim()
+    );
+}
+
+function shouldBlockGairExport(
+    content: Partial<AppraisalContent>,
+    opts: {
+        icDecision?: IcDecision | null;
+        decisionNotes?: string | null;
+        decisionConditions?: string | null;
+    }
+): boolean {
+    if (!isGairContentEmpty(content)) return false;
+    if (hasGairRecommendationContent(content)) return false;
+    if (opts.icDecision) return false;
+    if (opts.decisionNotes?.trim()) return false;
+    if (opts.decisionConditions?.trim()) return false;
+    return true;
+}
+
 export default function AppraisalPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const a2fId = Number(id);
@@ -98,6 +136,7 @@ export default function AppraisalPage({ params }: { params: Promise<{ id: string
     const [approvedGrantAmount, setApprovedGrantAmount] = useState("");
     const [decisionNotes, setDecisionNotes] = useState("");
     const [decisionConditions, setDecisionConditions] = useState("");
+    const [exporting, setExporting] = useState(false);
 
     const existingGair = useMemo(
         () => appraisals.find((item) => item.documentType === "gair") ?? null,
@@ -116,11 +155,23 @@ export default function AppraisalPage({ params }: { params: Promise<{ id: string
             const records = (appraisalsRes.data ?? []) as AppraisalRecord[];
             setAppraisals(records);
             const gair = records.find((item) => item.documentType === "gair");
-            setContent(gair?.content ?? EMPTY_CONTENT);
+            const initialContent = gair?.content ?? EMPTY_CONTENT;
+            setContent(initialContent);
             setDecision(gair?.icDecision ?? "approved");
             setApprovedGrantAmount(String(gair?.approvedGrantAmount ?? gair?.content?.recommendedAmount ?? ""));
             setDecisionNotes(gair?.decisionNotes ?? "");
             setDecisionConditions(gair?.decisionConditions ?? gair?.content?.conditions ?? "");
+
+            const needsAutoPopulate = !gair || isGairContentEmpty(initialContent);
+            if (needsAutoPopulate) {
+                const autoRes = await getAutoPopulatedAppraisalContent(a2fId, "gair");
+                if (autoRes.success && autoRes.data) {
+                    setContent({ ...EMPTY_CONTENT, ...initialContent, ...autoRes.data });
+                    if (!gair) {
+                        toast.info("GAIR auto-populated from application and scoring data.");
+                    }
+                }
+            }
         }
         setLoading(false);
     }, [a2fId]);
@@ -208,13 +259,41 @@ export default function AppraisalPage({ params }: { params: Promise<{ id: string
         };
     }
 
-    function handleDownloadMarkdown() {
-        downloadGairMarkdown(buildExportContext());
-        toast.success("GAIR markdown downloaded");
+    function guardGairExport(): boolean {
+        if (
+            shouldBlockGairExport(content, {
+                icDecision: existingGair?.icDecision ?? decision,
+                decisionNotes: decisionNotes || existingGair?.decisionNotes,
+                decisionConditions: decisionConditions || existingGair?.decisionConditions,
+            })
+        ) {
+            toast.error("GAIR has no content yet. Click Auto-Populate GAIR or fill the sections first.");
+            return false;
+        }
+        return true;
     }
 
-    function handlePrintGair() {
-        openGairPrintPreview(buildExportContext());
+    async function handleExportDocx() {
+        if (!guardGairExport()) return;
+        setExporting(true);
+        try {
+            await downloadGairDocx(buildExportContext());
+            toast.success("GAIR Word document downloaded");
+        } catch {
+            toast.error("Failed to export GAIR as Word document");
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    function handleExportPdf() {
+        if (!guardGairExport()) return;
+        const opened = exportGairPdf(buildExportContext());
+        if (!opened) {
+            toast.error("Could not open print window. Allow pop-ups for this site and try again.");
+            return;
+        }
+        toast.info("Print dialog opened — choose Save as PDF to download");
     }
 
     return (
@@ -269,14 +348,23 @@ export default function AppraisalPage({ params }: { params: Promise<{ id: string
                             <FloppyDisk className="size-4" />
                             {saving ? "Saving..." : "Save GAIR"}
                         </Button>
-                        <Button type="button" variant="outline" onClick={handleDownloadMarkdown} className="gap-2">
-                            <DownloadSimple className="size-4" />
-                            Download Markdown
-                        </Button>
-                        <Button type="button" variant="outline" onClick={handlePrintGair} className="gap-2">
-                            <Printer className="size-4" />
-                            Print / PDF
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button type="button" variant="outline" disabled={exporting} className="gap-2">
+                                    <Export className="size-4" />
+                                    {exporting ? "Exporting…" : "Export"}
+                                    <CaretDown className="size-3.5 opacity-70" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleExportDocx} disabled={exporting}>
+                                    Word document (.docx)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleExportPdf}>
+                                    PDF
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                     <Separator />
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

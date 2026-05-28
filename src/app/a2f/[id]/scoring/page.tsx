@@ -11,8 +11,10 @@ import {
     MATCHING_MAX_SCORES,
     getMatchingGrantQualification,
     getMatchingGrantRevenueScore,
+    getRevenueGateUxDetail,
     type A2fEnterpriseTrack,
     type MatchingGrantScores,
+    type RevenueGateUxDetail,
 } from "@/lib/a2f-constants";
 import {
     Card, CardContent, CardHeader, CardTitle, CardDescription,
@@ -26,6 +28,8 @@ import {
     ArrowLeft, Buildings, Calculator, ChartLine, CheckCircle,
     ClipboardText, LockKey, Warning,
 } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+import { RevenueGateActions } from "@/components/a2f/RevenueGateActions";
 
 interface CriterionConfig {
     key: string;
@@ -159,11 +163,13 @@ function CriterionSlider({
     value,
     onChange,
     barColor,
+    revenueIneligibilityHint,
 }: {
     config: CriterionConfig;
     value: number;
     onChange: (val: number) => void;
     barColor: string;
+    revenueIneligibilityHint?: string | null;
 }) {
     const pct = config.max > 0 ? Math.round((value / config.max) * 100) : 0;
 
@@ -204,6 +210,11 @@ function CriterionSlider({
                 <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
             </div>
             <p className="text-[11px] text-muted-foreground italic leading-tight">{config.guidance}</p>
+            {config.key === "currentAnnualRevenue" && value === 0 && revenueIneligibilityHint && (
+                <p className="text-[11px] text-red-700 dark:text-red-300 font-medium leading-tight">
+                    {revenueIneligibilityHint}
+                </p>
+            )}
         </div>
     );
 }
@@ -212,10 +223,12 @@ function ScoringSection({
     section,
     scores,
     onChange,
+    revenueIneligibilityHint,
 }: {
     section: SectionConfig;
     scores: Record<string, number>;
     onChange: (key: string, val: number) => void;
+    revenueIneligibilityHint?: string | null;
 }) {
     const sectionTotal = section.criteria.reduce((sum, c) => sum + (scores[c.key] ?? 0), 0);
     const sectionMax = section.criteria.reduce((sum, c) => sum + c.max, 0);
@@ -239,51 +252,125 @@ function ScoringSection({
                     value={scores[criterion.key] ?? 0}
                     onChange={val => onChange(criterion.key, val)}
                     barColor={COLOR_MAP[section.color]}
+                    revenueIneligibilityHint={revenueIneligibilityHint}
                 />
             ))}
         </div>
     );
 }
 
-function RevenueGateCard({
-    track,
-    revenue,
-    revenueScore,
-}: {
-    track: A2fEnterpriseTrack | null;
-    revenue: number;
-    revenueScore: number;
-}) {
-    const isEligible = revenueScore > 0;
-    const rule = track === "acceleration"
-        ? "Accelerator requires verified annual revenue above KES 3,000,000."
-        : "Foundation requires verified annual revenue from KES 500,000 to KES 3,000,000.";
+function FoundationRangeIndicator({ hint }: { hint: RevenueGateUxDetail['foundationRangeHint'] }) {
+    if (!hint || hint === 'within') return null;
+
+    const label = hint === 'above'
+        ? 'Your revenue is above this range'
+        : 'Your revenue is below this range';
 
     return (
-        <Card className={isEligible ? "border-emerald-200 bg-emerald-50/50" : "border-red-200 bg-red-50/50"}>
-            <CardContent className="pt-4 space-y-2 text-sm">
+        <div className="space-y-1.5">
+            <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
+                <span>500k</span>
+                <span>3M</span>
+            </div>
+            <div className="relative h-2 rounded-full bg-muted overflow-hidden">
+                <div className="absolute inset-y-0 left-[0%] right-[0%] bg-emerald-200/80 dark:bg-emerald-900/40 rounded-full" style={{ left: '8%', right: '8%' }} />
+                <div
+                    className={cn(
+                        'absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full border-2 border-background',
+                        hint === 'above' ? 'right-0 bg-red-600' : 'left-0 bg-red-600'
+                    )}
+                    aria-hidden
+                />
+            </div>
+            <p className="text-[11px] text-red-700 dark:text-red-300 font-medium">{label}</p>
+        </div>
+    );
+}
+
+function RevenueGateCard({
+    a2fId,
+    track,
+    revenue,
+    detail,
+    onResolved,
+}: {
+    a2fId: number;
+    track: A2fEnterpriseTrack | null;
+    revenue: number;
+    detail: RevenueGateUxDetail;
+    onResolved: () => void;
+}) {
+    const { isEligible, revenueScore, ruleSummary, ineligibilityReason, suggestedAction, foundationRangeHint, actions } = detail;
+
+    return (
+        <Card className={isEligible ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-red-200 bg-red-50/50 dark:bg-red-950/20"}>
+            <CardContent className="pt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
                     <div>
                         <p className="font-semibold">{formatTrack(track)}</p>
-                        <p className="text-xs text-muted-foreground">KES {revenue.toLocaleString("en-KE")} annual revenue</p>
+                        <p className="text-xs text-muted-foreground">
+                            {revenue > 0 ? `KES ${revenue.toLocaleString("en-KE")} annual revenue` : "Annual revenue not set"}
+                        </p>
                     </div>
                     <Badge className={isEligible ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}>
                         Revenue {revenueScore}/10
                     </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">{rule}</p>
+                <p className="text-xs text-muted-foreground">{ruleSummary}</p>
+
+                {track !== "acceleration" && (
+                    <FoundationRangeIndicator hint={foundationRangeHint} />
+                )}
+
+                {!isEligible && ineligibilityReason && (
+                    <div className="rounded-lg border border-red-200 bg-red-50/80 dark:bg-red-950/30 dark:border-red-900/50 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-red-900 dark:text-red-200">Why revenue score is 0</p>
+                        <p className="text-xs text-red-800 dark:text-red-200/90">{ineligibilityReason}</p>
+                        {suggestedAction && (
+                            <p className="text-xs text-red-800/90 dark:text-red-200/80 pt-1 border-t border-red-200/80 dark:border-red-900/50">
+                                <span className="font-medium">What you can do: </span>
+                                {suggestedAction}
+                            </p>
+                        )}
+                        <RevenueGateActions
+                            a2fId={a2fId}
+                            track={track}
+                            annualRevenue={revenue}
+                            actions={actions}
+                            onResolved={onResolved}
+                        />
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
 }
 
-function LiveScorePanel({ scores }: { scores: Record<string, number> }) {
+function LiveScorePanel({
+    a2fId,
+    track,
+    annualRevenue,
+    scores,
+    revenueDetail,
+    onResolved,
+}: {
+    a2fId: number;
+    track: A2fEnterpriseTrack | null;
+    annualRevenue: number;
+    scores: Record<string, number>;
+    revenueDetail: RevenueGateUxDetail;
+    onResolved: () => void;
+}) {
     const sections = SCORING_SECTIONS;
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
     const maxTotal = MATCHING_GRANT_MAX_TOTAL;
     const pct = Math.round((total / maxTotal) * 100);
-    const qualificationStatus = getMatchingGrantQualification(total, scores.currentAnnualRevenue ?? 0);
+    const revenueScore = scores.currentAnnualRevenue ?? 0;
+    const qualificationStatus = getMatchingGrantQualification(total, revenueScore);
     const statusLabel = qualificationStatus;
+    const revenueGateBlocks =
+        qualificationStatus === "Ineligible - Revenue" &&
+        total >= MATCHING_GRANT_QUALIFYING_SCORE;
 
     return (
         <div className="sticky top-24 space-y-4">
@@ -299,6 +386,26 @@ function LiveScorePanel({ scores }: { scores: Record<string, number> }) {
                     <p className="text-xs text-muted-foreground">
                         Qualifying threshold: {MATCHING_GRANT_QUALIFYING_SCORE}/{MATCHING_GRANT_MAX_TOTAL} and revenue score &gt; 0
                     </p>
+                    {revenueGateBlocks && (
+                        <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-md px-2 py-1.5 text-left w-full">
+                            Total score meets the {MATCHING_GRANT_QUALIFYING_SCORE}-point threshold, but the revenue gate blocks qualification.
+                        </p>
+                    )}
+                    {qualificationStatus === "Ineligible - Revenue" && revenueDetail.ineligibilityReason && (
+                        <p className="text-xs text-red-800 dark:text-red-200/90 text-left w-full line-clamp-3" title={revenueDetail.ineligibilityReason}>
+                            {revenueDetail.ineligibilityReason}
+                        </p>
+                    )}
+                    {qualificationStatus === "Ineligible - Revenue" && revenueDetail.actions.length > 0 && (
+                        <RevenueGateActions
+                            a2fId={a2fId}
+                            track={track}
+                            annualRevenue={annualRevenue}
+                            actions={revenueDetail.actions}
+                            compact
+                            onResolved={onResolved}
+                        />
+                    )}
                 </CardContent>
             </Card>
 
@@ -340,14 +447,25 @@ function LiveScorePanel({ scores }: { scores: Record<string, number> }) {
 }
 
 function PreviousScoresCard({
+    a2fId,
+    track,
+    annualRevenue,
     breakdown,
+    revenueDetail,
+    onResolved,
 }: {
+    a2fId: number;
+    track: A2fEnterpriseTrack | null;
+    annualRevenue: number;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     breakdown: any;
+    revenueDetail: RevenueGateUxDetail;
+    onResolved: () => void;
 }) {
     if (!breakdown) return null;
 
     const pct = breakdown.percentage;
+    const showRevenueIneligible = breakdown.qualificationStatus === "Ineligible - Revenue";
 
     return (
         <Card className="border-dashed">
@@ -365,6 +483,25 @@ function PreviousScoresCard({
                     <CardDescription className="text-xs">
                         Status: {breakdown.qualificationStatus}
                     </CardDescription>
+                )}
+                {showRevenueIneligible && revenueDetail.ineligibilityReason && (
+                    <div className="mt-2 rounded-md border border-red-200 bg-red-50/60 dark:bg-red-950/20 dark:border-red-900/50 p-2 space-y-1">
+                        <p className="text-xs text-red-800 dark:text-red-200/90">{revenueDetail.ineligibilityReason}</p>
+                        {revenueDetail.suggestedAction && (
+                            <p className="text-[11px] text-red-800/90 dark:text-red-200/80">
+                                <span className="font-medium">What you can do: </span>
+                                {revenueDetail.suggestedAction}
+                            </p>
+                        )}
+                        <RevenueGateActions
+                            a2fId={a2fId}
+                            track={track}
+                            annualRevenue={annualRevenue}
+                            actions={revenueDetail.actions}
+                            compact
+                            onResolved={onResolved}
+                        />
+                    </div>
                 )}
                 {breakdown.scorerNotes && (
                     <CardDescription className="text-xs mt-1 italic">
@@ -440,6 +577,10 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
     const enterpriseTrack = normalizeTrack(entry?.application?.track);
     const annualRevenue = Number(biz?.revenueLastYear ?? 0);
     const revenueScore = getMatchingGrantRevenueScore(enterpriseTrack, annualRevenue);
+    const revenueDetail = useMemo(
+        () => getRevenueGateUxDetail(enterpriseTrack, annualRevenue),
+        [enterpriseTrack, annualRevenue]
+    );
 
     const currentScoresRecord = useMemo(
         () => ({ ...(matchingScores as unknown as Record<string, number>), currentAnnualRevenue: revenueScore }),
@@ -527,12 +668,21 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
-                    <PreviousScoresCard breakdown={previousBreakdown} />
+                    <PreviousScoresCard
+                        a2fId={a2fId}
+                        track={enterpriseTrack}
+                        annualRevenue={annualRevenue}
+                        breakdown={previousBreakdown}
+                        revenueDetail={revenueDetail}
+                        onResolved={loadData}
+                    />
 
                     <RevenueGateCard
+                        a2fId={a2fId}
                         track={enterpriseTrack}
                         revenue={annualRevenue}
-                        revenueScore={revenueScore}
+                        detail={revenueDetail}
+                        onResolved={loadData}
                     />
 
                     {sections.map(section => (
@@ -541,6 +691,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                             section={section}
                             scores={currentScoresRecord}
                             onChange={handleScoreChange}
+                            revenueIneligibilityHint={revenueDetail.ineligibilityReason}
                         />
                     ))}
 
@@ -568,7 +719,14 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 <div className="lg:col-span-1">
-                    <LiveScorePanel scores={currentScoresRecord} />
+                    <LiveScorePanel
+                        a2fId={a2fId}
+                        track={enterpriseTrack}
+                        annualRevenue={annualRevenue}
+                        scores={currentScoresRecord}
+                        revenueDetail={revenueDetail}
+                        onResolved={loadData}
+                    />
                     <div className="sticky bottom-4 mt-4 rounded-xl border bg-background p-4 shadow-lg lg:hidden">
                         <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-violet-700 hover:bg-violet-800 gap-2">
                             <Calculator className="size-4" />

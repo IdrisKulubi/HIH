@@ -6,6 +6,7 @@ import {
     a2fPipeline,
     a2fDueDiligenceReports,
     a2fScoring,
+    a2fMatchingGrantApplications,
     grantAgreements,
     disbursementsAndRepayments,
     applications,
@@ -17,8 +18,10 @@ import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, successResponse, errorResponse } from "./types";
 import {
+    type A2fEnterpriseTrack,
     type A2fPipelineStatus,
     type A2fInstrumentType,
+    isMatchingGrantTrackEligible,
     PIPELINE_STAGE_ORDER,
 } from "@/lib/a2f-constants";
 
@@ -371,5 +374,135 @@ export async function updateA2fPipelineDetails(
     } catch (error) {
         console.error("Error updating pipeline details:", error);
         return errorResponse("Failed to update pipeline details");
+    }
+}
+
+function revalidateA2fEntryPaths(a2fId: number) {
+    revalidatePath(`/a2f/${a2fId}`);
+    revalidatePath(`/a2f/${a2fId}/scoring`);
+    revalidatePath(`/a2f/${a2fId}/matching-grant`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPDATE: Enterprise track (revenue gate remediation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function updateA2fEnterpriseTrack(
+    a2fId: number,
+    track: A2fEnterpriseTrack
+): Promise<ActionResponse<{ track: A2fEnterpriseTrack }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, a2fId),
+            with: {
+                application: { with: { business: true } },
+            },
+        });
+
+        if (!pipeline?.application) {
+            return errorResponse("Pipeline entry or application not found");
+        }
+
+        const revenue = Number(pipeline.application.business?.revenueLastYear ?? 0);
+        if (!isMatchingGrantTrackEligible(track, revenue)) {
+            const trackLabel = track === "acceleration" ? "Accelerator" : "Foundation";
+            return errorResponse(
+                `Cannot assign ${trackLabel} track: verified revenue (KES ${revenue.toLocaleString("en-KE")}) does not meet this track's eligibility band.`
+            );
+        }
+
+        await db
+            .update(applications)
+            .set({ track, updatedAt: new Date() })
+            .where(eq(applications.id, pipeline.applicationId));
+
+        revalidateA2fEntryPaths(a2fId);
+        if (pipeline.applicationId) {
+            revalidatePath(`/admin/applications/${pipeline.applicationId}`);
+        }
+
+        return successResponse(
+            { track },
+            `Enterprise track updated to ${track === "acceleration" ? "Accelerator" : "Foundation"}`
+        );
+    } catch (error) {
+        console.error("Error updating A2F enterprise track:", error);
+        return errorResponse("Failed to update enterprise track");
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPDATE: Verified annual revenue (scoring source of truth)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function updateA2fVerifiedRevenue(
+    a2fId: number,
+    revenueLastYear: number
+): Promise<ActionResponse<{ revenueLastYear: number }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
+            return errorResponse("Unauthorized");
+        }
+
+        if (!Number.isFinite(revenueLastYear) || revenueLastYear <= 0) {
+            return errorResponse("Verified annual revenue must be greater than zero");
+        }
+
+        const pipeline = await db.query.a2fPipeline.findFirst({
+            where: eq(a2fPipeline.id, a2fId),
+            with: {
+                application: { with: { business: true } },
+            },
+        });
+
+        if (!pipeline?.application?.business) {
+            return errorResponse("Pipeline entry or business record not found");
+        }
+
+        const businessId = pipeline.application.business.id;
+        const revenueStr = String(revenueLastYear);
+
+        await db
+            .update(businesses)
+            .set({ revenueLastYear: revenueStr, updatedAt: new Date() })
+            .where(eq(businesses.id, businessId));
+
+        const mgApp = await db.query.a2fMatchingGrantApplications.findFirst({
+            where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+        });
+
+        if (mgApp) {
+            const financial = (mgApp.financialOverview ?? {}) as Record<string, unknown>;
+            await db
+                .update(a2fMatchingGrantApplications)
+                .set({
+                    financialOverview: {
+                        ...financial,
+                        annualRevenue2025: revenueLastYear,
+                        revenueUsedForEligibility: revenueLastYear,
+                    },
+                    updatedAt: new Date(),
+                })
+                .where(eq(a2fMatchingGrantApplications.id, mgApp.id));
+        }
+
+        revalidateA2fEntryPaths(a2fId);
+        if (pipeline.applicationId) {
+            revalidatePath(`/admin/applications/${pipeline.applicationId}`);
+        }
+
+        return successResponse(
+            { revenueLastYear },
+            "Verified annual revenue updated"
+        );
+    } catch (error) {
+        console.error("Error updating A2F verified revenue:", error);
+        return errorResponse("Failed to update verified revenue");
     }
 }

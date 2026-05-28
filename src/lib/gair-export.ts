@@ -1,3 +1,11 @@
+import {
+    Document,
+    HeadingLevel,
+    Packer,
+    Paragraph,
+    TextRun,
+} from "docx";
+import { saveAs } from "file-saver";
 import { format } from "date-fns";
 import type { AppraisalContent } from "@/lib/actions/a2f-investment-appraisals";
 import type { IcDecision } from "@/lib/actions/a2f-investment-appraisals";
@@ -55,6 +63,166 @@ function escapeHtml(text: string): string {
 
 function formatMultilineHtml(text: string): string {
     return escapeHtml(text).replace(/\n/g, "<br />");
+}
+
+function gairFilenameSlug(businessName: string): string {
+    return businessName.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 40) || "gair";
+}
+
+function bodyParagraphs(text: string): Paragraph[] {
+    if (!text || text === "—") {
+        return [
+            new Paragraph({
+                children: [new TextRun({ text: "—", size: 22, color: "1F2937" })],
+                spacing: { after: 150 },
+            }),
+        ];
+    }
+    return text.split("\n").map(
+        (line) =>
+            new Paragraph({
+                children: [new TextRun({ text: line || " ", size: 22, color: "1F2937" })],
+                spacing: { after: 80 },
+            })
+    );
+}
+
+function sectionHeading(title: string): Paragraph {
+    return new Paragraph({
+        text: title,
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 300, after: 120 },
+    });
+}
+
+function buildGairDocxParagraphs(ctx: GairExportContext): Paragraph[] {
+    const exportedAt = ctx.exportedAt ?? new Date();
+    const paragraphs: Paragraph[] = [
+        new Paragraph({
+            text: "Grant Appraisal and Improvement Report (GAIR)",
+            heading: HeadingLevel.HEADING_1,
+            spacing: { after: 120 },
+        }),
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `${ctx.businessName} · Application #${ctx.applicationId}`,
+                    size: 22,
+                    color: "4B5563",
+                }),
+            ],
+            spacing: { after: 60 },
+        }),
+    ];
+
+    if (ctx.track) {
+        paragraphs.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `Track: ${ctx.track.replace(/_/g, " ")}`,
+                        size: 22,
+                        color: "4B5563",
+                    }),
+                ],
+                spacing: { after: 60 },
+            })
+        );
+    }
+
+    paragraphs.push(
+        new Paragraph({
+            children: [
+                new TextRun({
+                    text: `Exported: ${format(exportedAt, "dd MMM yyyy, HH:mm")}`,
+                    size: 22,
+                    color: "4B5563",
+                }),
+            ],
+            spacing: { after: 240 },
+        })
+    );
+
+    if (ctx.content.recommendedInstrument || ctx.content.recommendedAmount || ctx.content.icRecommendation) {
+        paragraphs.push(sectionHeading("Recommendation Summary"));
+        if (ctx.content.recommendedInstrument) {
+            paragraphs.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "Instrument: ", bold: true, size: 22 }),
+                        new TextRun({ text: ctx.content.recommendedInstrument, size: 22 }),
+                    ],
+                    spacing: { after: 80 },
+                })
+            );
+        }
+        if (ctx.content.recommendedAmount) {
+            paragraphs.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "Recommended amount (KES): ", bold: true, size: 22 }),
+                        new TextRun({ text: String(ctx.content.recommendedAmount), size: 22 }),
+                    ],
+                    spacing: { after: 80 },
+                })
+            );
+        }
+        if (ctx.content.icRecommendation?.trim()) {
+            paragraphs.push(...bodyParagraphs(ctx.content.icRecommendation.trim()));
+        }
+    }
+
+    if (ctx.icDecision) {
+        paragraphs.push(sectionHeading("Investment Committee Decision"));
+        paragraphs.push(
+            new Paragraph({
+                children: [
+                    new TextRun({ text: "Decision: ", bold: true, size: 22 }),
+                    new TextRun({
+                        text: IC_LABELS[ctx.icDecision] ?? ctx.icDecision,
+                        size: 22,
+                    }),
+                ],
+                spacing: { after: 80 },
+            })
+        );
+        if (ctx.approvedGrantAmount != null && String(ctx.approvedGrantAmount).trim()) {
+            paragraphs.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "Approved grant amount (KES): ", bold: true, size: 22 }),
+                        new TextRun({ text: String(ctx.approvedGrantAmount), size: 22 }),
+                    ],
+                    spacing: { after: 80 },
+                })
+            );
+        }
+        if (ctx.decisionConditions?.trim()) {
+            paragraphs.push(
+                new Paragraph({
+                    children: [new TextRun({ text: "Conditions", bold: true, size: 22 })],
+                    spacing: { before: 120, after: 80 },
+                })
+            );
+            paragraphs.push(...bodyParagraphs(ctx.decisionConditions.trim()));
+        }
+        if (ctx.decisionNotes?.trim()) {
+            paragraphs.push(
+                new Paragraph({
+                    children: [new TextRun({ text: "Decision notes", bold: true, size: 22 })],
+                    spacing: { before: 120, after: 80 },
+                })
+            );
+            paragraphs.push(...bodyParagraphs(ctx.decisionNotes.trim()));
+        }
+    }
+
+    for (const section of GAIR_SECTIONS) {
+        paragraphs.push(sectionHeading(section.label));
+        paragraphs.push(...bodyParagraphs(sectionBody(ctx.content, section.key)));
+    }
+
+    return paragraphs;
 }
 
 export function buildGairMarkdown(ctx: GairExportContext): string {
@@ -175,28 +343,46 @@ export function buildGairPrintHtml(ctx: GairExportContext): string {
 </html>`;
 }
 
-export function downloadGairMarkdown(ctx: GairExportContext): void {
-    const markdown = buildGairMarkdown(ctx);
-    const slug = ctx.businessName.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 40) || "gair";
-    const filename = `GAIR-${slug}-${format(ctx.exportedAt ?? new Date(), "yyyy-MM-dd")}.md`;
-    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+export async function downloadGairDocx(ctx: GairExportContext): Promise<void> {
+    const doc = new Document({
+        sections: [{ children: buildGairDocxParagraphs(ctx) }],
+    });
+    const blob = await Packer.toBlob(doc);
+    const slug = gairFilenameSlug(ctx.businessName);
+    const filename = `GAIR-${slug}-${format(ctx.exportedAt ?? new Date(), "yyyy-MM-dd")}.docx`;
+    saveAs(blob, filename);
 }
 
-export function openGairPrintPreview(ctx: GairExportContext): void {
+/** Opens GAIR in a new tab and triggers print (Save as PDF). Returns false if pop-up blocked. */
+export function exportGairPdf(ctx: GairExportContext): boolean {
     const html = buildGairPrintHtml(ctx);
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) return;
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.onload = () => {
-        printWindow.print();
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const printWindow = window.open(url, "_blank");
+    if (!printWindow) {
+        URL.revokeObjectURL(url);
+        return false;
+    }
+
+    let printed = false;
+    const runPrint = () => {
+        if (printed) return;
+        const doc = printWindow.document;
+        if (doc.readyState !== "complete" || !doc.body?.childElementCount) return;
+
+        printed = true;
+        try {
+            printWindow.focus();
+            printWindow.print();
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     };
+
+    printWindow.addEventListener("load", () => setTimeout(runPrint, 200), { once: true });
+    window.setTimeout(runPrint, 400);
+    window.setTimeout(runPrint, 1000);
+
+    return true;
 }

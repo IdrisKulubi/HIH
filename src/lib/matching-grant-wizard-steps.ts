@@ -68,6 +68,11 @@ export interface MgWizardStep {
     icon: ComponentType<{ className?: string; weight?: "duotone" | "regular" | "bold" }>;
 }
 
+export function getMgWizardStepIndex(stepId: MgWizardStepId | string | null | undefined): number {
+    if (!stepId) return -1;
+    return MG_WIZARD_STEPS.findIndex(s => s.id === stepId);
+}
+
 export const MG_WIZARD_STEPS: MgWizardStep[] = [
     {
         id: "enterprise",

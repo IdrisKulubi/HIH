@@ -5,6 +5,7 @@ import db from "../../../db/drizzle";
 import {
     a2fMatchingGrantApplications,
     a2fPipeline,
+    businesses,
     capacityDevelopmentPlans,
     kycProfiles,
 } from "../../../db/schema";
@@ -19,6 +20,7 @@ import { ActionResponse, errorResponse, successResponse } from "./types";
 import {
     parseFinancialOverview,
     parseGovernanceCompliance,
+    resolveAnnualRevenueForEligibility,
     serializeFinancialOverview,
     validateMatchingGrantSubmitFields,
     type MatchingGrantOfficialUse,
@@ -221,11 +223,13 @@ export async function saveMatchingGrantApplication(
         });
         if (submitError) return errorResponse(submitError);
 
+        const parsedFinancial = parseFinancialOverview(input.financialOverview);
         const financialPayload = serializeFinancialOverview(
-            parseFinancialOverview(input.financialOverview),
+            parsedFinancial,
             track,
             fallbackRevenue
         );
+        const resolvedRevenue = resolveAnnualRevenueForEligibility(parsedFinancial, fallbackRevenue);
 
         const values = {
             a2fId,
@@ -277,7 +281,18 @@ export async function saveMatchingGrantApplication(
             id = inserted.id;
         }
 
+        if (resolvedRevenue > 0 && pipeline.application.business?.id) {
+            await db
+                .update(businesses)
+                .set({
+                    revenueLastYear: String(resolvedRevenue),
+                    updatedAt: new Date(),
+                })
+                .where(eq(businesses.id, pipeline.application.business.id));
+        }
+
         revalidatePath(`/a2f/${a2fId}`);
+        revalidatePath(`/a2f/${a2fId}/scoring`);
         revalidatePath(`/a2f/${a2fId}/matching-grant`);
 
         return successResponse(

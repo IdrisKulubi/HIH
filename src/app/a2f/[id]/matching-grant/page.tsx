@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import {
@@ -41,6 +42,7 @@ import {
 } from "@phosphor-icons/react";
 import {
     MG_WIZARD_STEPS,
+    getMgWizardStepIndex,
     flattenStepErrorsWithLabels,
     getAllStepValidationErrors,
     getFirstStepIndexWithErrors,
@@ -313,6 +315,7 @@ function fromRecord(record: any, fallback: FormState): FormState {
 export default function MatchingGrantApplicationPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const a2fId = Number(id);
+    const searchParams = useSearchParams();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
@@ -363,12 +366,18 @@ export default function MatchingGrantApplicationPage({ params }: { params: Promi
     useEffect(() => { loadData(); }, [a2fId]);
 
     useEffect(() => {
+        const stepParam = searchParams.get("step");
+        const stepFromQuery = getMgWizardStepIndex(stepParam);
+        if (stepFromQuery >= 0) {
+            setActiveStep(stepFromQuery);
+            return;
+        }
         const stored = sessionStorage.getItem(wizardStorageKey(a2fId));
         const parsed = stored != null ? Number(stored) : NaN;
         if (Number.isFinite(parsed) && parsed >= 0 && parsed < MG_WIZARD_STEPS.length) {
             setActiveStep(parsed);
         }
-    }, [a2fId]);
+    }, [a2fId, searchParams]);
 
     useEffect(() => {
         sessionStorage.setItem(wizardStorageKey(a2fId), String(activeStep));
