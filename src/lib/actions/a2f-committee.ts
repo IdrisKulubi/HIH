@@ -73,7 +73,6 @@ export interface CommitteeCaseDetail {
         decisionConditions: string | null;
         decidedAt: Date | null;
         scoringSummary: string | null;
-        staffAppraisalUrl: string;
     } | null;
 }
 
@@ -244,6 +243,42 @@ export async function getCommitteePipelineList(): Promise<
     }
 }
 
+export interface CommitteeGairContent {
+    appraisalId: number;
+    content: Partial<AppraisalContent>;
+    updatedAt: Date | null;
+}
+
+export async function getCommitteeGairContent(
+    a2fId: number
+): Promise<ActionResponse<CommitteeGairContent>> {
+    try {
+        const session = await auth();
+        const authCheck = assertA2fRole(session?.user?.role, "committee");
+        if (!authCheck.ok) return errorResponse(authCheck.error);
+
+        const gairRow = await db.query.investmentAppraisals.findFirst({
+            where: and(
+                eq(investmentAppraisals.a2fId, a2fId),
+                eq(investmentAppraisals.documentType, "gair")
+            ),
+        });
+
+        if (!gairRow) {
+            return errorResponse("GAIR not found for this case");
+        }
+
+        return successResponse({
+            appraisalId: gairRow.id,
+            content: (gairRow.content as Partial<AppraisalContent>) ?? {},
+            updatedAt: gairRow.updatedAt,
+        });
+    } catch (error) {
+        console.error("Error loading committee GAIR:", error);
+        return errorResponse("Failed to load GAIR");
+    }
+}
+
 export async function getCommitteeCaseDetail(
     a2fId: number
 ): Promise<ActionResponse<CommitteeCaseDetail>> {
@@ -331,7 +366,6 @@ export async function getCommitteeCaseDetail(
                       decisionConditions: gairRow.decisionConditions,
                       decidedAt: gairRow.decidedAt,
                       scoringSummary: gairContent?.scoringSummary ?? null,
-                      staffAppraisalUrl: `/a2f/${a2fId}/appraisal`,
                   }
                 : null,
         });

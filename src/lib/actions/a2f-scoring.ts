@@ -24,7 +24,7 @@ import {
 
 export type { MatchingGrantScores, ScoringPayload };
 
-import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -122,7 +122,8 @@ export async function action_calculateA2FScore(
 export async function getA2fScores(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -142,7 +143,8 @@ export async function getA2fScores(a2fId: number) {
 export async function getA2fScoringBreakdown(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 

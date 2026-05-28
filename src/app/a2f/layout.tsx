@@ -2,23 +2,35 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { Coins, Kanban, ArrowLeft } from "@phosphor-icons/react/dist/ssr";
+import { hasA2fRole } from "@/lib/a2f-access";
+import { parseA2fStaffPipelinePath } from "@/lib/a2f-nav";
 
 export const metadata: Metadata = {
     title: "Matching Grant Portal | BIRE Programme",
     description: "Matching Grant investment management portal",
 };
 
-import { hasA2fRole } from "@/lib/a2f-access";
-
 export default async function A2fLayout({
     children,
 }: Readonly<{ children: React.ReactNode }>) {
     const session = await auth();
     const userRole = session?.user?.role || "";
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") ?? "";
+    const isCommitteeRoute = pathname.startsWith("/a2f/committee");
 
-    if (userRole === "a2f_committee") {
+    if (userRole === "a2f_committee" && !isCommitteeRoute) {
+        const pipeline = parseA2fStaffPipelinePath(pathname);
+        if (pipeline) {
+            redirect(`/a2f/committee/${pipeline.a2fId}`);
+        }
         redirect("/a2f/committee");
+    }
+
+    if (isCommitteeRoute) {
+        return <>{children}</>;
     }
 
     if (!hasA2fRole(userRole, "staff") && userRole !== "oversight") {

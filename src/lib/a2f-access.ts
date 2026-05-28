@@ -17,13 +17,18 @@ export const A2F_STAFF_ROLES = [
 
 export const A2F_COMMITTEE_ROLES = ["admin", "a2f_committee"] as const;
 
-export const A2F_READ_ROLES = [
+/** Staff pipeline read (excludes committee — use committee actions instead). */
+export const A2F_STAFF_READ_ROLES = [
     "admin",
     "a2f_officer",
-    "a2f_committee",
     "oversight",
     "redo",
     "bds_edo",
+] as const;
+
+export const A2F_READ_ROLES = [
+    ...A2F_STAFF_READ_ROLES,
+    "a2f_committee",
 ] as const;
 
 export type A2fStaffRole = (typeof A2F_STAFF_ROLES)[number];
@@ -72,6 +77,19 @@ export function canRecordCommitteeDecision(role?: string | null): boolean {
 
 export function canWriteA2fStaff(role?: string | null): boolean {
     return hasA2fRole(role, "staff");
+}
+
+export function hasA2fStaffRead(role?: string | null): boolean {
+    if (!role) return false;
+    if (isAdminRole(role)) return true;
+    return (A2F_STAFF_READ_ROLES as readonly string[]).includes(role);
+}
+
+export function assertA2fStaffRead(
+    role: string | null | undefined
+): { ok: true } | { ok: false; error: string } {
+    if (hasA2fStaffRead(role)) return { ok: true };
+    return { ok: false, error: "Unauthorized" };
 }
 
 export function isCommitteeApprovedForContracting(

@@ -108,6 +108,8 @@ import {
     resolveAnnualRevenueForEligibility,
 } from "@/lib/matching-grant-form-types";
 import { isMatchingGrantTrackEligible } from "@/lib/a2f-constants";
+import { useSession } from "next-auth/react";
+import { isMatchingGrantReadOnlyRole } from "@/lib/a2f-nav";
 
 type FormState = {
     status: "draft" | "submitted";
@@ -323,8 +325,9 @@ export function MatchingGrantApplicationWizard({
     mode = "staff",
 }: {
     a2fId: number;
-    mode?: "staff" | "applicant";
+    mode?: "staff" | "applicant" | "readonly";
 }) {
+    const readOnly = mode === "readonly";
     const searchParams = useSearchParams();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -490,6 +493,11 @@ export function MatchingGrantApplicationWizard({
     function handleStepClick(index: number) {
         if (index === activeStep) return;
 
+        if (readOnly) {
+            goToStep(index);
+            return;
+        }
+
         if (index < activeStep) {
             setShowStepValidation(false);
             goToStep(index);
@@ -524,6 +532,7 @@ export function MatchingGrantApplicationWizard({
     }
 
     async function handleSave(status: "draft" | "submitted") {
+        if (readOnly) return;
         if (status === "submitted") {
             const firstIssueIndex = getFirstStepIndexWithErrors(form, wizardContext);
             if (firstIssueIndex != null) {
@@ -594,6 +603,11 @@ export function MatchingGrantApplicationWizard({
                 <Badge className={form.status === "submitted" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-amber-100 text-amber-700 border-amber-200"}>
                     {form.status}
                 </Badge>
+                {readOnly && (
+                    <Badge variant="outline" className="text-xs">
+                        Read-only
+                    </Badge>
+                )}
             </div>
 
             <div className="mb-4 lg:hidden">
@@ -693,13 +707,15 @@ export function MatchingGrantApplicationWizard({
                         />
                     </div>
 
-                    <WizardStepContent
-                        stepId={currentStepId}
-                        form={form}
-                        setForm={setForm}
-                        setField={setField}
-                        track={track}
-                    />
+                    <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
+                        <WizardStepContent
+                            stepId={currentStepId}
+                            form={form}
+                            setForm={setForm}
+                            setField={setField}
+                            track={track}
+                        />
+                    </fieldset>
 
                     {currentStepId === "documents" && (
                         <WizardReviewSummary
@@ -722,22 +738,28 @@ export function MatchingGrantApplicationWizard({
                         <ArrowLeft className="size-4" />
                         Back
                     </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => handleSave("draft")}
-                        disabled={saving}
-                        className="gap-2"
-                    >
-                        <FloppyDisk className="size-4" />
-                        Save Draft
-                    </Button>
+                    {!readOnly && (
+                        <Button
+                            variant="outline"
+                            onClick={() => handleSave("draft")}
+                            disabled={saving}
+                            className="gap-2"
+                        >
+                            <FloppyDisk className="size-4" />
+                            Save Draft
+                        </Button>
+                    )}
                     <div className="flex items-center gap-2">
                         {activeStep < MG_WIZARD_STEPS.length - 1 ? (
-                            <Button onClick={handleNext} disabled={saving} className="gap-2">
+                            <Button
+                                onClick={readOnly ? () => goToStep(activeStep + 1) : handleNext}
+                                disabled={saving}
+                                className="gap-2"
+                            >
                                 Next
                                 <ArrowRight className="size-4" />
                             </Button>
-                        ) : (
+                        ) : readOnly ? null : (
                             <Button
                                 onClick={() => handleSave("submitted")}
                                 disabled={saving}
@@ -1656,5 +1678,7 @@ export default function MatchingGrantApplicationPage({
     params: Promise<{ id: string }>;
 }) {
     const { id } = use(params);
-    return <MatchingGrantApplicationWizard a2fId={Number(id)} mode="staff" />;
+    const { data: session } = useSession();
+    const mode = isMatchingGrantReadOnlyRole(session?.user?.role) ? "readonly" : "staff";
+    return <MatchingGrantApplicationWizard a2fId={Number(id)} mode={mode} />;
 }

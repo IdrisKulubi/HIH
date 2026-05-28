@@ -13,7 +13,7 @@ import { and, eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 
-import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -55,7 +55,8 @@ export interface GrantMilestoneInput {
 export async function getGrantManagementWorkspace(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return errorResponse("Unauthorized");
         }
 

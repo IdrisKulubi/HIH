@@ -59,7 +59,7 @@ export interface AmortizationSchedule {
     schedule: AmortizationInstalment[];
 }
 
-import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -265,7 +265,8 @@ export async function verifyTransaction(
 export async function getDisbursementLedger(agreementId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -325,7 +326,8 @@ export async function getAmortizationSchedule(
 ): Promise<ActionResponse<AmortizationSchedule>> {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return errorResponse("Unauthorized");
         }
 

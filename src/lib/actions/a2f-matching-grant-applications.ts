@@ -29,8 +29,9 @@ import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import {
     A2F_STAFF_ROLES,
     assertApplicantOwnsPipeline,
-    hasA2fRole,
+    hasA2fStaffRead,
 } from "@/lib/a2f-access";
+import { canEditMatchingGrantApplication } from "@/lib/a2f-nav";
 import { sendEmail } from "@/lib/email";
 import React from "react";
 
@@ -79,10 +80,9 @@ export interface MatchingGrantDocumentSources {
 }
 
 async function assertMatchingGrantReadAccess(
-    userId: string,
     role: string | undefined
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-    if (hasA2fRole(role, "read")) return { ok: true };
+    if (hasA2fStaffRead(role)) return { ok: true };
     if (role === "applicant") return { ok: true };
     return { ok: false, error: "Unauthorized" };
 }
@@ -93,7 +93,7 @@ export async function getMatchingGrantDocumentSources(
     try {
         const session = await auth();
         if (!session?.user) return errorResponse("Unauthorized");
-        const readAuth = await assertMatchingGrantReadAccess(session.user.id, session.user.role);
+        const readAuth = await assertMatchingGrantReadAccess(session.user.role);
         if (!readAuth.ok) return errorResponse(readAuth.error);
         if (session.user.role === "applicant") {
             const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
@@ -182,7 +182,7 @@ export async function getMatchingGrantApplication(a2fId: number) {
     try {
         const session = await auth();
         if (!session?.user) return errorResponse("Unauthorized");
-        const readAuth = await assertMatchingGrantReadAccess(session.user.id, session.user.role);
+        const readAuth = await assertMatchingGrantReadAccess(session.user.role);
         if (!readAuth.ok) return errorResponse(readAuth.error);
         if (session.user.role === "applicant") {
             const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
@@ -215,8 +215,8 @@ export async function saveMatchingGrantApplication(
         if (isApplicant) {
             const owned = await assertApplicantOwnsPipeline(session.user.id, a2fId);
             if (!owned.ok) return errorResponse(owned.error);
-        } else if (!A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
-            return errorResponse("Unauthorized. Admin or A2F Officer access required.");
+        } else if (!canEditMatchingGrantApplication(session.user.role)) {
+            return errorResponse("You do not have permission to edit Matching Grant applications.");
         }
 
         const pipeline = await db.query.a2fPipeline.findFirst({

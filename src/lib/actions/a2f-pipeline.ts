@@ -24,7 +24,7 @@ import {
     isMatchingGrantTrackEligible,
     PIPELINE_STAGE_ORDER,
 } from "@/lib/a2f-constants";
-import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 // Re-export types only (no runtime value — safe in "use server" files)
 export type { A2fPipelineStatus, A2fInstrumentType };
@@ -57,7 +57,8 @@ export interface A2fPipelineListItem {
 export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineListItem[]>> {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return errorResponse("Unauthorized");
         }
 
@@ -171,8 +172,13 @@ export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineLi
 
 export async function getA2fPipelineEntry(a2fId: number) {
     try {
+        if (!Number.isInteger(a2fId) || a2fId <= 0) {
+            return { success: false, message: "Invalid pipeline ID" };
+        }
+
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 

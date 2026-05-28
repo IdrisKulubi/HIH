@@ -30,6 +30,8 @@ import {
     type WorkflowItemStatus,
 } from "@/lib/a2f-workflow";
 import { cn } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+import { canEditMatchingGrantApplication } from "@/lib/a2f-nav";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE CONFIG
@@ -69,6 +71,8 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     const { id } = use(params);
     const a2fId = Number(id);
     const router = useRouter();
+    const { data: session } = useSession();
+    const viewerRole = session?.user?.role ?? "";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
@@ -127,10 +131,19 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
 
     const currentStageIdx = PIPELINE_STAGE_ORDER.indexOf(entry.status as A2fPipelineStatus);
     const progressPct = Math.round(((currentStageIdx + 1) / PIPELINE_STAGE_ORDER.length) * 100);
-    const stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
     const biz = entry.application?.business;
     const applicant = biz?.applicant;
     const mgRecord = entry.matchingGrantApplications?.[0] ?? null;
+    let stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
+    if (entry.status === "a2f_pipeline" && (viewerRole === "a2f_officer" || viewerRole === "oversight")) {
+        const submitted = mgRecord?.status === "submitted";
+        stageAction = {
+            label: submitted ? "View application" : "View application (read-only)",
+            href: "matching-grant",
+            icon: PenNib,
+        };
+    }
+    const showOfficialUsePanel = canEditMatchingGrantApplication(viewerRole);
     const gairAppraisal = entry.investmentAppraisals?.find(
         (item: { documentType?: string }) => item.documentType === "gair"
     ) ?? null;
@@ -345,7 +358,8 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                 </Card>
             )}
 
-            <MatchingGrantOfficialUsePanel
+            {showOfficialUsePanel && (
+                <MatchingGrantOfficialUsePanel
                     a2fId={a2fId}
                     applicationId={entry.applicationId}
                     mgApp={mgRecord}
@@ -353,7 +367,8 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                     ddReports={entry.dueDiligenceReports}
                     gairAppraisal={gairAppraisal}
                     onSaved={loadData}
-            />
+                />
+            )}
 
             {/* ── Financial summary (if disbursing) ── */}
             {agreement && ledger && (

@@ -1,73 +1,32 @@
-"use client";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
+import { parseA2fPipelineId } from "@/lib/a2f-routes";
+import { A2fEntryLayoutClient } from "./A2fEntryLayoutClient";
 
-import { use, useCallback, useEffect, useState } from "react";
-import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
-import { getAppraisals } from "@/lib/actions/a2f-investment-appraisals";
-import { A2fEntryShell } from "@/components/a2f/a2f-entry-shell";
-import { Skeleton } from "@/components/ui/skeleton";
-
-export default function A2fEntryLayout({
+export default async function A2fEntryLayout({
     children,
     params,
 }: {
     children: React.ReactNode;
     params: Promise<{ id: string }>;
 }) {
-    const { id } = use(params);
-    const a2fId = Number(id);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [entry, setEntry] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const { id } = await params;
+    const session = await auth();
+    const userRole = session?.user?.role ?? "";
 
-    const loadEntry = useCallback(async () => {
-        setLoading(true);
-        const [entryRes, appraisalsRes] = await Promise.all([
-            getA2fPipelineEntry(a2fId),
-            getAppraisals(a2fId),
-        ]);
-        if (entryRes.success && entryRes.data) {
-            const data = entryRes.data;
-            if (appraisalsRes.success && appraisalsRes.data) {
-                data.investmentAppraisals = appraisalsRes.data;
-            }
-            setEntry(data);
-        }
-        setLoading(false);
-    }, [a2fId]);
-
-    useEffect(() => {
-        loadEntry();
-    }, [loadEntry]);
-
-    if (loading) {
-        return (
-            <div className="container mx-auto max-w-7xl px-4 py-8 space-y-4">
-                <Skeleton className="h-10 w-64" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-96 w-full" />
-            </div>
-        );
+    if (userRole === "a2f_committee") {
+        const a2fId = parseA2fPipelineId(id);
+        redirect(a2fId ? `/a2f/committee/${a2fId}` : "/a2f/committee");
     }
 
-    if (!entry) {
-        return <div className="container mx-auto px-4 py-16 text-center text-muted-foreground">Pipeline entry not found.</div>;
+    const a2fId = parseA2fPipelineId(id);
+    if (a2fId === null) {
+        redirect("/a2f");
     }
-
-    const gair = entry.investmentAppraisals?.find(
-        (a: { documentType?: string }) => a.documentType === "gair"
-    );
-    const biz = entry.application?.business;
 
     return (
-        <A2fEntryShell
-            a2fId={a2fId}
-            businessName={biz?.name ?? "Enterprise"}
-            track={entry.application?.track}
-            pipelineStatus={entry.status}
-            requestedAmount={entry.requestedAmount}
-            approvedAmount={gair?.approvedGrantAmount}
-        >
+        <A2fEntryLayoutClient a2fId={a2fId} viewerRole={userRole}>
             {children}
-        </A2fEntryShell>
+        </A2fEntryLayoutClient>
     );
 }

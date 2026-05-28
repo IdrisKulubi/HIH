@@ -17,20 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PIPELINE_STAGE_LABELS, type A2fPipelineStatus } from "@/lib/a2f-constants";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-    { label: "Overview", href: "", icon: House, exact: true },
-    { label: "Application", href: "/matching-grant", icon: PenNib },
-    { label: "Due diligence", href: "/due-diligence", icon: ClipboardText },
-    { label: "Scoring", href: "/scoring", icon: ChartLine },
-    { label: "GAIR / IC", href: "/appraisal", icon: FileText },
-    { label: "Agreement", href: "/contracts", icon: Handshake },
-    { label: "Grant management", href: "/grant-management", icon: Package },
-    { label: "Disbursements", href: "/disbursements", icon: CurrencyDollar },
-] as const;
+import { getA2fNavItemsForRole } from "@/lib/a2f-nav-items";
 
 export interface A2fEntryShellProps {
     a2fId: number;
+    viewerRole: string;
     businessName: string;
     track?: string | null;
     pipelineStatus: string;
@@ -52,6 +43,7 @@ function formatKes(value: string | number | null | undefined) {
 
 export function A2fEntryShell({
     a2fId,
+    viewerRole,
     businessName,
     track,
     pipelineStatus,
@@ -61,6 +53,7 @@ export function A2fEntryShell({
 }: A2fEntryShellProps) {
     const pathname = usePathname();
     const base = `/a2f/${a2fId}`;
+    const navItems = getA2fNavItemsForRole(viewerRole);
     const trackLabel = formatTrack(track);
     const stageLabel = PIPELINE_STAGE_LABELS[pipelineStatus as A2fPipelineStatus] ?? pipelineStatus;
 
@@ -102,10 +95,10 @@ export function A2fEntryShell({
                     </div>
 
                     <nav className="mt-3 flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
-                        {NAV_ITEMS.map((item) => {
+                        {navItems.map((item) => {
                             const { label, href, icon: Icon } = item;
                             const path = `${base}${href}`;
-                            const active = "exact" in item && item.exact
+                            const active = item.exact
                                 ? pathname === base || pathname === `${base}/`
                                 : pathname.startsWith(path);
                             return (

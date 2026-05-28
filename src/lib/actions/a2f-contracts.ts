@@ -21,7 +21,7 @@ import { offerLetterFilename, renderOfferLetterPdfBuffer } from "@/lib/offer-let
 import {
     assertApplicantOwnsPipeline,
     requireCommitteeApprovalForContracting,
-    A2F_READ_ROLES,
+    assertA2fStaffRead,
     A2F_STAFF_ROLES,
 } from "@/lib/a2f-access";
 import { UTApi, UTFile } from "uploadthing/server";
@@ -57,7 +57,8 @@ const A2F_ROLES = A2F_STAFF_ROLES;
 export async function getGrantAgreement(a2fId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 

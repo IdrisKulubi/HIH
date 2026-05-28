@@ -69,14 +69,19 @@ export interface RecordIcDecisionInput {
     decisionConditions?: string;
 }
 
-import { A2F_READ_ROLES, A2F_STAFF_ROLES } from "@/lib/a2f-access";
+import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
 export async function getAppraisals(a2fId: number) {
     try {
+        if (!Number.isInteger(a2fId) || a2fId <= 0) {
+            return { success: false, message: "Invalid pipeline ID" };
+        }
+
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -347,7 +352,8 @@ export async function recordIcApproval(
 ): Promise<ActionResponse<{ approvedBy: string[]; fullyApproved: boolean }>> {
     try {
         const session = await auth();
-        if (!session?.user || !A2F_READ_ROLES.includes(session.user.role as typeof A2F_READ_ROLES[number])) {
+        const staffRead = assertA2fStaffRead(session?.user?.role);
+        if (!session?.user || !staffRead.ok) {
             return errorResponse("Unauthorized");
         }
 

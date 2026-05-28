@@ -9,6 +9,7 @@ import {
 import { CommitteeScoringBreakdown } from "@/components/a2f/committee/CommitteeScoringBreakdown";
 import { CommitteeDecisionPanel } from "@/components/a2f/committee/CommitteeDecisionPanel";
 import { CommitteeScoreOverridePanel } from "@/components/a2f/committee/CommitteeScoreOverridePanel";
+import { CommitteeGairViewer } from "@/components/a2f/committee/CommitteeGairViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,26 +117,24 @@ export default function CommitteeCasePage({
             </Card>
 
             {gair && (
-                <Card className="mb-6">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <FileText className="size-4" />
-                            GAIR
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        {gair.scoringSummary && (
-                            <p className="text-sm whitespace-pre-wrap text-muted-foreground">
-                                {gair.scoringSummary}
-                            </p>
-                        )}
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={gair.staffAppraisalUrl} target="_blank">
-                                Open full GAIR (read-only staff view)
-                            </Link>
-                        </Button>
-                    </CardContent>
-                </Card>
+                <div className="mb-6 space-y-4">
+                    {gair.scoringSummary && (
+                        <Card>
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <FileText className="size-4" />
+                                    Scoring summary
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                                    {gair.scoringSummary}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    )}
+                    <CommitteeGairViewer a2fId={a2fId} />
+                </div>
             )}
 
             {!gair && (
