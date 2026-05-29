@@ -35,7 +35,11 @@ function agreementLabel(type: string) {
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ApplicantContractsTab() {
+export function ApplicantContractsTab({
+    matchingGrantSubmitted = false,
+}: {
+    matchingGrantSubmitted?: boolean;
+}) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [contracts, setContracts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -81,6 +85,22 @@ export function ApplicantContractsTab() {
     }
 
     if (!contracts.length) {
+        if (matchingGrantSubmitted) {
+            return (
+                <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-100">
+                    <div className="w-16 h-16 bg-sky-50 text-brand-blue rounded-full flex items-center justify-center mx-auto mb-5">
+                        <Clock className="w-8 h-8" weight="duotone" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Agreement not sent yet</h3>
+                    <p className="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+                        Your Matching Grant application was received. When the programme sends your
+                        grant agreement, you will download it here and upload your signed copy. We
+                        will email you when the offer is ready.
+                    </p>
+                </div>
+            );
+        }
+
         return (
             <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-100">
                 <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-5">

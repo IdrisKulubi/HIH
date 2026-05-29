@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProfileTabs } from "@/components/profile/ProfileTabs";
+import { ProfileSubmissionNotice } from "@/components/profile/ProfileSubmissionNotice";
+import { getApplicantMatchingGrantSubmittedStatus } from "@/lib/actions/a2f-applicant";
+import { Suspense } from "react";
 import { Separator } from "@/components/ui/separator";
 import {
   User,
@@ -118,6 +122,9 @@ export default async function ProfilePage() {
 
   const isReviewer = ['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(userProfile.role || '');
 
+  const matchingGrantSubmitted =
+    !isReviewer ? await getApplicantMatchingGrantSubmittedStatus() : false;
+
   const profileFields = [
     userProfile.firstName,
     userProfile.lastName,
@@ -188,8 +195,13 @@ export default async function ProfilePage() {
          
         </div>
 
+        <Suspense fallback={null}>
+          <ProfileSubmissionNotice />
+        </Suspense>
+
         {/* Content Tabs */}
-        <Tabs defaultValue="overview" className="w-full space-y-8">
+        <Suspense fallback={<div className="h-12" />}>
+        <ProfileTabs isReviewer={isReviewer}>
           <div className="flex justify-center md:justify-start overflow-x-auto pb-4 md:pb-0 scrollbar-hide">
             <TabsList className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 inline-flex">
               <TabsTrigger
@@ -612,12 +624,13 @@ export default async function ProfilePage() {
                     </p>
                   </div>
                 </div>
-                <ApplicantContractsTab />
+                <ApplicantContractsTab matchingGrantSubmitted={matchingGrantSubmitted} />
               </div>
             </TabsContent>
           )}
 
-        </Tabs>
+        </ProfileTabs>
+        </Suspense>
       </div>
     </div>
   );

@@ -24,6 +24,18 @@ export async function getApplicantA2fHomePath(): Promise<string> {
     return resolveApplicantA2fHomePath(session.user.id);
 }
 
+/** True when the applicant has a submitted Matching Grant application on their pipeline. */
+export async function getApplicantMatchingGrantSubmittedStatus(): Promise<boolean> {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role !== "applicant") return false;
+
+    const eligibility = await checkApplicantCanStartMatchingGrant(session.user.id);
+    if (!eligibility.a2fId) return false;
+
+    const res = await getMatchingGrantApplication(eligibility.a2fId);
+    return Boolean(res.success && res.data?.status === "submitted");
+}
+
 export interface ApplicantA2fContext {
     eligible: boolean;
     reason?: string;

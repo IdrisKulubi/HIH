@@ -32,8 +32,7 @@ import {
     hasA2fStaffRead,
 } from "@/lib/a2f-access";
 import { canEditMatchingGrantApplication } from "@/lib/a2f-nav";
-import { sendEmail } from "@/lib/email";
-import React from "react";
+import { sendMatchingGrantSubmissionEmail } from "@/lib/email";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -295,6 +294,12 @@ export async function saveMatchingGrantApplication(
             where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
         });
 
+        if (isApplicant && existing?.status === "submitted") {
+            return errorResponse(
+                "This Matching Grant application has already been submitted and cannot be changed."
+            );
+        }
+
         let id: number;
         if (existing) {
             await db
@@ -324,38 +329,20 @@ export async function saveMatchingGrantApplication(
         revalidatePath(`/a2f/${a2fId}/scoring`);
         revalidatePath(`/a2f/${a2fId}/matching-grant`);
         revalidatePath(`/access-to-finance/application/${a2fId}`);
+        revalidatePath("/profile");
 
-        if (input.status === "submitted" && isApplicant && pipeline.application?.business?.applicant) {
+        const isFirstSubmit =
+            input.status === "submitted" && existing?.status !== "submitted";
+
+        if (isFirstSubmit && isApplicant && pipeline.application?.business?.applicant) {
             const applicant = pipeline.application.business.applicant;
             const enterpriseName = pipeline.application.business.name;
-            try {
-                await sendEmail({
-                    to: applicant.email,
-                    subject: "Matching Grant application received — BIRE Programme",
-                    react: React.createElement(
-                        "div",
-                        { style: { fontFamily: "Arial, sans-serif", maxWidth: "600px", padding: "20px" } },
-                        React.createElement("h2", { style: { color: "#0f766e" } }, "Application submitted"),
-                        React.createElement(
-                            "p",
-                            null,
-                            `Dear ${applicant.firstName} ${applicant.lastName},`
-                        ),
-                        React.createElement(
-                            "p",
-                            null,
-                            `We have received your Matching Grant application for ${enterpriseName}. Our Access to Finance team will review your submission and contact you if further information is needed.`
-                        ),
-                        React.createElement(
-                            "p",
-                            null,
-                            "You can return to your Access to Finance portal at any time to view your submission status."
-                        )
-                    ),
-                });
-            } catch (emailError) {
-                console.error("Failed to send Matching Grant submission email:", emailError);
-            }
+            await sendMatchingGrantSubmissionEmail({
+                userEmail: applicant.email,
+                applicantName: `${applicant.firstName} ${applicant.lastName}`.trim(),
+                businessName: enterpriseName,
+                submissionDate: new Date().toISOString(),
+            });
         }
 
         return successResponse(

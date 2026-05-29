@@ -11,6 +11,10 @@ import {
 import {
   PasswordResetEmail,
 } from '@/components/emails/password-reset-email';
+import {
+  MatchingGrantSubmissionEmail,
+  MatchingGrantSubmissionEmailProps,
+} from '@/components/emails/matching-grant-submission-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
@@ -99,6 +103,31 @@ export async function sendApplicationSubmissionEmail(
     subject: '🎉 Application Submitted Successfully - BIRE Programme',
     react: ApplicationSubmissionEmail(props),
   });
+}
+
+/**
+ * Sends Matching Grant application submission confirmation to the enterprise.
+ * Does not throw if email is not configured; logs and returns gracefully.
+ */
+export async function sendMatchingGrantSubmissionEmail(
+  props: MatchingGrantSubmissionEmailProps
+): Promise<{ success: boolean; skipped?: boolean }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping Matching Grant confirmation email");
+    return { success: false, skipped: true };
+  }
+
+  try {
+    await sendEmail({
+      to: props.userEmail,
+      subject: "Matching Grant application received — BIRE Programme",
+      react: MatchingGrantSubmissionEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send Matching Grant submission email:", error);
+    return { success: false };
+  }
 }
 
 /**

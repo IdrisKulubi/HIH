@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import {
@@ -327,12 +327,14 @@ export function MatchingGrantApplicationWizard({
     a2fId: number;
     mode?: "staff" | "applicant" | "readonly";
 }) {
-    const readOnly = mode === "readonly";
+    const router = useRouter();
     const searchParams = useSearchParams();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
+    const applicantLocked = mode === "applicant" && form.status === "submitted";
+    const readOnly = mode === "readonly" || applicantLocked;
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeStep, setActiveStep] = useState(0);
@@ -559,11 +561,18 @@ export function MatchingGrantApplicationWizard({
 
         if (res.success) {
             setShowStepValidation(false);
-            toast.success(res.message ?? "Matching Grant application saved");
             setForm(prev => ({ ...prev, status }));
             if (status === "submitted") {
                 setCompletedSteps(MG_WIZARD_STEPS.map((_, i) => i));
             }
+            if (status === "submitted" && mode === "applicant") {
+                toast.success("Matching Grant application submitted", {
+                    description: "A confirmation email has been sent. Taking you to your agreements.",
+                });
+                router.push("/profile?tab=contracts&mg_submitted=1");
+                return;
+            }
+            toast.success(res.message ?? "Matching Grant application saved");
             if (res.data?.validation.warnings.length) {
                 const label = status === "submitted" ? "guidance note(s)" : "validation note(s)";
                 toast.info(
@@ -571,7 +580,14 @@ export function MatchingGrantApplicationWizard({
                 );
             }
         } else {
-            toast.error(res.error ?? "Failed to save Matching Grant application");
+            const err = res.error ?? "Failed to save Matching Grant application";
+            toast.error(err);
+            if (
+                mode === "applicant" &&
+                err.includes("already been submitted")
+            ) {
+                router.push("/profile?tab=contracts");
+            }
         }
     }
 
@@ -605,10 +621,20 @@ export function MatchingGrantApplicationWizard({
                 </Badge>
                 {readOnly && (
                     <Badge variant="outline" className="text-xs">
-                        Read-only
+                        {applicantLocked ? "Submitted" : "Read-only"}
                     </Badge>
                 )}
             </div>
+
+            {applicantLocked && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    This application was submitted and can no longer be edited. View your grant agreement status
+                    on your profile under Offers and Contracts.
+                    <Button variant="link" asChild className="h-auto p-0 ml-1 text-emerald-800">
+                        <Link href="/profile?tab=contracts">Go to agreements</Link>
+                    </Button>
+                </div>
+            )}
 
             <div className="mb-4 lg:hidden">
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
