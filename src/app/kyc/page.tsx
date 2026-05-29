@@ -2,9 +2,11 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getUserApplication } from "@/lib/actions";
+import { checkApplicantCanStartMatchingGrant } from "@/lib/a2f-applicant-eligibility";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Coins } from "@phosphor-icons/react/dist/ssr";
 
 export default async function KycPage() {
   const session = await auth();
@@ -47,16 +49,44 @@ export default async function KycPage() {
   }
 
   const { data } = application;
+  const selected = data.status === "approved" || data.status === "finalist";
+  const a2fEligibility = selected
+    ? await checkApplicantCanStartMatchingGrant(session.user.id)
+    : null;
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-10 space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Enterprise KYC Status</h1>
         <p className="text-slate-600">
-          KYC is now completed by the programme review team. Entrepreneurs can view status here, but document uploads and
-          geolocation capture are handled by reviewers.
+          KYC is completed by the programme review team. You can view status here. Document uploads and
+          geolocation are handled by reviewers.
         </p>
       </div>
+
+      {a2fEligibility?.eligible && (
+        <Card className="border-brand-blue/20 bg-brand-blue/5">
+          <CardContent className="pt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-slate-900 flex items-center gap-2">
+                <Coins className="size-5 text-brand-blue" weight="duotone" />
+                Matching Grant application
+              </p>
+              <p className="text-sm text-slate-600 mt-1">
+                {a2fEligibility.kycPending
+                  ? "You may continue to Access to Finance while KYC is still in review."
+                  : "Your KYC is verified. Continue to your Matching Grant workspace."}
+              </p>
+            </div>
+            <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark shrink-0">
+              <Link href="/access-to-finance">
+                Continue to Access to Finance
+                <ArrowRight className="size-4 ml-1.5" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -81,11 +111,16 @@ export default async function KycPage() {
             Geolocation can also be captured later during the site visit.
           </p>
           <p>
-            If your enterprise has already been selected, your later programme modules will remain locked until the KYC review
-            team marks this record as verified.
+            Mentorship, CNA, and other programme modules stay locked until KYC is marked verified. Access to Finance
+            is available once your programme application is approved.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button asChild>
+            {a2fEligibility?.eligible ? (
+              <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark">
+                <Link href="/access-to-finance">Matching Grant</Link>
+              </Button>
+            ) : null}
+            <Button asChild variant="outline">
               <Link href="/profile">Back to Profile</Link>
             </Button>
           </div>

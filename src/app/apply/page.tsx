@@ -69,11 +69,8 @@ export default async function ApplyPage() {
 
   if (existingApplication.success && existingApplication.data) {
     const app = existingApplication.data;
-    if (
-      (app.status === "approved" || app.status === "finalist") &&
-      app.kycStatus !== "verified"
-    ) {
-      redirect('/kyc');
+    if (app.status === "approved" || app.status === "finalist") {
+      redirect("/access-to-finance");
     }
     redirect('/profile');
   }

@@ -8,6 +8,8 @@ export interface ApplicantEligibilityResult {
     reason?: string;
     applicationId?: number;
     a2fId?: number;
+    /** KYC not verified yet; A2F is still allowed. */
+    kycPending?: boolean;
 }
 
 /**
@@ -52,13 +54,8 @@ export async function checkApplicantCanStartMatchingGrant(
         };
     }
 
-    if (application.kycStatus !== "verified" && !application.kycVerifiedAt) {
-        return {
-            eligible: false,
-            reason: "Complete and verify KYC before starting your Matching Grant application.",
-            applicationId: application.id,
-        };
-    }
+    const kycPending =
+        application.kycStatus !== "verified" && !application.kycVerifiedAt;
 
     const existingPipeline = await db.query.a2fPipeline.findFirst({
         where: eq(a2fPipeline.applicationId, application.id),
@@ -68,6 +65,7 @@ export async function checkApplicantCanStartMatchingGrant(
         eligible: true,
         applicationId: application.id,
         a2fId: existingPipeline?.id,
+        kycPending,
     };
 }
 

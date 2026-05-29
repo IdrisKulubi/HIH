@@ -31,16 +31,6 @@ export default async function ProfileEditPage() {
     redirect('/profile/setup');
   }
 
-  const applicationResult = await getUserApplication();
-  const application = applicationResult?.success ? applicationResult.data : null;
-  if (
-    application &&
-    (application.status === "approved" || application.status === "finalist") &&
-    application.kycStatus !== "verified"
-  ) {
-    redirect("/kyc");
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Header */}

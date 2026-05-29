@@ -40,26 +40,11 @@ export default auth((req) => {
         return nextWithPathname(req, path);
     }
 
-    if (path !== "/profile" && path !== "/profile/edit") {
-        return NextResponse.next();
-    }
-
-    const user = req.auth?.user;
-    if (!user?.id) return NextResponse.next();
-    if (user.role !== "applicant") return NextResponse.next();
-
-    const gate = user.kycGate;
-    if (gate?.active) {
-        return NextResponse.redirect(new URL("/kyc", req.url));
-    }
-
     return NextResponse.next();
 });
 
 export const config = {
     matcher: [
-        "/profile",
-        "/profile/edit",
         "/a2f/commitee",
         "/a2f/commitee/:path*",
         "/a2f/:path*",

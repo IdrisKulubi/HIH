@@ -118,15 +118,6 @@ export default async function ProfilePage() {
 
   const isReviewer = ['reviewer_1', 'reviewer_2', 'technical_reviewer'].includes(userProfile.role || '');
 
-  if (
-    !isReviewer &&
-    application &&
-    (application.status === 'approved' || application.status === 'finalist') &&
-    application.kycStatus !== 'verified'
-  ) {
-    redirect('/kyc');
-  }
-
   const profileFields = [
     userProfile.firstName,
     userProfile.lastName,
@@ -338,17 +329,23 @@ export default async function ProfilePage() {
                       </div>
 
                       {(application.status === "approved" || application.status === "finalist") && (
-                        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3">
                           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
-                              <p className="font-semibold text-blue-900">KYC onboarding is now required</p>
+                              <p className="font-semibold text-blue-900">KYC review in progress</p>
                               <p className="text-sm text-blue-800/80">
-                                Complete KYC to unlock mentorship, CNA, M&amp;E, and downstream programme support.
+                                Your reviewer completes KYC. You can start your Matching Grant application while KYC is pending.
+                                Other modules (mentorship, CNA) unlock after verification.
                               </p>
                             </div>
-                            <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                              <Link href="/kyc">Open KYC</Link>
-                            </Button>
+                            <div className="flex flex-wrap gap-2 shrink-0">
+                              <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark">
+                                <Link href="/access-to-finance">Matching Grant</Link>
+                              </Button>
+                              <Button asChild variant="outline" className="border-blue-200">
+                                <Link href="/kyc">KYC status</Link>
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
