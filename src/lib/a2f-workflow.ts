@@ -110,11 +110,17 @@ export function buildWorkflowChecklist(a2fId: number, entry: WorkflowEntryInput)
         },
         {
             id: "gair",
-            label: "GAIR & IC decision",
+            label: "GAIR & donor decision",
             description: icDone
-                ? `IC: ${String(gair?.icDecision).replace(/_/g, " ")}`
-                : gair ? "GAIR draft — record IC decision"
-                : "Prepare GAIR for committee",
+                ? (gair as { donorDecision?: string | null })?.donorDecision
+                    ? String((gair as { donorDecision?: string }).donorDecision).replace(
+                          /_/g,
+                          " "
+                      )
+                    : `IC: ${String(gair?.icDecision).replace(/_/g, " ")}`
+                : gair
+                  ? "GAIR draft — record donor decision"
+                  : "Prepare GAIR for committee",
             href: `${base}/appraisal`,
             status: icDone ? "complete" : gairDraft || qualified ? "in_progress" : qualified ? "pending" : "pending",
         },
@@ -183,16 +189,26 @@ export function getWorkflowNextAction(a2fId: number, entry: WorkflowEntryInput):
     }
     if (!icDecided(entry)) {
         return {
-            label: "Await committee decision",
-            description: "Committee must approve, approve with conditions, defer, or decline on the GAIR.",
+            label: "Await donor decision",
+            description: "Committee must record the donor outcome and reason on the GAIR.",
             href: `${base}/appraisal`,
         };
     }
     if (!icCommitteeApproved(entry)) {
-        const gair = gairAppraisal(entry);
+        const gair = gairAppraisal(entry) as {
+            icDecision?: string | null;
+            donorDecision?: string | null;
+            donorDecisionReason?: string | null;
+        } | null;
+        const donorDenied = gair?.donorDecision === "denied_by_donor";
+        const reason = gair?.donorDecisionReason?.trim();
         return {
-            label: "Committee did not approve contracting",
-            description: `Decision: ${String(gair?.icDecision ?? "pending").replace(/_/g, " ")}. Agreement cannot be issued until approved.`,
+            label: donorDenied ? "Denied by donor" : "Not approved for contracting",
+            description: donorDenied
+                ? reason
+                    ? `Reason: ${reason}`
+                    : "Donor declined. Agreement cannot be issued."
+                : `Decision: ${String(gair?.icDecision ?? "pending").replace(/_/g, " ")}. Agreement cannot be issued until approved by the donor.`,
             href: `${base}/appraisal`,
         };
     }

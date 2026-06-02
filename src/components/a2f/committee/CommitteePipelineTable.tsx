@@ -18,6 +18,7 @@ import {
     PipelineStageBadge,
     RevenueGateBadge,
 } from "@/components/a2f/PipelineBadges";
+import { committeeDecisionKey } from "@/lib/a2f-pipeline-ui";
 import { ArrowRight, Buildings } from "@phosphor-icons/react";
 import { HandInHandMark } from "@/components/brand/HandInHandMark";
 
@@ -78,7 +79,12 @@ export function CommitteePipelineTable({ items }: { items: CommitteePipelineList
                             )}
                         </TableCell>
                         <TableCell>
-                            <IcDecisionBadge decision={item.icDecision} />
+                            <IcDecisionBadge
+                                decision={committeeDecisionKey(
+                                    item.donorDecision,
+                                    item.icDecision
+                                )}
+                            />
                         </TableCell>
                         <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="sm" asChild className="text-brand-blue hover:text-brand-blue-dark">

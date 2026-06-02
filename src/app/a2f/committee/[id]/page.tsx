@@ -193,17 +193,18 @@ export default function CommitteeCasePage({
                     {gair ? (
                         <CommitteeDecisionPanel
                             appraisalId={gair.id}
-                            a2fId={a2fId}
-                            initialDecision={gair.icDecision}
+                            initialDonorDecision={gair.donorDecision}
+                            initialIcDecision={gair.icDecision}
+                            initialReason={
+                                gair.donorDecisionReason ?? gair.decisionNotes ?? undefined
+                            }
                             initialApprovedAmount={gair.approvedGrantAmount ?? undefined}
-                            initialNotes={gair.decisionNotes ?? undefined}
-                            initialConditions={gair.decisionConditions ?? undefined}
                             onRecorded={load}
                         />
                     ) : (
                         <Card className="border-dashed">
                             <CardContent className="py-6 text-sm text-muted-foreground">
-                                Committee decision will be available once the GAIR is prepared.
+                                Donor decision will be available once the GAIR is prepared.
                             </CardContent>
                         </Card>
                     )}

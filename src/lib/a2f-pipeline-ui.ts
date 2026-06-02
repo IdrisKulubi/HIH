@@ -26,6 +26,8 @@ export type IcDecisionKey =
     | "approved_with_conditions"
     | "deferred"
     | "declined"
+    | "approved_by_donor"
+    | "denied_by_donor"
     | "pending";
 
 export type DecisionStyle = { label: string; color: string; bg: string };
@@ -39,6 +41,16 @@ export const DECISION_CONFIG: Record<IcDecisionKey, DecisionStyle> = {
     },
     deferred: { label: "Deferred", color: "text-slate-700", bg: "bg-slate-100" },
     declined: { label: "Declined", color: "text-red-800", bg: "bg-red-100" },
+    approved_by_donor: {
+        label: "Approved by donor",
+        color: "text-emerald-800",
+        bg: "bg-emerald-100",
+    },
+    denied_by_donor: {
+        label: "Denied by donor",
+        color: "text-red-800",
+        bg: "bg-red-100",
+    },
     pending: { label: "Pending", color: "text-sky-800", bg: "bg-sky-100" },
 };
 
@@ -54,9 +66,20 @@ export function getDecisionStyle(decision: string | null | undefined): DecisionS
 
 export const DECISION_FILTER_OPTIONS: { value: string; label: string }[] = [
     { value: "all", label: "All decisions" },
-    { value: "pending", label: "Pending" },
-    { value: "approved", label: "Approved" },
-    { value: "approved_with_conditions", label: "Approved with conditions" },
-    { value: "deferred", label: "Deferred" },
-    { value: "declined", label: "Declined" },
+    { value: "pending", label: "Pending donor decision" },
+    { value: "approved_by_donor", label: "Approved by donor" },
+    { value: "denied_by_donor", label: "Denied by donor" },
 ];
+
+/** Prefer donor outcome for committee list badges when recorded. */
+export function committeeDecisionKey(
+    donorDecision: string | null | undefined,
+    icDecision: string | null | undefined
+): string | null {
+    if (donorDecision) return donorDecision;
+    if (icDecision === "approved" || icDecision === "approved_with_conditions") {
+        return "approved_by_donor";
+    }
+    if (icDecision === "declined") return "denied_by_donor";
+    return icDecision ?? null;
+}

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { recordCommitteeIcDecision } from "@/lib/actions/a2f-committee";
-import type { IcDecision } from "@/lib/actions/a2f-investment-appraisals";
+import { recordDonorDecision } from "@/lib/actions/a2f-committee";
+import type { DonorDecision } from "@/lib/actions/a2f-investment-appraisals";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,60 +18,74 @@ import {
 } from "@/components/ui/select";
 import { CheckCircle, Scales } from "@phosphor-icons/react";
 
-const DECISION_HINTS: Record<IcDecision, string> = {
-    approved: "Officer may proceed to agreement once this is recorded.",
-    approved_with_conditions: "List conditions clearly; officer must satisfy them before agreement.",
-    deferred: "Case returns to the officer for further work. Amount is not required.",
-    declined: "Case does not proceed to agreement. Amount is not required.",
+const DECISION_HINTS: Record<DonorDecision, string> = {
+    approved_by_donor:
+        "Record why the donor approved. The officer may proceed to agreement once this is saved.",
+    denied_by_donor:
+        "Record why the donor declined. The case will not proceed to agreement.",
 };
+
+function resolveInitialDonorDecision(
+    donorDecision?: string | null,
+    icDecision?: string | null
+): DonorDecision {
+    if (donorDecision === "approved_by_donor" || donorDecision === "denied_by_donor") {
+        return donorDecision;
+    }
+    if (icDecision === "declined") return "denied_by_donor";
+    return "approved_by_donor";
+}
 
 interface CommitteeDecisionPanelProps {
     appraisalId: number;
     a2fId: number;
-    initialDecision?: string | null;
+    initialDonorDecision?: string | null;
+    initialIcDecision?: string | null;
+    initialReason?: string | null;
     initialApprovedAmount?: string | null;
-    initialNotes?: string | null;
-    initialConditions?: string | null;
     onRecorded?: () => void;
 }
 
 export function CommitteeDecisionPanel({
     appraisalId,
-    initialDecision,
+    initialDonorDecision,
+    initialIcDecision,
+    initialReason,
     initialApprovedAmount,
-    initialNotes,
-    initialConditions,
     onRecorded,
 }: CommitteeDecisionPanelProps) {
-    const [decision, setDecision] = useState<IcDecision>(
-        (initialDecision as IcDecision) ?? "approved"
+    const [decision, setDecision] = useState<DonorDecision>(
+        resolveInitialDonorDecision(initialDonorDecision, initialIcDecision)
     );
+    const [reason, setReason] = useState(initialReason ?? "");
     const [approvedGrantAmount, setApprovedGrantAmount] = useState(
         initialApprovedAmount ?? ""
     );
-    const [decisionNotes, setDecisionNotes] = useState(initialNotes ?? "");
-    const [decisionConditions, setDecisionConditions] = useState(initialConditions ?? "");
     const [recording, setRecording] = useState(false);
 
-    const amountDisabled = decision === "deferred" || decision === "declined";
+    const amountDisabled = decision === "denied_by_donor";
 
     async function handleRecord() {
+        if (!reason.trim()) {
+            toast.error("Please enter a reason for this donor outcome.");
+            return;
+        }
+
         setRecording(true);
-        const res = await recordCommitteeIcDecision(appraisalId, {
+        const res = await recordDonorDecision(appraisalId, {
             decision,
+            reason: reason.trim(),
             approvedGrantAmount: approvedGrantAmount
                 ? Number(approvedGrantAmount)
                 : undefined,
-            decisionNotes,
-            decisionConditions,
         });
         setRecording(false);
 
         if (res.success) {
-            toast.success(res.message ?? "Decision recorded");
+            toast.success(res.message ?? "Donor decision recorded");
             onRecorded?.();
         } else {
-            toast.error(res.error ?? "Failed to record decision");
+            toast.error(res.error ?? "Failed to record donor decision");
         }
     }
 
@@ -80,10 +94,10 @@ export function CommitteeDecisionPanel({
             <CardHeader className="pb-3 bg-brand-blue/5 rounded-t-lg border-b border-brand-blue/10">
                 <CardTitle className="text-base flex items-center gap-2">
                     <Scales weight="duotone" className="size-4 text-brand-blue" />
-                    Committee decision
+                    Donor decision
                 </CardTitle>
                 <CardDescription>
-                    Record the outcome before the officer may issue the agreement.
+                    Record the donor outcome and reason for accountability before agreement.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
@@ -91,23 +105,31 @@ export function CommitteeDecisionPanel({
                     {DECISION_HINTS[decision]}
                 </p>
                 <div className="space-y-1.5">
-                    <Label>Decision</Label>
+                    <Label>Donor outcome</Label>
                     <Select
                         value={decision}
-                        onValueChange={(v) => setDecision(v as IcDecision)}
+                        onValueChange={(v) => setDecision(v as DonorDecision)}
                     >
                         <SelectTrigger>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="approved">Approved</SelectItem>
-                            <SelectItem value="approved_with_conditions">
-                                Approved with conditions
-                            </SelectItem>
-                            <SelectItem value="deferred">Deferred</SelectItem>
-                            <SelectItem value="declined">Declined</SelectItem>
+                            <SelectItem value="approved_by_donor">Approved by donor</SelectItem>
+                            <SelectItem value="denied_by_donor">Denied by donor</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+                <div className="space-y-1.5">
+                    <Label>
+                        Reason <span className="text-destructive">*</span>
+                    </Label>
+                    <Textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        rows={4}
+                        required
+                        placeholder="e.g. Donor declined due to sector limits for this intake."
+                    />
                 </div>
                 <div className="space-y-1.5">
                     <Label>Approved grant amount (KES)</Label>
@@ -120,31 +142,13 @@ export function CommitteeDecisionPanel({
                         placeholder={amountDisabled ? "Not applicable" : "Enter amount"}
                     />
                 </div>
-                <div className="space-y-1.5">
-                    <Label>Conditions</Label>
-                    <Textarea
-                        value={decisionConditions}
-                        onChange={(e) => setDecisionConditions(e.target.value)}
-                        rows={3}
-                        placeholder="Required when approving with conditions."
-                    />
-                </div>
-                <div className="space-y-1.5">
-                    <Label>Committee notes</Label>
-                    <Textarea
-                        value={decisionNotes}
-                        onChange={(e) => setDecisionNotes(e.target.value)}
-                        rows={3}
-                        placeholder="Rationale visible to the programme team."
-                    />
-                </div>
                 <Button
                     onClick={handleRecord}
                     disabled={recording}
                     className="w-full gap-2 bg-brand-blue hover:bg-brand-blue-dark text-white"
                 >
                     <CheckCircle className="size-4" />
-                    {recording ? "Recording…" : "Record committee decision"}
+                    {recording ? "Saving…" : "Save donor decision"}
                 </Button>
             </CardContent>
         </Card>

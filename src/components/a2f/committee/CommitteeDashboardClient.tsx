@@ -28,15 +28,20 @@ import {
     FileText,
     X,
 } from "@phosphor-icons/react";
-import { DECISION_FILTER_OPTIONS, STAGE_CONFIG } from "@/lib/a2f-pipeline-ui";
+import {
+    committeeDecisionKey,
+    DECISION_FILTER_OPTIONS,
+    STAGE_CONFIG,
+} from "@/lib/a2f-pipeline-ui";
 
 function matchesDecisionFilter(
     item: CommitteePipelineListItem,
     filter: string
 ): boolean {
     if (filter === "all") return true;
-    if (filter === "pending") return !item.icDecision;
-    return item.icDecision === filter;
+    const key = committeeDecisionKey(item.donorDecision, item.icDecision);
+    if (filter === "pending") return !key;
+    return key === filter;
 }
 
 export function CommitteeDashboardClient({
@@ -62,8 +67,12 @@ export function CommitteeDashboardClient({
 
     const stats = useMemo(() => {
         const total = items.length;
-        const pendingDecision = items.filter((i) => !i.icDecision).length;
-        const readyForReview = items.filter((i) => i.hasGair && !i.icDecision).length;
+        const pendingDecision = items.filter(
+            (i) => !committeeDecisionKey(i.donorDecision, i.icDecision)
+        ).length;
+        const readyForReview = items.filter(
+            (i) => i.hasGair && !committeeDecisionKey(i.donorDecision, i.icDecision)
+        ).length;
         return { total, pendingDecision, readyForReview };
     }, [items]);
 

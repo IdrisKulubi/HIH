@@ -25,7 +25,12 @@ import {
     type MatchingGrantScores,
     type A2fEnterpriseTrack,
 } from "@/lib/a2f-constants";
-import type { IcDecision, RecordIcDecisionInput, AppraisalContent } from "./a2f-investment-appraisals";
+import type {
+    IcDecision,
+    RecordIcDecisionInput,
+    RecordDonorDecisionInput,
+    AppraisalContent,
+} from "./a2f-investment-appraisals";
 
 export interface CommitteePipelineListItem {
     id: number;
@@ -39,6 +44,7 @@ export interface CommitteePipelineListItem {
     revenueEligible: boolean | null;
     hasGair: boolean;
     icDecision: string | null;
+    donorDecision: string | null;
     updatedAt: string;
 }
 
@@ -69,6 +75,9 @@ export interface CommitteeCaseDetail {
     gair: {
         id: number;
         icDecision: string | null;
+        donorDecision: string | null;
+        donorDecisionReason: string | null;
+        donorDecidedAt: Date | null;
         approvedGrantAmount: string | null;
         decisionNotes: string | null;
         decisionConditions: string | null;
@@ -234,6 +243,7 @@ export async function getCommitteePipelineList(): Promise<
                 revenueEligible,
                 hasGair: Boolean(gair),
                 icDecision: gair?.icDecision ?? null,
+                donorDecision: gair?.donorDecision ?? null,
                 updatedAt: entry.updatedAt.toISOString(),
             };
         });
@@ -363,6 +373,9 @@ export async function getCommitteeCaseDetail(
                 ? {
                       id: gairRow.id,
                       icDecision: gairRow.icDecision,
+                      donorDecision: gairRow.donorDecision,
+                      donorDecisionReason: gairRow.donorDecisionReason,
+                      donorDecidedAt: gairRow.donorDecidedAt,
                       approvedGrantAmount: gairRow.approvedGrantAmount,
                       decisionNotes: gairRow.decisionNotes,
                       decisionConditions: gairRow.decisionConditions,
@@ -374,6 +387,92 @@ export async function getCommitteeCaseDetail(
     } catch (error) {
         console.error("Error loading committee case:", error);
         return errorResponse("Failed to load case detail");
+    }
+}
+
+export async function recordDonorDecision(
+    appraisalId: number,
+    input: RecordDonorDecisionInput
+): Promise<ActionResponse<{ decision: RecordDonorDecisionInput["decision"]; advanced: boolean }>> {
+    try {
+        const session = await auth();
+        if (!session?.user || !canRecordCommitteeDecision(session.user.role)) {
+            return errorResponse("Unauthorized");
+        }
+
+        const appraisal = await db.query.investmentAppraisals.findFirst({
+            where: eq(investmentAppraisals.id, appraisalId),
+        });
+
+        if (!appraisal) return errorResponse("Appraisal not found");
+        if (appraisal.documentType !== "gair") {
+            return errorResponse("Donor decisions apply to the GAIR only");
+        }
+        if (!["approved_by_donor", "denied_by_donor"].includes(input.decision)) {
+            return errorResponse("Invalid donor decision");
+        }
+
+        const reason = input.reason?.trim() ?? "";
+        if (!reason) {
+            return errorResponse("A reason is required for every donor outcome.");
+        }
+
+        const isApproval = input.decision === "approved_by_donor";
+        const approvedAmount =
+            input.approvedGrantAmount ??
+            Number((appraisal.content as Partial<AppraisalContent>)?.recommendedAmount ?? 0);
+
+        if (isApproval && (!Number.isFinite(approvedAmount) || approvedAmount <= 0)) {
+            return errorResponse("Approved grant amount is required when the donor approves.");
+        }
+
+        const icDecision: IcDecision = isApproval ? "approved" : "declined";
+
+        await db
+            .update(investmentAppraisals)
+            .set({
+                donorDecision: input.decision,
+                donorDecisionReason: reason,
+                donorDecidedById: session.user.id,
+                donorDecidedAt: new Date(),
+                icDecision,
+                approvedGrantAmount: isApproval ? String(approvedAmount) : null,
+                decisionNotes: reason,
+                decisionConditions: null,
+                decidedById: session.user.id,
+                decidedAt: new Date(),
+                icApprovalStatus: isApproval,
+                approvedBy: isApproval ? [session.user.id] : [],
+                updatedAt: new Date(),
+            })
+            .where(eq(investmentAppraisals.id, appraisalId));
+
+        let advanced = false;
+        if (isApproval) {
+            const pipeline = await db.query.a2fPipeline.findFirst({
+                where: eq(a2fPipeline.id, appraisal.a2fId),
+            });
+
+            if (pipeline?.status === "ic_appraisal_review") {
+                await advancePipelineStatus(appraisal.a2fId, "offer_issued");
+                advanced = true;
+            }
+        }
+
+        revalidatePath(`/a2f/${appraisal.a2fId}`);
+        revalidatePath(`/a2f/${appraisal.a2fId}/appraisal`);
+        revalidatePath("/a2f/committee");
+        revalidatePath(`/a2f/committee/${appraisal.a2fId}`);
+
+        return successResponse(
+            { decision: input.decision, advanced },
+            isApproval
+                ? "Donor approval recorded. Case may proceed to contracting."
+                : "Donor decision recorded."
+        );
+    } catch (error) {
+        console.error("Error recording donor decision:", error);
+        return errorResponse("Failed to record donor decision");
     }
 }
 

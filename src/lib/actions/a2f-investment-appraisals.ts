@@ -69,6 +69,14 @@ export interface RecordIcDecisionInput {
     decisionConditions?: string;
 }
 
+export type DonorDecision = "approved_by_donor" | "denied_by_donor";
+
+export interface RecordDonorDecisionInput {
+    decision: DonorDecision;
+    reason: string;
+    approvedGrantAmount?: number;
+}
+
 import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
