@@ -35,9 +35,6 @@ export const A2F_NAV_ITEMS: readonly A2fNavItemDef[] = [
 export function getA2fNavItemsForRole(role?: string | null): A2fNavItemDef[] {
     const segments = new Set(getAllowedA2fNavSegments(role));
     return A2F_NAV_ITEMS.filter((item) => segments.has(item.segment)).map((item) => {
-        if (item.segment === "matching-grant" && role === "a2f_officer") {
-            return { ...item, label: "Application (read-only)" };
-        }
         if (item.segment === "matching-grant" && role === "oversight") {
             return { ...item, label: "Application (view)" };
         }

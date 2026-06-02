@@ -135,10 +135,10 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     const applicant = biz?.applicant;
     const mgRecord = entry.matchingGrantApplications?.[0] ?? null;
     let stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
-    if (entry.status === "a2f_pipeline" && (viewerRole === "a2f_officer" || viewerRole === "oversight")) {
+    if (entry.status === "a2f_pipeline" && viewerRole === "oversight") {
         const submitted = mgRecord?.status === "submitted";
         stageAction = {
-            label: submitted ? "View application" : "View application (read-only)",
+            label: submitted ? "View application" : "Review application",
             href: "matching-grant",
             icon: PenNib,
         };
