@@ -36,10 +36,23 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-    Kanban, MagnifyingGlass, X, Plus, ArrowRight, Coins,
-    Buildings, MapPin, User, ArrowsClockwise,
-    CheckCircle, CurrencyDollar, CaretUpDown, Check,
+    MagnifyingGlass,
+    X,
+    Plus,
+    ArrowRight,
+    Coins,
+    Buildings,
+    ArrowsClockwise,
+    CurrencyDollar,
+    CaretUpDown,
+    Check,
+    FileText,
+    Scales,
 } from "@phosphor-icons/react";
+
+function formatKes(amount: number) {
+    return amount.toLocaleString("en-KE", { maximumFractionDigits: 0 });
+}
 import { STAGE_CONFIG, getStageStyle } from "@/lib/a2f-pipeline-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,8 +194,8 @@ function A2fDashboardContent() {
                     <Skeleton className="h-9 w-64" />
                     <Skeleton className="h-10 w-48" />
                 </div>
-                <div className="grid grid-cols-4 gap-4">
-                    {Array.from({ length: 4 }).map((_, i) => (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
                         <Skeleton key={i} className="h-28 rounded-xl" />
                     ))}
                 </div>
@@ -194,53 +207,59 @@ function A2fDashboardContent() {
     return (
         <div className="container mx-auto px-4 py-8 space-y-6">
             {/* ── Header ── */}
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Kanban weight="duotone" className="size-7 text-emerald-600" />
-                        Matching Grant Pipeline
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                        Matching Grant pipeline
                     </h1>
-                    <p className="text-muted-foreground text-sm mt-0.5">
-                        Manage enterprises through the Matching Grant investment lifecycle
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                        Track enterprises from pipeline entry through disbursement
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={loadPipeline}>
-                        <ArrowsClockwise className="size-4 mr-1.5" />
+                        <ArrowsClockwise className="mr-1.5 size-4" />
                         Refresh
                     </Button>
-                    <Button size="sm" onClick={handleOpenCreate} className="bg-emerald-700 hover:bg-emerald-800">
-                        <Plus className="size-4 mr-1.5" />
-                        Add to Pipeline
+                    <Button
+                        size="sm"
+                        onClick={handleOpenCreate}
+                        className="bg-emerald-700 hover:bg-emerald-800"
+                    >
+                        <Plus className="mr-1.5 size-4" />
+                        Add to pipeline
                     </Button>
                 </div>
             </div>
 
-            {/* ── Stats ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="border-l-4 border-l-emerald-500">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Entries</p>
-                        <p className="text-3xl font-bold mt-1">{stats.total}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{stats.active} actively progressing</p>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-violet-500">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">In IC Review</p>
-                        <p className="text-3xl font-bold mt-1 text-violet-700">{stats.inIcReview}</p>
-                        <p className="text-xs text-muted-foreground mt-1">GAIR / committee stage</p>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-amber-500">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Disbursed</p>
-                        <p className="text-2xl font-bold mt-1 text-amber-700">
-                            KES {stats.totalDisbursed.toLocaleString("en-KE")}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">Verified disbursements</p>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+                        Pipeline entries
+                    </p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{stats.total}</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                        {stats.active} actively progressing
+                    </p>
+                </div>
+                <div className="rounded-xl border bg-muted/50 px-4 py-4">
+                    <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <Scales className="size-3.5" />
+                        In IC review
+                    </p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums">{stats.inIcReview}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">GAIR and committee stage</p>
+                </div>
+                <div className="rounded-xl border bg-muted/50 px-4 py-4">
+                    <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <FileText className="size-3.5" />
+                        Total disbursed
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
+                        KES {formatKes(stats.totalDisbursed)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">Verified disbursements</p>
+                </div>
             </div>
 
             {/* ── Filters ── */}
@@ -257,8 +276,10 @@ function A2fDashboardContent() {
                             />
                             {search && (
                                 <button
+                                    type="button"
                                     onClick={() => setSearch("")}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    aria-label="Clear search"
                                 >
                                     <X className="size-3.5" />
                                 </button>
@@ -294,7 +315,7 @@ function A2fDashboardContent() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-base">
-                            Pipeline Entries
+                            Pipeline entries
                             <span className="ml-2 text-sm font-normal text-muted-foreground">
                                 ({filtered.length} of {pipeline.length})
                             </span>
@@ -331,46 +352,45 @@ function A2fDashboardContent() {
                                     return (
                                         <TableRow key={entry.id} className="hover:bg-muted/30">
                                             <TableCell className="pl-6">
-                                                <div className="flex items-start gap-2.5">
-                                                    <div className="rounded-lg bg-emerald-100 p-1.5 mt-0.5">
-                                                        <Buildings weight="duotone" className="size-4 text-emerald-700" />
-                                                    </div>
+                                                <div className="flex items-start gap-2">
+                                                    <Buildings className="mt-0.5 size-4 shrink-0 text-emerald-700" />
                                                     <div>
-                                                        <p className="font-semibold text-sm leading-tight">{entry.businessName}</p>
-                                                        <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                                                            <MapPin className="size-3" />
-                                                            {entry.county ?? "—"}
-                                                            {entry.sector && <> · {entry.sector.replace(/_/g, " ")}</>}
-                                                        </div>
+                                                        <p className="font-medium leading-tight">{entry.businessName}</p>
+                                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                                            {[entry.county, entry.sector?.replace(/_/g, " ")]
+                                                                .filter(Boolean)
+                                                                .join(" · ") || "Location not set"}
+                                                            {" · "}App #{entry.applicationId}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1.5 text-sm">
-                                                    <User weight="duotone" className="size-3.5 text-muted-foreground" />
-                                                    <span>{entry.applicantName}</span>
-                                                </div>
-                                            </TableCell>
+                                            <TableCell className="text-sm">{entry.applicantName}</TableCell>
                                             <TableCell>
                                                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${stage.color} ${stage.bg}`}>
                                                     {stage.label}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="text-sm text-muted-foreground">
-                                                    {entry.officerName ?? <span className="italic opacity-60">Unassigned</span>}
-                                                </span>
+                                                {entry.officerName ? (
+                                                    <span className="text-sm">{entry.officerName}</span>
+                                                ) : (
+                                                    <Badge variant="outline" className="font-normal text-muted-foreground">
+                                                        Unassigned
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-xs text-muted-foreground">{getPipelineListHint(entry)}</span>
                                             </TableCell>
-                                            <TableCell className="text-right text-sm font-medium">
-                                                {Number(entry.requestedAmount).toLocaleString("en-KE")}
+                                            <TableCell className="text-right text-sm font-medium tabular-nums">
+                                                {formatKes(Number(entry.requestedAmount))}
                                             </TableCell>
-                                            <TableCell className="text-right pr-6">
-                                                <Button variant="ghost" size="sm" asChild>
+                                            <TableCell className="pr-6 text-right">
+                                                <Button variant="outline" size="sm" asChild>
                                                     <Link href={`/a2f/${entry.id}`}>
-                                                        View <ArrowRight className="size-3.5 ml-1" />
+                                                        Review
+                                                        <ArrowRight className="ml-1 size-3.5" />
                                                     </Link>
                                                 </Button>
                                             </TableCell>
@@ -576,8 +596,10 @@ export default function A2fDashboardPage() {
         <Suspense fallback={
             <div className="container mx-auto px-4 py-8 space-y-6">
                 <Skeleton className="h-10 w-80" />
-                <div className="grid grid-cols-4 gap-4">
-                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-28 rounded-xl" />
+                    ))}
                 </div>
                 <Skeleton className="h-[500px]" />
             </div>
