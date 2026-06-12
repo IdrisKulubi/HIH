@@ -26,17 +26,14 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      {/* Periodic role check runs every hour */}
+    <div className="flex flex-col min-h-screen bg-slate-50 text-foreground">
       <AdminRoleGuard />
       <AdminNavbar />
 
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
 
-      <footer className="border-t py-6 bg-background">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+      <footer className="border-t py-4 bg-background">
+        <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
           BIRE Programme Admin Panel © {new Date().getFullYear()}
         </div>
       </footer>

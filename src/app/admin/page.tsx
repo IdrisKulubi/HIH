@@ -1,311 +1,243 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { getApplicationStats } from "@/lib/actions";
-import {
-  UsersIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  ChartBarIcon,
-  FileTextIcon,
-  DownloadSimpleIcon,
-  TrendUpIcon,
-  PulseIcon,
-  EyeIcon,
-  GearIcon,
-  ChatIcon,
-  ShieldCheckIcon,
-  EnvelopeSimpleIcon,
-  CaretRightIcon,
-  ShieldIcon,
-  CoinsIcon,
-  ScalesIcon,
-} from "@phosphor-icons/react/dist/ssr"; // Use SSR import if needed, or standard
-import { getCurrentUser } from "@/lib/actions/user.actions";
 import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getApplicationStats } from "@/lib/actions";
+import { getCurrentUser } from "@/lib/actions/user.actions";
+import {
+  ArrowRight,
+  Bank,
+  Calculator,
+  ChartBar,
+  ChatCircle,
+  CheckCircle,
+  ClipboardText,
+  DownloadSimple,
+  EnvelopeSimple,
+  Eye,
+  FileText,
+  ListChecks,
+  ShieldCheck,
+  SquaresFour,
+  Target,
+  UserCheck,
+  Users,
+} from "@phosphor-icons/react/dist/ssr";
 
+type StatPanelProps = {
+  label: string;
+  value: number;
+  detail: string;
+  variant?: "brand" | "muted" | "warning";
+};
 
-export default async function AdminDashboard() {
+type QuickLink = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string; weight?: "duotone" }>;
+};
 
-  const user = await getCurrentUser();
-  if (user?.role !== "admin") {
-    redirect("/");
-  }
-  // Fetch real stats from the database
-  const statsResult = await getApplicationStats();
+type QuickLinkGroup = {
+  title: string;
+  links: QuickLink[];
+};
 
-  // Set default stats if fetch fails
-  const stats = statsResult.success ? statsResult.data : {
-    totalApplications: 0,
-    eligibleApplications: 0,
-    pendingReview: 0,
+const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
+  {
+    title: "Pipeline",
+    links: [
+      { href: "/admin", label: "Dashboard", icon: SquaresFour },
+      { href: "/admin/applications", label: "Applications", icon: FileText },
+      { href: "/admin/observation", label: "Observation", icon: Eye },
+      { href: "/admin/due-diligence", label: "Due Diligence", icon: ClipboardText },
+      { href: "/admin/qualified", label: "Qualified", icon: CheckCircle },
+    ],
+  },
+  {
+    title: "Business Support",
+    links: [
+      { href: "/a2f", label: "Matching Grant Portal", icon: Bank },
+      { href: "/admin/kyc", label: "KYC Verification", icon: ShieldCheck },
+      { href: "/admin/cna", label: "CNA", icon: ListChecks },
+      { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
+      { href: "/admin/mentorship", label: "Mentorship", icon: Users },
+    ],
+  },
+  {
+    title: "Management",
+    links: [
+      { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
+      { href: "/admin/scoring", label: "Scoring", icon: Calculator },
+      { href: "/admin/review", label: "Review", icon: ChatCircle },
+      { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
+      { href: "/admin/users", label: "User Management", icon: Users },
+      { href: "/admin/feedback", label: "Feedback Emails", icon: EnvelopeSimple },
+      { href: "/admin/export", label: "Export Data", icon: DownloadSimple },
+    ],
+  },
+];
+
+function StatPanel({ label, value, detail, variant = "brand" }: StatPanelProps) {
+  const panelStyles = {
+    brand: "bg-brand-blue/5 border-brand-blue/15",
+    muted: "bg-muted/50 border-border",
+    warning: "bg-amber-50/80 border-amber-200/80",
+  };
+  const labelStyles = {
+    brand: "text-brand-blue-dark",
+    muted: "text-muted-foreground",
+    warning: "text-amber-700",
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-      <div className="max-w-7xl mx-auto px-6 py-12 md:py-16 space-y-10">
-
-
-
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
-              Admin Dashboard
-            </h1>
-            <p className="text-slate-500 text-lg font-normal tracking-wide">
-              Overview of the BIRE Programme .
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              className="rounded-full border-slate-300 text-slate-700 hover:bg-white hover:text-black hover:border-slate-400 transition-all shadow-sm"
-              asChild
-            >
-              <Link href="/admin/analytics">
-                <ChartBarIcon className="h-4 w-4 mr-2" weight="bold" />
-                Analytics
-              </Link>
-            </Button>
-            <Button
-              className="rounded-full bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/10 transition-all"
-              asChild
-            >
-              <Link href="/admin/applications">
-                <EyeIcon className="h-4 w-4 mr-2" weight="bold" />
-                View All
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* Statistics Cards - Bento Grid Style */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <DashboardStatCard
-            title="Total Applications"
-            value={stats?.totalApplications}
-            subtext="All submissions"
-            icon={<UsersIcon weight="duotone" className="w-8 h-8 text-blue-500" />}
-            trendIcon={<TrendUpIcon weight="bold" className="w-4 h-4 text-slate-400" />}
-            trendLabel="Total submissions"
-          />
-          <DashboardStatCard
-            title="Eligible"
-            value={stats?.eligibleApplications}
-            subtext="Qualified candidates"
-            icon={<CheckCircleIcon weight="duotone" className="w-8 h-8 text-emerald-500" />}
-            trendIcon={<PulseIcon weight="bold" className="w-4 h-4 text-emerald-500" />}
-            trendLabel={stats?.totalApplications && stats.totalApplications > 0 ? `${Math.round((stats.eligibleApplications / stats.totalApplications) * 100)}% conversion` : 'No data'}
-          />
-          <DashboardStatCard
-            title="Pending Review"
-            value={stats?.pendingReview}
-            subtext="Awaiting action"
-            icon={<ClockIcon weight="duotone" className="w-8 h-8 text-amber-500" />}
-            trendIcon={<ClockIcon weight="bold" className="w-4 h-4 text-amber-500" />}
-            trendLabel="Needs attention"
-          />
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-          {/* Quick Actions Panel */}
-          <div className="bg-white rounded-3xl p-8 shadow-[0_2px_20px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col gap-6">
-            <div className="flex items-center gap-4 mb-2">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                <GearIcon weight="duotone" className="w-6 h-6 text-slate-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Quick Actions</h2>
-                <p className="text-slate-500 text-sm">Manage the platform</p>
-              </div>
-            </div>
-
-            <div className="grid gap-3">
-              <QuickActionRow
-                href="/admin/applications"
-                icon={<FileTextIcon weight="duotone" className="w-5 h-5 text-blue-500" />}
-                title="Review Applications"
-                description="Evaluate and manage incoming submissions"
-              />
-              <QuickActionRow
-                href="/admin/applications?status=eligible"
-                icon={<CheckCircleIcon weight="duotone" className="w-5 h-5 text-emerald-500" />}
-                title="View Eligible Candidates"
-                description="Browse qualified applications only"
-              />
-              {/* <QuickActionRow
-                href="/admin/scoring"
-                icon={<GearIcon weight="duotone" className="w-5 h-5 text-purple-500" />}
-                title="Scoring Criteria"
-                description="Configure evaluation metrics & weights"
-              /> */}
-              <QuickActionRow
-                href="/a2f"
-                icon={<CoinsIcon weight="duotone" className="w-5 h-5 text-emerald-600" />}
-                title="Matching Grant Portal"
-                description="A2F officer pipeline, scoring, GAIR, and grant management"
-              />
-              <QuickActionRow
-                href="/a2f/committee"
-                icon={<ScalesIcon weight="duotone" className="w-5 h-5 text-violet-600" />}
-                title="A2F Committee"
-                description="Committee review, score overrides, and approval decisions"
-              />
-              <QuickActionRow
-                href="/admin/kyc"
-                icon={<ShieldIcon weight="duotone" className="w-5 h-5 text-sky-500" />}
-                title="KYC Verification"
-                description="Review compliance submissions and activate verified enterprises"
-              />
-              <QuickActionRow
-                href="/admin/support"
-                icon={<ChatIcon weight="duotone" className="w-5 h-5 text-cyan-500" />}
-                title="Support Tickets"
-                description="View and respond to user queries"
-              />
-              <QuickActionRow
-                href="/admin/review"
-                icon={<ShieldCheckIcon weight="duotone" className="w-5 h-5 text-indigo-500" />}
-                title="Dual Review"
-                description="View applications pending second review"
-              />
-              <QuickActionRow
-                href="/admin/export"
-                icon={<DownloadSimpleIcon weight="duotone" className="w-5 h-5 text-orange-500" />}
-                title="Export Data"
-                description="Download complete dataset as CSV/Excel"
-              />
-              <QuickActionRow
-                href="/admin/feedback"
-                icon={<EnvelopeSimpleIcon weight="duotone" className="w-5 h-5 text-pink-500" />}
-                title="Feedback Emails"
-                description="Send bulk feedback to applicants"
-              />
-              <QuickActionRow
-                href="/admin/users"
-                icon={<ShieldCheckIcon weight="duotone" className="w-5 h-5 text-violet-500" />}
-                title="User Management"
-                description="Add admins and manage user roles"
-              />
-            </div>
-          </div>
-
-          {/* Program Stats Panel */}
-          <div className="bg-white rounded-3xl p-8 shadow-[0_2px_20px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col h-full">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-                <ChartBarIcon weight="duotone" className="w-6 h-6 text-slate-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Live Statistics</h2>
-                <p className="text-slate-500 text-sm">Real-time program metrics</p>
-              </div>
-            </div>
-
-            <div className="flex-1 flex flex-col justify-center">
-              {stats?.totalApplications && stats.totalApplications > 0 ? (
-                <div className="space-y-8">
-                  <StatProgressBar
-                    label="Eligible Applications"
-                    count={stats.eligibleApplications}
-                    total={stats.totalApplications}
-                    color="bg-emerald-500"
-                  />
-                  <StatProgressBar
-                    label="Pending Review"
-                    count={stats.pendingReview}
-                    total={stats.totalApplications}
-                    color="bg-amber-500"
-                  />
-
-                  <div className="pt-8 grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
-                      <div className="text-2xl font-bold text-slate-900 tracking-tight">{stats.totalApplications}</div>
-                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">Total</div>
-                    </div>
-                    <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-center">
-                      <div className="text-2xl font-bold text-emerald-700 tracking-tight">{stats.eligibleApplications}</div>
-                      <div className="text-xs font-medium text-emerald-600/70 uppercase tracking-wider mt-1">Qualified</div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <ChartBarIcon weight="duotone" className="w-8 h-8 text-slate-300" />
-                  </div>
-                  <h3 className="text-slate-900 font-medium">No Data Yet</h3>
-                  <p className="text-slate-500 text-sm mt-1">Stats will appear here once applications arrive.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
+    <div className={`rounded-xl border px-4 py-4 ${panelStyles[variant]}`}>
+      <p className={`text-xs font-medium uppercase tracking-wide ${labelStyles[variant]}`}>{label}</p>
+      <p className="text-3xl font-bold mt-1 text-slate-900 tabular-nums">{value}</p>
+      <p className="text-xs text-slate-600 mt-1">{detail}</p>
     </div>
   );
 }
 
-function DashboardStatCard({ title, value, subtext, icon, trendIcon, trendLabel }: any) {
-  return (
-    <div className="bg-white rounded-[24px] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 relative overflow-hidden group hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-300">
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-[15px] font-medium text-slate-500">{title}</h3>
-          <p className="text-xs text-slate-400 mt-1">{subtext}</p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-          {icon}
-        </div>
-      </div>
-      <div className="flex items-end gap-3">
-        <span className="text-4xl font-semibold text-slate-900 tracking-tight leading-none">
-          {value}
-        </span>
-      </div>
-      <div className="flex items-center gap-1.5 mt-4 text-xs font-medium text-slate-500">
-        {trendIcon}
-        {trendLabel}
-      </div>
-    </div>
-  );
-}
-
-function QuickActionRow({ href, icon, title, description }: any) {
-  return (
-    <Link href={href} className="group flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-colors duration-200 border border-transparent hover:border-slate-100">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 hover:border-slate-200 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-          {icon}
-        </div>
-        <div>
-          <h4 className="text-base font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{title}</h4>
-          <p className="text-sm text-slate-500 font-normal">{description}</p>
-        </div>
-      </div>
-      <CaretRightIcon weight="bold" className="w-4 h-4 text-slate-300 group-hover:text-slate-400 group-hover:translate-x-1 transition-all" />
-    </Link>
-  )
-}
-
-function StatProgressBar({ label, count, total, color }: any) {
+function ProgressStat({ label, count, total, barClass }: { label: string; count: number; total: number; barClass: string }) {
   const percentage = total > 0 ? (count / total) * 100 : 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex justify-between items-center text-sm">
         <span className="font-medium text-slate-700">{label}</span>
-        <span className="font-semibold text-slate-900">{Math.round(percentage)}%</span>
+        <span className="font-semibold text-slate-900 tabular-nums">{Math.round(percentage)}%</span>
       </div>
-      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
         <div
-          className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`}
+          className={`h-full rounded-full transition-all duration-300 ${barClass}`}
           style={{ width: `${percentage}%` }}
         />
       </div>
     </div>
-  )
-} 
+  );
+}
+
+function QuickLinkRow({ href, label, icon: Icon }: QuickLink) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm text-slate-700 hover:text-brand-blue hover:bg-slate-50 transition-colors group"
+    >
+      <span className="flex items-center gap-2.5 min-w-0">
+        <Icon weight="duotone" className="size-4 shrink-0 text-brand-blue" />
+        <span className="truncate">{label}</span>
+      </span>
+      <ArrowRight weight="bold" className="size-3.5 text-slate-300 group-hover:text-brand-blue shrink-0 transition-colors" />
+    </Link>
+  );
+}
+
+export default async function AdminDashboard() {
+  const user = await getCurrentUser();
+  if (user?.role !== "admin") {
+    redirect("/");
+  }
+
+  const statsResult = await getApplicationStats();
+  const stats = statsResult.success
+    ? statsResult.data
+    : { totalApplications: 0, eligibleApplications: 0, pendingReview: 0 };
+
+  const total = stats?.totalApplications ?? 0;
+  const eligible = stats?.eligibleApplications ?? 0;
+  const pending = stats?.pendingReview ?? 0;
+  const conversion =
+    total > 0 ? `${Math.round((eligible / total) * 100)}% eligible` : "No applications yet";
+
+  return (
+    <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Admin Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Overview of the BIRE Programme.</p>
+        </div>
+        <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark shrink-0">
+          <Link href="/admin/applications">
+            <FileText className="size-4 mr-1.5" weight="bold" />
+            View applications
+          </Link>
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatPanel
+          label="Total applications"
+          value={total}
+          detail="All submissions"
+          variant="brand"
+        />
+        <StatPanel
+          label="Eligible"
+          value={eligible}
+          detail={conversion}
+          variant="muted"
+        />
+        <StatPanel
+          label="Pending review"
+          value={pending}
+          detail="Needs attention"
+          variant="warning"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {QUICK_LINK_GROUPS.map((group) => (
+          <Card key={group.title}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-brand-blue-dark">{group.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <ul className="space-y-0.5">
+                {group.links.map((link) => (
+                  <li key={link.href}>
+                    <QuickLinkRow {...link} />
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ChartBar weight="duotone" className="size-4 text-brand-blue" />
+            Programme breakdown
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {total > 0 ? (
+            <div className="space-y-6 max-w-xl">
+              <ProgressStat
+                label="Eligible applications"
+                count={eligible}
+                total={total}
+                barClass="bg-brand-blue"
+              />
+              <ProgressStat
+                label="Pending review"
+                count={pending}
+                total={total}
+                barClass="bg-amber-500"
+              />
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <ChartBar weight="duotone" className="size-8 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-900">No data yet</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Stats will appear once applications arrive.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

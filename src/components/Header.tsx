@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -35,11 +36,13 @@ const STAFF_ROLES = [
 ];
 
 export function Header() {
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [applicationsOpen, setApplicationsOpen] = useState(true);
   const lastScrollY = useRef(0);
   const { data: session, status } = useSession();
+  const hideOnAdmin = pathname.startsWith("/admin");
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
@@ -96,6 +99,10 @@ export function Header() {
     { href: "/", label: "Home" },
     { href: "/#faq", label: "FAQs" },
   ];
+
+  if (hideOnAdmin) {
+    return null;
+  }
 
   return (
     <>

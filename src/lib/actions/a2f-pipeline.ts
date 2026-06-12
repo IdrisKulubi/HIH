@@ -7,6 +7,7 @@ import {
     a2fDueDiligenceReports,
     a2fScoring,
     a2fMatchingGrantApplications,
+    a2fPreScreeningAttempts,
     grantAgreements,
     disbursementsAndRepayments,
     applications,
@@ -83,6 +84,7 @@ export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineLi
             .innerJoin(applications, eq(applications.id, a2fPipeline.applicationId))
             .innerJoin(businesses, eq(businesses.id, applications.businessId))
             .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+            .where(eq(a2fPipeline.screeningRequired, false))
             .orderBy(desc(a2fPipeline.updatedAt));
 
         if (!entries.length) return successResponse([]);
@@ -183,7 +185,10 @@ export async function getA2fPipelineEntry(a2fId: number) {
         }
 
         const entry = await db.query.a2fPipeline.findFirst({
-            where: eq(a2fPipeline.id, a2fId),
+            where: and(
+                eq(a2fPipeline.id, a2fId),
+                eq(a2fPipeline.screeningRequired, false)
+            ),
             with: {
                 application: {
                     with: {
@@ -236,6 +241,20 @@ export async function createA2fPipelineEntry(
             return errorResponse("Requested amount must be greater than zero");
         }
 
+        const passedScreening = await db.query.a2fPreScreeningAttempts.findFirst({
+            where: and(
+                eq(a2fPreScreeningAttempts.applicationId, input.applicationId),
+                eq(a2fPreScreeningAttempts.status, "submitted"),
+                eq(a2fPreScreeningAttempts.outcome, "pass")
+            ),
+            columns: { id: true },
+        });
+        if (!passedScreening) {
+            return errorResponse(
+                "This enterprise must pass Access to Finance pre-screening before it can enter the pipeline"
+            );
+        }
+
         // Prevent duplicate entries for same application
         const existing = await db.query.a2fPipeline.findFirst({
             where: eq(a2fPipeline.applicationId, input.applicationId),
@@ -251,6 +270,7 @@ export async function createA2fPipelineEntry(
                 applicationId: input.applicationId,
                 instrumentType: 'matching_grant',
                 requestedAmount: String(input.requestedAmount),
+                screeningRequired: false,
                 status: 'a2f_pipeline',
                 a2fOfficerId: session.user.id,
                 notes: input.notes ?? null,

@@ -149,10 +149,12 @@ export function OversightHub({
         </div>
         <div className="rounded-xl border bg-muted/50 px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            CDP ready to finalize
+            CDP work queue
           </p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{summary.cdpReadyToFinalize}</p>
-          <p className="mt-1 text-xs text-muted-foreground">CNA complete, CDP not yet generated</p>
+          <p className="mt-1 text-sm font-medium text-slate-700">Open queue for status</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            CNA and CDP progress is tracked in the work queue
+          </p>
         </div>
         {showPreScreening && (
           <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
@@ -188,8 +190,6 @@ export function OversightHub({
             title="CDP work queue"
             description="Review CNA progress and manage capacity development plans"
             href="/admin/cdp"
-            count={summary.cdpReadyToFinalize}
-            countLabel="ready"
           />
           <QueueRow
             title="A2F portal"

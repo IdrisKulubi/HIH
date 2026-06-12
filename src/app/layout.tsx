@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "sonner";
 import { Header } from "@/components/Header";
+import { SiteMain } from "@/components/SiteMain";
 import { Providers } from "@/components/providers";
 import { SmoothScroll } from "@/components/ui/smooth-scroll";
 import { Analytics } from "@vercel/analytics/next"
@@ -43,10 +44,10 @@ export default function RootLayout({
               enableSystem={false}
               disableTransitionOnChange
             >
-              <main className="pt-16 min-h-screen">
-                      
- 
-                {children} <Analytics /></main>
+              <SiteMain>
+                {children}
+                <Analytics />
+              </SiteMain>
             </ThemeProvider>
           </SmoothScroll>
         </Providers>

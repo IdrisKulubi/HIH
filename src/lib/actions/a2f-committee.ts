@@ -187,6 +187,7 @@ export async function getCommitteePipelineList(): Promise<
             .innerJoin(applications, eq(applications.id, a2fPipeline.applicationId))
             .innerJoin(businesses, eq(businesses.id, applications.businessId))
             .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+            .where(eq(a2fPipeline.screeningRequired, false))
             .orderBy(desc(a2fPipeline.updatedAt));
 
         if (!entries.length) return successResponse([]);
@@ -300,7 +301,10 @@ export async function getCommitteeCaseDetail(
         if (!authCheck.ok) return errorResponse(authCheck.error);
 
         const pipeline = await db.query.a2fPipeline.findFirst({
-            where: eq(a2fPipeline.id, a2fId),
+            where: and(
+                eq(a2fPipeline.id, a2fId),
+                eq(a2fPipeline.screeningRequired, false)
+            ),
             with: {
                 application: {
                     with: {

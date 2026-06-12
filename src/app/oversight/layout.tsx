@@ -18,7 +18,8 @@ export default async function OversightLayout({
     redirect("/");
   }
 
-  const home = role === "admin" ? "/admin" : "/";
+  const home =
+    role === "admin" ? "/admin" : role === "redo" || role === "oversight" ? "/oversight" : "/";
 
   return (
     <div className="min-h-screen bg-slate-50">

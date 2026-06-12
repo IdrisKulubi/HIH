@@ -2,213 +2,251 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
-import {
-  LayoutDashboard,
+  SquaresFour,
   FileText,
   Eye,
-  ClipboardCheck,
+  ClipboardText,
   CheckCircle,
-  Landmark,
+  Bank,
   ShieldCheck,
-  ClipboardList,
+  ListChecks,
   Target,
   Users,
-  BarChart3,
+  ChartBar,
   Calculator,
-  MessageSquare,
+  ChatCircle,
   UserCheck,
   ArrowLeft,
-  ChevronRight,
-} from "lucide-react";
+  List,
+  CaretDown,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-interface NavItemProps {
+type NavIcon = React.ComponentType<{ className?: string; weight?: "duotone" | "bold" }>;
+
+type NavLink = {
   href: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  label: string;
+  icon: NavIcon;
+};
+
+type NavGroup = {
+  label: string;
+  match: (pathname: string) => boolean;
+  items: NavLink[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Pipeline",
+    match: (pathname) =>
+      pathname === "/admin" ||
+      pathname.startsWith("/admin/applications") ||
+      pathname.startsWith("/admin/observation") ||
+      pathname.startsWith("/admin/due-diligence") ||
+      pathname.startsWith("/admin/qualified"),
+    items: [
+      { href: "/admin", label: "Dashboard", icon: SquaresFour },
+      { href: "/admin/applications", label: "Applications", icon: FileText },
+      { href: "/admin/observation", label: "Observation", icon: Eye },
+      { href: "/admin/due-diligence", label: "Due Diligence", icon: ClipboardText },
+      { href: "/admin/qualified", label: "Qualified", icon: CheckCircle },
+    ],
+  },
+  {
+    label: "Business Support",
+    match: (pathname) =>
+      pathname.startsWith("/a2f") ||
+      pathname.startsWith("/admin/kyc") ||
+      pathname.startsWith("/admin/cna") ||
+      pathname.startsWith("/admin/cdp") ||
+      pathname.startsWith("/admin/mentorship"),
+    items: [
+      { href: "/a2f", label: "A2F", icon: Bank },
+      { href: "/admin/kyc", label: "KYC", icon: ShieldCheck },
+      { href: "/admin/cna", label: "CNA", icon: ListChecks },
+      { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
+      { href: "/admin/mentorship", label: "Mentorship", icon: Users },
+    ],
+  },
+  {
+    label: "Management",
+    match: (pathname) =>
+      pathname.startsWith("/admin/analytics") ||
+      pathname.startsWith("/admin/scoring") ||
+      pathname.startsWith("/admin/review") ||
+      pathname.startsWith("/admin/assignments") ||
+      pathname.startsWith("/admin/users") ||
+      pathname.startsWith("/admin/feedback") ||
+      pathname.startsWith("/admin/export") ||
+      pathname.startsWith("/admin/support"),
+    items: [
+      { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
+      { href: "/admin/scoring", label: "Scoring", icon: Calculator },
+      { href: "/admin/review", label: "Review", icon: ChatCircle },
+      { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
+    ],
+  },
+];
+
+function isLinkActive(pathname: string, href: string) {
+  if (href === "/admin") return pathname === "/admin";
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavItem({ href, icon, children }: NavItemProps) {
-  const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(`${href}/`);
+function NavDropdown({ group, pathname }: { group: NavGroup; pathname: string }) {
+  const groupActive = group.match(pathname);
 
   return (
-    <li>
-      <NavigationMenuLink asChild>
-        <Link
-          href={href}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
           className={cn(
-            "flex items-start gap-3 rounded-md p-3 transition-all",
-            "hover:bg-slate-100 focus:bg-slate-100",
-            "group",
-            isActive && "bg-slate-100"
+            "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40",
+            groupActive
+              ? "text-brand-blue bg-brand-blue/10"
+              : "text-slate-600 hover:text-brand-blue hover:bg-slate-50"
           )}
         >
-          <div className={cn("mt-0.5 shrink-0", isActive && "text-slate-900")}>{icon}</div>
-          <div className="flex flex-col gap-0.5">{children}</div>
-          <ChevronRight className={cn(
-            "ml-auto h-4 w-4 text-slate-300 transition-opacity",
-            isActive ? "opacity-100 text-slate-500" : "opacity-0 group-hover:opacity-100"
-          )} />
-        </Link>
-      </NavigationMenuLink>
-    </li>
+          {group.label}
+          <CaretDown weight="bold" className="size-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="w-52">
+        {group.items.map((item) => {
+          const Icon = item.icon;
+          const active = isLinkActive(pathname, item.href);
+          return (
+            <DropdownMenuItem key={item.href} asChild>
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2.5 cursor-pointer",
+                  active && "text-brand-blue font-semibold"
+                )}
+              >
+                <Icon weight="duotone" className="size-4 shrink-0 text-brand-blue" />
+                {item.label}
+              </Link>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function MobileNav({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="icon" className="md:hidden shrink-0" aria-label="Open menu">
+          <List weight="bold" className="size-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-72 overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-left text-sm font-semibold text-slate-900">Admin navigation</SheetTitle>
+        </SheetHeader>
+        <nav className="mt-6 space-y-6">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue mb-2">
+                {group.label}
+              </p>
+              <ul className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isLinkActive(pathname, item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-md px-2 py-2 text-sm transition-colors",
+                          active
+                            ? "text-brand-blue font-semibold bg-brand-blue/10"
+                            : "text-slate-600 hover:text-brand-blue hover:bg-slate-50"
+                        )}
+                      >
+                        <Icon weight="duotone" className="size-4 shrink-0 text-brand-blue" />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          <div className="border-t pt-4">
+            <Link
+              href="/"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-blue transition-colors"
+            >
+              <ArrowLeft weight="bold" className="size-3.5" />
+              Back to site
+            </Link>
+          </div>
+        </nav>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 export function AdminNavbar() {
   const pathname = usePathname();
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-
   return (
-    <header className="sticky top-16 z-40 border-b bg-slate-800 text-white shadow-lg">
-      <div className="container mx-auto py-3 px-4 flex justify-between items-center">
-        <Link href="/admin" className="font-bold text-xl flex items-center gap-2">
-          <LayoutDashboard className="h-6 w-6 text-blue-400" />
-          BIRE Programme Admin
+    <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
+      <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-2.5">
+        <Link href="/admin" className="flex items-center gap-3 min-w-0 shrink">
+          <div className="min-w-0 hidden sm:block">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue leading-none">
+              BIRE Programme
+            </p>
+            <p className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">Admin</p>
+          </div>
         </Link>
 
-        <NavigationMenu className="text-slate-800" delayDuration={0}>
-          <NavigationMenuList className="gap-1">
-            {/* Pipeline Group */}
-            <NavigationMenuItem>
-              <NavigationMenuTrigger
-                className={cn(
-                  "text-white hover:text-white transition-all",
-                  isActive("/admin") || isActive("/admin/applications") || isActive("/admin/observation") || isActive("/admin/due-diligence") || isActive("/admin/qualified")
-                    ? "bg-slate-600"
-                    : "bg-slate-700/50 hover:bg-slate-600"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <LayoutDashboard className="h-4 w-4 text-blue-400" />
-                  Pipeline
-                </span>
-              </NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <ul className="grid w-[280px] gap-1 p-3">
-                  <NavItem href="/admin" icon={<LayoutDashboard className="h-4 w-4 text-blue-500" />}>
-                    <span className="font-medium">Dashboard</span>
-                    <span className="text-xs text-muted-foreground">Overview & stats</span>
-                  </NavItem>
-                  <NavItem href="/admin/applications" icon={<FileText className="h-4 w-4 text-slate-500" />}>
-                    <span className="font-medium">Applications</span>
-                    <span className="text-xs text-muted-foreground">View all applications</span>
-                  </NavItem>
-                  <NavItem href="/admin/observation" icon={<Eye className="h-4 w-4 text-amber-500" />}>
-                    <span className="font-medium text-amber-600">Observation</span>
-                    <span className="text-xs text-muted-foreground">Under review stage</span>
-                  </NavItem>
-                  <NavItem href="/admin/due-diligence" icon={<ClipboardCheck className="h-4 w-4 text-emerald-500" />}>
-                    <span className="font-medium text-emerald-600">Due Diligence</span>
-                    <span className="text-xs text-muted-foreground">Verification process</span>
-                  </NavItem>
-                  <NavItem href="/admin/qualified" icon={<CheckCircle className="h-4 w-4 text-green-500" />}>
-                    <span className="font-medium text-green-600">Qualified</span>
-                    <span className="text-xs text-muted-foreground">Approved candidates</span>
-                  </NavItem>
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
+        <nav className="hidden md:flex items-center gap-1">
+          {NAV_GROUPS.map((group) => (
+            <NavDropdown key={group.label} group={group} pathname={pathname} />
+          ))}
+        </nav>
 
-            {/* Business Support Group */}
-            <NavigationMenuItem>
-              <NavigationMenuTrigger
-                className={cn(
-                  "text-white hover:text-white transition-all",
-                  isActive("/a2f") || isActive("/admin/kyc") || isActive("/admin/cna") || isActive("/admin/cdp") || isActive("/admin/mentorship")
-                    ? "bg-slate-600"
-                    : "bg-slate-700/50 hover:bg-slate-600"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-emerald-400" />
-                  Business Support
-                </span>
-              </NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <ul className="grid w-[280px] gap-1 p-3">
-                  <NavItem href="/a2f" icon={<Landmark className="h-4 w-4 text-cyan-500" />}>
-                    <span className="font-medium text-cyan-600">A2F</span>
-                    <span className="text-xs text-muted-foreground">Access to Finance</span>
-                  </NavItem>
-                  <NavItem href="/admin/kyc" icon={<ShieldCheck className="h-4 w-4 text-sky-500" />}>
-                    <span className="font-medium text-sky-600">KYC</span>
-                    <span className="text-xs text-muted-foreground">Know Your Customer</span>
-                  </NavItem>
-                  <NavItem href="/admin/cna" icon={<ClipboardList className="h-4 w-4 text-teal-500" />}>
-                    <span className="font-medium text-teal-600">CNA</span>
-                    <span className="text-xs text-muted-foreground">Capacity Needs Assessment</span>
-                  </NavItem>
-                  <NavItem href="/admin/cdp" icon={<Target className="h-4 w-4 text-emerald-500" />}>
-                    <span className="font-medium text-emerald-600">CDP Work Queue</span>
-                    <span className="text-xs text-muted-foreground">Generate and manage CDPs</span>
-                  </NavItem>
-                  <NavItem href="/admin/mentorship" icon={<Users className="h-4 w-4 text-violet-500" />}>
-                    <span className="font-medium text-violet-600">Mentorship</span>
-                    <span className="text-xs text-muted-foreground">Mentor matching</span>
-                  </NavItem>
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-
-            {/* Management Group */}
-            <NavigationMenuItem>
-              <NavigationMenuTrigger
-                className={cn(
-                  "text-white hover:text-white transition-all",
-                  isActive("/admin/analytics") || isActive("/admin/scoring") || isActive("/admin/review") || isActive("/admin/assignments")
-                    ? "bg-slate-600"
-                    : "bg-slate-700/50 hover:bg-slate-600"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-purple-400" />
-                  Management
-                </span>
-              </NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <ul className="grid w-[280px] gap-1 p-3">
-                  <NavItem href="/admin/analytics" icon={<BarChart3 className="h-4 w-4 text-purple-500" />}>
-                    <span className="font-medium">Analytics</span>
-                    <span className="text-xs text-muted-foreground">Reports & insights</span>
-                  </NavItem>
-                  <NavItem href="/admin/scoring" icon={<Calculator className="h-4 w-4 text-indigo-500" />}>
-                    <span className="font-medium">Scoring</span>
-                    <span className="text-xs text-muted-foreground">Evaluation criteria</span>
-                  </NavItem>
-                  <NavItem href="/admin/review" icon={<MessageSquare className="h-4 w-4 text-pink-500" />}>
-                    <span className="font-medium">Review</span>
-                    <span className="text-xs text-muted-foreground">Review management</span>
-                  </NavItem>
-                  <NavItem href="/admin/assignments" icon={<UserCheck className="h-4 w-4 text-purple-500" />}>
-                    <span className="font-medium text-purple-600">Assignments</span>
-                    <span className="text-xs text-muted-foreground">Task assignments</span>
-                  </NavItem>
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
-
-        {/* Back to Site Button */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-600 text-white/90 hover:text-white transition-all text-sm font-medium"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Site
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/"
+            className="hidden md:flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-blue transition-colors"
+          >
+            <ArrowLeft weight="bold" className="size-3.5" />
+            Back to site
+          </Link>
+          <MobileNav pathname={pathname} />
+        </div>
       </div>
+      <div className="h-0.5 w-full bg-brand-blue" aria-hidden />
     </header>
   );
 }

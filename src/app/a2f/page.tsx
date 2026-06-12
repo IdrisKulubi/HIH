@@ -221,13 +221,11 @@ function A2fDashboardContent() {
                         <ArrowsClockwise className="mr-1.5 size-4" />
                         Refresh
                     </Button>
-                    <Button
-                        size="sm"
-                        onClick={handleOpenCreate}
-                        className="bg-emerald-700 hover:bg-emerald-800"
-                    >
-                        <Plus className="mr-1.5 size-4" />
-                        Add to pipeline
+                    <Button size="sm" asChild className="bg-emerald-700 hover:bg-emerald-800">
+                        <Link href="/finance-screening">
+                            <Plus className="mr-1.5 size-4" />
+                            Review pre-screening
+                        </Link>
                     </Button>
                 </div>
             </div>
