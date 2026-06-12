@@ -221,7 +221,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     );
     const committeeApproved = isCommitteeApprovedForContracting(gairAppraisal?.icDecision);
     const offerLetterHref = agreement?.offerLetterUrl
-        ? getDocumentViewerHref(agreement.offerLetterUrl, "offer-letter.pdf")
+        ? getDocumentViewerHref(agreement.offerLetterUrl, "offer-letter.docx")
         : null;
 
     return (
@@ -424,11 +424,11 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                             />
                                         </div>
                                         <div>
-                                            <p className="font-semibold">Offer letter PDF</p>
+                                            <p className="font-semibold">Offer letter document</p>
                                             <p className="text-sm text-muted-foreground mt-0.5">
                                                 {agreement.offerLetterUrl
                                                     ? "Generated from the agreement terms. Review before sending to the applicant."
-                                                    : "No PDF is stored yet (upload may have failed when the agreement was created). Generate one now before sending."}
+                                                    : "No offer letter is stored yet (upload may have failed when the agreement was created). Generate one now before sending."}
                                             </p>
                                         </div>
                                     </div>
@@ -437,7 +437,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                             <Button asChild variant="outline" size="sm" className="gap-1.5">
                                                 <a href={offerLetterHref} target="_blank" rel="noreferrer">
                                                     <DownloadSimple className="size-4" />
-                                                    View / Download PDF
+                                                    View / Download
                                                 </a>
                                             </Button>
                                         )}
@@ -454,7 +454,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                                     ? "Generating..."
                                                     : agreement.offerLetterUrl
                                                       ? "Regenerate offer letter"
-                                                      : "Generate offer letter PDF"}
+                                                      : "Generate offer letter"}
                                             </Button>
                                         )}
                                     </div>
@@ -476,8 +476,8 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                             <p className="font-semibold text-blue-900">Next Step: Send Offer Letter</p>
                                             <p className="text-sm text-blue-700 mt-0.5">
                                                 {agreement.offerLetterUrl
-                                                    ? "Review the offer letter PDF, then send it to the applicant by email."
-                                                    : "Use Generate offer letter PDF in the section above, then send to the applicant."}
+                                                    ? "Review the offer letter document, then send it to the applicant by email."
+                                                    : "Use Generate offer letter in the section above, then send to the applicant."}
                                             </p>
                                         </div>
                                     </div>
@@ -488,7 +488,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                             !committeeApproved
                                                 ? "Committee approval required"
                                                 : !agreement.offerLetterUrl
-                                                  ? "Generate the offer letter PDF first"
+                                                  ? "Generate the offer letter first"
                                                   : undefined
                                         }
                                         className="shrink-0 bg-blue-700 hover:bg-blue-800 gap-1.5 disabled:opacity-50"
@@ -588,8 +588,8 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                         </DialogTitle>
                         <DialogDescription>
                             {agreement?.offerLetterUrl
-                                ? "The stored offer letter PDF will be emailed to the applicant. You can override the URL below if needed."
-                                : "Enter an offer letter PDF URL, or regenerate the PDF on the Contracts page before sending."}
+                                ? "The stored offer letter will be emailed to the applicant. You can override the URL below if needed."
+                                : "Enter an offer letter URL, or regenerate the letter on the Contracts page before sending."}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
@@ -603,7 +603,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                     className="inline-flex items-center gap-1 font-medium text-blue-700 hover:underline"
                                 >
                                     <DownloadSimple className="size-3.5" />
-                                    Preview PDF
+                                    Preview document
                                 </a>
                             </div>
                         )}

@@ -17,7 +17,7 @@ import { sendEmail } from "@/lib/email";
 import { ActionResponse, successResponse, errorResponse } from "./types";
 import React from "react";
 import type { ContractTemplateVariables } from "@/lib/contract-template-types";
-import { offerLetterFilename, renderOfferLetterPdfBuffer } from "@/lib/offer-letter-export";
+import { offerLetterFilename, renderOfferLetterDocxBuffer } from "@/lib/offer-letter-export";
 import {
     assertApplicantOwnsPipeline,
     requireCommitteeApprovalForContracting,
@@ -189,8 +189,8 @@ export async function action_generateContract(
         revalidatePath('/admin/a2f');
 
         const message = offerLetterResult.url
-            ? "Grant agreement created. Offer letter PDF is ready to review and send."
-            : "Grant agreement created. Offer letter PDF could not be generated — use Regenerate offer letter on the Contracts page.";
+            ? "Grant agreement created. Offer letter is ready to review and send."
+            : "Grant agreement created. Offer letter could not be generated — use Regenerate offer letter on the Contracts page.";
 
         return successResponse(
             {
@@ -551,14 +551,16 @@ async function storeGeneratedOfferLetter(
     templateVars: ContractTemplateVariables
 ): Promise<{ url?: string; error?: string }> {
     try {
-        const buffer = await renderOfferLetterPdfBuffer(templateVars);
+        const buffer = await renderOfferLetterDocxBuffer(templateVars);
         const filename = offerLetterFilename(templateVars.enterpriseName, agreementId);
         const utapi = new UTApi();
-        const file = new UTFile([buffer], filename, { type: "application/pdf" });
+        const file = new UTFile([buffer], filename, {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
         const uploadResult = await utapi.uploadFiles([file]);
         const uploaded = uploadResult[0];
         if (!uploaded || uploaded.error) {
-            return { error: uploaded?.error?.message ?? "Failed to upload offer letter PDF" };
+            return { error: uploaded?.error?.message ?? "Failed to upload offer letter" };
         }
 
         const url = uploaded.data.url;
@@ -570,7 +572,7 @@ async function storeGeneratedOfferLetter(
         return { url };
     } catch (error) {
         console.error("storeGeneratedOfferLetter:", error);
-        return { error: error instanceof Error ? error.message : "Failed to generate offer letter PDF" };
+        return { error: error instanceof Error ? error.message : "Failed to generate offer letter" };
     }
 }
 

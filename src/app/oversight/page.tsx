@@ -1,159 +1,45 @@
 import { redirect } from "next/navigation";
+import { OversightHub } from "@/components/oversight/OversightHub";
+import { getOversightDashboardSummary } from "@/lib/actions/oversight-dashboard";
 import { getCurrentUser } from "@/lib/actions/user.actions";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ArrowRight, ClipboardText, Lightning, Bank } from "@phosphor-icons/react/dist/ssr";
 
 export default async function OversightDashboard() {
-    const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-    if (!user) {
-        redirect("/auth/login");
-    }
+  if (!user) {
+    redirect("/auth/login");
+  }
 
-    // Only allow oversight, REDO, and admin
-    if (user.role !== "oversight" && user.role !== "admin" && user.role !== "redo") {
-        redirect("/");
-    }
+  if (user.role !== "oversight" && user.role !== "admin" && user.role !== "redo") {
+    redirect("/");
+  }
 
-    return (
-        <div className="min-h-screen bg-[#F5F5F7] text-slate-900 font-sans">
-            <div className="max-w-4xl mx-auto px-6 py-12 md:py-16 space-y-8">
-                {/* Header */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                            Welcome, {user.firstName || "Oversight"}
-                        </h1>
-                        <Badge className="bg-purple-100 text-purple-700">
-                            <ShieldCheck className="h-3 w-3 mr-1" weight="fill" />
-                            {user.role === "redo" ? "REDO Approver" : "Final Approver"}
-                        </Badge>
-                    </div>
-                    <p className="text-slate-500">
-                        Review assigned approvals and CDP session logs
-                    </p>
-                </div>
+  const summaryResult = await getOversightDashboardSummary();
+  const summary = summaryResult.data ?? {
+    pendingApprovals: 0,
+    urgentApprovals: 0,
+    preScreeningNotScreened: 0,
+    preScreeningMyDrafts: 0,
+    cdpReadyToFinalize: 0,
+  };
 
-                {/* Quick Actions */}
-                <div className="grid gap-6 md:grid-cols-2">
-                    {/* Pending Approvals Card */}
-                    <Card className="border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-purple-50/30">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <ClipboardText className="h-5 w-5 text-purple-600" weight="duotone" />
-                                Pending DD Approvals
-                            </CardTitle>
-                            <CardDescription>
-                                DD assessments awaiting your review and approval
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 shadow-sm transition-all py-6 text-base font-medium">
-                                <Link href="/oversight/approvals">
-                                    View Pending Approvals
-                                    <ArrowRight className="ml-2 h-5 w-5" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-emerald-50/30">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <ClipboardText className="h-5 w-5 text-emerald-700" weight="duotone" />
-                                CDP Session Logs
-                            </CardTitle>
-                            <CardDescription>
-                                Open the CDP queue to approve submitted session logs
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild className="w-full bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all py-6 text-base font-medium">
-                                <Link href="/admin/cdp">
-                                    View CDP Queue
-                                    <ArrowRight className="ml-2 h-5 w-5" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-cyan-200 shadow-sm hover:shadow-md transition-shadow bg-cyan-50/30">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Bank className="h-5 w-5 text-cyan-700" weight="duotone" />
-                                A2F Portal
-                            </CardTitle>
-                            <CardDescription>
-                                Access A2F pipeline, scoring, DD, contracts, and disbursements
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild className="w-full bg-cyan-700 hover:bg-cyan-800 shadow-sm transition-all py-6 text-base font-medium">
-                                <Link href="/a2f">
-                                    Open A2F Portal
-                                    <ArrowRight className="ml-2 h-5 w-5" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    {/* Role Info Card */}
-                    <Card className="border-gray-100 shadow-sm">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Lightning className="h-5 w-5 text-amber-600" weight="duotone" />
-                                Your Responsibilities
-                            </CardTitle>
-                            <CardDescription>
-                                Understanding your approval role
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-sm text-gray-600">
-                            <p>✓ Review DD assessments from <strong>Reviewer 1s</strong></p>
-                            <p>✓ <strong>Approve</strong> or <strong>Query</strong> assessments within 12 hours</p>
-                            <p>✓ Provide feedback when querying for revisions</p>
-                            <p>✓ Recommend applications for Due Diligence</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Deadline Warning */}
-                <Card className="border-amber-200 bg-amber-50/50">
-                    <CardContent className="py-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 rounded-full">
-                                <Lightning className="h-5 w-5 text-amber-600" weight="fill" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-amber-800">12-Hour Approval Window</p>
-                                <p className="text-sm text-amber-600">
-                                    Assessments are auto-reassigned if not reviewed within 12 hours
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Quick Link to Admin Panel (if admin) */}
-                {user.role === "admin" && (
-                    <Card className="border-gray-200">
-                        <CardContent className="py-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <ShieldCheck className="h-5 w-5 text-gray-600" />
-                                    <span className="text-gray-600">You also have admin access</span>
-                                </div>
-                                <Button variant="outline" asChild>
-                                    <Link href="/admin">Go to Admin Panel</Link>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
-        </div>
-    );
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {!summaryResult.success && (
+        <p className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {summaryResult.error ?? "Some dashboard counts could not be loaded"}
+        </p>
+      )}
+      <OversightHub
+        user={{
+          firstName:
+            "firstName" in user && typeof user.firstName === "string"
+              ? user.firstName
+              : user.name?.split(" ")[0] ?? null,
+          role: user.role,
+        }}
+        summary={summary}
+      />
+    </div>
+  );
 }

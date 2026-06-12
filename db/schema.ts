@@ -1670,6 +1670,7 @@ export const applicationRelations = relations(applications, ({ one, many }) => (
     references: [users.id]
   }),
   cnaAssessments: many(cnaAssessments),
+  preScreeningAttempts: many(a2fPreScreeningAttempts),
 }));
 
 export const kycProfileRelations = relations(kycProfiles, ({ one, many }) => ({
@@ -2248,6 +2249,44 @@ export const dueDiligenceItems = pgTable('due_diligence_items', {
   comments: text('comments'),
 });
 
+/**
+ * Immutable submitted A2F pre-screening attempts plus one editable draft per
+ * application. Invitation delivery fields may be updated after submission.
+ */
+export const a2fPreScreeningAttempts = pgTable('a2f_pre_screening_attempts', {
+  id: serial('id').primaryKey(),
+  applicationId: integer('application_id')
+    .notNull()
+    .references(() => applications.id, { onDelete: 'cascade' }),
+  track: applicationTrackEnum('track').notNull(),
+  assignedReviewerId: text('assigned_reviewer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  status: varchar('status', { length: 20 }).default('draft').notNull(),
+  ratings: jsonb('ratings').$type<Record<string, string>>().default({}).notNull(),
+  scores: jsonb('scores').$type<Record<string, number>>().default({}).notNull(),
+  categoryScores: jsonb('category_scores').$type<Record<string, number>>().default({}).notNull(),
+  hardStopReasons: jsonb('hard_stop_reasons').$type<string[]>().default([]).notNull(),
+  totalScore: integer('total_score').default(0).notNull(),
+  outcome: varchar('outcome', { length: 20 }),
+  notes: text('notes'),
+  assessedAt: timestamp('assessed_at'),
+  rescreenEligibleAt: date('rescreen_eligible_at', { mode: 'date' }),
+  invitationStatus: varchar('invitation_status', { length: 20 }).default('not_applicable').notNull(),
+  invitationSentAt: timestamp('invitation_sent_at'),
+  invitationError: text('invitation_error'),
+  invitationAttempts: integer('invitation_attempts').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  applicationIdx: index('a2f_pre_screening_application_id_idx').on(table.applicationId),
+  reviewerIdx: index('a2f_pre_screening_reviewer_id_idx').on(table.assignedReviewerId),
+  outcomeIdx: index('a2f_pre_screening_outcome_idx').on(table.outcome),
+  oneDraftPerApplication: uniqueIndex('a2f_pre_screening_one_draft_per_application')
+    .on(table.applicationId)
+    .where(sql`${table.status} = 'draft'`),
+}));
+
 // Relations
 export const dueDiligenceRecordsRelations = relations(dueDiligenceRecords, ({ one, many }) => ({
   application: one(applications, {
@@ -2268,11 +2307,24 @@ export const dueDiligenceItemsRelations = relations(dueDiligenceItems, ({ one })
   }),
 }));
 
+export const a2fPreScreeningAttemptsRelations = relations(a2fPreScreeningAttempts, ({ one }) => ({
+  application: one(applications, {
+    fields: [a2fPreScreeningAttempts.applicationId],
+    references: [applications.id],
+  }),
+  assignedReviewer: one(users, {
+    fields: [a2fPreScreeningAttempts.assignedReviewerId],
+    references: [users.id],
+  }),
+}));
+
 // Export types
 export type DueDiligenceRecord = typeof dueDiligenceRecords.$inferSelect;
 export type NewDueDiligenceRecord = typeof dueDiligenceRecords.$inferInsert;
 export type DueDiligenceItem = typeof dueDiligenceItems.$inferSelect;
 export type NewDueDiligenceItem = typeof dueDiligenceItems.$inferInsert;
+export type A2fPreScreeningAttempt = typeof a2fPreScreeningAttempts.$inferSelect;
+export type NewA2fPreScreeningAttempt = typeof a2fPreScreeningAttempts.$inferInsert;
 
 // ============================================================
 // === A2F & INVESTMENT MANAGEMENT MODULE =====================
@@ -2337,6 +2389,7 @@ export const a2fPipeline = pgTable('a2f_pipeline', {
     .references(() => applications.id, { onDelete: 'cascade' }),
   instrumentType: a2fInstrumentTypeEnum('instrument_type').notNull(),
   requestedAmount: decimal('requested_amount', { precision: 14, scale: 2 }).notNull(),
+  screeningRequired: boolean('screening_required').default(true).notNull(),
   status: a2fPipelineStatusEnum('status').default('a2f_pipeline').notNull(),
   a2fOfficerId: text('a2f_officer_id').references(() => users.id, { onDelete: 'set null' }),
   notes: text('notes'),

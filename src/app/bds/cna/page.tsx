@@ -21,6 +21,9 @@ export default async function BdsCnaPage() {
           <Link href="/a2f" className="rounded-md border px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50">
             Open A2F portal
           </Link>
+          <Link href="/finance-screening" className="rounded-md border px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50">
+            A2F pre-screening
+          </Link>
         </div>
       </div>
       {!res.success || !res.data ? (

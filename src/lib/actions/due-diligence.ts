@@ -14,6 +14,10 @@ import {
 } from "../../../db/schema";
 import { eq, and, sql, lte, isNotNull, ne, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import {
+    DD_QUALIFYING_SCORE,
+    qualifiedDdApplicationsWhere,
+} from "@/lib/due-diligence-qualification";
 
 // Types derived from schema
 export type DueDiligencePhase = 'phase1' | 'phase2';
@@ -21,7 +25,7 @@ export type DDStatus = 'pending' | 'in_progress' | 'awaiting_approval' | 'approv
 export type ValidatorAction = 'approved' | 'queried';
 
 // Constants
-const DD_THRESHOLD_PERCENTAGE = 60; // Minimum aggregate score for DD qualification
+const DD_THRESHOLD_PERCENTAGE = DD_QUALIFYING_SCORE;
 const SCORE_DISPARITY_THRESHOLD = 10; // Points difference to trigger warning
 const APPROVAL_WINDOW_HOURS = 12; // Hours for validator to approve
 
@@ -526,7 +530,7 @@ export async function getDDQueue(): Promise<{
     try {
         const session = await auth();
         // Allow admin, oversight, reviewer_1, and reviewer_2 to access the queue
-        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "redo", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -1058,12 +1062,6 @@ export async function adminOverrideDDScore(
         return { success: false, message: "Failed to override score" };
     }
 }
-
-/** Same predicate as getQualifiedApplications (Qualified Applications list). */
-const qualifiedDdApplicationsWhere = and(
-    eq(dueDiligenceRecords.ddStatus, "approved"),
-    sql`${dueDiligenceRecords.phase1Score} >= ${DD_THRESHOLD_PERCENTAGE}`
-);
 
 /**
  * KYC queue uses the same due-diligence rule as Qualified Applications (approved, phase1 ≥ 60%).

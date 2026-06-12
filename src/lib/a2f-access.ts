@@ -1,6 +1,7 @@
 import db from "@/db/drizzle";
 import {
     a2fPipeline,
+    a2fPreScreeningAttempts,
     applications,
     investmentAppraisals,
 } from "@/db/schema";
@@ -147,6 +148,21 @@ export async function assertApplicantOwnsPipeline(
 
     if (!application || application.userId !== userId) {
         return { ok: false, error: "Forbidden" };
+    }
+
+    const passedScreening = await db.query.a2fPreScreeningAttempts.findFirst({
+        where: and(
+            eq(a2fPreScreeningAttempts.applicationId, pipeline.applicationId),
+            eq(a2fPreScreeningAttempts.status, "submitted"),
+            eq(a2fPreScreeningAttempts.outcome, "pass")
+        ),
+        columns: { id: true },
+    });
+    if (!passedScreening) {
+        return {
+            ok: false,
+            error: "Access to Finance is locked until the enterprise passes pre-screening",
+        };
     }
 
     return { ok: true, applicationId: pipeline.applicationId };

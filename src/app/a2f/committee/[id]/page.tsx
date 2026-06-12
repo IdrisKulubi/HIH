@@ -193,6 +193,7 @@ export default function CommitteeCasePage({
                     {gair ? (
                         <CommitteeDecisionPanel
                             appraisalId={gair.id}
+                            a2fId={a2fId}
                             initialDonorDecision={gair.donorDecision}
                             initialIcDecision={gair.icDecision}
                             initialReason={

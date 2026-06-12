@@ -15,6 +15,10 @@ import {
   MatchingGrantSubmissionEmail,
   MatchingGrantSubmissionEmailProps,
 } from '@/components/emails/matching-grant-submission-email';
+import {
+  A2fScreeningPassEmail,
+  type A2fScreeningPassEmailProps,
+} from '@/components/emails/a2f-screening-pass-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
@@ -130,6 +134,26 @@ export async function sendMatchingGrantSubmissionEmail(
   }
 }
 
+export async function sendA2fScreeningPassEmail(
+  props: A2fScreeningPassEmailProps & { userEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+  try {
+    await sendEmail({
+      to: props.userEmail,
+      subject: "Your BIRE Access to Finance application is now available",
+      react: A2fScreeningPassEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send A2F screening invitation:", error);
+    return { success: false, error: message };
+  }
+}
+
 /**
  * Props for the password reset email.
  */
@@ -153,4 +177,4 @@ export async function sendPasswordResetEmail(props: PasswordResetEmailProps) {
 export function generateVerificationCode(): string {
   // Generate a 6-digit verification code
   return Math.floor(100000 + Math.random() * 900000).toString();
-} 
+}

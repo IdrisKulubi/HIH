@@ -1,15 +1,23 @@
 import db from "@/db/drizzle";
-import { applications, a2fPipeline, businesses, grantAgreements } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import {
+    applications,
+    a2fPipeline,
+    a2fPreScreeningAttempts,
+    dueDiligenceRecords,
+    grantAgreements,
+} from "@/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
+import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 
 export interface ApplicantEligibilityResult {
     eligible: boolean;
     reason?: string;
     applicationId?: number;
     a2fId?: number;
-    /** KYC not verified yet; A2F is still allowed. */
+    /** Retained for existing KYC UI compatibility. KYC does not gate A2F. */
     kycPending?: boolean;
+    screeningStatus?: "pending" | "conditional" | "stop" | "pass";
 }
 
 /**
@@ -29,22 +37,6 @@ export async function checkApplicantCanStartMatchingGrant(
         return { eligible: false, reason: "No programme application is linked to your account." };
     }
 
-    if (application.status !== "approved") {
-        return {
-            eligible: false,
-            reason: "Your programme application must be approved before applying for a Matching Grant.",
-            applicationId: application.id,
-        };
-    }
-
-    if (application.isObservationOnly) {
-        return {
-            eligible: false,
-            reason: "Observation-only applications are not eligible for the Matching Grant.",
-            applicationId: application.id,
-        };
-    }
-
     const track = application.track as A2fEnterpriseTrack | null;
     if (track !== "foundation" && track !== "acceleration") {
         return {
@@ -54,8 +46,46 @@ export async function checkApplicantCanStartMatchingGrant(
         };
     }
 
-    const kycPending =
-        application.kycStatus !== "verified" && !application.kycVerifiedAt;
+    const qualifiedDd = await db.query.dueDiligenceRecords.findFirst({
+        where: and(
+            eq(dueDiligenceRecords.applicationId, application.id),
+            qualifiedDdApplicationsWhere
+        ),
+        columns: { id: true },
+    });
+    if (!qualifiedDd) {
+        return {
+            eligible: false,
+            reason: "Access to Finance is not available until due diligence is approved.",
+            applicationId: application.id,
+        };
+    }
+
+    const latestScreening = await db.query.a2fPreScreeningAttempts.findFirst({
+        where: and(
+            eq(a2fPreScreeningAttempts.applicationId, application.id),
+            eq(a2fPreScreeningAttempts.status, "submitted")
+        ),
+        orderBy: [desc(a2fPreScreeningAttempts.assessedAt)],
+        columns: { outcome: true },
+    });
+    if (latestScreening?.outcome !== "pass") {
+        const screeningStatus =
+            latestScreening?.outcome === "conditional"
+                ? "conditional"
+                : latestScreening?.outcome === "stop"
+                    ? "stop"
+                    : "pending";
+        return {
+            eligible: false,
+            reason:
+                screeningStatus === "pending"
+                    ? "Your enterprise is awaiting Access to Finance screening."
+                    : "Your enterprise is not currently eligible to open the Access to Finance application.",
+            applicationId: application.id,
+            screeningStatus,
+        };
+    }
 
     const existingPipeline = await db.query.a2fPipeline.findFirst({
         where: eq(a2fPipeline.applicationId, application.id),
@@ -65,7 +95,8 @@ export async function checkApplicantCanStartMatchingGrant(
         eligible: true,
         applicationId: application.id,
         a2fId: existingPipeline?.id,
-        kycPending,
+        kycPending: application.kycStatus !== "verified" && !application.kycVerifiedAt,
+        screeningStatus: "pass",
     };
 }
 
@@ -94,6 +125,7 @@ export async function ensureApplicantMatchingGrantPipeline(
             applicationId: eligibility.applicationId,
             instrumentType: "matching_grant",
             requestedAmount: String(requestedAmount > 0 ? requestedAmount : 1),
+            screeningRequired: false,
             status: "a2f_pipeline",
             a2fOfficerId: null,
             notes: "Self-started by applicant",
