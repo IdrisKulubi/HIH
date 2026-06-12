@@ -1,11 +1,11 @@
 import db from "@/db/drizzle";
 import {
     a2fPipeline,
-    a2fPreScreeningAttempts,
     applications,
     investmentAppraisals,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
 export const ADMIN_ROLES = ["admin"] as const;
 
@@ -150,15 +150,8 @@ export async function assertApplicantOwnsPipeline(
         return { ok: false, error: "Forbidden" };
     }
 
-    const passedScreening = await db.query.a2fPreScreeningAttempts.findFirst({
-        where: and(
-            eq(a2fPreScreeningAttempts.applicationId, pipeline.applicationId),
-            eq(a2fPreScreeningAttempts.status, "submitted"),
-            eq(a2fPreScreeningAttempts.outcome, "pass")
-        ),
-        columns: { id: true },
-    });
-    if (!passedScreening) {
+    const passedScreening = await getEffectiveScreeningForApplication(pipeline.applicationId);
+    if (passedScreening?.outcome !== "pass") {
         return {
             ok: false,
             error: "Access to Finance is locked until the enterprise passes pre-screening",

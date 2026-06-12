@@ -56,7 +56,8 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   {
     title: "Business Support",
     links: [
-      { href: "/a2f", label: "Matching Grant Portal", icon: Bank },
+      { href: "/admin/a2f", label: "A2F Administration", icon: Bank },
+      { href: "/a2f", label: "Passed Matching Grant Pipeline", icon: Bank },
       { href: "/admin/kyc", label: "KYC Verification", icon: ShieldCheck },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },

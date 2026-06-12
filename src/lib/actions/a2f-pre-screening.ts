@@ -5,6 +5,7 @@ import db from "@/db/drizzle";
 import {
   a2fPipeline,
   a2fPreScreeningAttempts,
+  a2fPreScreeningOverrides,
   applicants,
   applications,
   businesses,
@@ -18,14 +19,20 @@ import {
   type PreScreeningTrack,
 } from "@/lib/a2f-pre-screening";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
+import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
+import { resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
 import { sendA2fScreeningPassEmail } from "@/lib/email";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 const SCREENING_ROLES = ["admin", "bds_edo", "redo"] as const;
+const REVIEWER_ROLES = ["bds_edo", "redo"] as const;
 function isScreeningRole(role?: string | null) {
   return SCREENING_ROLES.includes(role as (typeof SCREENING_ROLES)[number]);
+}
+function isReviewerRole(role?: string | null) {
+  return REVIEWER_ROLES.includes(role as (typeof REVIEWER_ROLES)[number]);
 }
 
 function normalizeTrack(track: string | null): PreScreeningTrack | null {
@@ -88,6 +95,7 @@ export interface PreScreeningQueueItem {
   rescreenEligibleAt: string | null;
   invitationStatus: string | null;
   canOpen: boolean;
+  canClaim: boolean;
 }
 
 export async function getPreScreeningQueue(): Promise<
@@ -133,6 +141,20 @@ export async function getPreScreeningQueue(): Promise<
         latestByApplication.set(attempt.applicationId, attempt);
       }
     }
+    const attemptIds = attempts.map((item) => item.id);
+    const overrides = attemptIds.length
+      ? await db
+          .select()
+          .from(a2fPreScreeningOverrides)
+          .where(inArray(a2fPreScreeningOverrides.attemptId, attemptIds))
+          .orderBy(desc(a2fPreScreeningOverrides.createdAt))
+      : [];
+    const latestOverrideByAttempt = new Map<number, (typeof overrides)[number]>();
+    for (const override of overrides) {
+      if (!latestOverrideByAttempt.has(override.attemptId)) {
+        latestOverrideByAttempt.set(override.attemptId, override);
+      }
+    }
 
     const reviewerIds = [
       ...new Set(attempts.map((item) => item.assignedReviewerId)),
@@ -151,6 +173,14 @@ export async function getPreScreeningQueue(): Promise<
     return successResponse(
       candidates.map((candidate) => {
         const latest = latestByApplication.get(candidate.applicationId);
+        const effectiveOutcome =
+          latest?.status === "submitted"
+            ? resolveEffectivePreScreeningOutcome(
+                latest.outcome,
+                latestOverrideByAttempt.get(latest.id)?.newOutcome
+              )
+            : null;
+        const canClaim = isReviewerRole(user.role);
         return {
           applicationId: candidate.applicationId,
           businessName: candidate.businessName,
@@ -162,7 +192,7 @@ export async function getPreScreeningQueue(): Promise<
           ddScore: candidate.ddScore ?? 0,
           latestAttemptId: latest?.id ?? null,
           latestStatus: latest?.status ?? null,
-          latestOutcome: latest?.outcome ?? null,
+          latestOutcome: effectiveOutcome,
           latestScore: latest?.status === "submitted" ? latest.totalScore : null,
           assignedReviewerId:
             latest?.status === "draft" ? latest.assignedReviewerId : null,
@@ -176,11 +206,12 @@ export async function getPreScreeningQueue(): Promise<
             ? latest.rescreenEligibleAt.toISOString()
             : null,
           invitationStatus: latest?.invitationStatus ?? null,
-          canOpen:
-            !latest ||
-            latest.status === "submitted" ||
-            latest.assignedReviewerId === user.id ||
-            user.role === "admin",
+          canOpen: latest
+            ? latest.status === "submitted" ||
+              (canClaim && latest.assignedReviewerId === user.id) ||
+              user.role === "admin"
+            : canClaim,
+          canClaim,
         };
       })
     );
@@ -196,6 +227,9 @@ export async function getOrCreatePreScreeningDraft(
   try {
     const user = await requireScreeningUser();
     if (!user) return errorResponse("Unauthorized");
+    if (!isReviewerRole(user.role)) {
+      return errorResponse("Only EDO/REDO reviewers can claim screening cases");
+    }
 
     const application = await getEligibleApplication(applicationId);
     if (!application) {
@@ -213,10 +247,7 @@ export async function getOrCreatePreScreeningDraft(
       ),
     });
     if (existingDraft) {
-      if (
-        existingDraft.assignedReviewerId !== user.id &&
-        user.role !== "admin"
-      ) {
+      if (existingDraft.assignedReviewerId !== user.id) {
         return errorResponse("This enterprise is assigned to another reviewer");
       }
       return successResponse({ attemptId: existingDraft.id });
@@ -229,14 +260,18 @@ export async function getOrCreatePreScreeningDraft(
       ),
       orderBy: [desc(a2fPreScreeningAttempts.assessedAt)],
     });
-    if (latestSubmitted?.outcome === "pass") {
+    const effectiveSubmitted = latestSubmitted
+      ? await getEffectiveScreeningForApplication(applicationId)
+      : null;
+    if (effectiveSubmitted?.outcome === "pass") {
       return errorResponse("This enterprise has already passed screening");
     }
-    if (latestSubmitted?.outcome === "stop") {
+    if (effectiveSubmitted?.outcome === "stop") {
       return errorResponse("This enterprise has a final Stop outcome");
     }
     if (
-      latestSubmitted?.outcome === "conditional" &&
+      effectiveSubmitted?.outcome === "conditional" &&
+      latestSubmitted &&
       latestSubmitted.rescreenEligibleAt &&
       latestSubmitted.rescreenEligibleAt > new Date()
     ) {
@@ -297,10 +332,14 @@ export async function getPreScreeningWorkspace(attemptId: number) {
     const reviewer = await db.query.userProfiles.findFirst({
       where: eq(userProfiles.userId, attempt.assignedReviewerId),
     });
+    const effective = attempt.status === "submitted"
+      ? await getEffectiveScreeningForApplication(attempt.applicationId)
+      : null;
 
     return successResponse({
       attempt: {
         ...attempt,
+        effectiveOutcome: effective?.outcome ?? null,
         rescreenEligibleAt: attempt.rescreenEligibleAt?.toISOString() ?? null,
         assessedAt: attempt.assessedAt?.toISOString() ?? null,
         createdAt: attempt.createdAt.toISOString(),
@@ -318,6 +357,10 @@ export async function getPreScreeningWorkspace(attemptId: number) {
       reviewerName: reviewer
         ? `${reviewer.firstName} ${reviewer.lastName}`.trim()
         : user.email ?? "Assigned reviewer",
+      canEdit:
+        attempt.status === "draft" &&
+        attempt.assignedReviewerId === user.id &&
+        isReviewerRole(user.role),
     });
   } catch (error) {
     console.error("Failed to load screening workspace:", error);
@@ -331,14 +374,14 @@ interface SaveScreeningInput {
   rescreenEligibleAt?: string | null;
 }
 
-async function loadEditableAttempt(attemptId: number, userId: string, isAdmin: boolean) {
+async function loadEditableAttempt(attemptId: number, userId: string) {
   const attempt = await db.query.a2fPreScreeningAttempts.findFirst({
     where: and(
       eq(a2fPreScreeningAttempts.id, attemptId),
       eq(a2fPreScreeningAttempts.status, "draft")
     ),
   });
-  if (!attempt || (!isAdmin && attempt.assignedReviewerId !== userId)) return null;
+  if (!attempt || attempt.assignedReviewerId !== userId) return null;
   return attempt;
 }
 
@@ -349,7 +392,8 @@ export async function savePreScreeningDraft(
   try {
     const user = await requireScreeningUser();
     if (!user) return errorResponse("Unauthorized");
-    const attempt = await loadEditableAttempt(attemptId, user.id, user.role === "admin");
+    if (!isReviewerRole(user.role)) return errorResponse("Only EDO/REDO reviewers can edit drafts");
+    const attempt = await loadEditableAttempt(attemptId, user.id);
     if (!attempt) return errorResponse("Editable screening draft not found");
     const application = await getEligibleApplication(attempt.applicationId);
     if (!application) return errorResponse("Enterprise is no longer eligible for screening");
@@ -438,7 +482,8 @@ export async function submitPreScreening(
   try {
     const user = await requireScreeningUser();
     if (!user) return errorResponse("Unauthorized");
-    const attempt = await loadEditableAttempt(attemptId, user.id, user.role === "admin");
+    if (!isReviewerRole(user.role)) return errorResponse("Only EDO/REDO reviewers can submit assessments");
+    const attempt = await loadEditableAttempt(attemptId, user.id);
     if (!attempt) return errorResponse("Editable screening draft not found");
     const application = await getEligibleApplication(attempt.applicationId);
     if (!application) {
@@ -551,7 +596,10 @@ export async function resendPreScreeningInvitation(
     const attempt = await db.query.a2fPreScreeningAttempts.findFirst({
       where: eq(a2fPreScreeningAttempts.id, attemptId),
     });
-    if (!attempt || attempt.status !== "submitted" || attempt.outcome !== "pass") {
+    const effective = attempt
+      ? await getEffectiveScreeningForApplication(attempt.applicationId)
+      : null;
+    if (!attempt || attempt.status !== "submitted" || effective?.outcome !== "pass") {
       return errorResponse("Only passed screenings have an invitation");
     }
     if (attempt.invitationStatus === "sent") {

@@ -11,6 +11,7 @@
     "db:migrate": "npx tsx db/migrate.ts",
     "test:cdp": "npx tsx src/lib/cdp/pipeline.manual.test.ts",
     "test:a2f-screening": "npx tsx src/lib/a2f-pre-screening.manual.test.ts",
+    "test:a2f-outcomes": "npx tsx src/lib/a2f-pre-screening-outcome.manual.test.ts",
     "seed:cna-questions": "npx tsx scripts/seed-cna-question-bank.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"

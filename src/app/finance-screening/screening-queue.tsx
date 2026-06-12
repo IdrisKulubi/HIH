@@ -86,9 +86,9 @@ function actionLabel(row: PreScreeningQueueItem) {
     row.rescreenEligibleAt !== null &&
     new Date(row.rescreenEligibleAt) <= new Date();
   if (!row.canOpen) return "Locked";
-  if (canRescreen) return "Start re-screen";
+  if (canRescreen && row.canClaim) return "Start re-screen";
   if (row.latestAttemptId) return "Open";
-  return "Claim & screen";
+  return row.canClaim ? "Claim & screen" : "Awaiting reviewer";
 }
 
 export function ScreeningQueue({
@@ -151,7 +151,7 @@ export function ScreeningQueue({
       row.latestOutcome === "conditional" &&
       row.rescreenEligibleAt !== null &&
       new Date(row.rescreenEligibleAt) <= new Date();
-    if (row.latestAttemptId && !canRescreen) {
+    if (row.latestAttemptId && (!canRescreen || !row.canClaim)) {
       router.push(`/finance-screening/${row.latestAttemptId}`);
       return;
     }

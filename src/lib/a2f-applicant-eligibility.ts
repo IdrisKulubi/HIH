@@ -2,13 +2,13 @@ import db from "@/db/drizzle";
 import {
     applications,
     a2fPipeline,
-    a2fPreScreeningAttempts,
     dueDiligenceRecords,
     grantAgreements,
 } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
+import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
 export interface ApplicantEligibilityResult {
     eligible: boolean;
@@ -61,14 +61,7 @@ export async function checkApplicantCanStartMatchingGrant(
         };
     }
 
-    const latestScreening = await db.query.a2fPreScreeningAttempts.findFirst({
-        where: and(
-            eq(a2fPreScreeningAttempts.applicationId, application.id),
-            eq(a2fPreScreeningAttempts.status, "submitted")
-        ),
-        orderBy: [desc(a2fPreScreeningAttempts.assessedAt)],
-        columns: { outcome: true },
-    });
+    const latestScreening = await getEffectiveScreeningForApplication(application.id);
     if (latestScreening?.outcome !== "pass") {
         const screeningStatus =
             latestScreening?.outcome === "conditional"

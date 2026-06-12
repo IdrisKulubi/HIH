@@ -7,7 +7,6 @@ import {
     a2fDueDiligenceReports,
     a2fScoring,
     a2fMatchingGrantApplications,
-    a2fPreScreeningAttempts,
     grantAgreements,
     disbursementsAndRepayments,
     applications,
@@ -26,6 +25,7 @@ import {
     PIPELINE_STAGE_ORDER,
 } from "@/lib/a2f-constants";
 import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
+import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
 // Re-export types only (no runtime value — safe in "use server" files)
 export type { A2fPipelineStatus, A2fInstrumentType };
@@ -241,15 +241,8 @@ export async function createA2fPipelineEntry(
             return errorResponse("Requested amount must be greater than zero");
         }
 
-        const passedScreening = await db.query.a2fPreScreeningAttempts.findFirst({
-            where: and(
-                eq(a2fPreScreeningAttempts.applicationId, input.applicationId),
-                eq(a2fPreScreeningAttempts.status, "submitted"),
-                eq(a2fPreScreeningAttempts.outcome, "pass")
-            ),
-            columns: { id: true },
-        });
-        if (!passedScreening) {
+        const passedScreening = await getEffectiveScreeningForApplication(input.applicationId);
+        if (passedScreening?.outcome !== "pass") {
             return errorResponse(
                 "This enterprise must pass Access to Finance pre-screening before it can enter the pipeline"
             );

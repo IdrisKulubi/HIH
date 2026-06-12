@@ -48,6 +48,7 @@ type Workspace = {
     notes: string | null;
     totalScore: number;
     outcome: string | null;
+    effectiveOutcome: string | null;
     hardStopReasons: string[];
     rescreenEligibleAt: string | null;
     invitationStatus: string;
@@ -62,6 +63,7 @@ type Workspace = {
     ddScore: number;
   };
   reviewerName: string;
+  canEdit: boolean;
 };
 
 function dateInputValue(value: string | null) {
@@ -99,7 +101,7 @@ function ScoreSidebar({
 }) {
   const displayScore = readonly ? workspace.attempt.totalScore : calculated.totalScore;
   const displayOutcome = readonly
-    ? workspace.attempt.outcome ?? "—"
+    ? workspace.attempt.effectiveOutcome ?? workspace.attempt.outcome ?? "—"
     : calculated.outcome;
 
   function scrollToCriterion(id: string) {
@@ -173,7 +175,7 @@ function ScoreSidebar({
               <CheckCircle className="mt-0.5 size-4 shrink-0 text-emerald-600" />
               <span>Submitted assessment is read-only.</span>
             </div>
-            {workspace.attempt.outcome === "pass" &&
+            {workspace.attempt.effectiveOutcome === "pass" &&
               workspace.attempt.invitationStatus === "failed" && (
                 <Button className="w-full" onClick={onResend} disabled={pending}>
                   Retry invitation email
@@ -209,7 +211,7 @@ function ScoreSidebar({
 export function ScreeningForm({ workspace }: { workspace: Workspace }) {
   const router = useRouter();
   const track = workspace.attempt.track as PreScreeningTrack;
-  const readonly = workspace.attempt.status === "submitted";
+  const readonly = workspace.attempt.status === "submitted" || !workspace.canEdit;
   const [ratings, setRatings] = useState<Partial<PreScreeningRatings>>(
     workspace.attempt.ratings as Partial<PreScreeningRatings>
   );
@@ -306,8 +308,8 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
           </div>
           <div className="text-right">
             <Badge variant={readonly ? "default" : "secondary"}>
-              {readonly && workspace.attempt.outcome
-                ? formatOutcome(workspace.attempt.outcome)
+              {readonly && (workspace.attempt.effectiveOutcome || workspace.attempt.outcome)
+                ? formatOutcome(workspace.attempt.effectiveOutcome ?? workspace.attempt.outcome!)
                 : "Draft"}
             </Badge>
             <p className="mt-1 text-xs text-muted-foreground">

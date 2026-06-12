@@ -2287,6 +2287,25 @@ export const a2fPreScreeningAttempts = pgTable('a2f_pre_screening_attempts', {
     .where(sql`${table.status} = 'draft'`),
 }));
 
+/** Immutable admin audit trail for effective pre-screening outcome changes. */
+export const a2fPreScreeningOverrides = pgTable('a2f_pre_screening_overrides', {
+  id: serial('id').primaryKey(),
+  attemptId: integer('attempt_id')
+    .notNull()
+    .references(() => a2fPreScreeningAttempts.id, { onDelete: 'cascade' }),
+  previousOutcome: varchar('previous_outcome', { length: 20 }).notNull(),
+  newOutcome: varchar('new_outcome', { length: 20 }).notNull(),
+  reason: text('reason').notNull(),
+  createdById: text('created_by_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  attemptIdx: index('a2f_pre_screening_overrides_attempt_id_idx').on(table.attemptId),
+  createdByIdx: index('a2f_pre_screening_overrides_created_by_id_idx').on(table.createdById),
+  createdAtIdx: index('a2f_pre_screening_overrides_created_at_idx').on(table.createdAt),
+}));
+
 // Relations
 export const dueDiligenceRecordsRelations = relations(dueDiligenceRecords, ({ one, many }) => ({
   application: one(applications, {
@@ -2307,13 +2326,25 @@ export const dueDiligenceItemsRelations = relations(dueDiligenceItems, ({ one })
   }),
 }));
 
-export const a2fPreScreeningAttemptsRelations = relations(a2fPreScreeningAttempts, ({ one }) => ({
+export const a2fPreScreeningAttemptsRelations = relations(a2fPreScreeningAttempts, ({ one, many }) => ({
   application: one(applications, {
     fields: [a2fPreScreeningAttempts.applicationId],
     references: [applications.id],
   }),
   assignedReviewer: one(users, {
     fields: [a2fPreScreeningAttempts.assignedReviewerId],
+    references: [users.id],
+  }),
+  overrides: many(a2fPreScreeningOverrides),
+}));
+
+export const a2fPreScreeningOverridesRelations = relations(a2fPreScreeningOverrides, ({ one }) => ({
+  attempt: one(a2fPreScreeningAttempts, {
+    fields: [a2fPreScreeningOverrides.attemptId],
+    references: [a2fPreScreeningAttempts.id],
+  }),
+  createdBy: one(users, {
+    fields: [a2fPreScreeningOverrides.createdById],
     references: [users.id],
   }),
 }));
@@ -2325,6 +2356,8 @@ export type DueDiligenceItem = typeof dueDiligenceItems.$inferSelect;
 export type NewDueDiligenceItem = typeof dueDiligenceItems.$inferInsert;
 export type A2fPreScreeningAttempt = typeof a2fPreScreeningAttempts.$inferSelect;
 export type NewA2fPreScreeningAttempt = typeof a2fPreScreeningAttempts.$inferInsert;
+export type A2fPreScreeningOverride = typeof a2fPreScreeningOverrides.$inferSelect;
+export type NewA2fPreScreeningOverride = typeof a2fPreScreeningOverrides.$inferInsert;
 
 // ============================================================
 // === A2F & INVESTMENT MANAGEMENT MODULE =====================

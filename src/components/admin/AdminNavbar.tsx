@@ -73,12 +73,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Business Support",
     match: (pathname) =>
       pathname.startsWith("/a2f") ||
+      pathname.startsWith("/admin/a2f") ||
       pathname.startsWith("/admin/kyc") ||
       pathname.startsWith("/admin/cna") ||
       pathname.startsWith("/admin/cdp") ||
       pathname.startsWith("/admin/mentorship"),
     items: [
-      { href: "/a2f", label: "A2F", icon: Bank },
+      { href: "/admin/a2f", label: "A2F Administration", icon: Bank },
+      { href: "/a2f", label: "Passed Pipeline", icon: Bank },
       { href: "/admin/kyc", label: "KYC", icon: ShieldCheck },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
