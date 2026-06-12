@@ -31,7 +31,10 @@ import {
 } from "@/lib/a2f-workflow";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
-import { canEditMatchingGrantApplication } from "@/lib/a2f-nav";
+import {
+    canAccessA2fStaffSegment,
+    canEditMatchingGrantApplication,
+} from "@/lib/a2f-nav";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE CONFIG
@@ -134,6 +137,7 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     const biz = entry.application?.business;
     const applicant = biz?.applicant;
     const mgRecord = entry.matchingGrantApplications?.[0] ?? null;
+    const canViewApplication = canAccessA2fStaffSegment(viewerRole, "matching-grant");
     let stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
     if (entry.status === "a2f_pipeline" && viewerRole === "oversight") {
         const submitted = mgRecord?.status === "submitted";
@@ -143,6 +147,9 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
             icon: PenNib,
         };
     }
+    if (stageAction?.href === "matching-grant" && !canViewApplication) {
+        stageAction = undefined;
+    }
     const showOfficialUsePanel = canEditMatchingGrantApplication(viewerRole);
     const gairAppraisal = entry.investmentAppraisals?.find(
         (item: { documentType?: string }) => item.documentType === "gair"
@@ -150,25 +157,31 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
 
     const workflowEntry = { ...entry, grantAgreement: agreement };
     const nextAction = getWorkflowNextAction(a2fId, workflowEntry);
-    const checklist = buildWorkflowChecklist(a2fId, workflowEntry);
+    const showNextAction =
+        canViewApplication || !nextAction.href.includes("/matching-grant");
+    const checklist = buildWorkflowChecklist(a2fId, workflowEntry).filter(
+        (item) => canViewApplication || item.id !== "application"
+    );
 
     return (
         <div className="space-y-6">
-            <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white">
-                <CardContent className="pt-5 pb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Next step</p>
-                        <p className="text-lg font-bold text-emerald-950 mt-0.5">{nextAction.label}</p>
-                        <p className="text-sm text-emerald-800/90 mt-1 max-w-xl">{nextAction.description}</p>
-                    </div>
-                    <Button asChild className="bg-emerald-700 hover:bg-emerald-800 shrink-0">
-                        <Link href={nextAction.href}>
-                            Continue
-                            <ArrowRight className="size-4 ml-1.5" />
-                        </Link>
-                    </Button>
-                </CardContent>
-            </Card>
+            {showNextAction && (
+                <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white">
+                    <CardContent className="pt-5 pb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Next step</p>
+                            <p className="text-lg font-bold text-emerald-950 mt-0.5">{nextAction.label}</p>
+                            <p className="text-sm text-emerald-800/90 mt-1 max-w-xl">{nextAction.description}</p>
+                        </div>
+                        <Button asChild className="bg-emerald-700 hover:bg-emerald-800 shrink-0">
+                            <Link href={nextAction.href}>
+                                Continue
+                                <ArrowRight className="size-4 ml-1.5" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader className="pb-3">
@@ -405,7 +418,9 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
             {/* ── Quick links ── */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                    { label: "MG Application", icon: ClipboardText, href: `matching-grant`, count: entry.matchingGrantApplications?.length },
+                    ...(canViewApplication
+                        ? [{ label: "MG Application", icon: ClipboardText, href: `matching-grant`, count: entry.matchingGrantApplications?.length }]
+                        : []),
                     { label: "DD Reports", icon: ClipboardText, href: `due-diligence`, count: entry.dueDiligenceReports?.length },
                     { label: "Scoring", icon: ChartLine, href: `scoring`, count: entry.scoringRecords?.length },
                     { label: "Appraisals", icon: FileText, href: `appraisal`, count: entry.investmentAppraisals?.length },

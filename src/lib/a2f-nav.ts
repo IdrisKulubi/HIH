@@ -37,12 +37,16 @@ const OVERSIGHT_SEGMENTS: A2fNavSegment[] = [...OFFICER_SEGMENTS];
 
 const FULL_STAFF_SEGMENTS: A2fNavSegment[] = [...OFFICER_SEGMENTS];
 
+const STAFF_WITHOUT_APPLICATION_SEGMENTS: A2fNavSegment[] = OFFICER_SEGMENTS.filter(
+    (segment) => segment !== "matching-grant"
+);
+
 const SEGMENTS_BY_ROLE: Record<string, A2fNavSegment[] | "all"> = {
     a2f_officer: OFFICER_SEGMENTS,
     oversight: OVERSIGHT_SEGMENTS,
     admin: "all",
-    redo: "all",
-    bds_edo: "all",
+    redo: STAFF_WITHOUT_APPLICATION_SEGMENTS,
+    bds_edo: STAFF_WITHOUT_APPLICATION_SEGMENTS,
     a2f_committee: [],
 };
 
