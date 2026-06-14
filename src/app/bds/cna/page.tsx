@@ -15,6 +15,9 @@ export default async function BdsCnaPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/application-resolutions" className="rounded-md border px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50">
+            Document resolutions
+          </Link>
           <Link href="/admin/cdp" className="rounded-md border px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50">
             Open CDP work queue
           </Link>

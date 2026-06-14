@@ -18,6 +18,7 @@ import {
     type MatchingGrantApplicationInput,
 } from "@/lib/actions/a2f-matching-grant-applications";
 import { MgSupportingDocumentRow as MgSupportingDocumentRowComponent } from "@/components/a2f/MgSupportingDocumentRow";
+import { DocumentIssueReview } from "@/components/a2f/DocumentIssueReview";
 import { WizardStepValidationAlert } from "@/components/a2f/WizardStepValidationAlert";
 import {
     type MgSupportingDocumentRow,
@@ -329,12 +330,15 @@ export function MatchingGrantApplicationWizard({
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { data: session } = useSession();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
     const applicantLocked = mode === "applicant" && form.status === "submitted";
     const readOnly = mode === "readonly" || applicantLocked;
+    const canRaiseDocumentIssues =
+        session?.user?.role === "a2f_officer" || session?.user?.role === "admin";
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeStep, setActiveStep] = useState(0);
@@ -399,6 +403,12 @@ export function MatchingGrantApplicationWizard({
             setActiveStep(parsed);
         }
     }, [a2fId, searchParams]);
+
+    useEffect(() => {
+        if (session?.user?.role === "a2f_officer" && !searchParams.get("step")) {
+            setActiveStep(MG_WIZARD_STEPS.length - 1);
+        }
+    }, [session?.user?.role, searchParams]);
 
     useEffect(() => {
         sessionStorage.setItem(wizardStorageKey(a2fId), String(activeStep));
@@ -740,10 +750,36 @@ export function MatchingGrantApplicationWizard({
                             setForm={setForm}
                             setField={setField}
                             track={track}
+                            readOnly={readOnly}
                         />
                     </fieldset>
 
-                    {currentStepId === "documents" && (
+                    {currentStepId === "documents" && canRaiseDocumentIssues && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Finance document review</CardTitle>
+                                <CardDescription>
+                                    Application information is read-only. Review each document and assign
+                                    any correction to an EDOR or REDOR.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {form.documents.map((document) => (
+                                    <div key={document.document} className="rounded-lg border p-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="text-sm font-medium">{document.document}</p>
+                                            <Badge variant="outline">
+                                                {document.url ? "Document available" : "Missing"}
+                                            </Badge>
+                                        </div>
+                                        <DocumentIssueReview a2fId={a2fId} document={document} />
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {currentStepId === "documents" && !canRaiseDocumentIssues && (
                         <WizardReviewSummary
                             summary={reviewSummary}
                             issueGroups={reviewIssueGroups}
@@ -1157,12 +1193,14 @@ function WizardStepContent({
     setForm,
     setField,
     track,
+    readOnly,
 }: {
     stepId: MgWizardStepId;
     form: FormState;
     setForm: React.Dispatch<React.SetStateAction<FormState>>;
     setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
     track: "foundation" | "acceleration";
+    readOnly: boolean;
 }) {
     switch (stepId) {
         case "enterprise":
@@ -1197,7 +1235,7 @@ function WizardStepContent({
         case "documents":
             return (
                 <>
-                    <SupportingDocuments form={form} setForm={setForm} />
+                    <SupportingDocuments form={form} setForm={setForm} readOnly={readOnly} />
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
@@ -1656,7 +1694,15 @@ function updateJob(setForm: React.Dispatch<React.SetStateAction<FormState>>, ind
     }));
 }
 
-function SupportingDocuments({ form, setForm }: { form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>> }) {
+function SupportingDocuments({
+    form,
+    setForm,
+    readOnly,
+}: {
+    form: FormState;
+    setForm: React.Dispatch<React.SetStateAction<FormState>>;
+    readOnly: boolean;
+}) {
     const { enclosed, total } = countMandatoryMgDocumentsEnclosed(form.documents);
     const progressPct = total > 0 ? Math.round((enclosed / total) * 100) : 0;
 
@@ -1665,8 +1711,9 @@ function SupportingDocuments({ form, setForm }: { form: FormState; setForm: Reac
             <CardHeader>
                 <CardTitle className="text-base">Supporting Documents</CardTitle>
                 <CardDescription>
-                    Files are pulled from the call-for-application, KYC, and CDP session evidence where available.
-                    Upload any missing mandatory documents below.
+                    {readOnly
+                        ? "Files submitted by the applicant and pulled from programme records. Open each file to review it."
+                        : "Files are pulled from the call-for-application, KYC, and CDP session evidence where available. Upload any missing mandatory documents below."}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1683,6 +1730,7 @@ function SupportingDocuments({ form, setForm }: { form: FormState; setForm: Reac
                     <MgSupportingDocumentRowComponent
                         key={row.document}
                         row={row}
+                        disabled={readOnly}
                         onChange={patch => updateDocument(setForm, index, patch)}
                     />
                 ))}
@@ -1704,7 +1752,16 @@ export default function MatchingGrantApplicationPage({
     params: Promise<{ id: string }>;
 }) {
     const { id } = use(params);
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    if (status === "loading") {
+        return (
+            <div className="container mx-auto max-w-6xl space-y-4 px-4 py-8">
+                <Skeleton className="h-8 w-72" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-96 w-full" />
+            </div>
+        );
+    }
     const mode = isMatchingGrantReadOnlyRole(session?.user?.role) ? "readonly" : "staff";
     return <MatchingGrantApplicationWizard a2fId={Number(id)} mode={mode} />;
 }

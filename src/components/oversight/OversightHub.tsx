@@ -198,6 +198,13 @@ export function OversightHub({
           />
           {showPreScreening && (
             <QueueRow
+              title="Document resolutions"
+              description="Follow up application document issues assigned by Access to Finance"
+              href="/application-resolutions"
+            />
+          )}
+          {showPreScreening && (
+            <QueueRow
               title="A2F pre-screening"
               description="Score DD-qualified enterprises before finance access is unlocked"
               href="/finance-screening"

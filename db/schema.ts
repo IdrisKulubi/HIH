@@ -1578,6 +1578,12 @@ export const userRelations = relations(users, ({ one, many }) => ({
     references: [applicants.userId]
   }),
   assignedTickets: many(supportTickets, { relationName: 'assignedTo' }),
+  assignedA2fDocumentIssues: many(a2fDocumentResolutionIssues, {
+    relationName: 'a2fDocumentIssueAssignee',
+  }),
+  raisedA2fDocumentIssues: many(a2fDocumentResolutionIssues, {
+    relationName: 'a2fDocumentIssueRaiser',
+  }),
   sentMessages: many(ticketMessages, { relationName: 'sender' }),
   createdCampaigns: many(feedbackCampaigns, { relationName: 'creator' }),
   ownedKycProfiles: many(kycProfiles),
@@ -2482,6 +2488,41 @@ export const a2fMatchingGrantApplications = pgTable('a2f_matching_grant_applicat
 }));
 
 /**
+ * Finance-review issues raised against Matching Grant supporting documents.
+ * EDOR/REDOR staff use these assignments to follow up with applicants.
+ */
+export const a2fDocumentResolutionIssues = pgTable('a2f_document_resolution_issues', {
+  id: serial('id').primaryKey(),
+  a2fId: integer('a2f_id')
+    .notNull()
+    .references(() => a2fPipeline.id, { onDelete: 'cascade' }),
+  matchingGrantApplicationId: integer('matching_grant_application_id')
+    .references(() => a2fMatchingGrantApplications.id, { onDelete: 'cascade' }),
+  documentName: text('document_name').notNull(),
+  documentUrl: text('document_url'),
+  documentFileName: text('document_file_name'),
+  issueDetails: text('issue_details').notNull(),
+  status: varchar('status', { length: 32 }).default('open').notNull(),
+  assignedToId: text('assigned_to_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  raisedById: text('raised_by_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  resolutionNotes: text('resolution_notes'),
+  resolvedAt: timestamp('resolved_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  a2fIdIdx: index('a2f_document_resolution_issues_a2f_id_idx').on(table.a2fId),
+  assigneeStatusIdx: index('a2f_document_resolution_issues_assignee_status_idx').on(
+    table.assignedToId,
+    table.status
+  ),
+  statusIdx: index('a2f_document_resolution_issues_status_idx').on(table.status),
+}));
+
+/**
  * Stores the full 11-category Due Diligence data per pipeline entry.
  * Each stage (INITIAL, PRE_IC, POST_TA) gets its own record.
  *
@@ -2746,6 +2787,7 @@ export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
   }),
   dueDiligenceReports: many(a2fDueDiligenceReports),
   matchingGrantApplications: many(a2fMatchingGrantApplications),
+  documentResolutionIssues: many(a2fDocumentResolutionIssues),
   scoringRecords: many(a2fScoring),
   scoringOverrides: many(a2fScoringOverrides),
   investmentAppraisals: many(investmentAppraisals),
@@ -2764,6 +2806,30 @@ export const a2fMatchingGrantApplicationsRelations = relations(a2fMatchingGrantA
     references: [users.id],
   }),
 }));
+
+export const a2fDocumentResolutionIssuesRelations = relations(
+  a2fDocumentResolutionIssues,
+  ({ one }) => ({
+    a2fPipeline: one(a2fPipeline, {
+      fields: [a2fDocumentResolutionIssues.a2fId],
+      references: [a2fPipeline.id],
+    }),
+    matchingGrantApplication: one(a2fMatchingGrantApplications, {
+      fields: [a2fDocumentResolutionIssues.matchingGrantApplicationId],
+      references: [a2fMatchingGrantApplications.id],
+    }),
+    assignedTo: one(users, {
+      fields: [a2fDocumentResolutionIssues.assignedToId],
+      references: [users.id],
+      relationName: 'a2fDocumentIssueAssignee',
+    }),
+    raisedBy: one(users, {
+      fields: [a2fDocumentResolutionIssues.raisedById],
+      references: [users.id],
+      relationName: 'a2fDocumentIssueRaiser',
+    }),
+  })
+);
 
 export const a2fDueDiligenceReportsRelations = relations(a2fDueDiligenceReports, ({ one }) => ({
   a2fPipeline: one(a2fPipeline, {

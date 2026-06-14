@@ -105,12 +105,12 @@ export function canAccessA2fStaffPath(
 }
 
 export function isMatchingGrantReadOnlyRole(role?: string | null): boolean {
-    return role === "oversight";
+    return ["a2f_officer", "oversight", "redo", "bds_edo"].includes(role ?? "");
 }
 
 export function canEditMatchingGrantApplication(role?: string | null): boolean {
     if (!role || isMatchingGrantReadOnlyRole(role) || role === "a2f_committee") {
         return false;
     }
-    return isAdminRole(role) || role === "a2f_officer" || role === "redo" || role === "bds_edo";
+    return isAdminRole(role);
 }

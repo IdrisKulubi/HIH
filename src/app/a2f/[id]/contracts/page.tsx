@@ -102,27 +102,46 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
     const [uploading, setUploading] = useState(false);
     const [showSignDialog, setShowSignDialog] = useState(false);
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
-        const [entryRes, agreementRes] = await Promise.all([
-            getA2fPipelineEntry(a2fId),
-            getGrantAgreement(a2fId),
-        ]);
+    const applyFetchedData = useCallback((
+        entryRes: Awaited<ReturnType<typeof getA2fPipelineEntry>>,
+        agreementRes: Awaited<ReturnType<typeof getGrantAgreement>>,
+    ) => {
         if (entryRes.success) {
             setEntry(entryRes.data);
             setAgreementType("matching");
         }
         if (agreementRes.success) setAgreement(agreementRes.data ?? null);
         setLoading(false);
-    }, [a2fId]);
+    }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    const loadData = useCallback(async () => {
+        const [entryRes, agreementRes] = await Promise.all([
+            getA2fPipelineEntry(a2fId),
+            getGrantAgreement(a2fId),
+        ]);
+        applyFetchedData(entryRes, agreementRes);
+    }, [a2fId, applyFetchedData]);
 
     useEffect(() => {
-        if (showSendDialog) {
-            setOfferLetterUrl(agreement?.offerLetterUrl ?? "");
-        }
-    }, [showSendDialog, agreement?.offerLetterUrl]);
+        let cancelled = false;
+
+        Promise.all([
+            getA2fPipelineEntry(a2fId),
+            getGrantAgreement(a2fId),
+        ]).then(([entryRes, agreementRes]) => {
+            if (cancelled) return;
+            applyFetchedData(entryRes, agreementRes);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [a2fId, applyFetchedData]);
+
+    function openSendDialog() {
+        setOfferLetterUrl(agreement?.offerLetterUrl ?? "");
+        setShowSendDialog(true);
+    }
 
     const wfState = workflowState(agreement);
     const currentStepIdx = WORKFLOW_STEPS.findIndex(s => s.key === wfState);
@@ -259,9 +278,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                     ? ` Current decision: ${String(gairAppraisal.icDecision).replace(/_/g, " ")}.`
                                     : " No committee decision recorded yet."}
                             </p>
-                            <Button variant="link" className="h-auto p-0 mt-2 text-amber-900" asChild>
-                                <Link href={`/a2f/committee/${a2fId}`}>Open committee case</Link>
-                            </Button>
+                           
                         </div>
                     </CardContent>
                 </Card>
@@ -482,7 +499,7 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
                                         </div>
                                     </div>
                                     <Button
-                                        onClick={() => setShowSendDialog(true)}
+                                        onClick={openSendDialog}
                                         disabled={!agreement.offerLetterUrl || !committeeApproved}
                                         title={
                                             !committeeApproved
@@ -579,7 +596,13 @@ export default function ContractsPage({ params }: { params: Promise<{ id: string
             )}
 
             {/* ── DIALOG: Send Offer Letter ── */}
-            <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+            <Dialog
+                open={showSendDialog}
+                onOpenChange={(open) => {
+                    if (open) setOfferLetterUrl(agreement?.offerLetterUrl ?? "");
+                    setShowSendDialog(open);
+                }}
+            >
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
