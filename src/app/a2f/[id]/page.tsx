@@ -138,7 +138,8 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
     const applicant = biz?.applicant;
     const mgRecord = entry.matchingGrantApplications?.[0] ?? null;
     const canViewApplication = canAccessA2fStaffSegment(viewerRole, "matching-grant");
-    let stageAction = STAGE_ACTIONS[entry.status as A2fPipelineStatus];
+    let stageAction: { label: string; href?: string; icon: React.ElementType } | undefined =
+        STAGE_ACTIONS[entry.status as A2fPipelineStatus];
     if (entry.status === "a2f_pipeline" && viewerRole === "oversight") {
         const submitted = mgRecord?.status === "submitted";
         stageAction = {
