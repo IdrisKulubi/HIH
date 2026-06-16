@@ -14,7 +14,7 @@ export default async function KycPage() {
     redirect("/login");
   }
 
-  if (["reviewer_1", "reviewer_2", "technical_reviewer"].includes(session.user.role || "")) {
+  if (["reviewer_1", "reviewer_2", "technical_reviewer", "bds_edo", "redo"].includes(session.user.role || "")) {
     redirect("/reviewer/kyc");
   }
 

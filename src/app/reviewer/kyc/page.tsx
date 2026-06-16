@@ -131,33 +131,41 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
           {filteredRows.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">No KYC records matched this view.</p>
           ) : (
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Application</TableHead>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Applicant</TableHead>
-                  <TableHead>Track</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>KYC</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="w-[5.5rem]">Application</TableHead>
+                  <TableHead className="w-[34%]">Business</TableHead>
+                  <TableHead className="w-[18rem]">Applicant</TableHead>
+                  <TableHead className="w-[8rem]">Track</TableHead>
+                  <TableHead className="w-[8rem]">Location</TableHead>
+                  <TableHead className="w-[8.5rem]">KYC</TableHead>
+                  <TableHead className="w-[13rem]">Progress</TableHead>
+                  <TableHead className="sticky right-0 z-20 w-[6.5rem] bg-white text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)]">
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRows.map((row) => (
-                  <TableRow key={row.applicationId}>
+                  <TableRow key={row.applicationId} className="group">
                     <TableCell className="font-medium text-slate-900">#{row.applicationId}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-900">{row.businessName}</span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium text-slate-900" title={row.businessName}>
+                          {row.businessName}
+                        </span>
                         <span className="text-xs text-slate-500 capitalize">{row.county?.replace(/_/g, " ") || "No county"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-slate-900">{row.applicantName}</span>
-                        <span className="text-xs text-slate-500">{row.applicantEmail}</span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-slate-900" title={row.applicantName}>
+                          {row.applicantName}
+                        </span>
+                        <span className="truncate text-xs text-slate-500" title={row.applicantEmail}>
+                          {row.applicantEmail}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="capitalize">{row.track?.replace(/_/g, " ") || "Not set"}</TableCell>
@@ -168,7 +176,7 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 whitespace-normal">
                         <Badge variant={row.hasLetterOfAgreement ? "default" : "outline"}>
                           {row.hasLetterOfAgreement ? "Agreement uploaded" : "Agreement pending"}
                         </Badge>
@@ -177,7 +185,7 @@ export default async function ReviewerKycQueuePage({ searchParams }: ReviewerKyc
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="sticky right-0 z-10 bg-white text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.45)] group-hover:bg-muted">
                       <Link
                         href={`/reviewer/kyc/${row.applicationId}`}
                         className={cn(buttonVariants({ variant: "outline", size: "sm" }))}

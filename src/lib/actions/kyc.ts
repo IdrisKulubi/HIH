@@ -34,7 +34,14 @@ const KYC_READY_APPLICATION_STATUSES = ["approved", "finalist"] as const;
 const KYC_DD_COHORT_ERROR =
   "KYC is only available for applications on the Qualified Applications list (due diligence approved, score at least 60%)." as const;
 const KYC_ADMIN_ROLES = ["admin", "oversight"] as const;
-const KYC_REVIEWER_ROLES = ["admin", "reviewer_1", "reviewer_2", "technical_reviewer"] as const;
+const KYC_REVIEWER_ROLES = [
+  "admin",
+  "reviewer_1",
+  "reviewer_2",
+  "technical_reviewer",
+  "bds_edo",
+  "redo",
+] as const;
 
 const kycDocumentInputSchema = z.object({
   documentType: z.enum(allKycDocumentTypes),

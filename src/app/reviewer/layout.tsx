@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/actions/user.actions";
+import { getRoleHomePath } from "@/lib/users/role-home";
 
 export const metadata: Metadata = {
     title: "Reviewer Dashboard | BIRE Programme",
@@ -20,39 +21,46 @@ export default async function ReviewerLayout({
         redirect("/auth/login");
     }
 
-    // Only allow reviewer_1, reviewer_2, admin, and technical_reviewer
-    const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer"];
+    // KYC is also handled by EDOR and REDOR staff after DD qualification.
+    const allowedRoles = ["reviewer_1", "reviewer_2", "admin", "technical_reviewer", "bds_edo", "redo"];
     if (!allowedRoles.includes(user.role || "")) {
         redirect("/");
     }
+
+    const isKycOnlyStaff = user.role === "bds_edo" || user.role === "redo";
+    const homePath = getRoleHomePath(user.role);
 
     return (
         <div className="flex flex-col min-h-screen bg-background text-foreground">
             <header className="sticky top-16 z-40 border-b bg-slate-800 text-white shadow-md">
                 <div className="container mx-auto py-4 px-4 flex justify-between items-center">
-                    <Link href="/reviewer" className="font-bold text-xl">
-                        BIRE Programme Reviewer
+                    <Link href={isKycOnlyStaff ? homePath : "/reviewer"} className="font-bold text-xl">
+                        {isKycOnlyStaff ? "BIRE Programme KYC" : "BIRE Programme Reviewer"}
                     </Link>
                     <nav>
                         <ul className="flex space-x-8">
-                            <li>
-                                <Link href="/reviewer" className="text-white/80 hover:text-white transition-colors">
-                                    Dashboard
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/reviewer/applications" className="text-white/80 hover:text-white transition-colors">
-                                    Applications
-                                </Link>
-                            </li>
+                            {!isKycOnlyStaff && (
+                                <>
+                                    <li>
+                                        <Link href="/reviewer" className="text-white/80 hover:text-white transition-colors">
+                                            Dashboard
+                                        </Link>
+                                    </li>
+                                    <li>
+                                        <Link href="/reviewer/applications" className="text-white/80 hover:text-white transition-colors">
+                                            Applications
+                                        </Link>
+                                    </li>
+                                </>
+                            )}
                             <li>
                                 <Link href="/reviewer/kyc" className="text-white/80 hover:text-white transition-colors">
                                     KYC
                                 </Link>
                             </li>
                             <li>
-                                <Link href="/" className="text-white/80 hover:text-white transition-colors">
-                                    Back to Site
+                                <Link href={isKycOnlyStaff ? homePath : "/"} className="text-white/80 hover:text-white transition-colors">
+                                    {isKycOnlyStaff ? "Back to hub" : "Back to Site"}
                                 </Link>
                             </li>
                         </ul>

@@ -15,6 +15,9 @@ export default async function BdsCnaPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/reviewer/kyc" className="rounded-md border px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50">
+            Open KYC workspace
+          </Link>
           <Link href="/application-resolutions" className="rounded-md border px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50">
             Document resolutions
           </Link>

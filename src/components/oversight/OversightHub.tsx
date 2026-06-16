@@ -191,6 +191,13 @@ export function OversightHub({
             description="Review CNA progress and manage capacity development plans"
             href="/admin/cdp"
           />
+          {showPreScreening && (
+            <QueueRow
+              title="KYC workspace"
+              description="Open qualified enterprises and update KYC documents, staff assignment, and geolocation"
+              href="/reviewer/kyc"
+            />
+          )}
           <QueueRow
             title="A2F portal"
             description="Matching grant pipeline, scoring, contracts, and disbursements"
