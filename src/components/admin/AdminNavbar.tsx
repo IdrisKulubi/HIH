@@ -37,6 +37,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 type NavIcon = React.ComponentType<{ className?: string; weight?: "duotone" | "bold" }>;
 
@@ -238,6 +239,7 @@ export function AdminNavbar() {
         </nav>
 
         <div className="flex items-center gap-2 shrink-0">
+          <NotificationBell />
           <Link
             href="/"
             className="hidden md:flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-blue transition-colors"

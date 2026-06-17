@@ -1,4 +1,5 @@
 import { CommitteeNav } from "./CommitteeNav";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function CommitteeShellHeader({ isAdmin }: { isAdmin: boolean }) {
     return (
@@ -15,7 +16,8 @@ export function CommitteeShellHeader({ isAdmin }: { isAdmin: boolean }) {
                         </p>
                     </div>
                 </div>
-                <nav className="shrink-0">
+                <nav className="flex shrink-0 items-center gap-2">
+                    <NotificationBell />
                     <CommitteeNav isAdmin={isAdmin} />
                 </nav>
             </div>

@@ -19,6 +19,7 @@ import {
 import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard } from "lucide-react";
 import { areApplicationsOpen } from "@/lib/config";
 import { getRoleHomePath } from "@/lib/users/role-home";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const STAFF_ROLES = [
   "admin",
@@ -182,71 +183,74 @@ export function Header() {
                 <div className="h-10 w-20 bg-gray-200 animate-pulse rounded-full" />
               ) : session?.user ? (
                 // User is signed in - show user dropdown
-                (<DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 p-2 rounded-full hover:bg-blue-50 transition-all duration-300 border border-transparent hover:border-blue-100">
-                      <Avatar className="h-9 w-9 border-2 border-[#005EB8]/20">
-                        <AvatarImage src={session.user.image || ""} alt={session.user.name || ""} />
-                        <AvatarFallback className="bg-[#005EB8] text-white text-sm font-semibold">
-                          {session.user.name?.[0] || session.user.email?.[0]?.toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium text-slate-700 hidden xl:block pr-2">
-                        {session.user.name || "User"}
-                      </span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">
+                (<div className="flex items-center gap-2">
+                  <NotificationBell />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-2 p-2 rounded-full hover:bg-blue-50 transition-all duration-300 border border-transparent hover:border-blue-100">
+                        <Avatar className="h-9 w-9 border-2 border-[#005EB8]/20">
+                          <AvatarImage src={session.user.image || ""} alt={session.user.name || ""} />
+                          <AvatarFallback className="bg-[#005EB8] text-white text-sm font-semibold">
+                            {session.user.name?.[0] || session.user.email?.[0]?.toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium text-slate-700 hidden xl:block pr-2">
                           {session.user.name || "User"}
-                        </p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {session.user.email}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={getRoleHomePath(session.user.role)} className="flex items-center">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        <span>Dashboard</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/profile" className="flex items-center">
-                        <User className="mr-2 h-4 w-4" />
-                        <span>Profile</span>
-                      </Link>
-                    </DropdownMenuItem>
-
-                    {/* Hide My Application for reviewers */}
-                    {!STAFF_ROLES.includes(session.user.role || '') && (
+                        </span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {session.user.name || "User"}
+                          </p>
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {session.user.email}
+                          </p>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/profile?tab=application" className="flex items-center">
-                          <FileText className="mr-2 h-4 w-4" />
-                          <span>My Application</span>
+                        <Link href={getRoleHomePath(session.user.role)} className="flex items-center">
+                          <LayoutDashboard className="mr-2 h-4 w-4" />
+                          <span>Dashboard</span>
                         </Link>
                       </DropdownMenuItem>
-                    )}
-
-                    {!STAFF_ROLES.includes(session.user.role || '') && (
                       <DropdownMenuItem asChild>
-                        <Link href="/kyc" className="flex items-center">
-                          <ShieldCheck className="mr-2 h-4 w-4" />
-                          <span>KYC Status</span>
+                        <Link href="/profile" className="flex items-center">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>Profile</span>
                         </Link>
                       </DropdownMenuItem>
-                    )}
 
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>)
+                      {/* Hide My Application for reviewers */}
+                      {!STAFF_ROLES.includes(session.user.role || '') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/profile?tab=application" className="flex items-center">
+                            <FileText className="mr-2 h-4 w-4" />
+                            <span>My Application</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {!STAFF_ROLES.includes(session.user.role || '') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/kyc" className="flex items-center">
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            <span>KYC Status</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Sign out</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>)
               ) : (
                 // User is not signed in - show sign in button
                 <div className="flex items-center gap-3">
@@ -273,17 +277,21 @@ export function Header() {
               )}
             </motion.nav>
 
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 sm:p-3 rounded-xl transition-all duration-300 relative z-50 text-slate-600 hover:bg-blue-50 hover:text-[#005EB8]"
-            >
-              <div className="w-5 h-5 sm:w-6 sm:h-6 relative">
-                <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-0' : '-translate-y-2'}`} />
-                <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : 'opacity-100'}`} />
-                <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 translate-y-0' : 'translate-y-2'}`} />
-              </div>
-            </button>
+            <div className="lg:hidden flex items-center gap-1">
+              {session?.user ? <NotificationBell /> : null}
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 sm:p-3 rounded-xl transition-all duration-300 relative z-50 text-slate-600 hover:bg-blue-50 hover:text-[#005EB8]"
+                aria-label="Open menu"
+              >
+                <div className="w-5 h-5 sm:w-6 sm:h-6 relative">
+                  <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-0' : '-translate-y-2'}`} />
+                  <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : 'opacity-100'}`} />
+                  <span className={`absolute w-full h-0.5 bg-current transform transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 translate-y-0' : 'translate-y-2'}`} />
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </motion.header>

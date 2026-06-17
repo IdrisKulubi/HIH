@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { Coins, Kanban, ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { hasA2fRole } from "@/lib/a2f-access";
 import { parseA2fStaffPipelinePath } from "@/lib/a2f-nav";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export const metadata: Metadata = {
     title: "Matching Grant Portal | BIRE Programme",
@@ -57,7 +58,10 @@ export default async function A2fLayout({
                     </div>
 
                     <nav>
-                        <ul className="flex items-center gap-6 text-sm">
+                        <ul className="flex items-center gap-4 text-sm">
+                            <li>
+                                <NotificationBell surface="dark" />
+                            </li>
                             <li>
                                 <Link
                                     href="/a2f"
