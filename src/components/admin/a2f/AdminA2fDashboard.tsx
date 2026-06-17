@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   overridePreScreeningOutcome,
+  sendA2fApplicationInvite,
   type AdminA2fDashboardData,
   type AdminA2fPreScreeningRow,
   type AdminA2fPipelineRow,
@@ -45,6 +46,7 @@ import {
   Clock,
   Eye,
   MagnifyingGlass,
+  PaperPlaneTilt,
   Scales,
   ShieldCheck,
   WarningCircle,
@@ -200,9 +202,9 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
     <Card>
       <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <CardTitle className="text-base">DD-qualified enterprise register ({rows.length})</CardTitle>
+          <CardTitle className="text-base">Screening and invite register ({rows.length})</CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            Admin inspection is read-only until a reviewer submits an assessment.
+            Admin sends the A2F application invite after Pass screening and approved DD.
           </p>
         </div>
         <div className="flex gap-2">
@@ -238,6 +240,7 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
               <th className="px-2 py-3">Status</th>
               <th className="px-2 py-3">Original</th>
               <th className="px-2 py-3">Effective</th>
+              <th className="px-2 py-3">Invite</th>
               <th className="px-2 py-3">Assessed</th>
               <th className="px-2 py-3 text-right">Actions</th>
             </tr>
@@ -249,7 +252,12 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
                   <p className="font-medium">{row.businessName}</p>
                   <p className="text-xs text-muted-foreground">{row.applicantName} · #{row.applicationId}</p>
                 </td>
-                <td className="px-2 py-3">{titleCase(row.track)} · {row.ddScore}%</td>
+                <td className="px-2 py-3">
+                  {titleCase(row.track)} ·{" "}
+                  {row.ddStatus === "approved" && row.ddScore !== null
+                    ? `${row.ddScore}%`
+                    : titleCase(row.ddStatus ?? "not started")}
+                </td>
                 <td className="px-2 py-3">{row.reviewerName ?? "Unassigned"}</td>
                 <td className="px-2 py-3"><Badge variant="secondary">{titleCase(row.status)}</Badge></td>
                 <td className="px-2 py-3">
@@ -257,10 +265,19 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
                 </td>
                 <td className="px-2 py-3"><OutcomeBadge outcome={row.effectiveOutcome} /></td>
                 <td className="px-2 py-3">
+                  <Badge variant={row.invitationStatus === "sent" ? "default" : "outline"}>
+                    {titleCase(row.invitationStatus ?? "not applicable")}
+                  </Badge>
+                  {row.invitationStatus === "failed" && row.invitationError && (
+                    <p className="mt-1 max-w-[180px] text-xs text-red-700">{row.invitationError}</p>
+                  )}
+                </td>
+                <td className="px-2 py-3">
                   {row.assessedAt ? format(new Date(row.assessedAt), "dd MMM yyyy") : "-"}
                 </td>
                 <td className="px-2 py-3">
                   <div className="flex justify-end gap-2">
+                    <InviteButton row={row} />
                     {row.attemptId && (
                       <Button size="sm" variant="ghost" asChild>
                         <Link href={`/finance-screening/${row.attemptId}`}>
@@ -277,6 +294,41 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
         </table>
       </CardContent>
     </Card>
+  );
+}
+
+function InviteButton({ row }: { row: AdminA2fPreScreeningRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  function sendInvite() {
+    if (!row.attemptId || !row.canSendInvite) return;
+    startTransition(async () => {
+      const result = await sendA2fApplicationInvite(row.attemptId!);
+      if (!result.success) {
+        toast.error(result.error ?? "Invite failed");
+        return;
+      }
+      if (result.data?.emailStatus === "sent") {
+        toast.success("A2F invite sent");
+      } else {
+        toast.error("Invite email failed. You can retry from this table.");
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant={row.canSendInvite ? "default" : "outline"}
+      disabled={pending || !row.canSendInvite}
+      title={row.inviteBlockedReason ?? "Send A2F application invite"}
+      onClick={sendInvite}
+    >
+      <PaperPlaneTilt className="mr-1 size-4" />
+      {pending ? "Sending..." : row.invitationStatus === "failed" ? "Retry invite" : "Send invite"}
+    </Button>
   );
 }
 
@@ -382,7 +434,7 @@ export function AdminA2fDashboard({ initialData }: { initialData: AdminA2fDashbo
           <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">Administration</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">Access to Finance workspace</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Follow every DD-qualified enterprise from pre-screening through Matching Grant review.
+            Follow enterprises from pre-screening through DD, invitation, application, and review.
           </p>
         </div>
         <div className="flex gap-2">
@@ -414,7 +466,7 @@ export function AdminA2fDashboard({ initialData }: { initialData: AdminA2fDashbo
           <Card>
             <CardContent className="grid gap-6 p-6 md:grid-cols-3">
               <div>
-                <p className="text-sm text-muted-foreground">DD-qualified cohort</p>
+                <p className="text-sm text-muted-foreground">Screening cohort</p>
                 <p className="mt-1 text-3xl font-bold">{initialData.preScreening.length}</p>
               </div>
               <div>

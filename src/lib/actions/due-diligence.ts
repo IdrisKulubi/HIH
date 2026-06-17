@@ -18,6 +18,7 @@ import {
     DD_QUALIFYING_SCORE,
     qualifiedDdApplicationsWhere,
 } from "@/lib/due-diligence-qualification";
+import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
 // Types derived from schema
 export type DueDiligencePhase = 'phase1' | 'phase2';
@@ -26,6 +27,12 @@ export type ValidatorAction = 'approved' | 'queried';
 
 // Constants
 const DD_THRESHOLD_PERCENTAGE = DD_QUALIFYING_SCORE;
+
+async function assertPassedA2fScreening(applicationId: number) {
+    const screening = await getEffectiveScreeningForApplication(applicationId);
+    if (screening?.outcome === "pass") return null;
+    return "A2F due diligence is only available after the enterprise passes pre-screening.";
+}
 const SCORE_DISPARITY_THRESHOLD = 10; // Points difference to trigger warning
 const APPROVAL_WINDOW_HOURS = 12; // Hours for validator to approve
 
@@ -37,8 +44,12 @@ export async function getDueDiligence(applicationId: number) {
     try {
         const session = await auth();
         // Allow admin, oversight, reviewer_1, and reviewer_2 to access DD
-        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "redo", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
+        }
+        const screeningError = await assertPassedA2fScreening(applicationId);
+        if (screeningError) {
+            return { success: false, message: screeningError };
         }
 
         // Fetch or create record
@@ -84,7 +95,7 @@ export async function getDueDiligence(applicationId: number) {
 export async function getEligibilityScoresForDD(applicationId: number) {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "redo", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -140,7 +151,7 @@ export async function saveDueDiligenceItem(
 ) {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "redo", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
         }
 
@@ -564,6 +575,9 @@ export async function getDDQueue(): Promise<{
 
             if (!qualifies) continue;
 
+            const screeningError = await assertPassedA2fScreening(app.applicationId);
+            if (screeningError) continue;
+
             // Get DD record if exists
             const ddRecord = await db.query.dueDiligenceRecords.findFirst({
                 where: eq(dueDiligenceRecords.applicationId, app.applicationId)
@@ -903,8 +917,12 @@ export async function claimDDApplication(applicationId: number): Promise<{
 }> {
     try {
         const session = await auth();
-        if (!session?.user || !["admin", "oversight", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
+        if (!session?.user || !["admin", "oversight", "redo", "reviewer_1", "reviewer_2"].includes(session.user.role || "")) {
             return { success: false, message: "Unauthorized" };
+        }
+        const screeningError = await assertPassedA2fScreening(applicationId);
+        if (screeningError) {
+            return { success: false, message: screeningError };
         }
 
         // Check if DD record exists

@@ -33,7 +33,7 @@ export function A2fScreeningPassEmail({
           </Heading>
           <Text>Hello {applicantName},</Text>
           <Text>
-            {businessName} has passed the BIRE Innovation Fund pre-screening.
+            {businessName} has passed the BIRE Innovation Fund pre-screening and due diligence checks.
             You can now complete the Access to Finance Matching Grant application.
           </Text>
           <Section style={{ textAlign: "center", margin: "28px 0" }}>
@@ -45,7 +45,7 @@ export function A2fScreeningPassEmail({
             </Button>
           </Section>
           <Text>
-            Passing pre-screening allows you to apply. It is not a financing approval or guarantee of funding.
+            This invitation allows you to apply. It is not a financing approval or guarantee of funding.
           </Text>
           <Hr style={{ borderColor: "#d1d5db", margin: "24px 0" }} />
           <Text style={{ color: "#6b7280", fontSize: "12px" }}>
@@ -56,4 +56,3 @@ export function A2fScreeningPassEmail({
     </Html>
   );
 }
-

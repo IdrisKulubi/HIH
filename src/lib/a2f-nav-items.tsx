@@ -23,8 +23,8 @@ export type A2fNavItemDef = {
 
 export const A2F_NAV_ITEMS: readonly A2fNavItemDef[] = [
     { segment: "overview", label: "Overview", href: "", icon: House, exact: true },
-    { segment: "matching-grant", label: "Application", href: "/matching-grant", icon: PenNib },
     { segment: "due-diligence", label: "Due diligence", href: "/due-diligence", icon: ClipboardText },
+    { segment: "matching-grant", label: "Application", href: "/matching-grant", icon: PenNib },
     { segment: "scoring", label: "Scoring", href: "/scoring", icon: ChartLine },
     { segment: "appraisal", label: "GAIR / IC", href: "/appraisal", icon: FileText },
     { segment: "contracts", label: "Agreement", href: "/contracts", icon: Handshake },

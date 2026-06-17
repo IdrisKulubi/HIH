@@ -34,7 +34,8 @@ export interface AdminA2fPreScreeningRow {
   businessName: string;
   applicantName: string;
   track: string | null;
-  ddScore: number;
+  ddScore: number | null;
+  ddStatus: string | null;
   attemptId: number | null;
   status: "not_screened" | "draft" | "submitted";
   reviewerName: string | null;
@@ -43,6 +44,10 @@ export interface AdminA2fPreScreeningRow {
   effectiveOutcome: PreScreeningOutcome | null;
   assessedAt: string | null;
   hardStopReasons: string[];
+  invitationStatus: string | null;
+  invitationError: string | null;
+  canSendInvite: boolean;
+  inviteBlockedReason: string | null;
 }
 
 export interface AdminA2fPipelineRow {
@@ -107,6 +112,14 @@ function stageNextAction(stage: string, financeStatus: string) {
   return labels[stage] ?? "Review case";
 }
 
+const SCREENING_TRACKS = ["foundation", "acceleration"] as const;
+
+const screeningCandidateWhere = and(
+  eq(applications.status, "submitted"),
+  eq(applications.isObservationOnly, false),
+  inArray(applications.track, SCREENING_TRACKS)
+);
+
 export async function getAdminA2fDashboardData(): Promise<
   ActionResponse<AdminA2fDashboardData>
 > {
@@ -121,13 +134,14 @@ export async function getAdminA2fDashboardData(): Promise<
         applicantLastName: applicants.lastName,
         track: applications.track,
         ddScore: dueDiligenceRecords.phase1Score,
+        ddStatus: dueDiligenceRecords.ddStatus,
       })
       .from(applications)
       .innerJoin(businesses, eq(businesses.id, applications.businessId))
       .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-      .innerJoin(dueDiligenceRecords, eq(dueDiligenceRecords.applicationId, applications.id))
-      .where(qualifiedDdApplicationsWhere)
-      .orderBy(desc(dueDiligenceRecords.validatorActionAt));
+      .leftJoin(dueDiligenceRecords, eq(dueDiligenceRecords.applicationId, applications.id))
+      .where(screeningCandidateWhere)
+      .orderBy(desc(applications.submittedAt));
 
     const applicationIds = candidates.map((row) => row.applicationId);
     const attempts = applicationIds.length
@@ -190,13 +204,36 @@ export async function getAdminA2fDashboardData(): Promise<
       const latestOverride = submitted
         ? latestOverrideByAttempt.get(submitted.id)
         : undefined;
+      const effectiveOutcome = resolveEffectivePreScreeningOutcome(
+        submitted?.outcome,
+        latestOverride?.newOutcome
+      );
+      const ddQualified =
+        candidate.ddStatus === "approved" && Number(candidate.ddScore ?? 0) >= 60;
+      const inviteSent = submitted?.invitationStatus === "sent";
+      const canSendInvite =
+        Boolean(submitted?.id) &&
+        effectiveOutcome === "pass" &&
+        ddQualified &&
+        !inviteSent;
+      const inviteBlockedReason =
+        !submitted?.id
+          ? "Screening has not been submitted"
+          : effectiveOutcome !== "pass"
+            ? "Effective screening outcome must be Pass"
+            : !ddQualified
+              ? "Due diligence must be approved with a score of at least 60%"
+              : inviteSent
+                ? "A2F invite already sent"
+                : null;
       return {
         applicationId: candidate.applicationId,
         businessName: candidate.businessName,
         applicantName:
           `${candidate.applicantFirstName} ${candidate.applicantLastName}`.trim(),
         track: candidate.track,
-        ddScore: candidate.ddScore ?? 0,
+        ddScore: candidate.ddScore ?? null,
+        ddStatus: candidate.ddStatus ?? null,
         attemptId: displayAttempt?.id ?? null,
         status: draft ? "draft" : submitted ? "submitted" : "not_screened",
         reviewerName: displayAttempt
@@ -206,12 +243,13 @@ export async function getAdminA2fDashboardData(): Promise<
         originalOutcome: isPreScreeningOutcome(submitted?.outcome)
           ? submitted.outcome
           : null,
-        effectiveOutcome: resolveEffectivePreScreeningOutcome(
-          submitted?.outcome,
-          latestOverride?.newOutcome
-        ),
+        effectiveOutcome,
         assessedAt: submitted?.assessedAt?.toISOString() ?? null,
         hardStopReasons: submitted?.hardStopReasons ?? [],
+        invitationStatus: submitted?.invitationStatus ?? null,
+        invitationError: submitted?.invitationError ?? null,
+        canSendInvite,
+        inviteBlockedReason,
       };
     });
 
@@ -414,6 +452,99 @@ async function sendInvitation(attemptId: number, applicationId: number) {
   return result.success ? "sent" : "failed";
 }
 
+async function ensurePipelineForInvite(applicationId: number) {
+  const existing = await db.query.a2fPipeline.findFirst({
+    where: eq(a2fPipeline.applicationId, applicationId),
+  });
+  if (existing) {
+    await db
+      .update(a2fPipeline)
+      .set({
+        screeningRequired: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(a2fPipeline.id, existing.id));
+    return existing.id;
+  }
+
+  const [business] = await db
+    .select({ annualRevenue: businesses.revenueLastYear })
+    .from(applications)
+    .innerJoin(businesses, eq(businesses.id, applications.businessId))
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+
+  const [created] = await db
+    .insert(a2fPipeline)
+    .values({
+      applicationId,
+      instrumentType: "matching_grant",
+      requestedAmount: String(Number(business?.annualRevenue ?? 0) || 1),
+      screeningRequired: false,
+      status: "a2f_pipeline",
+      notes: "Created when admin sent the A2F application invite",
+    })
+    .returning({ id: a2fPipeline.id });
+
+  return created.id;
+}
+
+export async function sendA2fApplicationInvite(
+  attemptId: number
+): Promise<ActionResponse<{ emailStatus: string; a2fId: number }>> {
+  try {
+    const admin = await requireAdmin();
+    if (!admin) return errorResponse("Unauthorized");
+
+    const attempt = await db.query.a2fPreScreeningAttempts.findFirst({
+      where: and(
+        eq(a2fPreScreeningAttempts.id, attemptId),
+        eq(a2fPreScreeningAttempts.status, "submitted")
+      ),
+    });
+    if (!attempt) return errorResponse("Submitted screening attempt not found");
+
+    const latestOverride = await db.query.a2fPreScreeningOverrides.findFirst({
+      where: eq(a2fPreScreeningOverrides.attemptId, attemptId),
+      orderBy: [desc(a2fPreScreeningOverrides.createdAt)],
+    });
+    const effectiveOutcome = resolveEffectivePreScreeningOutcome(
+      attempt.outcome,
+      latestOverride?.newOutcome
+    );
+    if (effectiveOutcome !== "pass") {
+      return errorResponse("Only enterprises with an effective Pass screening can be invited");
+    }
+
+    const qualifiedDd = await db.query.dueDiligenceRecords.findFirst({
+      where: and(
+        eq(dueDiligenceRecords.applicationId, attempt.applicationId),
+        qualifiedDdApplicationsWhere
+      ),
+      columns: { id: true },
+    });
+    if (!qualifiedDd) {
+      return errorResponse("Due diligence must be approved with a score of at least 60% before sending the A2F invite");
+    }
+
+    const a2fId = await ensurePipelineForInvite(attempt.applicationId);
+    if (attempt.invitationStatus === "sent") {
+      return successResponse({ emailStatus: "sent", a2fId });
+    }
+
+    const emailStatus = await sendInvitation(attempt.id, attempt.applicationId);
+
+    revalidatePath("/admin/a2f");
+    revalidatePath("/a2f");
+    revalidatePath("/access-to-finance");
+    revalidatePath("/profile");
+    return successResponse({ emailStatus, a2fId });
+  } catch (error) {
+    console.error("Failed to send A2F application invite:", error);
+    return errorResponse("Failed to send A2F invite");
+  }
+}
+
 export async function overridePreScreeningOutcome(
   attemptId: number,
   newOutcome: PreScreeningOutcome,
@@ -473,29 +604,11 @@ export async function overridePreScreeningOutcome(
 
     let emailStatus: string | undefined;
     if (newOutcome === "pass") {
-      if (pipeline) {
-        await db
-          .update(a2fPipeline)
-          .set({ screeningRequired: false, updatedAt: new Date() })
-          .where(eq(a2fPipeline.id, pipeline.id));
-      } else {
-        const [business] = await db
-          .select({ annualRevenue: businesses.revenueLastYear })
-          .from(applications)
-          .innerJoin(businesses, eq(businesses.id, applications.businessId))
-          .where(eq(applications.id, attempt.applicationId))
-          .limit(1);
-        await db.insert(a2fPipeline).values({
-          applicationId: attempt.applicationId,
-          instrumentType: "matching_grant",
-          requestedAmount: String(Number(business?.annualRevenue ?? 0) || 1),
-          screeningRequired: false,
-          status: "a2f_pipeline",
-          notes: "Created after an audited admin pre-screening outcome override",
-        });
-      }
       if (attempt.invitationStatus !== "sent") {
-        emailStatus = await sendInvitation(attempt.id, attempt.applicationId);
+        await db
+          .update(a2fPreScreeningAttempts)
+          .set({ invitationStatus: "pending", updatedAt: new Date() })
+          .where(eq(a2fPreScreeningAttempts.id, attempt.id));
       }
     } else if (currentOutcome === "pass" && pipeline) {
       await db

@@ -1,5 +1,7 @@
 import db from "@/db/drizzle";
 import {
+    a2fMatchingGrantApplications,
+    a2fPreScreeningAttempts,
     a2fPipeline,
     applications,
     investmentAppraisals,
@@ -158,5 +160,34 @@ export async function assertApplicantOwnsPipeline(
         };
     }
 
+    const screeningAttempt = await db.query.a2fPreScreeningAttempts.findFirst({
+        where: eq(a2fPreScreeningAttempts.id, passedScreening.attemptId),
+        columns: { invitationStatus: true },
+    });
+    if (screeningAttempt?.invitationStatus !== "sent") {
+        return {
+            ok: false,
+            error: "Access to Finance is locked until admin sends the A2F application invite",
+        };
+    }
+
     return { ok: true, applicationId: pipeline.applicationId };
+}
+
+export async function assertMatchingGrantApplicationSubmitted(
+    a2fId: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+    const application = await db.query.a2fMatchingGrantApplications.findFirst({
+        where: eq(a2fMatchingGrantApplications.a2fId, a2fId),
+        columns: { status: true },
+    });
+
+    if (application?.status === "submitted") {
+        return { ok: true };
+    }
+
+    return {
+        ok: false,
+        error: "This A2F area is locked until the enterprise submits the Matching Grant application form.",
+    };
 }

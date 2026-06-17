@@ -182,7 +182,7 @@ export function ScreeningQueue({
             A2F pre-screening
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Screen due-diligence-qualified enterprises before finance access is unlocked
+            Screen submitted Foundation and Accelerator enterprises before DD and finance access
           </p>
         </div>
         <Button
@@ -199,10 +199,10 @@ export function ScreeningQueue({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
-            Eligible enterprises
+            Screening candidates
           </p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{counts.total}</p>
-          <p className="mt-1 text-xs text-slate-600">DD-qualified for screening</p>
+          <p className="mt-1 text-xs text-slate-600">Ready for EDO/REDO screening</p>
         </div>
         <div className="rounded-xl border bg-muted/50 px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -214,7 +214,7 @@ export function ScreeningQueue({
         <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">Passed</p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{counts.pass}</p>
-          <p className="mt-1 text-xs text-slate-600">Finance access unlocked</p>
+          <p className="mt-1 text-xs text-slate-600">Ready for due diligence</p>
         </div>
         <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 px-4 py-4">
           <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-amber-800">
@@ -318,9 +318,7 @@ export function ScreeningQueue({
                   <TableHead className="pl-6">Enterprise</TableHead>
                   <TableHead>Track</TableHead>
                   <TableHead>Verified revenue</TableHead>
-                  <TableHead>
-                    <span title="Due diligence phase 1 score">DD score</span>
-                  </TableHead>
+                  <TableHead>DD status</TableHead>
                   <TableHead>Assignment</TableHead>
                   <TableHead>Outcome</TableHead>
                   <TableHead className="pr-6 text-right">Action</TableHead>
@@ -356,7 +354,7 @@ export function ScreeningQueue({
                       </TableCell>
                       <TableCell className="capitalize">{row.track ?? "Unset"}</TableCell>
                       <TableCell>KES {row.annualRevenue.toLocaleString("en-KE")}</TableCell>
-                      <TableCell>{row.ddScore}%</TableCell>
+                      <TableCell>{row.ddScore !== null ? `${row.ddScore}%` : "Not started"}</TableCell>
                       <TableCell className="text-sm">
                         {row.assignedReviewerName ?? "Unassigned"}
                       </TableCell>

@@ -29,6 +29,7 @@ import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import {
     A2F_STAFF_ROLES,
     assertApplicantOwnsPipeline,
+    assertMatchingGrantApplicationSubmitted,
     hasA2fStaffRead,
 } from "@/lib/a2f-access";
 import { canEditMatchingGrantApplication } from "@/lib/a2f-nav";
@@ -374,6 +375,8 @@ export async function saveMatchingGrantOfficialUse(
         if (pipeline.instrumentType !== "matching_grant") {
             return errorResponse("Official-use fields apply only to Matching Grant pipeline entries.");
         }
+        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
+        if (!submitted.ok) return errorResponse(submitted.error);
         if (!pipeline.application?.track) {
             return errorResponse("Application track is required before saving official-use fields.");
         }

@@ -10,7 +10,6 @@ import {
   type PreScreeningTrack,
 } from "@/lib/a2f-pre-screening";
 import {
-  resendPreScreeningInvitation,
   savePreScreeningDraft,
   submitPreScreening,
 } from "@/lib/actions/a2f-pre-screening";
@@ -88,7 +87,6 @@ function ScoreSidebar({
   pending,
   onSave,
   onSubmit,
-  onResend,
 }: {
   calculated: ReturnType<typeof calculatePreScreening>;
   completed: number;
@@ -97,7 +95,6 @@ function ScoreSidebar({
   pending: boolean;
   onSave: () => void;
   onSubmit: () => void;
-  onResend: () => void;
 }) {
   const displayScore = readonly ? workspace.attempt.totalScore : calculated.totalScore;
   const displayOutcome = readonly
@@ -175,12 +172,11 @@ function ScoreSidebar({
               <CheckCircle className="mt-0.5 size-4 shrink-0 text-emerald-600" />
               <span>Submitted assessment is read-only.</span>
             </div>
-            {workspace.attempt.effectiveOutcome === "pass" &&
-              workspace.attempt.invitationStatus === "failed" && (
-                <Button className="w-full" onClick={onResend} disabled={pending}>
-                  Retry invitation email
-                </Button>
-              )}
+            {workspace.attempt.effectiveOutcome === "pass" && (
+              <p className="text-xs text-muted-foreground">
+                Admin sends the A2F application invite after due diligence is approved.
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-2 border-t pt-3">
@@ -274,19 +270,6 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
         `Submitted: ${formatOutcome(result.data.outcome)} (${result.data.totalScore}/100)`
       );
       router.refresh();
-    });
-  }
-
-  function resend() {
-    startTransition(async () => {
-      const result = await resendPreScreeningInvitation(workspace.attempt.id);
-      if (!result.success) toast.error(result.error);
-      else {
-        toast.success(
-          result.data?.emailStatus === "sent" ? "Invitation sent" : "Email delivery failed"
-        );
-        router.refresh();
-      }
     });
   }
 
@@ -526,7 +509,6 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
             pending={pending}
             onSave={save}
             onSubmit={submit}
-            onResend={resend}
           />
         </aside>
       </div>

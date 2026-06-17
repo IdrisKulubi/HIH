@@ -24,8 +24,8 @@ export const A2F_NAV_SEGMENT_HREFS: Record<A2fNavSegment, string> = {
 
 const OFFICER_SEGMENTS: A2fNavSegment[] = [
     "overview",
-    "matching-grant",
     "due-diligence",
+    "matching-grant",
     "scoring",
     "appraisal",
     "contracts",

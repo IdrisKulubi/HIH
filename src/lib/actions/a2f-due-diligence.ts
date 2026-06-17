@@ -120,7 +120,11 @@ export interface A2fDdReportInput {
     isComplete?: boolean;
 }
 
-import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
+import {
+    A2F_STAFF_ROLES,
+    assertA2fStaffRead,
+    assertMatchingGrantApplicationSubmitted,
+} from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -163,6 +167,8 @@ export async function saveA2fDdDraft(
         if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
             return errorResponse("Unauthorized");
         }
+        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
+        if (!submitted.ok) return errorResponse(submitted.error);
 
         return upsertDdReport(a2fId, session.user.id, { ...data, isComplete: false });
     } catch (error) {
@@ -192,6 +198,8 @@ export async function action_submitDDReport(
         });
 
         if (!pipeline) return errorResponse("A2F pipeline entry not found");
+        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
+        if (!submitted.ok) return errorResponse(submitted.error);
 
         // Validate minimum required fields per stage
         const validationError = validateDdPayload(data);

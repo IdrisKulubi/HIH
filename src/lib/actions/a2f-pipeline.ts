@@ -7,6 +7,7 @@ import {
     a2fDueDiligenceReports,
     a2fScoring,
     a2fMatchingGrantApplications,
+    a2fPreScreeningAttempts,
     grantAgreements,
     disbursementsAndRepayments,
     applications,
@@ -24,7 +25,11 @@ import {
     isMatchingGrantTrackEligible,
     PIPELINE_STAGE_ORDER,
 } from "@/lib/a2f-constants";
-import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
+import {
+    A2F_STAFF_ROLES,
+    assertA2fStaffRead,
+    assertMatchingGrantApplicationSubmitted,
+} from "@/lib/a2f-access";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
 // Re-export types only (no runtime value — safe in "use server" files)
@@ -247,6 +252,13 @@ export async function createA2fPipelineEntry(
                 "This enterprise must pass Access to Finance pre-screening before it can enter the pipeline"
             );
         }
+        const screeningAttempt = await db.query.a2fPreScreeningAttempts.findFirst({
+            where: eq(a2fPreScreeningAttempts.id, passedScreening.attemptId),
+            columns: { invitationStatus: true },
+        });
+        if (screeningAttempt?.invitationStatus !== "sent") {
+            return errorResponse("Admin must send the A2F application invite before this enterprise can enter the pipeline");
+        }
 
         // Prevent duplicate entries for same application
         const existing = await db.query.a2fPipeline.findFirst({
@@ -299,6 +311,11 @@ export async function advancePipelineStatus(
         });
 
         if (!entry) return errorResponse("Pipeline entry not found");
+
+        if (newStatus !== "a2f_pipeline") {
+            const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
+            if (!submitted.ok) return errorResponse(submitted.error);
+        }
 
         const currentIdx = PIPELINE_STAGE_ORDER.indexOf(entry.status as A2fPipelineStatus);
         const newIdx = PIPELINE_STAGE_ORDER.indexOf(newStatus);

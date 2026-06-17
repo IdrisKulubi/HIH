@@ -2,6 +2,7 @@ import db from "@/db/drizzle";
 import {
     applications,
     a2fPipeline,
+    a2fPreScreeningAttempts,
     dueDiligenceRecords,
     grantAgreements,
 } from "@/db/schema";
@@ -77,6 +78,19 @@ export async function checkApplicantCanStartMatchingGrant(
                     : "Your enterprise is not currently eligible to open the Access to Finance application.",
             applicationId: application.id,
             screeningStatus,
+        };
+    }
+
+    const screeningAttempt = await db.query.a2fPreScreeningAttempts.findFirst({
+        where: eq(a2fPreScreeningAttempts.id, latestScreening.attemptId),
+        columns: { invitationStatus: true },
+    });
+    if (screeningAttempt?.invitationStatus !== "sent") {
+        return {
+            eligible: false,
+            reason: "Your enterprise has passed screening and due diligence. Access to Finance will open after admin sends your A2F application invite.",
+            applicationId: application.id,
+            screeningStatus: "pass",
         };
     }
 

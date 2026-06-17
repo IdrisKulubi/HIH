@@ -24,7 +24,11 @@ import {
 
 export type { MatchingGrantScores, ScoringPayload };
 
-import { A2F_STAFF_ROLES, assertA2fStaffRead } from "@/lib/a2f-access";
+import {
+    A2F_STAFF_ROLES,
+    assertA2fStaffRead,
+    assertMatchingGrantApplicationSubmitted,
+} from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
@@ -55,6 +59,8 @@ export async function action_calculateA2FScore(
         if (pipeline.instrumentType !== 'matching_grant') {
             return errorResponse("Only Matching Grant pipeline entries can be scored.");
         }
+        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
+        if (!submitted.ok) return errorResponse(submitted.error);
 
         const scoringPayload = normalizeScoringPayload(payload, pipeline);
 

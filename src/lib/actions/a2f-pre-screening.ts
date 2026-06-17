@@ -3,7 +3,6 @@
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
 import {
-  a2fPipeline,
   a2fPreScreeningAttempts,
   a2fPreScreeningOverrides,
   applicants,
@@ -18,10 +17,8 @@ import {
   type PreScreeningRatings,
   type PreScreeningTrack,
 } from "@/lib/a2f-pre-screening";
-import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 import { resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
-import { sendA2fScreeningPassEmail } from "@/lib/email";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
@@ -47,7 +44,15 @@ async function requireScreeningUser() {
   return session.user;
 }
 
-async function getEligibleApplication(applicationId: number) {
+const SCREENING_TRACKS = ["foundation", "acceleration"] as const;
+
+const screeningCandidateWhere = and(
+  eq(applications.status, "submitted"),
+  eq(applications.isObservationOnly, false),
+  inArray(applications.track, SCREENING_TRACKS)
+);
+
+async function getScreeningApplication(applicationId: number) {
   const [row] = await db
     .select({
       applicationId: applications.id,
@@ -63,14 +68,14 @@ async function getEligibleApplication(applicationId: number) {
     .from(applications)
     .innerJoin(businesses, eq(businesses.id, applications.businessId))
     .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-    .innerJoin(
+    .leftJoin(
       dueDiligenceRecords,
       eq(dueDiligenceRecords.applicationId, applications.id)
     )
     .where(
       and(
         eq(applications.id, applicationId),
-        qualifiedDdApplicationsWhere
+        screeningCandidateWhere
       )
     )
     .limit(1);
@@ -84,7 +89,7 @@ export interface PreScreeningQueueItem {
   county: string | null;
   track: string | null;
   annualRevenue: number;
-  ddScore: number;
+  ddScore: number | null;
   latestAttemptId: number | null;
   latestStatus: string | null;
   latestOutcome: string | null;
@@ -115,16 +120,17 @@ export async function getPreScreeningQueue(): Promise<
         applicantFirstName: applicants.firstName,
         applicantLastName: applicants.lastName,
         ddScore: dueDiligenceRecords.phase1Score,
+        ddStatus: dueDiligenceRecords.ddStatus,
       })
       .from(applications)
       .innerJoin(businesses, eq(businesses.id, applications.businessId))
       .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-      .innerJoin(
+      .leftJoin(
         dueDiligenceRecords,
         eq(dueDiligenceRecords.applicationId, applications.id)
       )
-      .where(qualifiedDdApplicationsWhere)
-      .orderBy(desc(dueDiligenceRecords.validatorActionAt));
+      .where(screeningCandidateWhere)
+      .orderBy(desc(applications.submittedAt));
 
     const applicationIds = candidates.map((item) => item.applicationId);
     const attempts = applicationIds.length
@@ -189,7 +195,7 @@ export async function getPreScreeningQueue(): Promise<
           county: candidate.county,
           track: candidate.track,
           annualRevenue: Number(candidate.annualRevenue),
-          ddScore: candidate.ddScore ?? 0,
+          ddScore: candidate.ddScore ?? null,
           latestAttemptId: latest?.id ?? null,
           latestStatus: latest?.status ?? null,
           latestOutcome: effectiveOutcome,
@@ -231,10 +237,10 @@ export async function getOrCreatePreScreeningDraft(
       return errorResponse("Only EDO/REDO reviewers can claim screening cases");
     }
 
-    const application = await getEligibleApplication(applicationId);
+    const application = await getScreeningApplication(applicationId);
     if (!application) {
       return errorResponse(
-        "The enterprise must have approved due diligence with a score of at least 60%."
+        "The enterprise must be a submitted Foundation or Accelerator application before screening."
       );
     }
     const track = normalizeTrack(application.track);
@@ -327,7 +333,7 @@ export async function getPreScreeningWorkspace(attemptId: number) {
       return errorResponse("This screening is assigned to another reviewer");
     }
 
-    const application = await getEligibleApplication(attempt.applicationId);
+    const application = await getScreeningApplication(attempt.applicationId);
     if (!application) return errorResponse("Enterprise is no longer eligible for screening");
     const reviewer = await db.query.userProfiles.findFirst({
       where: eq(userProfiles.userId, attempt.assignedReviewerId),
@@ -395,7 +401,7 @@ export async function savePreScreeningDraft(
     if (!isReviewerRole(user.role)) return errorResponse("Only EDO/REDO reviewers can edit drafts");
     const attempt = await loadEditableAttempt(attemptId, user.id);
     if (!attempt) return errorResponse("Editable screening draft not found");
-    const application = await getEligibleApplication(attempt.applicationId);
+    const application = await getScreeningApplication(attempt.applicationId);
     if (!application) return errorResponse("Enterprise is no longer eligible for screening");
 
     const calculated = calculatePreScreening(
@@ -430,34 +436,6 @@ export async function savePreScreeningDraft(
   }
 }
 
-async function ensurePipelineForPassedApplication(
-  applicationId: number,
-  annualRevenue: number
-) {
-  const existing = await db.query.a2fPipeline.findFirst({
-    where: eq(a2fPipeline.applicationId, applicationId),
-  });
-  if (existing) {
-    await db
-      .update(a2fPipeline)
-      .set({ screeningRequired: false, updatedAt: new Date() })
-      .where(eq(a2fPipeline.id, existing.id));
-    return existing.id;
-  }
-  const [created] = await db
-    .insert(a2fPipeline)
-    .values({
-      applicationId,
-      instrumentType: "matching_grant",
-      requestedAmount: String(annualRevenue > 0 ? annualRevenue : 1),
-      screeningRequired: false,
-      status: "a2f_pipeline",
-      notes: "Created after passing A2F pre-screening",
-    })
-    .returning({ id: a2fPipeline.id });
-  return created.id;
-}
-
 function validateConditionalDate(value?: string | null) {
   if (!value) return "A re-screening date is required for a Conditional outcome";
   const selected = new Date(`${value}T00:00:00`);
@@ -485,10 +463,10 @@ export async function submitPreScreening(
     if (!isReviewerRole(user.role)) return errorResponse("Only EDO/REDO reviewers can submit assessments");
     const attempt = await loadEditableAttempt(attemptId, user.id);
     if (!attempt) return errorResponse("Editable screening draft not found");
-    const application = await getEligibleApplication(attempt.applicationId);
+    const application = await getScreeningApplication(attempt.applicationId);
     if (!application) {
       return errorResponse(
-        "Approved due diligence with a score of at least 60% is required at submission"
+        "The enterprise is no longer eligible for screening"
       );
     }
 
@@ -504,10 +482,6 @@ export async function submitPreScreening(
     if (calculated.outcome === "conditional") {
       const dateError = validateConditionalDate(input.rescreenEligibleAt);
       if (dateError) return errorResponse(dateError);
-    }
-
-    if (calculated.outcome === "pass") {
-      await ensurePipelineForPassedApplication(attempt.applicationId, annualRevenue);
     }
 
     const invitationStatus =
@@ -541,19 +515,15 @@ export async function submitPreScreening(
       .returning({ id: a2fPreScreeningAttempts.id });
     if (!updated.length) return errorResponse("This screening was already submitted");
 
-    let emailStatus = invitationStatus;
-    if (calculated.outcome === "pass") {
-      emailStatus = await deliverInvitation(attemptId, application);
-    }
-
     revalidatePath("/finance-screening");
     revalidatePath(`/finance-screening/${attemptId}`);
+    revalidatePath("/admin/a2f");
     revalidatePath("/access-to-finance");
     revalidatePath("/profile");
     return successResponse({
       outcome: calculated.outcome,
       totalScore: calculated.totalScore,
-      emailStatus,
+      emailStatus: invitationStatus,
     });
   } catch (error) {
     console.error("Failed to submit screening:", error);
@@ -561,58 +531,9 @@ export async function submitPreScreening(
   }
 }
 
-async function deliverInvitation(
-  attemptId: number,
-  application: Awaited<ReturnType<typeof getEligibleApplication>>
-) {
-  if (!application) return "failed";
-  const applicationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org"}/access-to-finance`;
-  const result = await sendA2fScreeningPassEmail({
-    userEmail: application.applicantEmail,
-    applicantName:
-      `${application.applicantFirstName} ${application.applicantLastName}`.trim(),
-    businessName: application.businessName,
-    applicationUrl,
-  });
-  await db
-    .update(a2fPreScreeningAttempts)
-    .set({
-      invitationStatus: result.success ? "sent" : "failed",
-      invitationSentAt: result.success ? new Date() : null,
-      invitationError: result.success ? null : result.error ?? "Email delivery failed",
-      invitationAttempts: sql`${a2fPreScreeningAttempts.invitationAttempts} + 1`,
-      updatedAt: new Date(),
-    })
-    .where(eq(a2fPreScreeningAttempts.id, attemptId));
-  return result.success ? "sent" : "failed";
-}
-
 export async function resendPreScreeningInvitation(
   attemptId: number
 ): Promise<ActionResponse<{ emailStatus: string }>> {
-  try {
-    const user = await requireScreeningUser();
-    if (!user) return errorResponse("Unauthorized");
-    const attempt = await db.query.a2fPreScreeningAttempts.findFirst({
-      where: eq(a2fPreScreeningAttempts.id, attemptId),
-    });
-    const effective = attempt
-      ? await getEffectiveScreeningForApplication(attempt.applicationId)
-      : null;
-    if (!attempt || attempt.status !== "submitted" || effective?.outcome !== "pass") {
-      return errorResponse("Only passed screenings have an invitation");
-    }
-    if (attempt.invitationStatus === "sent") {
-      return successResponse({ emailStatus: "sent" });
-    }
-    const application = await getEligibleApplication(attempt.applicationId);
-    if (!application) return errorResponse("Enterprise is no longer eligible");
-    const emailStatus = await deliverInvitation(attemptId, application);
-    revalidatePath("/finance-screening");
-    revalidatePath(`/finance-screening/${attemptId}`);
-    return successResponse({ emailStatus });
-  } catch (error) {
-    console.error("Failed to resend screening invitation:", error);
-    return errorResponse("Failed to resend invitation");
-  }
+  void attemptId;
+  return errorResponse("A2F invites are sent by admin after due diligence is approved.");
 }
