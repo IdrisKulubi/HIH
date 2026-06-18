@@ -19,6 +19,7 @@ import {
 } from "@/lib/a2f-pre-screening";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 import { resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
+import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
@@ -44,13 +45,7 @@ async function requireScreeningUser() {
   return session.user;
 }
 
-const SCREENING_TRACKS = ["foundation", "acceleration"] as const;
-
-const screeningCandidateWhere = and(
-  eq(applications.status, "submitted"),
-  eq(applications.isObservationOnly, false),
-  inArray(applications.track, SCREENING_TRACKS)
-);
+const screeningCandidateWhere = a2fScreeningCandidateWhere;
 
 async function getScreeningApplication(applicationId: number) {
   const [row] = await db
@@ -68,15 +63,12 @@ async function getScreeningApplication(applicationId: number) {
     .from(applications)
     .innerJoin(businesses, eq(businesses.id, applications.businessId))
     .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-    .leftJoin(
+    .innerJoin(
       dueDiligenceRecords,
       eq(dueDiligenceRecords.applicationId, applications.id)
     )
     .where(
-      and(
-        eq(applications.id, applicationId),
-        screeningCandidateWhere
-      )
+      and(eq(applications.id, applicationId), screeningCandidateWhere)
     )
     .limit(1);
   return row ?? null;
@@ -125,12 +117,12 @@ export async function getPreScreeningQueue(): Promise<
       .from(applications)
       .innerJoin(businesses, eq(businesses.id, applications.businessId))
       .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-      .leftJoin(
+      .innerJoin(
         dueDiligenceRecords,
         eq(dueDiligenceRecords.applicationId, applications.id)
       )
       .where(screeningCandidateWhere)
-      .orderBy(desc(applications.submittedAt));
+      .orderBy(desc(dueDiligenceRecords.validatorActionAt));
 
     const applicationIds = candidates.map((item) => item.applicationId);
     const attempts = applicationIds.length
@@ -240,7 +232,7 @@ export async function getOrCreatePreScreeningDraft(
     const application = await getScreeningApplication(applicationId);
     if (!application) {
       return errorResponse(
-        "The enterprise must be a submitted Foundation or Accelerator application before screening."
+        "The enterprise must be a DD-qualified Foundation or Accelerator application before screening."
       );
     }
     const track = normalizeTrack(application.track);

@@ -8,6 +8,7 @@ import {
   dueDiligenceRecords,
 } from "@/db/schema";
 import { and, eq, inArray, lte, notExists, sql } from "drizzle-orm";
+import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 const OVERSIGHT_HUB_ROLES = ["admin", "oversight", "redo"] as const;
@@ -59,13 +60,12 @@ async function countPreScreeningNotScreened() {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(applications)
+    .innerJoin(
+      dueDiligenceRecords,
+      eq(dueDiligenceRecords.applicationId, applications.id)
+    )
     .where(
-      and(
-        eq(applications.status, "submitted"),
-        eq(applications.isObservationOnly, false),
-        inArray(applications.track, ["foundation", "acceleration"]),
-        notExists(attemptForApplication)
-      )
+      and(a2fScreeningCandidateWhere, notExists(attemptForApplication))
     );
 
   return row?.count ?? 0;

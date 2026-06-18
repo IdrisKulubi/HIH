@@ -24,6 +24,7 @@ import {
   type PreScreeningOutcome,
 } from "@/lib/a2f-pre-screening-outcome";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
+import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
 import { sendA2fScreeningPassEmail } from "@/lib/email";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -112,13 +113,7 @@ function stageNextAction(stage: string, financeStatus: string) {
   return labels[stage] ?? "Review case";
 }
 
-const SCREENING_TRACKS = ["foundation", "acceleration"] as const;
-
-const screeningCandidateWhere = and(
-  eq(applications.status, "submitted"),
-  eq(applications.isObservationOnly, false),
-  inArray(applications.track, SCREENING_TRACKS)
-);
+const screeningCandidateWhere = a2fScreeningCandidateWhere;
 
 export async function getAdminA2fDashboardData(): Promise<
   ActionResponse<AdminA2fDashboardData>
@@ -139,9 +134,9 @@ export async function getAdminA2fDashboardData(): Promise<
       .from(applications)
       .innerJoin(businesses, eq(businesses.id, applications.businessId))
       .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
-      .leftJoin(dueDiligenceRecords, eq(dueDiligenceRecords.applicationId, applications.id))
+      .innerJoin(dueDiligenceRecords, eq(dueDiligenceRecords.applicationId, applications.id))
       .where(screeningCandidateWhere)
-      .orderBy(desc(applications.submittedAt));
+      .orderBy(desc(dueDiligenceRecords.validatorActionAt));
 
     const applicationIds = candidates.map((row) => row.applicationId);
     const attempts = applicationIds.length
