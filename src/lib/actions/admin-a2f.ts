@@ -25,6 +25,7 @@ import {
 } from "@/lib/a2f-pre-screening-outcome";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
+import { ensureA2fPipelineEntryForApplication, syncPassedScreeningPipelineEntries } from "@/lib/server/a2f-pipeline-sync";
 import { sendA2fScreeningPassEmail } from "@/lib/email";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -120,6 +121,8 @@ export async function getAdminA2fDashboardData(): Promise<
 > {
   try {
     if (!(await requireAdmin())) return errorResponse("Unauthorized");
+
+    await syncPassedScreeningPipelineEntries();
 
     const candidates = await db
       .select({
@@ -448,40 +451,9 @@ async function sendInvitation(attemptId: number, applicationId: number) {
 }
 
 async function ensurePipelineForInvite(applicationId: number) {
-  const existing = await db.query.a2fPipeline.findFirst({
-    where: eq(a2fPipeline.applicationId, applicationId),
+  return ensureA2fPipelineEntryForApplication(applicationId, {
+    notes: "Created when admin sent the A2F application invite",
   });
-  if (existing) {
-    await db
-      .update(a2fPipeline)
-      .set({
-        screeningRequired: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(a2fPipeline.id, existing.id));
-    return existing.id;
-  }
-
-  const [business] = await db
-    .select({ annualRevenue: businesses.revenueLastYear })
-    .from(applications)
-    .innerJoin(businesses, eq(businesses.id, applications.businessId))
-    .where(eq(applications.id, applicationId))
-    .limit(1);
-
-  const [created] = await db
-    .insert(a2fPipeline)
-    .values({
-      applicationId,
-      instrumentType: "matching_grant",
-      requestedAmount: String(Number(business?.annualRevenue ?? 0) || 1),
-      screeningRequired: false,
-      status: "a2f_pipeline",
-      notes: "Created when admin sent the A2F application invite",
-    })
-    .returning({ id: a2fPipeline.id });
-
-  return created.id;
 }
 
 export async function sendA2fApplicationInvite(
@@ -605,6 +577,9 @@ export async function overridePreScreeningOutcome(
           .set({ invitationStatus: "pending", updatedAt: new Date() })
           .where(eq(a2fPreScreeningAttempts.id, attempt.id));
       }
+      await ensureA2fPipelineEntryForApplication(attempt.applicationId, {
+        notes: "Created after admin set an effective Pass screening outcome",
+      });
     } else if (currentOutcome === "pass" && pipeline) {
       await db
         .update(a2fPipeline)

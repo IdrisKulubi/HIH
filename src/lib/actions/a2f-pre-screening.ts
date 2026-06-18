@@ -20,6 +20,7 @@ import {
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 import { resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
+import { ensureA2fPipelineEntryForApplication } from "@/lib/server/a2f-pipeline-sync";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
@@ -507,9 +508,16 @@ export async function submitPreScreening(
       .returning({ id: a2fPreScreeningAttempts.id });
     if (!updated.length) return errorResponse("This screening was already submitted");
 
+    if (calculated.outcome === "pass") {
+      await ensureA2fPipelineEntryForApplication(attempt.applicationId, {
+        notes: "Created when EDO/REDO submitted a Pass screening",
+      });
+    }
+
     revalidatePath("/finance-screening");
     revalidatePath(`/finance-screening/${attemptId}`);
     revalidatePath("/admin/a2f");
+    revalidatePath("/a2f");
     revalidatePath("/access-to-finance");
     revalidatePath("/profile");
     return successResponse({

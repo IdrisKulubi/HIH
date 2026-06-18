@@ -31,6 +31,7 @@ import {
     assertMatchingGrantApplicationSubmitted,
 } from "@/lib/a2f-access";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
+import { syncPassedScreeningPipelineEntries } from "@/lib/server/a2f-pipeline-sync";
 
 // Re-export types only (no runtime value — safe in "use server" files)
 export type { A2fPipelineStatus, A2fInstrumentType };
@@ -67,6 +68,8 @@ export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineLi
         if (!session?.user || !staffRead.ok) {
             return errorResponse("Unauthorized");
         }
+
+        await syncPassedScreeningPipelineEntries();
 
         const entries = await db
             .select({
