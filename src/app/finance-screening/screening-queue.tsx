@@ -87,18 +87,30 @@ function matchesAssignment(row: PreScreeningQueueItem, filter: string) {
 
 function actionLabel(row: PreScreeningQueueItem) {
   if (!row.canOpen) return "Locked";
-  if (canStartPreScreeningRescreen(row)) return "Start re-screen";
+  if (canStartPreScreeningRescreen(row)) return "Re-screen";
   if (
     row.latestOutcome === "conditional" &&
     row.rescreenEligibleAt &&
     !isRescreenDateReached(row.rescreenEligibleAt)
   ) {
     const date = formatRescreenDate(row.rescreenEligibleAt);
-    return date ? `Re-screen ${date}` : "Scheduled";
+    return date ? `From ${date}` : "Scheduled";
   }
   if (row.latestAttemptId) return "Open";
-  return row.canClaim ? "Claim & screen" : "Awaiting reviewer";
+  return row.canClaim ? "Claim" : "Waiting";
 }
+
+function actionTitle(row: PreScreeningQueueItem) {
+  if (!row.canOpen) return "Assigned to another reviewer";
+  if (canStartPreScreeningRescreen(row)) return "Start a new re-screening assessment";
+  if (row.latestAttemptId) return "Open the latest screening attempt";
+  return row.canClaim ? "Claim and screen this enterprise" : "Awaiting an available reviewer";
+}
+
+const ACTION_HEAD =
+  "sticky right-0 z-20 w-[5.75rem] bg-card pr-4 text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.2)] sm:w-[6.5rem]";
+const ACTION_CELL =
+  "sticky right-0 z-10 bg-card pr-4 text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.2)] group-hover:bg-muted/50";
 
 export function ScreeningQueue({
   rows: initialRows,
@@ -319,16 +331,16 @@ export function ScreeningQueue({
                 : "No enterprises match your filters."}
             </div>
           ) : (
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Enterprise</TableHead>
-                  <TableHead>Track</TableHead>
-                  <TableHead>Verified revenue</TableHead>
-                  <TableHead>DD status</TableHead>
-                  <TableHead>Assignment</TableHead>
-                  <TableHead>Outcome</TableHead>
-                  <TableHead className="pr-6 text-right">Action</TableHead>
+                  <TableHead className="w-[34%] min-w-[8rem] pl-6">Enterprise</TableHead>
+                  <TableHead className="hidden w-[5.5rem] sm:table-cell">Track</TableHead>
+                  <TableHead className="hidden w-[6.5rem] md:table-cell">Revenue</TableHead>
+                  <TableHead className="hidden w-[4.5rem] lg:table-cell">DD</TableHead>
+                  <TableHead className="hidden w-[6rem] xl:table-cell">Assigned</TableHead>
+                  <TableHead className="w-[5.5rem]">Outcome</TableHead>
+                  <TableHead className={ACTION_HEAD}>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -338,6 +350,8 @@ export function ScreeningQueue({
                   const button = (
                     <Button
                       size="sm"
+                      title={actionTitle(row)}
+                      className="h-8 min-w-0 px-2.5 text-xs"
                       variant={
                         canStartPreScreeningRescreen(row)
                           ? "default"
@@ -348,38 +362,55 @@ export function ScreeningQueue({
                       disabled={!row.canOpen || pending || isOpening}
                       onClick={() => open(row)}
                     >
-                      {isOpening ? "Opening…" : label}
+                      {isOpening ? "…" : label}
                     </Button>
                   );
 
                   return (
-                    <TableRow key={row.applicationId}>
+                    <TableRow key={row.applicationId} className="group">
                       <TableCell className="pl-6">
-                        <div className="flex gap-2">
-                          <Buildings className="mt-0.5 size-4 text-emerald-700" />
-                          <div>
-                            <p className="font-medium">{row.businessName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {row.applicantName} · Application #{row.applicationId}
+                        <div className="flex min-w-0 gap-2">
+                          <Buildings className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium" title={row.businessName}>
+                              {row.businessName}
+                            </p>
+                            <p
+                              className="truncate text-xs text-muted-foreground"
+                              title={`${row.applicantName} · Application #${row.applicationId}`}
+                            >
+                              {row.applicantName} · #{row.applicationId}
                             </p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="capitalize">{row.track ?? "Unset"}</TableCell>
-                      <TableCell>KES {row.annualRevenue.toLocaleString("en-KE")}</TableCell>
-                      <TableCell>{row.ddScore !== null ? `${row.ddScore}%` : "Not started"}</TableCell>
-                      <TableCell className="text-sm">
-                        {row.assignedReviewerName ?? "Unassigned"}
+                      <TableCell className="hidden capitalize sm:table-cell">
+                        {row.track ?? "Unset"}
+                      </TableCell>
+                      <TableCell className="hidden tabular-nums text-xs md:table-cell">
+                        <span title={`KES ${row.annualRevenue.toLocaleString("en-KE")}`}>
+                          {row.annualRevenue >= 1_000_000
+                            ? `${(row.annualRevenue / 1_000_000).toFixed(1)}M`
+                            : `${Math.round(row.annualRevenue / 1_000)}K`}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {row.ddScore !== null ? `${row.ddScore}%` : "—"}
+                      </TableCell>
+                      <TableCell className="hidden truncate text-sm xl:table-cell" title={row.assignedReviewerName ?? undefined}>
+                        {row.assignedReviewerName ?? "—"}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           {outcomeBadge(row)}
                           {row.latestScore !== null && (
-                            <p className="text-xs text-muted-foreground">{row.latestScore}/100</p>
+                            <p className="text-xs text-muted-foreground tabular-nums">
+                              {row.latestScore}/100
+                            </p>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="pr-6 text-right">
+                      <TableCell className={ACTION_CELL}>
                         {!row.canOpen && row.assignedReviewerName ? (
                           <Tooltip>
                             <TooltipTrigger asChild>

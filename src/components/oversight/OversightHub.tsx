@@ -2,12 +2,12 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { HubQueueRow } from "@/components/staff/HubQueueRow";
 import type { OversightDashboardSummary } from "@/lib/actions/oversight-dashboard";
 import { isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
 import {
   ArrowRight,
   Bank,
-  CaretRight,
   ClipboardText,
   Clock,
   ShieldCheck,
@@ -23,46 +23,6 @@ function roleLabel(role: string | null | undefined) {
   if (role === "redo") return "REDO Approver";
   if (role === "admin") return "Administrator";
   return "Final Approver";
-}
-
-function QueueRow({
-  title,
-  description,
-  href,
-  count,
-  countLabel,
-  primary,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  count?: number;
-  countLabel?: string;
-  primary?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`group flex items-center gap-4 rounded-lg border px-4 py-3.5 transition-colors ${
-        primary
-          ? "border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80"
-      }`}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium text-slate-900">{title}</p>
-          {count !== undefined && count > 0 && (
-            <Badge variant="secondary" className="tabular-nums">
-              {count} {countLabel ?? "waiting"}
-            </Badge>
-          )}
-        </div>
-        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
-      </div>
-      <CaretRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-    </Link>
-  );
 }
 
 export function OversightHub({
@@ -204,7 +164,7 @@ export function OversightHub({
           Queues
         </h2>
         <div className="space-y-2">
-          <QueueRow
+          <HubQueueRow
             title="Due diligence approvals"
             description="Approve or query DD assessments assigned to you"
             href="/oversight/approvals"
@@ -212,20 +172,20 @@ export function OversightHub({
             countLabel="assigned"
             primary={summary.pendingApprovals > 0}
           />
-          <QueueRow
+          <HubQueueRow
             title="CDP work queue"
             description="Review CNA progress and manage capacity development plans"
             href="/admin/cdp"
           />
           {showPreScreening && (
-            <QueueRow
+            <HubQueueRow
               title="KYC workspace"
               description="Open qualified enterprises and update KYC documents, staff assignment, and geolocation"
               href="/reviewer/kyc"
             />
           )}
           {showA2fDdQueue && (
-            <QueueRow
+            <HubQueueRow
               title="A2F due diligence"
               description="Complete initial due diligence for pipeline cases that passed pre-screening"
               href="/a2f"
@@ -235,21 +195,21 @@ export function OversightHub({
             />
           )}
           {!ddOnlyA2f && (
-            <QueueRow
+            <HubQueueRow
               title="A2F portal"
               description="Matching grant pipeline, scoring, contracts, and disbursements"
               href="/a2f"
             />
           )}
           {showPreScreening && (
-            <QueueRow
+            <HubQueueRow
               title="Document resolutions"
               description="Follow up application document issues assigned by Access to Finance"
               href="/application-resolutions"
             />
           )}
           {showPreScreening && (
-            <QueueRow
+            <HubQueueRow
               title="A2F pre-screening"
               description="Score DD-qualified enterprises before finance access is unlocked"
               href="/finance-screening"
