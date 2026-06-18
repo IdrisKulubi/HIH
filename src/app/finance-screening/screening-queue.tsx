@@ -39,7 +39,11 @@ import {
   ClipboardText,
   X,
 } from "@phosphor-icons/react";
-import { toast } from "sonner";
+import {
+  formatRescreenDate,
+  canStartPreScreeningRescreen,
+  isRescreenDateReached,
+} from "@/lib/a2f-pre-screening-rescreen";
 
 const OUTCOME_FILTER_OPTIONS = [
   { value: "all", label: "All outcomes" },
@@ -81,12 +85,16 @@ function matchesAssignment(row: PreScreeningQueueItem, filter: string) {
 }
 
 function actionLabel(row: PreScreeningQueueItem) {
-  const canRescreen =
-    row.latestOutcome === "conditional" &&
-    row.rescreenEligibleAt !== null &&
-    new Date(row.rescreenEligibleAt) <= new Date();
   if (!row.canOpen) return "Locked";
-  if (canRescreen && row.canClaim) return "Start re-screen";
+  if (canStartPreScreeningRescreen(row)) return "Start re-screen";
+  if (
+    row.latestOutcome === "conditional" &&
+    row.rescreenEligibleAt &&
+    !isRescreenDateReached(row.rescreenEligibleAt)
+  ) {
+    const date = formatRescreenDate(row.rescreenEligibleAt);
+    return date ? `Re-screen ${date}` : "Scheduled";
+  }
   if (row.latestAttemptId) return "Open";
   return row.canClaim ? "Claim & screen" : "Awaiting reviewer";
 }
@@ -147,25 +155,23 @@ export function ScreeningQueue({
 
   function open(row: PreScreeningQueueItem) {
     if (!row.canOpen || pending) return;
-    const canRescreen =
-      row.latestOutcome === "conditional" &&
-      row.rescreenEligibleAt !== null &&
-      new Date(row.rescreenEligibleAt) <= new Date();
-    if (row.latestAttemptId && (!canRescreen || !row.canClaim)) {
-      router.push(`/finance-screening/${row.latestAttemptId}`);
+    if (canStartPreScreeningRescreen(row)) {
+      setOpeningId(row.applicationId);
+      startTransition(async () => {
+        const result = await getOrCreatePreScreeningDraft(row.applicationId);
+        setOpeningId(null);
+        if (!result.success || !result.data) {
+          toast.error(result.error ?? "Could not start screening");
+          return;
+        }
+        router.push(`/finance-screening/${result.data.attemptId}`);
+        router.refresh();
+      });
       return;
     }
-    setOpeningId(row.applicationId);
-    startTransition(async () => {
-      const result = await getOrCreatePreScreeningDraft(row.applicationId);
-      setOpeningId(null);
-      if (!result.success || !result.data) {
-        toast.error(result.error ?? "Could not start screening");
-        return;
-      }
-      router.push(`/finance-screening/${result.data.attemptId}`);
-      router.refresh();
-    });
+    if (row.latestAttemptId) {
+      router.push(`/finance-screening/${row.latestAttemptId}`);
+    }
   }
 
   return (
@@ -331,7 +337,13 @@ export function ScreeningQueue({
                   const button = (
                     <Button
                       size="sm"
-                      variant={row.latestAttemptId && row.canOpen ? "outline" : "default"}
+                      variant={
+                        canStartPreScreeningRescreen(row)
+                          ? "default"
+                          : row.latestAttemptId && row.canOpen
+                            ? "outline"
+                            : "default"
+                      }
                       disabled={!row.canOpen || pending || isOpening}
                       onClick={() => open(row)}
                     >

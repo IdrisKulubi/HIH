@@ -37,18 +37,35 @@ const OVERSIGHT_SEGMENTS: A2fNavSegment[] = [...OFFICER_SEGMENTS];
 
 const FULL_STAFF_SEGMENTS: A2fNavSegment[] = [...OFFICER_SEGMENTS];
 
-const STAFF_WITHOUT_APPLICATION_SEGMENTS: A2fNavSegment[] = OFFICER_SEGMENTS.filter(
-    (segment) => segment !== "matching-grant"
-);
+/** EDO/REDO only complete A2F pipeline due diligence — no other pipeline tabs. */
+export const EDO_REDO_A2F_SEGMENTS: A2fNavSegment[] = ["due-diligence"];
 
 const SEGMENTS_BY_ROLE: Record<string, A2fNavSegment[] | "all"> = {
     a2f_officer: OFFICER_SEGMENTS,
     oversight: OVERSIGHT_SEGMENTS,
     admin: "all",
-    redo: STAFF_WITHOUT_APPLICATION_SEGMENTS,
-    bds_edo: STAFF_WITHOUT_APPLICATION_SEGMENTS,
+    redo: EDO_REDO_A2F_SEGMENTS,
+    bds_edo: EDO_REDO_A2F_SEGMENTS,
     a2f_committee: [],
 };
+
+export function isA2fDdOnlyStaffRole(role?: string | null): boolean {
+    return role === "bds_edo" || role === "redo";
+}
+
+export function getA2fEntryPath(a2fId: number, role?: string | null): string {
+    if (isA2fDdOnlyStaffRole(role)) {
+        return `/a2f/${a2fId}/due-diligence`;
+    }
+    return `/a2f/${a2fId}`;
+}
+
+export function getA2fDdBackPath(a2fId: number, role?: string | null): string {
+    if (isA2fDdOnlyStaffRole(role)) {
+        return "/a2f";
+    }
+    return `/a2f/${a2fId}`;
+}
 
 export function getAllowedA2fNavSegments(role?: string | null): A2fNavSegment[] {
     if (!role) return [];
@@ -100,7 +117,7 @@ export function canAccessA2fStaffPath(
     const parsed = parseA2fStaffPipelinePath(pathname);
     if (!parsed) return role !== "a2f_committee" && pathname === "/a2f";
     const segment = pathnameToA2fNavSegment(pathname, parsed.a2fId);
-    if (!segment) return isAdminRole(role) || role === "redo" || role === "bds_edo";
+    if (!segment) return isAdminRole(role);
     return canAccessA2fStaffSegment(role, segment);
 }
 

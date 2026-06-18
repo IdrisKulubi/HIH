@@ -3,6 +3,8 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { getA2fDdBackPath } from "@/lib/a2f-nav";
 import { Suspense } from "react";
 import { toast } from "sonner";
 import {
@@ -275,6 +277,9 @@ function Step4Form({ data, exitStrategy, onFieldChange, onExitChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DueDiligenceWorkspace({ a2fId, stage }: { a2fId: number; stage: A2fDdStage }) {
+    const { data: session } = useSession();
+    const viewerRole = session?.user?.role;
+    const backHref = getA2fDdBackPath(a2fId, viewerRole);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
     const [currentStep, setCurrentStep] = useState(1);
@@ -393,7 +398,7 @@ function DueDiligenceWorkspace({ a2fId, stage }: { a2fId: number; stage: A2fDdSt
             {/* ── Top bar ── */}
             <div className="shrink-0 border-b bg-white px-6 py-3 flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild className="gap-1.5 shrink-0">
-                    <Link href={`/a2f/${a2fId}`}>
+                    <Link href={backHref}>
                         <ArrowLeft className="size-4" />
                         Back
                     </Link>

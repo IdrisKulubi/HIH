@@ -569,6 +569,15 @@ export async function overridePreScreeningOutcome(
       createdById: admin.id,
     });
 
+    if (newOutcome === "conditional" && !attempt.rescreenEligibleAt) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      await db
+        .update(a2fPreScreeningAttempts)
+        .set({ rescreenEligibleAt: today, updatedAt: new Date() })
+        .where(eq(a2fPreScreeningAttempts.id, attempt.id));
+    }
+
     let emailStatus: string | undefined;
     if (newOutcome === "pass") {
       if (attempt.invitationStatus !== "sent") {

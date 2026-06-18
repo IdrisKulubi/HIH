@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import {
     Buildings, Coins, FileText,
     ChartLine, ClipboardText, CheckCircle, ArrowRight,
@@ -381,7 +380,7 @@ export default function A2fEntryPage({ params }: { params: Promise<{ id: string 
                     ddReports={entry.dueDiligenceReports}
                     gairAppraisal={gairAppraisal}
                     onSaved={loadData}
-                />
+                 />
             )}
 
             {/* ── Financial summary (if disbursing) ── */}

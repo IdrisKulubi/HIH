@@ -247,13 +247,13 @@ async function getReviewerNotifications(userId: string, role: string): Promise<T
   });
 }
 
-async function getA2fOfficerNotifications(userId: string, role: string): Promise<TopbarNotification[]> {
+async function getA2fStaffPipelineNotifications(userId: string, role: string): Promise<TopbarNotification[]> {
   const officerScope =
-    role === "admin"
-      ? undefined
-      : or(eq(a2fPipeline.a2fOfficerId, userId), isNull(a2fPipeline.a2fOfficerId));
+    role === "a2f_officer"
+      ? or(eq(a2fPipeline.a2fOfficerId, userId), isNull(a2fPipeline.a2fOfficerId))
+      : undefined;
 
-  const applicationSubmittedWhere = and(
+  const needsInitialDdWhere = and(
     eq(a2fPipeline.screeningRequired, false),
     eq(a2fPipeline.status, "a2f_pipeline"),
     officerScope,
@@ -268,8 +268,25 @@ async function getA2fOfficerNotifications(userId: string, role: string): Promise
             eq(a2fDueDiligenceReports.isComplete, true)
           )
         )
-    ),
-    eq(a2fMatchingGrantApplications.status, "submitted")
+    )
+  );
+
+  const applicationSubmittedWhere = and(
+    eq(a2fPipeline.screeningRequired, false),
+    officerScope,
+    eq(a2fMatchingGrantApplications.status, "submitted"),
+    notExists(
+      db
+        .select({ id: a2fDueDiligenceReports.id })
+        .from(a2fDueDiligenceReports)
+        .where(
+          and(
+            eq(a2fDueDiligenceReports.a2fId, a2fPipeline.id),
+            eq(a2fDueDiligenceReports.stage, "initial"),
+            eq(a2fDueDiligenceReports.isComplete, true)
+          )
+        )
+    )
   );
 
   const readyForScoringWhere = and(
@@ -283,7 +300,8 @@ async function getA2fOfficerNotifications(userId: string, role: string): Promise
     )
   );
 
-  const [applicationSubmittedCount, scoringCount] = await Promise.all([
+  const [needsInitialDdCount, applicationSubmittedCount, scoringCount] = await Promise.all([
+    countRows(a2fPipeline, needsInitialDdWhere),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(a2fPipeline)
@@ -297,6 +315,14 @@ async function getA2fOfficerNotifications(userId: string, role: string): Promise
   ]);
 
   return [
+    ...itemIf(needsInitialDdCount, {
+      id: "a2f-dd-initial-pending",
+      title: "Cases awaiting initial due diligence",
+      body: `${countLabel(needsInitialDdCount, "case")} need the initial DD workspace completed.`,
+      href: "/a2f",
+      group: "A2F",
+      tone: "warning",
+    }),
     ...itemIf(applicationSubmittedCount, {
       id: "a2f-applications-submitted",
       title: "A2F applications ready for officer action",
@@ -428,8 +454,8 @@ export async function getTopbarNotifications(): Promise<
     if (role === "reviewer_1" || role === "reviewer_2") {
       providers.push(getReviewerNotifications(userId, role));
     }
-    if (role === "admin" || role === "a2f_officer") {
-      providers.push(getA2fOfficerNotifications(userId, role));
+    if (role === "admin" || role === "a2f_officer" || role === "bds_edo" || role === "redo") {
+      providers.push(getA2fStaffPipelineNotifications(userId, role));
     }
     if (role === "admin" || role === "a2f_committee") {
       providers.push(getCommitteeNotifications());

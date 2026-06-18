@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { PIPELINE_STAGE_LABELS, type A2fPipelineStatus } from "@/lib/a2f-constants";
 import { cn } from "@/lib/utils";
 import { getA2fNavItemsForRole } from "@/lib/a2f-nav-items";
+import { isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
 
 export interface A2fEntryShellProps {
     a2fId: number;
@@ -54,6 +55,7 @@ export function A2fEntryShell({
     const pathname = usePathname();
     const base = `/a2f/${a2fId}`;
     const navItems = getA2fNavItemsForRole(viewerRole);
+    const ddOnlyShell = isA2fDdOnlyStaffRole(viewerRole);
     const trackLabel = formatTrack(track);
     const stageLabel = PIPELINE_STAGE_LABELS[pipelineStatus as A2fPipelineStatus] ?? pipelineStatus;
 
@@ -87,6 +89,9 @@ export function A2fEntryShell({
                                 {approvedAmount != null && Number(approvedAmount) > 0 && (
                                     <> · Approved {formatKes(approvedAmount)}</>
                                 )}
+                                {ddOnlyShell && (
+                                    <> · Due diligence</>
+                                )}
                             </p>
                         </div>
                         <Button variant="outline" size="sm" asChild className="shrink-0 self-start lg:self-center">
@@ -94,30 +99,32 @@ export function A2fEntryShell({
                         </Button>
                     </div>
 
-                    <nav className="mt-3 flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
-                        {navItems.map((item) => {
-                            const { label, href, icon: Icon } = item;
-                            const path = `${base}${href}`;
-                            const active = item.exact
-                                ? pathname === base || pathname === `${base}/`
-                                : pathname.startsWith(path);
-                            return (
-                                <Link
-                                    key={href || "overview"}
-                                    href={path}
-                                    className={cn(
-                                        "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors",
-                                        active
-                                            ? "bg-emerald-700 text-white"
-                                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    )}
-                                >
-                                    <Icon className="size-3.5" weight={active ? "fill" : "duotone"} />
-                                    {label}
-                                </Link>
-                            );
-                        })}
-                    </nav>
+                    {!ddOnlyShell && (
+                        <nav className="mt-3 flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
+                            {navItems.map((item) => {
+                                const { label, href, icon: Icon } = item;
+                                const path = `${base}${href}`;
+                                const active = item.exact
+                                    ? pathname === base || pathname === `${base}/`
+                                    : pathname.startsWith(path);
+                                return (
+                                    <Link
+                                        key={href || "overview"}
+                                        href={path}
+                                        className={cn(
+                                            "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                                            active
+                                                ? "bg-emerald-700 text-white"
+                                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <Icon className="size-3.5" weight={active ? "fill" : "duotone"} />
+                                        {label}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+                    )}
                 </div>
             </div>
 

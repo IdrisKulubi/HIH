@@ -1,9 +1,13 @@
 import { AdminCnaBusinessTable } from "@/components/admin/cna/AdminCnaBusinessTable";
 import { listBusinessesForCnaRole } from "@/lib/actions/role-cna";
+import { countA2fCasesAwaitingInitialDd } from "@/lib/server/a2f-dd-queue";
 import Link from "next/link";
 
 export default async function BdsCnaPage() {
-  const res = await listBusinessesForCnaRole();
+  const [res, a2fDdAwaiting] = await Promise.all([
+    listBusinessesForCnaRole(),
+    countA2fCasesAwaitingInitialDd(),
+  ]);
 
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
@@ -25,7 +29,7 @@ export default async function BdsCnaPage() {
             Open CDP work queue
           </Link>
           <Link href="/a2f" className="rounded-md border px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50">
-            Open A2F portal
+            A2F due diligence{a2fDdAwaiting > 0 ? ` (${a2fDdAwaiting})` : ""}
           </Link>
           <Link href="/finance-screening" className="rounded-md border px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50">
             A2F pre-screening

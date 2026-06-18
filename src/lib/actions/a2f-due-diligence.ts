@@ -122,8 +122,8 @@ export interface A2fDdReportInput {
 
 import {
     A2F_STAFF_ROLES,
+    assertA2fDdWritable,
     assertA2fStaffRead,
-    assertMatchingGrantApplicationSubmitted,
 } from "@/lib/a2f-access";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
@@ -167,8 +167,8 @@ export async function saveA2fDdDraft(
         if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
             return errorResponse("Unauthorized");
         }
-        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
-        if (!submitted.ok) return errorResponse(submitted.error);
+        const writable = await assertA2fDdWritable(a2fId, data.stage);
+        if (!writable.ok) return errorResponse(writable.error);
 
         return upsertDdReport(a2fId, session.user.id, { ...data, isComplete: false });
     } catch (error) {
@@ -189,17 +189,16 @@ export async function action_submitDDReport(
     try {
         const session = await auth();
         if (!session?.user || !A2F_ROLES.includes(session.user.role as typeof A2F_ROLES[number])) {
-            return errorResponse("Unauthorized. Admin or A2F Officer access required.");
+            return errorResponse("Unauthorized");
         }
 
-        // Validate pipeline entry exists
         const pipeline = await db.query.a2fPipeline.findFirst({
             where: eq(a2fPipeline.id, a2fId),
         });
 
         if (!pipeline) return errorResponse("A2F pipeline entry not found");
-        const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
-        if (!submitted.ok) return errorResponse(submitted.error);
+        const writable = await assertA2fDdWritable(a2fId, data.stage);
+        if (!writable.ok) return errorResponse(writable.error);
 
         // Validate minimum required fields per stage
         const validationError = validateDdPayload(data);
@@ -220,6 +219,8 @@ export async function action_submitDDReport(
 
         revalidatePath(`/admin/a2f/${a2fId}`);
         revalidatePath('/admin/a2f');
+        revalidatePath(`/a2f/${a2fId}/due-diligence`);
+        revalidatePath('/a2f');
 
         return { ...result, message: "Due diligence report submitted successfully" };
     } catch (error) {

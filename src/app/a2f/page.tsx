@@ -53,6 +53,8 @@ import {
 function formatKes(amount: number) {
     return amount.toLocaleString("en-KE", { maximumFractionDigits: 0 });
 }
+import { useSession } from "next-auth/react";
+import { getA2fEntryPath, isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
 import { STAGE_CONFIG, getStageStyle } from "@/lib/a2f-pipeline-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +64,9 @@ import { STAGE_CONFIG, getStageStyle } from "@/lib/a2f-pipeline-ui";
 function A2fDashboardContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { data: session } = useSession();
+    const viewerRole = session?.user?.role;
+    const ddOnlyView = isA2fDdOnlyStaffRole(viewerRole);
 
     const [pipeline, setPipeline] = useState<A2fPipelineListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -91,12 +96,15 @@ function A2fDashboardContent() {
     // Stats
     const stats = useMemo(() => {
         const total = pipeline.length;
+        const awaitingDd = pipeline.filter((p) =>
+            ["a2f_pipeline", "due_diligence_initial"].includes(p.status)
+        ).length;
         const active = pipeline.filter(p =>
             !["post_ta_monitoring", "a2f_pipeline"].includes(p.status)
         ).length;
         const inIcReview = pipeline.filter(p => p.status === "ic_appraisal_review").length;
         const totalDisbursed = pipeline.reduce((s, p) => s + p.totalDisbursed, 0);
-        return { total, active, inIcReview, totalDisbursed };
+        return { total, active, awaitingDd, inIcReview, totalDisbursed };
     }, [pipeline]);
 
     // Filtered data
@@ -182,7 +190,7 @@ function A2fDashboardContent() {
             toast.success(`${successCount} pipeline entr${successCount > 1 ? "ies" : "y"} created`);
             setShowCreate(false);
             loadPipeline();
-            if (successCount === 1 && lastId) router.push(`/a2f/${lastId}`);
+            if (successCount === 1 && lastId) router.push(getA2fEntryPath(lastId, viewerRole));
         }
     };
 
@@ -210,10 +218,12 @@ function A2fDashboardContent() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                        Matching Grant pipeline
+                        {ddOnlyView ? "A2F due diligence" : "Matching Grant pipeline"}
                     </h1>
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                        Track enterprises from pipeline entry through disbursement
+                        {ddOnlyView
+                            ? "Pick an enterprise and complete the initial due diligence workspace"
+                            : "Track enterprises from pipeline entry through disbursement"}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -221,16 +231,49 @@ function A2fDashboardContent() {
                         <ArrowsClockwise className="mr-1.5 size-4" />
                         Refresh
                     </Button>
-                    <Button size="sm" asChild className="bg-emerald-700 hover:bg-emerald-800">
-                        <Link href="/finance-screening">
-                            <Plus className="mr-1.5 size-4" />
-                            Review pre-screening
-                        </Link>
-                    </Button>
+                    {ddOnlyView && (
+                        <Button size="sm" asChild variant="outline">
+                            <Link href="/finance-screening">
+                                <Scales className="mr-1.5 size-4" />
+                                Pre-screening
+                            </Link>
+                        </Button>
+                    )}
+                    {!ddOnlyView && (
+                        <Button size="sm" asChild className="bg-emerald-700 hover:bg-emerald-800">
+                            <Link href="/finance-screening">
+                                <Plus className="mr-1.5 size-4" />
+                                Review pre-screening
+                            </Link>
+                        </Button>
+                    )}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className={`grid grid-cols-1 gap-4 ${ddOnlyView ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+                {ddOnlyView ? (
+                    <>
+                        <div className="rounded-xl border border-cyan-200/60 bg-cyan-50/80 px-4 py-4">
+                            <p className="text-xs font-medium uppercase tracking-wide text-cyan-800">
+                                Awaiting due diligence
+                            </p>
+                            <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                                {stats.awaitingDd}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600">
+                                Cases ready for the initial DD workspace
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
+                            <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+                                Pipeline cases
+                            </p>
+                            <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{stats.total}</p>
+                            <p className="mt-1 text-xs text-slate-600">Total enterprises in the A2F pipeline</p>
+                        </div>
+                    </>
+                ) : (
+                    <>
                 <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
                         Pipeline entries
@@ -258,6 +301,8 @@ function A2fDashboardContent() {
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">Verified disbursements</p>
                 </div>
+                    </>
+                )}
             </div>
 
             {/* ── Filters ── */}
@@ -313,7 +358,7 @@ function A2fDashboardContent() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-base">
-                            Pipeline entries
+                            {ddOnlyView ? "Due diligence cases" : "Pipeline entries"}
                             <span className="ml-2 text-sm font-normal text-muted-foreground">
                                 ({filtered.length} of {pipeline.length})
                             </span>
@@ -327,7 +372,9 @@ function A2fDashboardContent() {
                             <p className="font-medium">No pipeline entries found</p>
                             <p className="text-sm mt-1">
                                 {pipeline.length === 0
-                                    ? "Add a DD-qualified application to get started"
+                                    ? ddOnlyView
+                                        ? "Cases appear here after enterprises pass A2F pre-screening"
+                                        : "Add a DD-qualified application to get started"
                                     : "Try adjusting your filters"}
                             </p>
                         </div>
@@ -386,8 +433,8 @@ function A2fDashboardContent() {
                                             </TableCell>
                                             <TableCell className="pr-6 text-right">
                                                 <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/a2f/${entry.id}`}>
-                                                        Review
+                                                    <Link href={getA2fEntryPath(entry.id, viewerRole)}>
+                                                        {ddOnlyView ? "Open DD" : "Review"}
                                                         <ArrowRight className="ml-1 size-3.5" />
                                                     </Link>
                                                 </Button>

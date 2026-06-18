@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { OversightDashboardSummary } from "@/lib/actions/oversight-dashboard";
+import { isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
 import {
   ArrowRight,
   Bank,
@@ -73,6 +74,8 @@ export function OversightHub({
 }) {
   const displayName = user.firstName?.trim() || "Approver";
   const showPreScreening = user.role === "redo" || user.role === "admin";
+  const showA2fDdQueue = isA2fDdOnlyStaffRole(user.role) || user.role === "admin";
+  const ddOnlyA2f = isA2fDdOnlyStaffRole(user.role);
   const isAdmin = user.role === "admin";
 
   return (
@@ -96,6 +99,14 @@ export function OversightHub({
           <Button asChild className="shrink-0">
             <Link href="/oversight/approvals">
               Review approvals
+              <ArrowRight className="ml-1.5 size-4" />
+            </Link>
+          </Button>
+        )}
+        {summary.a2fDdAwaiting > 0 && ddOnlyA2f && (
+          <Button asChild className="shrink-0 bg-emerald-700 hover:bg-emerald-800">
+            <Link href="/a2f">
+              Open A2F due diligence
               <ArrowRight className="ml-1.5 size-4" />
             </Link>
           </Button>
@@ -149,12 +160,27 @@ export function OversightHub({
         </div>
         <div className="rounded-xl border bg-muted/50 px-4 py-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            CDP work queue
+            {ddOnlyA2f ? "A2F due diligence" : "CDP work queue"}
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-700">Open queue for status</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            CNA and CDP progress is tracked in the work queue
-          </p>
+          {ddOnlyA2f ? (
+            <>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                {summary.a2fDdAwaiting}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {summary.a2fDdAwaiting === 1
+                  ? "Case awaiting initial DD"
+                  : "Cases awaiting initial DD"}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-sm font-medium text-slate-700">Open queue for status</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                CNA and CDP progress is tracked in the work queue
+              </p>
+            </>
+          )}
         </div>
         {showPreScreening && (
           <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/80 px-4 py-4">
@@ -198,11 +224,23 @@ export function OversightHub({
               href="/reviewer/kyc"
             />
           )}
-          <QueueRow
-            title="A2F portal"
-            description="Matching grant pipeline, scoring, contracts, and disbursements"
-            href="/a2f"
-          />
+          {showA2fDdQueue && (
+            <QueueRow
+              title="A2F due diligence"
+              description="Complete initial due diligence for pipeline cases that passed pre-screening"
+              href="/a2f"
+              count={summary.a2fDdAwaiting}
+              countLabel="awaiting DD"
+              primary={summary.a2fDdAwaiting > 0}
+            />
+          )}
+          {!ddOnlyA2f && (
+            <QueueRow
+              title="A2F portal"
+              description="Matching grant pipeline, scoring, contracts, and disbursements"
+              href="/a2f"
+            />
+          )}
           {showPreScreening && (
             <QueueRow
               title="Document resolutions"

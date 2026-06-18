@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Coins, Kanban, ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { hasA2fRole } from "@/lib/a2f-access";
-import { parseA2fStaffPipelinePath } from "@/lib/a2f-nav";
+import { isA2fDdOnlyStaffRole, parseA2fStaffPipelinePath } from "@/lib/a2f-nav";
+import { getRoleHomePath } from "@/lib/users/role-home";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export const metadata: Metadata = {
@@ -42,6 +43,8 @@ export default async function A2fLayout({
     }
 
     const isAdmin = userRole === "admin";
+    const ddOnlyPortal = isA2fDdOnlyStaffRole(userRole);
+    const homeHref = isAdmin ? "/admin" : getRoleHomePath(userRole);
 
     return (
         <div className="flex flex-col min-h-screen bg-background text-foreground">
@@ -50,11 +53,15 @@ export default async function A2fLayout({
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
                             <Coins weight="fill" className="size-5 text-emerald-300" />
-                            <span className="font-bold text-lg tracking-tight">Matching Grant Portal</span>
+                            <span className="font-bold text-lg tracking-tight">
+                                {ddOnlyPortal ? "A2F Due Diligence" : "Matching Grant Portal"}
+                            </span>
                         </div>
-                        <span className="text-emerald-400 text-xs font-medium px-2 py-0.5 bg-emerald-800 rounded-full hidden sm:inline">
-                            BIRE Innovation Fund
-                        </span>
+                        {!ddOnlyPortal && (
+                            <span className="text-emerald-400 text-xs font-medium px-2 py-0.5 bg-emerald-800 rounded-full hidden sm:inline">
+                                BIRE Innovation Fund
+                            </span>
+                        )}
                     </div>
 
                     <nav>
@@ -68,16 +75,16 @@ export default async function A2fLayout({
                                     className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors"
                                 >
                                     <Kanban weight="duotone" className="size-4" />
-                                    Pipeline
+                                    {ddOnlyPortal ? "Cases" : "Pipeline"}
                                 </Link>
                             </li>
                             <li className="border-l border-emerald-700 pl-6">
                                 <Link
-                                    href={isAdmin ? "/admin" : "/"}
+                                    href={homeHref}
                                     className="flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 transition-colors"
                                 >
                                     <ArrowLeft weight="bold" className="size-3.5" />
-                                    {isAdmin ? "Admin" : "Home"}
+                                    {isAdmin ? "Admin" : "Hub"}
                                 </Link>
                             </li>
                         </ul>

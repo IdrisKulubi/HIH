@@ -8,8 +8,7 @@ import { A2fEntryShell } from "@/components/a2f/a2f-entry-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     canAccessA2fStaffPath,
-    pathnameToA2fNavSegment,
-    parseA2fStaffPipelinePath,
+    getA2fEntryPath,
 } from "@/lib/a2f-nav";
 
 export function A2fEntryLayoutClient({
@@ -29,12 +28,7 @@ export function A2fEntryLayoutClient({
 
     useEffect(() => {
         if (!canAccessA2fStaffPath(viewerRole, pathname)) {
-            const segment = pathnameToA2fNavSegment(pathname, a2fId);
-            if (segment) {
-                router.replace(`/a2f/${a2fId}`);
-            } else {
-                router.replace("/a2f");
-            }
+            router.replace(getA2fEntryPath(a2fId, viewerRole));
         }
     }, [pathname, viewerRole, a2fId, router]);
 

@@ -20,6 +20,7 @@ export default async function OversightDashboard() {
     urgentApprovals: 0,
     preScreeningNotScreened: 0,
     preScreeningMyDrafts: 0,
+    a2fDdAwaiting: 0,
     cdpReadyToFinalize: 0,
   };
 

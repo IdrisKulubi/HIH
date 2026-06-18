@@ -33,6 +33,14 @@ function hasDd(entry: WorkflowEntryInput): boolean {
     return (entry.dueDiligenceReports?.length ?? 0) > 0;
 }
 
+function hasCompleteInitialDd(entry: WorkflowEntryInput): boolean {
+    const reports = entry.dueDiligenceReports ?? [];
+    return reports.some(
+        (report: { stage?: string; isComplete?: boolean }) =>
+            report.stage === "initial" && report.isComplete === true
+    );
+}
+
 function latestScoring(entry: WorkflowEntryInput) {
     return entry.scoringRecords?.[0] ?? null;
 }
@@ -75,7 +83,8 @@ export function buildWorkflowChecklist(a2fId: number, entry: WorkflowEntryInput)
     const mg = entry.matchingGrantApplications?.[0];
     const mgDraft = mg && mg.status !== "submitted";
     const mgDone = mgSubmitted(entry);
-    const ddDone = hasDd(entry);
+    const ddDone = hasCompleteInitialDd(entry);
+    const ddStarted = hasDd(entry);
     const scored = Boolean(latestScoring(entry));
     const qualified = isQualified(entry);
     const gair = gairAppraisal(entry);
@@ -95,9 +104,13 @@ export function buildWorkflowChecklist(a2fId: number, entry: WorkflowEntryInput)
         {
             id: "dd",
             label: "Due diligence",
-            description: ddDone ? `${entry.dueDiligenceReports?.length ?? 0} report(s)` : "Initial DD workspace",
+            description: ddDone
+                ? `${entry.dueDiligenceReports?.length ?? 0} report(s)`
+                : ddStarted
+                  ? "Initial DD in progress"
+                  : "Initial DD workspace",
             href: `${base}/due-diligence`,
-            status: ddDone ? "complete" : mgDone ? "in_progress" : "pending",
+            status: ddDone ? "complete" : "in_progress",
         },
         {
             id: "scoring",
@@ -152,6 +165,13 @@ export function getWorkflowNextAction(a2fId: number, entry: WorkflowEntryInput):
     const base = `/a2f/${a2fId}`;
     const status = entry.status as A2fPipelineStatus;
 
+    if (!hasCompleteInitialDd(entry) && (status === "a2f_pipeline" || status === "due_diligence_initial")) {
+        return {
+            label: "Begin due diligence",
+            description: "Complete the initial DD workspace for this enterprise.",
+            href: `${base}/due-diligence`,
+        };
+    }
     if (!mgSubmitted(entry)) {
         return {
             label: "Complete Matching Grant application",
@@ -159,7 +179,7 @@ export function getWorkflowNextAction(a2fId: number, entry: WorkflowEntryInput):
             href: `${base}/matching-grant`,
         };
     }
-    if (!hasDd(entry)) {
+    if (!hasCompleteInitialDd(entry)) {
         return {
             label: "Begin due diligence",
             description: "Complete the initial DD workspace for this enterprise.",
@@ -268,8 +288,8 @@ export function getPipelineListHint(
     entry: WorkflowEntryInput & { status?: string; ddReportsCount?: number; hasGrantAgreement?: boolean }
 ): string {
     if (entry.matchingGrantApplications || entry.dueDiligenceReports) {
+        if (!hasCompleteInitialDd(entry)) return "Due diligence";
         if (!mgSubmitted(entry)) return "MG application";
-        if (!hasDd(entry)) return "Due diligence";
         if (!latestScoring(entry)) return "Scoring";
         if (!isQualified(entry)) return "Not qualified";
         if (!icDecided(entry)) return "GAIR / IC";
@@ -279,7 +299,7 @@ export function getPipelineListHint(
 
     const status = entry.status ?? "";
     const hints: Record<string, string> = {
-        a2f_pipeline: "MG application",
+        a2f_pipeline: hasCompleteInitialDd(entry) ? "MG application" : "Due diligence",
         due_diligence_initial: (entry.ddReportsCount ?? 0) > 0 ? "Scoring" : "Due diligence",
         pre_ic_scoring: "Scoring",
         ic_appraisal_review: "GAIR / IC",

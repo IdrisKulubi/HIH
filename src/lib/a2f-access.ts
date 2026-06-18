@@ -191,3 +191,33 @@ export async function assertMatchingGrantApplicationSubmitted(
         error: "This A2F area is locked until the enterprise submits the Matching Grant application form.",
     };
 }
+
+export type A2fDdWritableStage = "initial" | "pre_ic" | "post_ta";
+
+/** Staff may complete initial DD before the Matching Grant application is submitted. */
+export async function assertA2fDdWritable(
+    a2fId: number,
+    stage: A2fDdWritableStage
+): Promise<{ ok: true } | { ok: false; error: string }> {
+    const pipeline = await db.query.a2fPipeline.findFirst({
+        where: eq(a2fPipeline.id, a2fId),
+        columns: { screeningRequired: true },
+    });
+
+    if (!pipeline) {
+        return { ok: false, error: "A2F pipeline entry not found" };
+    }
+
+    if (pipeline.screeningRequired) {
+        return {
+            ok: false,
+            error: "Access to Finance is locked until pre-screening is complete",
+        };
+    }
+
+    if (stage === "initial") {
+        return { ok: true };
+    }
+
+    return assertMatchingGrantApplicationSubmitted(a2fId);
+}

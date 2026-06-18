@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { and, eq, inArray, lte, notExists, sql } from "drizzle-orm";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
+import { countA2fCasesAwaitingInitialDd } from "@/lib/server/a2f-dd-queue";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 const OVERSIGHT_HUB_ROLES = ["admin", "oversight", "redo"] as const;
@@ -19,6 +20,7 @@ export interface OversightDashboardSummary {
   urgentApprovals: number;
   preScreeningNotScreened: number;
   preScreeningMyDrafts: number;
+  a2fDdAwaiting: number;
   cdpReadyToFinalize: number;
 }
 
@@ -100,12 +102,13 @@ export async function getOversightDashboardSummary(): Promise<
       role as (typeof SCREENING_ROLES)[number]
     );
 
-    const [pendingApprovals, urgentApprovals, preScreeningNotScreened, preScreeningMyDrafts] =
+    const [pendingApprovals, urgentApprovals, preScreeningNotScreened, preScreeningMyDrafts, a2fDdAwaiting] =
       await Promise.all([
         countPendingApprovals(userId),
         countUrgentApprovals(userId),
         includeScreening ? countPreScreeningNotScreened() : Promise.resolve(0),
         includeScreening ? countPreScreeningMyDrafts(userId) : Promise.resolve(0),
+        includeScreening ? countA2fCasesAwaitingInitialDd() : Promise.resolve(0),
       ]);
 
     return successResponse({
@@ -113,6 +116,7 @@ export async function getOversightDashboardSummary(): Promise<
       urgentApprovals,
       preScreeningNotScreened,
       preScreeningMyDrafts,
+      a2fDdAwaiting,
       // Full CDP workflow scan is too slow for the hub; open the queue for details.
       cdpReadyToFinalize: 0,
     });

@@ -12,7 +12,9 @@ import {
 import {
   savePreScreeningDraft,
   submitPreScreening,
+  getOrCreatePreScreeningDraft,
 } from "@/lib/actions/a2f-pre-screening";
+import { formatRescreenDate } from "@/lib/a2f-pre-screening-rescreen";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +65,7 @@ type Workspace = {
   };
   reviewerName: string;
   canEdit: boolean;
+  canRescreen: boolean;
 };
 
 function dateInputValue(value: string | null) {
@@ -87,6 +90,7 @@ function ScoreSidebar({
   pending,
   onSave,
   onSubmit,
+  onRescreen,
 }: {
   calculated: ReturnType<typeof calculatePreScreening>;
   completed: number;
@@ -95,6 +99,7 @@ function ScoreSidebar({
   pending: boolean;
   onSave: () => void;
   onSubmit: () => void;
+  onRescreen?: () => void;
 }) {
   const displayScore = readonly ? workspace.attempt.totalScore : calculated.totalScore;
   const displayOutcome = readonly
@@ -172,6 +177,35 @@ function ScoreSidebar({
               <CheckCircle className="mt-0.5 size-4 shrink-0 text-emerald-600" />
               <span>Submitted assessment is read-only.</span>
             </div>
+            {workspace.attempt.effectiveOutcome === "conditional" && (
+              <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950">
+                {workspace.canRescreen ? (
+                  <>
+                    <p className="font-medium">Re-screening is available</p>
+                    <p className="mt-1 text-xs text-amber-900">
+                      Start a new assessment round for this enterprise.
+                    </p>
+                    {onRescreen && (
+                      <Button className="mt-3 w-full" size="sm" onClick={onRescreen} disabled={pending}>
+                        Start re-screen
+                      </Button>
+                    )}
+                  </>
+                ) : workspace.attempt.rescreenEligibleAt ? (
+                  <>
+                    <p className="font-medium">Re-screening scheduled</p>
+                    <p className="mt-1 text-xs text-amber-900">
+                      Available from{" "}
+                      {formatRescreenDate(workspace.attempt.rescreenEligibleAt) ?? "the scheduled date"}.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-amber-900">
+                    Return to the queue and use <strong>Start re-screen</strong> when ready.
+                  </p>
+                )}
+              </div>
+            )}
             {workspace.attempt.effectiveOutcome === "pass" && (
               <p className="text-xs text-muted-foreground">
                 Admin sends the A2F application invite after due diligence is approved.
@@ -269,6 +303,18 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
       toast.success(
         `Submitted: ${formatOutcome(result.data.outcome)} (${result.data.totalScore}/100)`
       );
+      router.refresh();
+    });
+  }
+
+  function startRescreen() {
+    startTransition(async () => {
+      const result = await getOrCreatePreScreeningDraft(workspace.enterprise.applicationId);
+      if (!result.success || !result.data) {
+        toast.error(result.error ?? "Could not start re-screening");
+        return;
+      }
+      router.push(`/finance-screening/${result.data.attemptId}`);
       router.refresh();
     });
   }
@@ -509,6 +555,7 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
             pending={pending}
             onSave={save}
             onSubmit={submit}
+            onRescreen={workspace.canRescreen ? startRescreen : undefined}
           />
         </aside>
       </div>

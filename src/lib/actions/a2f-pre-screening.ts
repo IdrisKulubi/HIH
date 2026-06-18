@@ -18,7 +18,8 @@ import {
   type PreScreeningTrack,
 } from "@/lib/a2f-pre-screening";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
-import { resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
+import { isPreScreeningOutcome, resolveEffectivePreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
+import { isRescreenDateReached } from "@/lib/a2f-pre-screening-rescreen";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
 import { ensureA2fPipelineEntryForApplication } from "@/lib/server/a2f-pipeline-sync";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -270,9 +271,8 @@ export async function getOrCreatePreScreeningDraft(
     }
     if (
       effectiveSubmitted?.outcome === "conditional" &&
-      latestSubmitted &&
-      latestSubmitted.rescreenEligibleAt &&
-      latestSubmitted.rescreenEligibleAt > new Date()
+      latestSubmitted?.rescreenEligibleAt &&
+      !isRescreenDateReached(latestSubmitted.rescreenEligibleAt)
     ) {
       return errorResponse(
         `Re-screening is available on ${latestSubmitted.rescreenEligibleAt.toLocaleDateString("en-KE")}`
@@ -334,11 +334,21 @@ export async function getPreScreeningWorkspace(attemptId: number) {
     const effective = attempt.status === "submitted"
       ? await getEffectiveScreeningForApplication(attempt.applicationId)
       : null;
+    const effectiveOutcome =
+      effective?.outcome ??
+      (attempt.status === "submitted" && isPreScreeningOutcome(attempt.outcome)
+        ? attempt.outcome
+        : null);
+    const canRescreen =
+      attempt.status === "submitted" &&
+      effectiveOutcome === "conditional" &&
+      isReviewerRole(user.role) &&
+      isRescreenDateReached(attempt.rescreenEligibleAt);
 
     return successResponse({
       attempt: {
         ...attempt,
-        effectiveOutcome: effective?.outcome ?? null,
+        effectiveOutcome,
         rescreenEligibleAt: attempt.rescreenEligibleAt?.toISOString() ?? null,
         assessedAt: attempt.assessedAt?.toISOString() ?? null,
         createdAt: attempt.createdAt.toISOString(),
@@ -360,6 +370,7 @@ export async function getPreScreeningWorkspace(attemptId: number) {
         attempt.status === "draft" &&
         attempt.assignedReviewerId === user.id &&
         isReviewerRole(user.role),
+      canRescreen,
     });
   } catch (error) {
     console.error("Failed to load screening workspace:", error);
