@@ -166,25 +166,31 @@ export function ScreeningQueue({
   const hasActiveFilters =
     Boolean(search) || outcomeFilter !== "all" || assignmentFilter !== "all";
 
+  function startDraft(row: PreScreeningQueueItem) {
+    setOpeningId(row.applicationId);
+    startTransition(async () => {
+      const result = await getOrCreatePreScreeningDraft(row.applicationId);
+      setOpeningId(null);
+      if (!result.success || !result.data) {
+        toast.error(result.error ?? "Could not start screening");
+        return;
+      }
+      router.push(`/finance-screening/${result.data.attemptId}`);
+      router.refresh();
+    });
+  }
+
   function open(row: PreScreeningQueueItem) {
     if (!row.canOpen || pending) return;
     if (canStartPreScreeningRescreen(row)) {
-      setOpeningId(row.applicationId);
-      startTransition(async () => {
-        const result = await getOrCreatePreScreeningDraft(row.applicationId);
-        setOpeningId(null);
-        if (!result.success || !result.data) {
-          toast.error(result.error ?? "Could not start screening");
-          return;
-        }
-        router.push(`/finance-screening/${result.data.attemptId}`);
-        router.refresh();
-      });
+      startDraft(row);
       return;
     }
     if (row.latestAttemptId) {
       router.push(`/finance-screening/${row.latestAttemptId}`);
+      return;
     }
+    startDraft(row);
   }
 
   return (
