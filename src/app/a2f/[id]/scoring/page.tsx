@@ -2,9 +2,11 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
+import { getA2fPipelineEntry, updateA2fVerifiedRevenue } from "@/lib/actions/a2f-pipeline";
 import { action_calculateA2FScore, getA2fScoringBreakdown } from "@/lib/actions/a2f-scoring";
+import { canWriteA2fStaff } from "@/lib/a2f-access";
 import {
     MATCHING_GRANT_MAX_TOTAL,
     MATCHING_GRANT_QUALIFYING_SCORE,
@@ -21,6 +23,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -75,7 +79,7 @@ const SCORING_SECTIONS: SectionConfig[] = [
         title: "Financial Readiness & Co-Investment",
         color: "violet",
         criteria: [
-            { key: "currentAnnualRevenue", label: "Current Annual Revenue", description: "Revenue hard gate based on assigned track", max: MATCHING_MAX_SCORES.currentAnnualRevenue, guidance: "System-calculated from application revenue and track. A score of 0 is automatic ineligibility.", locked: true },
+            { key: "currentAnnualRevenue", label: "Current Annual Revenue", description: "Revenue hard gate based on assigned track", max: MATCHING_MAX_SCORES.currentAnnualRevenue, guidance: "Officer-assigned revenue score (0–10). A score of 0 is automatic ineligibility." },
             { key: "revenueGrowthTrend", label: "Revenue Growth Trend", description: "Year-on-year revenue trajectory over the last two completed financial years", max: MATCHING_MAX_SCORES.revenueGrowthTrend, guidance: "High: >30% growth = 5 | Moderate: 10-30% = 3 | Low: <10%, flat, or declining = 1" },
             { key: "coInvestmentCommitment", label: "Co-Investment Commitment & Source Quality", description: "Enterprise contribution percentage, quality, and verifiability", max: MATCHING_MAX_SCORES.coInvestmentCommitment, guidance: "High: >=40% fully verifiable = 5 | Moderate: 25-39% = 3 | Low: <25% or weak evidence = 1" },
         ],
@@ -164,14 +168,17 @@ function CriterionSlider({
     onChange,
     barColor,
     revenueIneligibilityHint,
+    readOnly = false,
 }: {
     config: CriterionConfig;
     value: number;
     onChange: (val: number) => void;
     barColor: string;
     revenueIneligibilityHint?: string | null;
+    readOnly?: boolean;
 }) {
     const pct = config.max > 0 ? Math.round((value / config.max) * 100) : 0;
+    const disabled = readOnly || config.locked;
 
     return (
         <div className="space-y-2">
@@ -179,7 +186,7 @@ function CriterionSlider({
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium leading-tight flex items-center gap-1.5">
                         {config.label}
-                        {config.locked && <LockKey className="size-3.5 text-muted-foreground" />}
+                        {disabled && <LockKey className="size-3.5 text-muted-foreground" />}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
                 </div>
@@ -189,7 +196,7 @@ function CriterionSlider({
                         min={0}
                         max={config.max}
                         value={value}
-                        disabled={config.locked}
+                        disabled={disabled}
                         onChange={e => onChange(Math.min(config.max, Math.max(0, Number(e.target.value))))}
                         className="w-14 rounded-md border border-input bg-background px-2 py-1 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-70"
                     />
@@ -202,7 +209,7 @@ function CriterionSlider({
                 max={config.max}
                 step={1}
                 value={value}
-                disabled={config.locked}
+                disabled={disabled}
                 onChange={e => onChange(Number(e.target.value))}
                 className="w-full h-2 rounded-full appearance-none cursor-pointer disabled:cursor-not-allowed [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-sm"
             />
@@ -224,11 +231,13 @@ function ScoringSection({
     scores,
     onChange,
     revenueIneligibilityHint,
+    readOnly = false,
 }: {
     section: SectionConfig;
     scores: Record<string, number>;
     onChange: (key: string, val: number) => void;
     revenueIneligibilityHint?: string | null;
+    readOnly?: boolean;
 }) {
     const sectionTotal = section.criteria.reduce((sum, c) => sum + (scores[c.key] ?? 0), 0);
     const sectionMax = section.criteria.reduce((sum, c) => sum + c.max, 0);
@@ -253,6 +262,7 @@ function ScoringSection({
                     onChange={val => onChange(criterion.key, val)}
                     barColor={COLOR_MAP[section.color]}
                     revenueIneligibilityHint={revenueIneligibilityHint}
+                    readOnly={readOnly}
                 />
             ))}
         </div>
@@ -291,30 +301,108 @@ function RevenueGateCard({
     a2fId,
     track,
     revenue,
+    revenueScore,
     detail,
+    canEdit,
+    onRevenueScoreChange,
     onResolved,
 }: {
     a2fId: number;
     track: A2fEnterpriseTrack | null;
     revenue: number;
+    revenueScore: number;
     detail: RevenueGateUxDetail;
+    canEdit: boolean;
+    onRevenueScoreChange: (score: number) => void;
     onResolved: () => void;
 }) {
-    const { isEligible, revenueScore, ruleSummary, ineligibilityReason, suggestedAction, foundationRangeHint, actions } = detail;
+    const { isEligible, ruleSummary, ineligibilityReason, suggestedAction, foundationRangeHint, actions } = detail;
+    const scoreEligible = revenueScore > 0;
+    const [revenueInput, setRevenueInput] = useState("");
+    const [revenueSaving, setRevenueSaving] = useState(false);
+
+    useEffect(() => {
+        setRevenueInput(revenue > 0 ? String(revenue) : "");
+    }, [revenue]);
+
+    async function handleSaveRevenue() {
+        const parsed = Number(String(revenueInput).replace(/,/g, ""));
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            toast.error("Enter a valid annual revenue greater than zero");
+            return;
+        }
+        setRevenueSaving(true);
+        const res = await updateA2fVerifiedRevenue(a2fId, parsed);
+        setRevenueSaving(false);
+        if (res.success) {
+            toast.success(res.message ?? "Revenue updated");
+            onResolved();
+        } else {
+            toast.error(res.error ?? "Failed to update revenue");
+        }
+    }
 
     return (
-        <Card className={isEligible ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-red-200 bg-red-50/50 dark:bg-red-950/20"}>
+        <Card className={scoreEligible ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-red-200 bg-red-50/50 dark:bg-red-950/20"}>
             <CardContent className="pt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                    <div>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0 space-y-2">
                         <p className="font-semibold">{formatTrack(track)}</p>
-                        <p className="text-xs text-muted-foreground">
-                            {revenue > 0 ? `KES ${revenue.toLocaleString("en-KE")} annual revenue` : "Annual revenue not set"}
-                        </p>
+                        {canEdit ? (
+                            <div className="space-y-1.5">
+                                <Label htmlFor="verified-revenue-gate" className="text-xs text-muted-foreground">
+                                    Annual revenue (KES)
+                                </Label>
+                                <div className="flex flex-wrap gap-2">
+                                    <Input
+                                        id="verified-revenue-gate"
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={revenueInput}
+                                        onChange={e => setRevenueInput(e.target.value)}
+                                        placeholder="e.g. 2500000"
+                                        className="max-w-[200px] h-8 text-sm"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleSaveRevenue}
+                                        disabled={revenueSaving}
+                                    >
+                                        {revenueSaving ? "Saving…" : "Save revenue"}
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-muted-foreground">
+                                {revenue > 0 ? `KES ${revenue.toLocaleString("en-KE")} annual revenue` : "Annual revenue not set"}
+                            </p>
+                        )}
                     </div>
-                    <Badge className={isEligible ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}>
-                        Revenue {revenueScore}/10
-                    </Badge>
+                    {canEdit ? (
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                            <Label htmlFor="revenue-score-gate" className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                                Revenue score
+                            </Label>
+                            <div className="flex items-center gap-1">
+                                <Input
+                                    id="revenue-score-gate"
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    value={revenueScore}
+                                    onChange={e => onRevenueScoreChange(Math.min(10, Math.max(0, Number(e.target.value) || 0)))}
+                                    className="w-14 h-8 text-sm text-center font-bold"
+                                />
+                                <span className="text-xs text-muted-foreground">/10</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <Badge className={scoreEligible ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}>
+                            Revenue {revenueScore}/10
+                        </Badge>
+                    )}
                 </div>
                 <p className="text-xs text-muted-foreground">{ruleSummary}</p>
 
@@ -332,13 +420,15 @@ function RevenueGateCard({
                                 {suggestedAction}
                             </p>
                         )}
-                        <RevenueGateActions
-                            a2fId={a2fId}
-                            track={track}
-                            annualRevenue={revenue}
-                            actions={actions}
-                            onResolved={onResolved}
-                        />
+                        {actions.length > 0 && (
+                            <RevenueGateActions
+                                a2fId={a2fId}
+                                track={track}
+                                annualRevenue={revenue}
+                                actions={actions}
+                                onResolved={onResolved}
+                            />
+                        )}
                     </div>
                 )}
             </CardContent>
@@ -527,6 +617,8 @@ function PreviousScoresCard({
 export default function ScoringPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const a2fId = Number(id);
+    const { data: session } = useSession();
+    const canEdit = canWriteA2fStaff(session?.user?.role);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
@@ -558,11 +650,15 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
             }
             if (existing.scorerNotes) setScorerNotes(existing.scorerNotes);
         } else if (loadedEntry) {
-            const track = normalizeTrack(loadedEntry.application?.track);
-            const revenue = Number(loadedEntry.application?.business?.revenueLastYear ?? 0);
-            setMatchingScores({
-                ...DEFAULT_MATCHING,
-                currentAnnualRevenue: getMatchingGrantRevenueScore(track, revenue),
+            setMatchingScores(prev => {
+                const hasEditedScores = Object.values(prev).some(v => v > 0);
+                if (hasEditedScores) return prev;
+                const track = normalizeTrack(loadedEntry.application?.track);
+                const revenue = Number(loadedEntry.application?.business?.revenueLastYear ?? 0);
+                return {
+                    ...DEFAULT_MATCHING,
+                    currentAnnualRevenue: getMatchingGrantRevenueScore(track, revenue),
+                };
             });
         }
 
@@ -576,22 +672,23 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
     const biz = entry?.application?.business;
     const enterpriseTrack = normalizeTrack(entry?.application?.track);
     const annualRevenue = Number(biz?.revenueLastYear ?? 0);
-    const revenueScore = getMatchingGrantRevenueScore(enterpriseTrack, annualRevenue);
     const revenueDetail = useMemo(
         () => getRevenueGateUxDetail(enterpriseTrack, annualRevenue),
         [enterpriseTrack, annualRevenue]
     );
 
     const currentScoresRecord = useMemo(
-        () => ({ ...(matchingScores as unknown as Record<string, number>), currentAnnualRevenue: revenueScore }),
-        [matchingScores, revenueScore]
+        () => ({ ...(matchingScores as unknown as Record<string, number>) }),
+        [matchingScores]
     );
 
     function handleScoreChange(key: string, val: number) {
-        if (key !== "currentAnnualRevenue") {
-            setMatchingScores(prev => ({ ...prev, [key]: val }));
-        }
+        setMatchingScores(prev => ({ ...prev, [key]: val }));
         setSubmitted(false);
+    }
+
+    function handleRevenueScoreChange(score: number) {
+        handleScoreChange("currentAnnualRevenue", score);
     }
 
     async function handleSubmit() {
@@ -599,7 +696,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
 
         const payload = {
             instrumentType: "matching_grant" as const,
-            scores: { ...matchingScores, currentAnnualRevenue: revenueScore },
+            scores: matchingScores,
         };
 
         const res = await action_calculateA2FScore(a2fId, payload, scorerNotes || undefined);
@@ -681,7 +778,10 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                         a2fId={a2fId}
                         track={enterpriseTrack}
                         revenue={annualRevenue}
+                        revenueScore={matchingScores.currentAnnualRevenue}
                         detail={revenueDetail}
+                        canEdit={canEdit}
+                        onRevenueScoreChange={handleRevenueScoreChange}
                         onResolved={loadData}
                     />
 
@@ -692,6 +792,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                             scores={currentScoresRecord}
                             onChange={handleScoreChange}
                             revenueIneligibilityHint={revenueDetail.ineligibilityReason}
+                            readOnly={!canEdit}
                         />
                     ))}
 
@@ -712,6 +813,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                                 value={scorerNotes}
                                 onChange={e => setScorerNotes(e.target.value)}
                                 className="resize-none text-sm"
+                                disabled={!canEdit}
                             />
                         </CardContent>
                     </Card>
@@ -728,7 +830,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                         onResolved={loadData}
                     />
                     <div className="sticky bottom-4 mt-4 rounded-xl border bg-background p-4 shadow-lg lg:hidden">
-                        <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-violet-700 hover:bg-violet-800 gap-2">
+                        <Button onClick={handleSubmit} disabled={submitting || !canEdit} className="w-full bg-violet-700 hover:bg-violet-800 gap-2">
                             <Calculator className="size-4" />
                             {submitting ? "Saving Score..." : "Save & Submit Score"}
                         </Button>
@@ -741,7 +843,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
                     <p className="text-xs text-muted-foreground flex-1">
                         Submitting applies the 60-point threshold and revenue hard gate.
                     </p>
-                    <Button onClick={handleSubmit} disabled={submitting} className="bg-violet-700 hover:bg-violet-800 gap-2 shrink-0">
+                    <Button onClick={handleSubmit} disabled={submitting || !canEdit} className="bg-violet-700 hover:bg-violet-800 gap-2 shrink-0">
                         <Calculator className="size-4" />
                         {submitting ? "Saving Score..." : "Save & Submit Score"}
                     </Button>

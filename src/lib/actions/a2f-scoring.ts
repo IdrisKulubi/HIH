@@ -17,9 +17,7 @@ import {
     MATCHING_GRANT_QUALIFYING_SCORE,
     validateScoringWeights,
     getMatchingGrantQualification,
-    getMatchingGrantRevenueScore,
     normalizeMatchingGrantScores,
-    type A2fEnterpriseTrack,
 } from "@/lib/a2f-constants";
 
 export type { MatchingGrantScores, ScoringPayload };
@@ -62,7 +60,7 @@ export async function action_calculateA2FScore(
         const submitted = await assertMatchingGrantApplicationSubmitted(a2fId);
         if (!submitted.ok) return errorResponse(submitted.error);
 
-        const scoringPayload = normalizeScoringPayload(payload, pipeline);
+        const scoringPayload = normalizeScoringPayload(payload);
 
         const weightError = validateScoringWeights(scoringPayload);
         if (weightError) return errorResponse(weightError);
@@ -174,11 +172,7 @@ export async function getA2fScoringBreakdown(a2fId: number) {
         if (!latestScore) return { success: true, data: null };
 
         const normalizedScores = normalizeMatchingGrantScores(
-            latestScore.scores as Partial<MatchingGrantScores>,
-            getMatchingGrantRevenueScore(
-                pipeline.application?.track as A2fEnterpriseTrack | null | undefined,
-                Number(pipeline.application?.business?.revenueLastYear ?? 0)
-            )
+            latestScore.scores as Partial<MatchingGrantScores>
         );
         const displayTotalScore = computeTotal(normalizedScores);
         const maxTotal = MATCHING_GRANT_MAX_TOTAL;
@@ -221,18 +215,10 @@ function computeTotal(scores: MatchingGrantScores): number {
         + scores.useOfFundsQuality + scores.leveragePotential + scores.innovation;
 }
 
-function normalizeScoringPayload(
-    payload: ScoringPayload,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    pipeline: any
-): ScoringPayload {
-    const track = pipeline.application?.track as A2fEnterpriseTrack | null | undefined;
-    const annualRevenue = Number(pipeline.application?.business?.revenueLastYear ?? 0);
-    const revenueScore = getMatchingGrantRevenueScore(track, annualRevenue);
-
+function normalizeScoringPayload(payload: ScoringPayload): ScoringPayload {
     return {
         instrumentType: 'matching_grant',
-        scores: normalizeMatchingGrantScores(payload.scores, revenueScore),
+        scores: normalizeMatchingGrantScores(payload.scores),
     };
 }
 
