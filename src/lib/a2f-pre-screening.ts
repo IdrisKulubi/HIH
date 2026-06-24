@@ -37,7 +37,6 @@ export interface PreScreeningCriterion {
   rationale: string;
   maxScore: number;
   options: Record<PreScreeningTrack, PreScreeningOption[]>;
-  derived?: boolean;
 }
 
 export const PRE_SCREENING_CRITERIA: PreScreeningCriterion[] = [
@@ -53,7 +52,6 @@ export const PRE_SCREENING_CRITERIA: PreScreeningCriterion[] = [
     rationale:
       "Revenue is the primary programme eligibility gate and determines the correct enterprise track.",
     maxScore: 10,
-    derived: true,
     options: {
       foundation: [
         { id: "strong", label: "KES 2M-3M; clearly active", score: 10 },
@@ -358,10 +356,10 @@ export function calculatePreScreening(
   annualRevenue: number,
   input: Partial<PreScreeningRatings>
 ) {
-  const ratings = {
-    ...input,
-    revenue: getRevenueRating(track, annualRevenue),
-  } as Partial<PreScreeningRatings>;
+  const ratings: Partial<PreScreeningRatings> = { ...input };
+  if (ratings.revenue === undefined) {
+    ratings.revenue = getRevenueRating(track, annualRevenue);
+  }
   const scores: Partial<Record<PreScreeningCriterionId, number>> = {};
   const categoryScores: Record<string, number> = {};
   const hardStopReasons: string[] = [];

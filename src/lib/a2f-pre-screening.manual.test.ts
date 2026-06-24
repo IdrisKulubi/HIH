@@ -11,10 +11,8 @@ function ratingsFor(track: PreScreeningTrack, optionId: string) {
   return Object.fromEntries(
     PRE_SCREENING_CRITERIA.map((criterion) => [
       criterion.id,
-      criterion.derived
-        ? getRevenueRating(track, track === "foundation" ? 2_500_000 : 6_000_000)
-        : criterion.options[track].find((option) => option.id === optionId)?.id ??
-          criterion.options[track][0].id,
+      criterion.options[track].find((option) => option.id === optionId)?.id ??
+        criterion.options[track][0].id,
     ])
   ) as PreScreeningRatings;
 }
@@ -70,5 +68,9 @@ assert.equal(foundationConditional.outcome, "conditional");
 
 const incomplete = calculatePreScreening("foundation", 2_500_000, {});
 assert.equal(incomplete.missing.length, 11);
+
+const manualRevenue = calculatePreScreening("foundation", 2_500_000, { revenue: "moderate" });
+assert.equal(manualRevenue.ratings.revenue, "moderate");
+assert.equal(manualRevenue.scores.revenue, 6);
 
 console.log("A2F pre-screening rubric tests passed");

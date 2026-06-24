@@ -459,52 +459,46 @@ export function ScreeningForm({ workspace }: { workspace: Workspace }) {
                             </div>
                           </div>
 
-                          {criterion.derived ? (
-                            <div className="rounded-md border bg-slate-50 p-3 text-sm">
-                              <span className="font-medium">
-                                Automatically scored from verified revenue:{" "}
+                          {criterion.id === "revenue" && (
+                            <p className="mb-3 text-xs text-muted-foreground">
+                              Verified annual revenue on record:{" "}
+                              <span className="font-medium text-foreground">
+                                KES {workspace.enterprise.annualRevenue.toLocaleString("en-KE")}
                               </span>
-                              {
-                                options.find(
-                                  (option) => option.id === calculated.ratings.revenue
-                                )?.label
-                              }
-                              <Badge className="ml-2" variant="secondary">
-                                {calculated.scores.revenue}/{criterion.maxScore}
-                              </Badge>
-                            </div>
-                          ) : (
-                            <RadioGroup
-                              value={selected}
-                              disabled={readonly}
-                              onValueChange={(value) =>
-                                setRatings((current) => ({ ...current, [criterion.id]: value }))
-                              }
-                              className="grid gap-2"
-                            >
-                              {options.map((option) => (
-                                <Label
-                                  key={option.id}
-                                  htmlFor={`${criterion.id}-${option.id}`}
-                                  className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${
-                                    selected === option.id
-                                      ? "border-emerald-600 bg-emerald-50"
-                                      : ""
-                                  }`}
-                                >
-                                  <RadioGroupItem
-                                    id={`${criterion.id}-${option.id}`}
-                                    value={option.id}
-                                    className="mt-0.5"
-                                  />
-                                  <span className="flex-1 text-sm">{option.label}</span>
-                                  <Badge variant={option.hardStop ? "destructive" : "outline"}>
-                                    {option.hardStop ? "Fail · stop" : `${option.score} pts`}
-                                  </Badge>
-                                </Label>
-                              ))}
-                            </RadioGroup>
+                              . Select the rating that matches your on-the-ground assessment.
+                            </p>
                           )}
+
+                          <RadioGroup
+                            value={selected}
+                            disabled={readonly}
+                            onValueChange={(value) =>
+                              setRatings((current) => ({ ...current, [criterion.id]: value }))
+                            }
+                            className="grid gap-2"
+                          >
+                            {options.map((option) => (
+                              <Label
+                                key={option.id}
+                                htmlFor={`${criterion.id}-${option.id}`}
+                                className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${
+                                  selected === option.id
+                                    ? "border-emerald-600 bg-emerald-50"
+                                    : ""
+                                }`}
+                              >
+                                <RadioGroupItem
+                                  id={`${criterion.id}-${option.id}`}
+                                  value={option.id}
+                                  className="mt-0.5"
+                                />
+                                <span className="flex-1 text-sm">{option.label}</span>
+                                <Badge variant={option.hardStop ? "destructive" : "outline"}>
+                                  {option.hardStop ? "Fail · stop" : `${option.score} pts`}
+                                </Badge>
+                              </Label>
+                            ))}
+                          </RadioGroup>
                         </section>
                       );
                     })}

@@ -305,19 +305,15 @@ export async function getOrCreatePreScreeningDraft(
     if (!resolvedTrack.ok) return errorResponse(resolvedTrack.error);
     const effectiveTrack = resolvedTrack.track;
 
-    const calculated = calculatePreScreening(effectiveTrack, annualRevenue, {});
     const [draft] = await db
       .insert(a2fPreScreeningAttempts)
       .values({
         applicationId,
         track: effectiveTrack,
         assignedReviewerId: user.id,
-        ratings: { revenue: calculated.ratings.revenue },
-        scores: { revenue: calculated.scores.revenue },
-        categoryScores: {
-          "Financial Readiness & Co-Investment":
-            calculated.scores.revenue ?? 0,
-        },
+        ratings: {},
+        scores: {},
+        categoryScores: {},
       })
       .returning({ id: a2fPreScreeningAttempts.id });
 
