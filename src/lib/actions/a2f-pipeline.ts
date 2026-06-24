@@ -32,6 +32,10 @@ import {
 } from "@/lib/a2f-access";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 import { syncPassedScreeningPipelineEntries } from "@/lib/server/a2f-pipeline-sync";
+import {
+    formatTrackLabel,
+    syncApplicationTrackForRevenue,
+} from "@/lib/server/a2f-track-sync";
 
 // Re-export types only (no runtime value — safe in "use server" files)
 export type { A2fPipelineStatus, A2fInstrumentType };
@@ -531,14 +535,26 @@ export async function updateA2fVerifiedRevenue(
                 .where(eq(a2fMatchingGrantApplications.id, mgApp.id));
         }
 
+        let message = "Verified annual revenue updated";
+        if (pipeline.applicationId) {
+            const trackSync = await syncApplicationTrackForRevenue(
+                pipeline.applicationId,
+                revenueLastYear
+            );
+            if (trackSync?.adjusted) {
+                message = `Verified annual revenue updated. Enterprise track changed to ${formatTrackLabel(trackSync.track)} to match verified revenue.`;
+            }
+        }
+
         revalidateA2fEntryPaths(a2fId);
         if (pipeline.applicationId) {
             revalidatePath(`/admin/applications/${pipeline.applicationId}`);
+            revalidatePath("/finance-screening");
         }
 
         return successResponse(
             { revenueLastYear },
-            "Verified annual revenue updated"
+            message
         );
     } catch (error) {
         console.error("Error updating A2F verified revenue:", error);

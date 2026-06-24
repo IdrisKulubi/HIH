@@ -22,6 +22,10 @@ import { isPreScreeningOutcome, resolveEffectivePreScreeningOutcome } from "@/li
 import { isRescreenDateReached } from "@/lib/a2f-pre-screening-rescreen";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
 import { ensureA2fPipelineEntryForApplication } from "@/lib/server/a2f-pipeline-sync";
+import {
+  formatRevenueTrackMismatchError,
+  syncApplicationTrackForRevenue,
+} from "@/lib/server/a2f-track-sync";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
@@ -39,6 +43,23 @@ function normalizeTrack(track: string | null): PreScreeningTrack | null {
   if (track === "foundation") return "foundation";
   if (track === "acceleration") return "acceleration";
   return null;
+}
+
+async function resolveScreeningTrack(
+  applicationId: number,
+  currentTrack: PreScreeningTrack,
+  annualRevenue: number
+): Promise<{ ok: true; track: PreScreeningTrack } | { ok: false; error: string }> {
+  if (isTrackRevenueValid(currentTrack, annualRevenue)) {
+    return { ok: true, track: currentTrack };
+  }
+
+  const synced = await syncApplicationTrackForRevenue(applicationId, annualRevenue);
+  if (synced && isTrackRevenueValid(synced.track, annualRevenue)) {
+    return { ok: true, track: synced.track };
+  }
+
+  return { ok: false, error: formatRevenueTrackMismatchError(annualRevenue) };
 }
 
 async function requireScreeningUser() {
@@ -280,17 +301,16 @@ export async function getOrCreatePreScreeningDraft(
     }
 
     const annualRevenue = Number(application.annualRevenue);
-    if (!isTrackRevenueValid(track, annualRevenue)) {
-      return errorResponse(
-        "Verified annual revenue does not match the assigned enterprise track"
-      );
-    }
-    const calculated = calculatePreScreening(track, annualRevenue, {});
+    const resolvedTrack = await resolveScreeningTrack(applicationId, track, annualRevenue);
+    if (!resolvedTrack.ok) return errorResponse(resolvedTrack.error);
+    const effectiveTrack = resolvedTrack.track;
+
+    const calculated = calculatePreScreening(effectiveTrack, annualRevenue, {});
     const [draft] = await db
       .insert(a2fPreScreeningAttempts)
       .values({
         applicationId,
-        track,
+        track: effectiveTrack,
         assignedReviewerId: user.id,
         ratings: { revenue: calculated.ratings.revenue },
         scores: { revenue: calculated.scores.revenue },
@@ -476,10 +496,15 @@ export async function submitPreScreening(
 
     const track = attempt.track as PreScreeningTrack;
     const annualRevenue = Number(application.annualRevenue);
-    if (!isTrackRevenueValid(track, annualRevenue)) {
-      return errorResponse("Verified annual revenue no longer matches the assigned track");
-    }
-    const calculated = calculatePreScreening(track, annualRevenue, input.ratings);
+    const resolvedTrack = await resolveScreeningTrack(
+      attempt.applicationId,
+      track,
+      annualRevenue
+    );
+    if (!resolvedTrack.ok) return errorResponse(resolvedTrack.error);
+    const effectiveTrack = resolvedTrack.track;
+
+    const calculated = calculatePreScreening(effectiveTrack, annualRevenue, input.ratings);
     if (calculated.missing.length) {
       return errorResponse("Complete every screening criterion before submitting");
     }
@@ -495,6 +520,7 @@ export async function submitPreScreening(
       .update(a2fPreScreeningAttempts)
       .set({
         status: "submitted",
+        track: effectiveTrack,
         ratings: calculated.ratings,
         scores: calculated.scores,
         categoryScores: calculated.categoryScores,

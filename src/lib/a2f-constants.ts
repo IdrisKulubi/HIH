@@ -94,6 +94,15 @@ export function isMatchingGrantTrackEligible(
     return annualRevenue >= 500_000 && annualRevenue <= 3_000_000;
 }
 
+/** Infer Foundation or Accelerator track from verified annual revenue. */
+export function inferMatchingGrantTrackFromRevenue(
+    annualRevenue: number
+): A2fEnterpriseTrack | null {
+    if (annualRevenue > 3_000_000) return 'acceleration';
+    if (annualRevenue >= 500_000 && annualRevenue <= 3_000_000) return 'foundation';
+    return null;
+}
+
 /** User-facing message when revenue fails the track gate; null when eligible or revenue missing. */
 export function getMatchingGrantRevenueEligibilityMessage(
     track: A2fEnterpriseTrack | null | undefined,
