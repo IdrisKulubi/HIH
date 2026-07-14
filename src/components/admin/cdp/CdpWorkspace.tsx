@@ -63,6 +63,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CdpSessionEditSheet } from "./CdpSessionEditSheet";
 import {
   Table,
   TableBody,
@@ -83,6 +84,113 @@ type EditableSummary = CdpFocusSummaryInput;
 type CdpSessionEvidenceFile = CdpEvidenceFile;
 
 const CDP_APPROVER_ROLES = ["admin", "oversight", "redo"] as const;
+
+function cdpRatingForScore(score: number | null | undefined) {
+  if (score === 0) {
+    return {
+      label: "Poor",
+      className: "border-red-200 bg-red-50 text-red-800",
+      description: "Needs urgent support",
+    };
+  }
+  if (score === 5) {
+    return {
+      label: "Fair",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+      description: "Needs improvement",
+    };
+  }
+  return {
+    label: "Great",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    description: "Strength to maintain",
+  };
+}
+
+function CdpWorkflowGuide({
+  plan,
+  pipeline,
+}: {
+  plan: CdpPlanFull;
+  pipeline: PipelineCompleteness | null;
+}) {
+  const priorityAreas = plan.focusSummaries.filter(
+    (row) => priorityFromScore0to10(row.score0to10) !== "low"
+  ).length;
+  const completedSessions = plan.supportSessions.filter(
+    (session) => session.approvalStatus === "approved"
+  ).length;
+  const hasSessions = plan.supportSessions.length > 0;
+  const hasActivities = plan.activities.length > 0;
+  const steps = [
+    {
+      label: "1",
+      title: "Review CNA findings",
+      body: `${priorityAreas} priority area${priorityAreas === 1 ? "" : "s"} need attention. Use the color ratings to decide where support should start.`,
+      status: priorityAreas > 0 ? "Ready" : "Review",
+    },
+    {
+      label: "2",
+      title: "Plan advisory sessions",
+      body: hasSessions
+        ? `${plan.supportSessions.length} session${plan.supportSessions.length === 1 ? "" : "s"} added. Keep planning from the CNA findings.`
+        : "Create the first advisory session from a priority focus area.",
+      status: hasSessions ? "Started" : "Next",
+    },
+    {
+      label: "3",
+      title: "Record session reports",
+      body: completedSessions
+        ? `${completedSessions} approved report${completedSessions === 1 ? "" : "s"} can feed the final CDP.`
+        : "After each visit or advisory session, capture achievements, challenges, next steps, and follow-up date.",
+      status: completedSessions ? "In review" : "After session",
+    },
+    {
+      label: "4",
+      title: "Generate CDP summary",
+      body: hasActivities
+        ? "Use the summary and approval checklist to confirm the plan is ready."
+        : "The CDP summary should come after planned sessions and session reports are in place.",
+      status: pipeline?.percentComplete === 100 ? "Complete" : "Pending",
+    },
+  ];
+
+  return (
+    <section className="rounded-lg border bg-card p-5 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">Start here</p>
+          <h2 className="mt-1 text-lg font-semibold">Build the CDP from CNA findings and session reports</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+            First review the CNA ratings, then plan advisory sessions. After each session, complete the report.
+            The CDP summary is the final output from those approved session reports.
+          </p>
+        </div>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Plan status:</span>{" "}
+          <span className="font-medium capitalize">{plan.status}</span>
+          {pipeline ? (
+            <span className="ml-2 text-muted-foreground">({pipeline.percentComplete}% ready)</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {steps.map((step) => (
+          <div key={step.label} className="rounded-md border bg-background p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-blue/10 text-sm font-semibold text-brand-blue">
+                {step.label}
+              </span>
+              <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{step.status}</span>
+            </div>
+            <h3 className="mt-3 text-sm font-semibold">{step.title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function normalizeScore(v: number): 0 | 5 | 10 {
   if (v === 0 || v === 5 || v === 10) return v;
@@ -268,7 +376,11 @@ export function CdpWorkspace({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <CdpWorkflowGuide plan={initialPlan} pipeline={pipeline} />
+
+      <details className="rounded-lg border bg-card p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Plan settings and admin controls</summary>
+      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="space-y-2 min-w-[200px]">
           <Label>Active plan</Label>
           <select
@@ -366,13 +478,98 @@ export function CdpWorkspace({
           with responsible staff, intervention text, and a target date.
         </p>
       </div>
+      </details>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="plan">CDP Plan</TabsTrigger>
-          <TabsTrigger value="sessions">Session Log</TabsTrigger>
+      <Tabs defaultValue="guide" className="space-y-4">
+        <TabsList className="grid h-auto w-full gap-2 rounded-xl border bg-card p-2 shadow-sm sm:grid-cols-2 xl:grid-cols-6">
+          <TabsTrigger
+            value="guide"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">1</span>
+            <span>
+              <span className="block text-sm font-semibold">Guide</span>
+              <span className="block text-xs font-normal text-muted-foreground">Start here</span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="overview"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">2</span>
+            <span>
+              <span className="block text-sm font-semibold">CNA Findings</span>
+              <span className="block text-xs font-normal text-muted-foreground">Poor, Fair, Great</span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="sessions"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">3</span>
+            <span>
+              <span className="block text-sm font-semibold">Plan Sessions</span>
+              <span className="block text-xs font-normal text-muted-foreground">Before visits</span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="reports"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">4</span>
+            <span>
+              <span className="block text-sm font-semibold">Session Reports</span>
+              <span className="block text-xs font-normal text-muted-foreground">After support</span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="plan"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">5</span>
+            <span>
+              <span className="block text-sm font-semibold">CDP Summary</span>
+              <span className="block text-xs font-normal text-muted-foreground">Final output</span>
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="approval"
+            className="h-auto justify-start rounded-lg px-3 py-3 text-left data-[state=active]:border-brand-blue/20 data-[state=active]:bg-brand-blue/10 data-[state=active]:text-brand-blue"
+          >
+            <span className="mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">6</span>
+            <span>
+              <span className="block text-sm font-semibold">Approval</span>
+              <span className="block text-xs font-normal text-muted-foreground">Lock when ready</span>
+            </span>
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="guide" className="space-y-4">
+          <CdpPrioritySummary plan={initialPlan} />
+          <div className="rounded-lg border bg-card p-5">
+            <h3 className="text-base font-semibold">How to complete this CDP</h3>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div>
+                <p className="text-sm font-medium">Use the CNA as the reference</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review Poor, Fair, and Great ratings before deciding support topics. The CNA findings explain why the plan exists.
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Plan sessions before writing the CDP</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add advisory sessions with focus area, topic, agenda, objective, date, type, and meeting link.
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Report after each session</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Capture milestones, achievements, challenges, next steps, follow-up date, and observations. Approved reports become CDP evidence.
+                </p>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="legacy-gaps" className="hidden">
           <CdpGapBoardPanel plan={initialPlan} disabled={pending} />
@@ -505,6 +702,7 @@ export function CdpWorkspace({
 
         <TabsContent value="plan">
           <CdpPrioritySummary plan={initialPlan} />
+          <CdpGeneratedSummaryPanel plan={initialPlan} />
           <CdpActivitiesPanel plan={initialPlan} businessId={businessId} disabled={pending} />
           <CdpProgressPanel plan={initialPlan} disabled={pending} />
         </TabsContent>
@@ -524,7 +722,25 @@ export function CdpWorkspace({
             disabled={pending}
             currentUserRole={currentUserRole}
             currentUserId={currentUserId}
+            mode="planning"
           />
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <CdpSessionsPanel
+            plan={initialPlan}
+            businessId={businessId}
+            disabled={pending}
+            currentUserRole={currentUserRole}
+            currentUserId={currentUserId}
+            mode="reporting"
+          />
+        </TabsContent>
+
+        <TabsContent value="approval" className="space-y-4">
+          <CdpApprovalReadinessPanel plan={initialPlan} pipeline={pipeline} />
+          <CdpPipelinePanel pipeline={pipeline} onRefresh={() => router.refresh()} />
+          <CdpEndlinePanel plan={initialPlan} disabled={pending} />
         </TabsContent>
 
         <TabsContent value="legacy-progress" className="hidden">
@@ -579,10 +795,10 @@ function CdpSummaryCards({
       <div className="rounded-md border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-medium">Diagnostic Summary</h3>
+            <h3 className="text-sm font-medium">CNA Findings</h3>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              A clean plan-level view of the A-L diagnostic. Use the Gap Board for question-level actions and this
-              summary for the final CDP narrative.
+              Review all A-L focus areas before planning advisory sessions. Poor and Fair areas should guide the
+              session topics, agenda, and objectives.
             </p>
           </div>
           <Button type="button" onClick={onSave} disabled={disabled}>
@@ -590,8 +806,8 @@ function CdpSummaryCards({
           </Button>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full border px-2 py-1">Priority areas: {priorityRows.length}</span>
-          <span className="rounded-full border px-2 py-1">All focus areas: {rows.length}</span>
+              <span className="rounded-full border px-2 py-1">Poor/Fair areas: {priorityRows.length}</span>
+              <span className="rounded-full border px-2 py-1">All focus areas: {rows.length}</span>
           <Button type="button" size="sm" variant="outline" onClick={() => setShowAllAreas((v) => !v)}>
             {showAllAreas ? "Show priority only" : "Show all A-L areas"}
           </Button>
@@ -601,6 +817,7 @@ function CdpSummaryCards({
       <div className="grid gap-4 xl:grid-cols-2">
         {visibleRows.map(({ row, idx }) => {
           const priority = priorityFromScore0to10(row.score0to10);
+          const rating = cdpRatingForScore(row.score0to10);
           const tone =
             priority === "high"
               ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/25 dark:text-red-300"
@@ -621,9 +838,12 @@ function CdpSummaryCards({
                   <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-xs ${tone}`}>
                     {priorityLabel(priority)}
                   </span>
+                  <span className={`ml-2 mt-2 inline-flex rounded-full border px-2 py-1 text-xs font-medium ${rating.className}`}>
+                    {rating.label}: {rating.description}
+                  </span>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Score</Label>
+                  <Label className="text-xs">CNA rating score</Label>
                   <select
                     className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm"
                     value={row.score0to10}
@@ -640,7 +860,7 @@ function CdpSummaryCards({
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className="space-y-1 lg:col-span-2">
-                  <Label className="text-xs">Key gaps</Label>
+                  <Label className="text-xs">CNA gaps and evidence</Label>
                   <Textarea
                     rows={6}
                     value={row.keyGaps ?? ""}
@@ -649,12 +869,13 @@ function CdpSummaryCards({
                   />
                 </div>
                 <div className="space-y-1 lg:col-span-2">
-                  <Label className="text-xs">Recommended intervention</Label>
+                  <Label className="text-xs">EDO notes for session topic</Label>
                   <Textarea
                     rows={4}
                     value={row.recommendedIntervention ?? ""}
                     onChange={(e) => updateRow(idx, { recommendedIntervention: e.target.value })}
                     className="min-h-24 resize-y text-sm leading-relaxed"
+                    placeholder="Use the CNA finding to decide a practical advisory topic. Avoid copying generic interventions if a better topic fits this business."
                   />
                 </div>
                 <div className="space-y-1">
@@ -874,6 +1095,191 @@ function CdpPrioritySummary({ plan }: { plan: CdpPlanFull }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+function sessionHasEvidence(session: CdpPlanFull["supportSessions"][number]) {
+  const files = ((session.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []);
+  return files.length > 0 || (session.evidenceUrls ?? []).length > 0 || Boolean(session.evidenceNotes?.trim());
+}
+
+function CdpGeneratedSummaryPanel({ plan }: { plan: CdpPlanFull }) {
+  const prioritySummaries = plan.focusSummaries.filter(
+    (row) => priorityFromScore0to10(row.score0to10) !== "low"
+  );
+  const approvedSessions = plan.supportSessions.filter((session) => session.approvalStatus === "approved");
+  const evidenceSessions = plan.supportSessions.filter(sessionHasEvidence);
+  const nextStepSessions = plan.supportSessions.filter((session) => Boolean(session.nextSteps?.trim()));
+  const recentApprovedSessions = approvedSessions
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.sessionDate ? new Date(a.sessionDate).getTime() : 0;
+      const bTime = b.sessionDate ? new Date(b.sessionDate).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 3);
+
+  return (
+    <section className="mb-4 rounded-lg border bg-card p-4 shadow-sm">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+        <div>
+          <h3 className="text-base font-semibold">CDP summary preview</h3>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            This summarizes the CNA findings, approved session reports, evidence, and next actions that will shape the
+            final capacity development plan.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border px-2 py-1">Priority findings: {prioritySummaries.length}</span>
+          <span className="rounded-full border px-2 py-1">Approved reports: {approvedSessions.length}</span>
+          <span className="rounded-full border px-2 py-1">Evidence sessions: {evidenceSessions.length}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CNA priorities</p>
+          <div className="mt-3 space-y-2">
+            {prioritySummaries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No Poor or Fair CNA findings yet.</p>
+            ) : (
+              prioritySummaries.slice(0, 4).map((row) => (
+                <div key={row.focusCode} className="rounded-md bg-background p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-semibold">{row.focusCode}</span>
+                    <span className="font-medium">{CDP_FOCUS_AREAS[row.focusCode].label}</span>
+                  </div>
+                  {row.keyGaps ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.keyGaps}</p> : null}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Session evidence</p>
+          <div className="mt-3 space-y-2">
+            {recentApprovedSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Approve completed session reports to build this summary.</p>
+            ) : (
+              recentApprovedSessions.map((session) => (
+                <div key={session.id} className="rounded-md bg-background p-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">Session {session.sessionNumber}</span>
+                    <span className="rounded-full border px-2 py-0.5 text-xs">{session.focusCode}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {session.evidenceNotes || session.keyActionsAgreed || session.agenda || "No report notes added yet."}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-md border bg-muted/20 p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next actions</p>
+          <div className="mt-3 space-y-2">
+            {nextStepSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No next steps recorded from session reports yet.</p>
+            ) : (
+              nextStepSessions.slice(0, 4).map((session) => (
+                <div key={session.id} className="rounded-md bg-background p-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">Session {session.sessionNumber}</span>
+                    {session.followUpDate ? (
+                      <span className="text-xs text-muted-foreground">Follow-up {dateInputValue(session.followUpDate)}</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{session.nextSteps}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CdpApprovalReadinessPanel({
+  plan,
+  pipeline,
+}: {
+  plan: CdpPlanFull;
+  pipeline: PipelineCompleteness | null;
+}) {
+  const approvedSessions = plan.supportSessions.filter((session) => session.approvalStatus === "approved").length;
+  const evidenceSessions = plan.supportSessions.filter(sessionHasEvidence).length;
+  const checks = [
+    {
+      label: "CNA findings reviewed",
+      ready: plan.focusSummaries.length > 0 && (pipeline?.diagnosticScoresValid ?? false),
+      helper: "All A-L CNA ratings should be saved as Poor, Fair, or Great.",
+    },
+    {
+      label: "Advisory sessions planned",
+      ready: plan.supportSessions.length > 0,
+      helper: "Create session rows from the CNA focus areas before approval.",
+    },
+    {
+      label: "Session reports approved",
+      ready: approvedSessions > 0,
+      helper: "Approve completed reports after evidence and outcomes are entered.",
+    },
+    {
+      label: "Evidence attached",
+      ready: evidenceSessions > 0,
+      helper: "Use files, URLs, or report notes as the audit trail.",
+    },
+    {
+      label: "CDP activities ready",
+      ready: plan.activities.length > 0 && plan.activities.every((activity) => activity.targetDate && activity.responsibleStaff),
+      helper: "Each activity needs a responsible staff member and target date.",
+    },
+    {
+      label: "Endline submitted",
+      ready: Boolean(plan.endlineResponse),
+      helper: "Capture endline values before final close-out.",
+    },
+  ];
+  const readyCount = checks.filter((check) => check.ready).length;
+
+  return (
+    <section className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+        <div>
+          <h3 className="text-base font-semibold">Approval readiness</h3>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Review the human workflow before marking the CDP as complete. Approved session logs should be treated as
+            locked evidence for the final plan.
+          </p>
+        </div>
+        <span className="rounded-full border px-3 py-1 text-sm font-medium">
+          {readyCount} of {checks.length} ready
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {checks.map((check) => (
+          <div key={check.label} className="rounded-md border bg-muted/20 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium">{check.label}</p>
+              <span
+                className={
+                  check.ready
+                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
+                    : "rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800"
+                }
+              >
+                {check.ready ? "Ready" : "Needs work"}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{check.helper}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1780,16 +2186,19 @@ function CdpSessionsPanel({
   disabled,
   currentUserRole,
   currentUserId,
+  mode = "planning",
 }: {
   plan: CdpPlanFull;
   businessId: number;
   disabled: boolean;
   currentUserRole: string;
   currentUserId: string;
+  mode?: "planning" | "reporting";
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [evidenceFiles, setEvidenceFiles] = useState<CdpSessionEvidenceFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const canApproveSessions = CDP_APPROVER_ROLES.includes(currentUserRole as (typeof CDP_APPROVER_ROLES)[number]);
@@ -1825,6 +2234,14 @@ function CdpSessionsPanel({
     code,
     sessions: plan.supportSessions.filter((session) => session.focusCode === code),
   }));
+  const editingSession = editingSessionId
+    ? plan.supportSessions.find((session) => session.id === editingSessionId)
+    : null;
+  const approvedSessionCount = plan.supportSessions.filter((session) => session.approvalStatus === "approved").length;
+  const evidenceSessionCount = plan.supportSessions.filter(sessionHasEvidence).length;
+  const reportReadyCount = plan.supportSessions.filter(
+    (session) => Boolean(session.keyActionsAgreed?.trim()) || Boolean(session.evidenceNotes?.trim())
+  ).length;
 
   const submitAdd = (formData: FormData) => {
     const rawCodes = String(formData.get("focusCodes") ?? "")
@@ -1901,10 +2318,25 @@ function CdpSessionsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center gap-2">
-        <p className="text-sm text-muted-foreground">Business support session log.</p>
+      <div className="flex flex-col justify-between gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-start">
+        <div>
+          <h3 className="text-base font-semibold">
+            {mode === "planning" ? "Plan advisory sessions" : "Complete session reports"}
+          </h3>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            {mode === "planning"
+              ? "Create the session plan before the visit or advisory meeting. Start from a CNA focus area, then define the topic, agenda, objective, date, type, and meeting link."
+              : "Use this after the advisory session. Add the agreed milestones, achievements, challenges, next steps, follow-up date, deviations, observations, and supporting evidence."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border px-2 py-1">Planned: {plan.supportSessions.length}</span>
+            <span className="rounded-full border px-2 py-1">Reports started: {reportReadyCount}</span>
+            <span className="rounded-full border px-2 py-1">Approved: {approvedSessionCount}</span>
+            <span className="rounded-full border px-2 py-1">With evidence: {evidenceSessionCount}</span>
+          </div>
+        </div>
         <Button type="button" size="sm" variant="secondary" onClick={() => setShowAdd((s) => !s)} disabled={disabled || pending}>
-          {showAdd ? "Close" : "Add session"}
+          {showAdd ? "Close" : mode === "planning" ? "Add planned session" : "Add session report"}
         </Button>
       </div>
       {showAdd ? (
@@ -1963,31 +2395,40 @@ function CdpSessionsPanel({
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="meetingLink">Meeting link</Label>
-            <Input id="meetingLink" name="meetingLink" placeholder="Required for virtual unless evidence is added" />
+            <Label htmlFor="meetingLink">Meeting link or physical venue note</Label>
+            <Input id="meetingLink" name="meetingLink" placeholder="Virtual link, venue name, or field location" />
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="focusCodes">Focus codes (e.g. A,C,F)</Label>
             <Input id="focusCodes" name="focusCodes" placeholder="A, D" />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="agenda">Agenda / topics</Label>
-            <Textarea id="agenda" name="agenda" rows={2} />
+            <Label htmlFor="agenda">Topic and subtopic / agenda</Label>
+            <Textarea id="agenda" name="agenda" rows={2} placeholder="Example: Cash-flow management / separating business and household expenses" />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="supportType">Type of support</Label>
-            <Input id="supportType" name="supportType" />
+            <Label htmlFor="supportType">BDS objective</Label>
+            <Input id="supportType" name="supportType" placeholder="What should the enterprise be able to do after this session?" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="durationHours">Duration (hours)</Label>
             <Input id="durationHours" name="durationHours" type="number" step="0.25" min={0} />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="keyActionsAgreed">Key actions agreed</Label>
+            <Label htmlFor="keyActionsAgreed">Key agreed milestones</Label>
             <Textarea id="keyActionsAgreed" name="keyActionsAgreed" rows={2} />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="challengesRaised">Challenges raised</Label>
+            <Label htmlFor="evidenceNotes">Achievement from the session and observations</Label>
+            <Textarea
+              id="evidenceNotes"
+              name="evidenceNotes"
+              rows={2}
+              placeholder="Summarize what was achieved, observations made, and any outputs delivered."
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="challengesRaised">Challenges flagged</Label>
             <Textarea id="challengesRaised" name="challengesRaised" rows={2} />
           </div>
           <div className="space-y-1 sm:col-span-2">
@@ -2001,15 +2442,6 @@ function CdpSessionsPanel({
           <div className="space-y-1">
             <Label htmlFor="bootcampWeek">Bootcamp week (1–13, optional)</Label>
             <Input id="bootcampWeek" name="bootcampWeek" type="number" min={1} max={13} />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="evidenceNotes">Evidence notes</Label>
-            <Textarea
-              id="evidenceNotes"
-              name="evidenceNotes"
-              rows={2}
-              placeholder="Summarize outputs delivered, documents attached, or links captured."
-            />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="evidenceFiles">Supporting evidence/documents</Label>
@@ -2143,7 +2575,9 @@ function CdpSessionsPanel({
           {plan.supportSessions.length === 0 ? (
             <TableRow>
               <TableCell colSpan={8} className="text-muted-foreground text-sm">
-                No sessions logged.
+                {mode === "planning"
+                  ? "No sessions planned yet. Add the first advisory session from a CNA priority area."
+                  : "No reports submitted yet. Complete a report after the advisory session or field visit."}
               </TableCell>
             </TableRow>
           ) : (
@@ -2180,22 +2614,48 @@ function CdpSessionsPanel({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => remove(s.id)}
-                    disabled={disabled || pending}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingSessionId(s.id)}
+                      disabled={disabled || pending}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => remove(s.id)}
+                      disabled={disabled || pending}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      <CdpSessionEditSheet
+        planId={plan.id}
+        session={editingSession ?? null}
+        open={Boolean(editingSession)}
+        onOpenChange={(open) => {
+          if (!open) setEditingSessionId(null);
+        }}
+        onSaved={() => {
+          setEditingSessionId(null);
+          router.refresh();
+        }}
+        disabled={disabled || pending}
+      />
 
       {canApproveSessions && plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
         <div className="flex flex-wrap gap-2">
