@@ -4,6 +4,18 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import {
+  AlignmentType,
+  Document,
+  HeadingLevel,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx";
 import { toast } from "sonner";
 import {
   overridePreScreeningOutcome,
@@ -44,6 +56,7 @@ import {
   CheckCircle,
   ClipboardText,
   Clock,
+  DownloadSimple,
   Eye,
   MagnifyingGlass,
   PaperPlaneTilt,
@@ -112,9 +125,115 @@ function StatCard({
   );
 }
 
+function csvCell(value: string | number | null | undefined) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+type ExportRow = Record<string, string | number | null | undefined>;
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadCsv(filename: string, rows: ExportRow[]) {
+  if (rows.length === 0) {
+    toast.error("No records match the selected export filters");
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.map(csvCell).join(","),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  downloadBlob(filename, blob);
+  toast.success(`Exported ${rows.length} DD progress records`);
+}
+
+async function downloadDocx(filename: string, rows: ExportRow[]) {
+  if (rows.length === 0) {
+    toast.error("No records match the selected export filters");
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+  const tableRows = [
+    new TableRow({
+      tableHeader: true,
+      children: headers.map(
+        (header) =>
+          new TableCell({
+            width: { size: Math.floor(100 / headers.length), type: WidthType.PERCENTAGE },
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: header, bold: true })],
+              }),
+            ],
+          })
+      ),
+    }),
+    ...rows.map(
+      (row) =>
+        new TableRow({
+          children: headers.map(
+            (header) =>
+              new TableCell({
+                children: [
+                  new Paragraph({
+                    children: [new TextRun(String(row[header] ?? ""))],
+                  }),
+                ],
+              })
+          ),
+        })
+    ),
+  ];
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.LEFT,
+            children: [new TextRun("A2F Due Diligence Progress Export")],
+          }),
+          new Paragraph({
+            children: [
+              new TextRun(`Generated ${format(new Date(), "dd MMM yyyy HH:mm")} / ${rows.length} records`),
+            ],
+          }),
+          new Paragraph({ text: "" }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: tableRows,
+          }),
+        ],
+      },
+    ],
+  });
+  const blob = await Packer.toBlob(doc);
+  downloadBlob(filename, blob);
+  toast.success(`Exported ${rows.length} DD progress records`);
+}
+
 function DdProgressTable({ rows }: { rows: AdminA2fPipelineRow[] }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportStatus, setExportStatus] = useState("current");
+  const [exportStage, setExportStage] = useState("all");
+  const [exportFormat, setExportFormat] = useState<"csv" | "docx">("csv");
+  const [isExporting, setIsExporting] = useState(false);
   const filtered = useMemo(() => {
     const term = query.toLowerCase().trim();
     return rows.filter((row) => {
@@ -127,6 +246,62 @@ function DdProgressTable({ rows }: { rows: AdminA2fPipelineRow[] }) {
       return matchesQuery && matchesStatus;
     });
   }, [query, rows, status]);
+  const ddStages = [
+    { value: "initial", label: "Initial DD" },
+    { value: "pre_ic", label: "Pre-IC DD" },
+    { value: "post_ta", label: "Post-TA DD" },
+  ] as const;
+
+  function reportMatchesExport(row: AdminA2fPipelineRow) {
+    if (exportStatus === "current") return filtered.includes(row);
+    if (exportStatus === "all") return true;
+    const reports =
+      exportStage === "all"
+        ? Object.values(row.ddReports)
+        : [row.ddReports[exportStage as keyof typeof row.ddReports]];
+    return reports.some((report) => report.status === exportStatus);
+  }
+
+  function stageMatchesExport(row: AdminA2fPipelineRow, stage: (typeof ddStages)[number]) {
+    if (exportStatus === "current" || exportStatus === "all") return true;
+    return row.ddReports[stage.value].status === exportStatus;
+  }
+
+  async function handleExport() {
+    const selectedRows = rows.filter(reportMatchesExport);
+    const exportedRows = selectedRows.flatMap((row) => {
+      const stages =
+        exportStage === "all"
+          ? ddStages
+          : ddStages.filter((stage) => stage.value === exportStage);
+      return stages.filter((stage) => stageMatchesExport(row, stage)).map((stage) => {
+        const report = row.ddReports[stage.value];
+        return {
+          "Enterprise": row.businessName,
+          "Application ID": row.applicationId,
+          "Track": titleCase(row.track),
+          "Current Stage": PIPELINE_STAGE_LABELS[row.stage as A2fPipelineStatus] ?? titleCase(row.stage),
+          "DD Stage": stage.label,
+          "Report Status": titleCase(report.status),
+          "Report Updated": report.updatedAt ? format(new Date(report.updatedAt), "yyyy-MM-dd") : "",
+          "Submitted By": report.submittedByName ?? "",
+          "Officer": row.officerName ?? "Unassigned",
+        };
+      });
+    });
+    setIsExporting(true);
+    try {
+      const timestamp = format(new Date(), "yyyy-MM-dd-HH-mm");
+      if (exportFormat === "docx") {
+        await downloadDocx(`a2f-dd-progress-${timestamp}.docx`, exportedRows);
+      } else {
+        downloadCsv(`a2f-dd-progress-${timestamp}.csv`, exportedRows);
+      }
+      setExportOpen(false);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   return (
     <Card>
@@ -137,7 +312,7 @@ function DdProgressTable({ rows }: { rows: AdminA2fPipelineRow[] }) {
             Admin view of which EDO/REDO due diligence reports are complete or still pending at each A2F stage.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Input
             className="w-64"
             value={query}
@@ -153,6 +328,62 @@ function DdProgressTable({ rows }: { rows: AdminA2fPipelineRow[] }) {
               <SelectItem value="not_applicable">Not due</SelectItem>
             </SelectContent>
           </Select>
+          <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <DownloadSimple className="mr-2 size-4" />
+                Export
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Export DD progress</DialogTitle>
+                <DialogDescription>
+                  Choose the format, records, and DD stage you want to export.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Export format</Label>
+                  <Select value={exportFormat} onValueChange={(value) => setExportFormat(value as "csv" | "docx")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV spreadsheet</SelectItem>
+                      <SelectItem value="docx">Word document (.docx)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Which records?</Label>
+                  <Select value={exportStatus} onValueChange={setExportStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="current">Current search and status filter ({filtered.length})</SelectItem>
+                      <SelectItem value="all">All DD progress records ({rows.length})</SelectItem>
+                      <SelectItem value="complete">Only complete reports</SelectItem>
+                      <SelectItem value="pending">Only pending reports</SelectItem>
+                      <SelectItem value="not_applicable">Only not-due reports</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Which DD stage?</Label>
+                  <Select value={exportStage} onValueChange={setExportStage}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All DD stages</SelectItem>
+                      {ddStages.map((stage) => (
+                        <SelectItem key={stage.value} value={stage.value}>{stage.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button className="w-full" onClick={handleExport} disabled={isExporting}>
+                  {isExporting ? "Exporting..." : exportFormat === "docx" ? "Export DOCX" : "Export CSV"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
