@@ -72,6 +72,24 @@ function OutcomeBadge({ outcome }: { outcome: string | null }) {
   );
 }
 
+function DdReportBadge({ status }: { status: "complete" | "pending" | "not_applicable" }) {
+  if (status === "complete") {
+    return (
+      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+        Complete
+      </Badge>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+        Pending
+      </Badge>
+    );
+  }
+  return <Badge variant="outline">Not due</Badge>;
+}
+
 function StatCard({
   label,
   value,
@@ -89,6 +107,110 @@ function StatCard({
           <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
         </div>
         <Icon weight="duotone" className="size-7 text-brand-blue" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function DdProgressTable({ rows }: { rows: AdminA2fPipelineRow[] }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const filtered = useMemo(() => {
+    const term = query.toLowerCase().trim();
+    return rows.filter((row) => {
+      const matchesQuery =
+        !term ||
+        row.businessName.toLowerCase().includes(term) ||
+        String(row.applicationId).includes(term);
+      const stageStatuses = Object.values(row.ddReports).map((report) => report.status);
+      const matchesStatus = status === "all" || stageStatuses.includes(status as typeof stageStatuses[number]);
+      return matchesQuery && matchesStatus;
+    });
+  }, [query, rows, status]);
+
+  return (
+    <Card>
+      <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <CardTitle className="text-base">Due diligence report progress ({rows.length})</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Admin view of which EDO/REDO due diligence reports are complete or still pending at each A2F stage.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            className="w-64"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search enterprise or ID"
+          />
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All reports</SelectItem>
+              <SelectItem value="complete">Complete</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="not_applicable">Not due</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <table className="w-full min-w-[1080px] text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="px-2 py-3">Enterprise</th>
+              <th className="px-2 py-3">Current stage</th>
+              <th className="px-2 py-3">Initial DD</th>
+              <th className="px-2 py-3">Pre-IC DD</th>
+              <th className="px-2 py-3">Post-TA DD</th>
+              <th className="px-2 py-3">Officer</th>
+              <th className="px-2 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row) => (
+              <tr key={row.a2fId} className="border-b last:border-0">
+                <td className="px-2 py-3">
+                  <p className="font-medium">{row.businessName}</p>
+                  <p className="text-xs text-muted-foreground">{titleCase(row.track)} / #{row.applicationId}</p>
+                </td>
+                <td className="px-2 py-3">
+                  {PIPELINE_STAGE_LABELS[row.stage as A2fPipelineStatus] ?? titleCase(row.stage)}
+                </td>
+                {(["initial", "pre_ic", "post_ta"] as const).map((stage) => {
+                  const report = row.ddReports[stage];
+                  return (
+                    <td key={stage} className="px-2 py-3">
+                      <DdReportBadge status={report.status} />
+                      {report.updatedAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {format(new Date(report.updatedAt), "dd MMM yyyy")}
+                        </p>
+                      )}
+                      {report.submittedByName && (
+                        <p className="text-xs text-muted-foreground">{report.submittedByName}</p>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-3">{row.officerName ?? "Unassigned"}</td>
+                <td className="px-2 py-3">
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/a2f/${row.a2fId}/due-diligence`}>
+                        View DD <ArrowSquareOut className="ml-1 size-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={7} className="px-2 py-10 text-center text-muted-foreground">No due diligence reports match this filter.</td></tr>
+            )}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   );
@@ -447,6 +569,7 @@ export function AdminA2fDashboard({ initialData }: { initialData: AdminA2fDashbo
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="pre-screening">Pre-Screening</TabsTrigger>
+          <TabsTrigger value="dd-progress">DD Progress</TabsTrigger>
           <TabsTrigger value="pipeline">Passed Pipeline</TabsTrigger>
           <TabsTrigger value="overrides">Overrides</TabsTrigger>
         </TabsList>
@@ -460,8 +583,41 @@ export function AdminA2fDashboard({ initialData }: { initialData: AdminA2fDashbo
             <StatCard label="Conditional" value={stats.conditional} icon={WarningCircle} />
             <StatCard label="Stopped" value={stats.stopped} icon={Scales} />
             <StatCard label="Pipeline cases" value={stats.pipelineCases} icon={Bank} />
+            <StatCard label="DD reports done" value={stats.ddReportsCompleted} icon={ShieldCheck} />
+            <StatCard label="DD reports pending" value={stats.ddReportsPending} icon={Clock} />
             <StatCard label="Pre-IC scored" value={stats.preIcScored} icon={ChartBar} />
             <StatCard label="Pending committee" value={stats.pendingCommittee} icon={Eye} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {initialData.ddStageProgress.map((stage) => (
+              <Card key={stage.stage}>
+                <CardContent className="p-4">
+                  <p className="text-sm font-medium">{stage.label}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
+                      <p className="mt-1 text-xl font-bold tabular-nums">{stage.applicable}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Done</p>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">{stage.completed}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Pending</p>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-amber-700">{stage.pending}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-emerald-600"
+                      style={{
+                        width: `${stage.applicable ? Math.round((stage.completed / stage.applicable) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
           <Card>
             <CardContent className="grid gap-6 p-6 md:grid-cols-3">
@@ -489,6 +645,10 @@ export function AdminA2fDashboard({ initialData }: { initialData: AdminA2fDashbo
 
         <TabsContent value="pre-screening">
           <PreScreeningTable rows={initialData.preScreening} />
+        </TabsContent>
+
+        <TabsContent value="dd-progress">
+          <DdProgressTable rows={initialData.pipeline} />
         </TabsContent>
 
         <TabsContent value="pipeline">

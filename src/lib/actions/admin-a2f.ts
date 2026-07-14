@@ -5,6 +5,7 @@ import db from "@/db/drizzle";
 import {
   a2fMatchingGrantApplications,
   a2fPipeline,
+  a2fDueDiligenceReports,
   a2fPreScreeningAttempts,
   a2fPreScreeningOverrides,
   a2fScoring,
@@ -59,10 +60,25 @@ export interface AdminA2fPipelineRow {
   track: string | null;
   financeApplicationStatus: string;
   stage: string;
+  ddReports: Record<"initial" | "pre_ic" | "post_ta", AdminA2fDdReportStatus>;
   preIcScore: number | null;
   scores: MatchingGrantScores | null;
   officerName: string | null;
   nextAction: string;
+}
+
+export interface AdminA2fDdReportStatus {
+  status: "complete" | "pending" | "not_applicable";
+  submittedByName: string | null;
+  updatedAt: string | null;
+}
+
+export interface AdminA2fStageProgress {
+  stage: "initial" | "pre_ic" | "post_ta";
+  label: string;
+  applicable: number;
+  completed: number;
+  pending: number;
 }
 
 export interface AdminA2fOverrideHistoryRow {
@@ -87,7 +103,10 @@ export interface AdminA2fDashboardData {
     pipelineCases: number;
     preIcScored: number;
     pendingCommittee: number;
+    ddReportsCompleted: number;
+    ddReportsPending: number;
   };
+  ddStageProgress: AdminA2fStageProgress[];
   preScreening: AdminA2fPreScreeningRow[];
   pipeline: AdminA2fPipelineRow[];
   overrides: AdminA2fOverrideHistoryRow[];
@@ -281,21 +300,41 @@ export async function getAdminA2fDashboardData(): Promise<
           .from(investmentAppraisals)
           .where(inArray(investmentAppraisals.a2fId, pipelineIds))
       : [];
+    const ddReports = pipelineIds.length
+      ? await db
+          .select()
+          .from(a2fDueDiligenceReports)
+          .where(inArray(a2fDueDiligenceReports.a2fId, pipelineIds))
+          .orderBy(desc(a2fDueDiligenceReports.updatedAt))
+      : [];
 
     const officerIds = [
       ...new Set(pipelines.map((row) => row.a2fOfficerId).filter((id): id is string => Boolean(id))),
     ];
-    const officerProfiles = officerIds.length
+    const ddSubmitterIds = [
+      ...new Set(ddReports.map((row) => row.submittedById).filter((id): id is string => Boolean(id))),
+    ];
+    const profileIds = [...new Set([...officerIds, ...ddSubmitterIds])];
+    const officerProfiles = profileIds.length
       ? await db
           .select({
             userId: userProfiles.userId,
             name: sql<string>`TRIM(CONCAT(${userProfiles.firstName}, ' ', ${userProfiles.lastName}))`,
           })
           .from(userProfiles)
-          .where(inArray(userProfiles.userId, officerIds))
+          .where(inArray(userProfiles.userId, profileIds))
       : [];
     const officerNames = new Map(officerProfiles.map((row) => [row.userId, row.name]));
     const matchingByPipeline = new Map(matchingApplications.map((row) => [row.a2fId, row]));
+    const ddReportsByPipeline = new Map<number, Map<"initial" | "pre_ic" | "post_ta", (typeof ddReports)[number]>>();
+    for (const report of ddReports) {
+      const stage = report.stage as "initial" | "pre_ic" | "post_ta";
+      if (!ddReportsByPipeline.has(report.a2fId)) {
+        ddReportsByPipeline.set(report.a2fId, new Map());
+      }
+      const reportsByStage = ddReportsByPipeline.get(report.a2fId)!;
+      if (!reportsByStage.has(stage)) reportsByStage.set(stage, report);
+    }
     const scoringByPipeline = new Map<number, (typeof scoring)[number]>();
     for (const row of scoring) {
       if (!scoringByPipeline.has(row.a2fId)) scoringByPipeline.set(row.a2fId, row);
@@ -303,6 +342,47 @@ export async function getAdminA2fDashboardData(): Promise<
     const candidateByApplication = new Map(
       candidates.map((row) => [row.applicationId, row])
     );
+
+    const stageApplies = (pipelineStage: string, ddStage: "initial" | "pre_ic" | "post_ta") => {
+      if (ddStage === "initial") return true;
+      if (ddStage === "pre_ic") {
+        return [
+          "due_diligence_initial",
+          "pre_ic_scoring",
+          "ic_appraisal_review",
+          "offer_issued",
+          "contracting",
+          "disbursement_active",
+          "post_ta_monitoring",
+        ].includes(pipelineStage);
+      }
+      return ["disbursement_active", "post_ta_monitoring"].includes(pipelineStage);
+    };
+    const buildDdReportStatus = (
+      row: (typeof pipelines)[number],
+      ddStage: "initial" | "pre_ic" | "post_ta"
+    ): AdminA2fDdReportStatus => {
+      const report = ddReportsByPipeline.get(row.id)?.get(ddStage);
+      if (report?.isComplete) {
+        return {
+          status: "complete",
+          submittedByName: report.submittedById
+            ? officerNames.get(report.submittedById) ?? "Assigned staff"
+            : null,
+          updatedAt: report.updatedAt.toISOString(),
+        };
+      }
+      if (!stageApplies(row.status, ddStage)) {
+        return { status: "not_applicable", submittedByName: null, updatedAt: null };
+      }
+      return {
+        status: "pending",
+        submittedByName: report?.submittedById
+          ? officerNames.get(report.submittedById) ?? "Assigned staff"
+          : null,
+        updatedAt: report?.updatedAt.toISOString() ?? null,
+      };
+    };
 
     const pipeline = pipelines.map<AdminA2fPipelineRow>((row) => {
       const candidate = candidateByApplication.get(row.applicationId);
@@ -316,6 +396,11 @@ export async function getAdminA2fDashboardData(): Promise<
         track: candidate?.track ?? null,
         financeApplicationStatus,
         stage: row.status,
+        ddReports: {
+          initial: buildDdReportStatus(row, "initial"),
+          pre_ic: buildDdReportStatus(row, "pre_ic"),
+          post_ta: buildDdReportStatus(row, "post_ta"),
+        },
         preIcScore: score?.totalScore ?? null,
         scores: (score?.scores as MatchingGrantScores | undefined) ?? null,
         officerName: row.a2fOfficerId
@@ -324,6 +409,30 @@ export async function getAdminA2fDashboardData(): Promise<
         nextAction: stageNextAction(row.status, financeApplicationStatus),
       };
     });
+    const ddStageLabels: Record<AdminA2fStageProgress["stage"], string> = {
+      initial: "Initial DD report",
+      pre_ic: "Pre-IC DD report",
+      post_ta: "Post-TA DD report",
+    };
+    const ddStageProgress = (["initial", "pre_ic", "post_ta"] as const).map(
+      (stage): AdminA2fStageProgress => {
+        const applicableRows = pipeline.filter(
+          (row) => row.ddReports[stage].status !== "not_applicable"
+        );
+        const completed = applicableRows.filter(
+          (row) => row.ddReports[stage].status === "complete"
+        ).length;
+        return {
+          stage,
+          label: ddStageLabels[stage],
+          applicable: applicableRows.length,
+          completed,
+          pending: applicableRows.length - completed,
+        };
+      }
+    );
+    const ddReportsCompleted = ddStageProgress.reduce((total, row) => total + row.completed, 0);
+    const ddReportsPending = ddStageProgress.reduce((total, row) => total + row.pending, 0);
 
     const scoringOverrideRows = await db
       .select()
@@ -400,12 +509,15 @@ export async function getAdminA2fDashboardData(): Promise<
         stopped: preScreening.filter((row) => row.effectiveOutcome === "stop").length,
         pipelineCases: pipeline.length,
         preIcScored: pipeline.filter((row) => row.preIcScore !== null).length,
+        ddReportsCompleted,
+        ddReportsPending,
         pendingCommittee: new Set(
           appraisals
             .filter((row) => !row.icDecision && pipelineIds.includes(row.a2fId))
             .map((row) => row.a2fId)
         ).size,
       },
+      ddStageProgress,
       preScreening,
       pipeline,
       overrides,
