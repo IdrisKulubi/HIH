@@ -122,26 +122,6 @@ export function wizardStorageKey(a2fId: number) {
     return `mg-wizard-step-${a2fId}`;
 }
 
-function pct(part: number, total: number): number {
-    return total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
-}
-
-/** Non-blocking guidance shown only on the Grant Request step. */
-export function getGrantRequestGuidanceNotes(
-    form: MatchingGrantWizardForm
-): string[] {
-    const notes: string[] = [];
-    const grantShare = pct(form.bireGrantAmount, form.totalProjectAmount);
-    const enterpriseShare = pct(form.enterpriseContributionAmount, form.totalProjectAmount);
-    if (form.totalProjectAmount > 0 && grantShare > 70) {
-        notes.push("BIRE share is above the standard 70% guidance.");
-    }
-    if (form.totalProjectAmount > 0 && enterpriseShare < 30) {
-        notes.push("Enterprise contribution is below the standard 30% guidance.");
-    }
-    return notes;
-}
-
 export function getStepValidationErrors(
     stepId: MgWizardStepId,
     form: MatchingGrantWizardForm,

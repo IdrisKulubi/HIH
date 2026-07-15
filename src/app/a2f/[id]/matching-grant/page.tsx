@@ -53,7 +53,6 @@ import {
     flattenStepErrorsWithLabels,
     getAllStepValidationErrors,
     getFirstStepIndexWithErrors,
-    getGrantRequestGuidanceNotes,
     getStepValidationErrors,
     getWizardReviewSummary,
     wizardStorageKey,
@@ -453,11 +452,6 @@ export function MatchingGrantApplicationWizard({
         [form, wizardContext]
     );
 
-    const grantGuidanceNotes = useMemo(
-        () => (currentStepId === "grant_request" ? getGrantRequestGuidanceNotes(form) : []),
-        [form, currentStepId]
-    );
-
     const inlineValidationErrors = useMemo(() => {
         if (!showStepValidation) return [];
         return getStepValidationErrors(currentStepId, form, wizardContext);
@@ -739,7 +733,6 @@ export function MatchingGrantApplicationWizard({
                     <div ref={validationAlertRef}>
                         <WizardStepValidationAlert
                             errors={inlineValidationErrors}
-                            guidanceNotes={grantGuidanceNotes}
                         />
                     </div>
 
@@ -1280,7 +1273,7 @@ function GrantRequestSection({
                     <Calculator className="size-5 text-blue-600" />
                     Grant Request & Co-Investment
                 </CardTitle>
-                <CardDescription>Capture the CAPEX-only request and the standard 70% BIRE / 30% enterprise contribution structure.</CardDescription>
+                <CardDescription>Capture the CAPEX-only request and the proposed co-investment structure for this investment case.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
                 <TextField label="Project Title" value={form.projectTitle} onChange={v => setField("projectTitle", v)} className="md:col-span-3" />
@@ -1290,7 +1283,7 @@ function GrantRequestSection({
                 <TextField label="Co-Investment Source" value={form.coInvestmentSource} onChange={v => setField("coInvestmentSource", v)} className="md:col-span-3" />
                 <LongField label="Why is this funding needed now?" value={form.fundingNeed} onChange={v => setField("fundingNeed", v)} />
                 <LongField label="What would happen without this grant?" value={form.withoutGrantImpact} onChange={v => setField("withoutGrantImpact", v)} />
-                <LongField label="Investment-case justification for co-investment variance" value={form.coInvestmentJustification} onChange={v => setField("coInvestmentJustification", v)} />
+                <LongField label="Co-investment notes / justification" value={form.coInvestmentJustification} onChange={v => setField("coInvestmentJustification", v)} />
                 <div className="md:col-span-3 flex items-center gap-2 rounded-lg border p-3">
                     <Checkbox
                         id="capex"
