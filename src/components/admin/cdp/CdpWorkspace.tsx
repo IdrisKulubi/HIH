@@ -23,6 +23,7 @@ import {
   generateCdpFromFinalizedCna,
   getCdpPipelineCompletenessForPlan,
   importCdpSummariesFromLatestCna,
+  rejectCdpSupportSession,
   saveCdpFocusSummaries,
   setCdpDiagnosticLocked,
   submitCdpEndline,
@@ -57,7 +58,6 @@ import {
 } from "@/lib/cdp/intervention-catalog";
 import { expectedSessionType } from "@/lib/cdp/session-rules";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
-import { useUploadThing } from "@/utils/uploadthing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,7 +73,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { FileText, Loader2, Pencil, Trash2, UploadCloud } from "lucide-react";
+import { FileText, Loader2, Pencil, Trash2 } from "lucide-react";
 
 const SCORE_OPTIONS = [0, 5, 10] as const;
 
@@ -105,6 +105,12 @@ function cdpRatingForScore(score: number | null | undefined) {
     className: "border-emerald-200 bg-emerald-50 text-emerald-800",
     description: "Strength to maintain",
   };
+}
+
+function cnaRatingForLabel(label: "poor" | "fair" | "great") {
+  if (label === "poor") return cdpRatingForScore(0);
+  if (label === "fair") return cdpRatingForScore(5);
+  return cdpRatingForScore(10);
 }
 
 function CdpWorkflowGuide({
@@ -577,6 +583,7 @@ export function CdpWorkspace({
 
         <TabsContent value="overview" className="space-y-4">
           <CdpSummaryCards
+            plan={initialPlan}
             rows={summaryRows}
             disabled={pending}
             onRowsChange={setSummaryRows}
@@ -701,10 +708,7 @@ export function CdpWorkspace({
         </TabsContent>
 
         <TabsContent value="plan">
-          <CdpPrioritySummary plan={initialPlan} />
-          <CdpGeneratedSummaryPanel plan={initialPlan} />
-          <CdpActivitiesPanel plan={initialPlan} businessId={businessId} disabled={pending} />
-          <CdpProgressPanel plan={initialPlan} disabled={pending} />
+          <CdpSessionSummaryTable plan={initialPlan} />
         </TabsContent>
 
         <TabsContent value="legacy-okr" className="hidden">
@@ -766,17 +770,18 @@ function dateInputValue(value: string | Date | null | undefined) {
 }
 
 function CdpSummaryCards({
+  plan,
   rows,
   disabled,
   onRowsChange,
   onSave,
 }: {
+  plan: CdpPlanFull;
   rows: EditableSummary[];
   disabled: boolean;
   onRowsChange: (updater: (prev: EditableSummary[]) => EditableSummary[]) => void;
   onSave: () => void;
 }) {
-  const [showAllAreas, setShowAllAreas] = useState(false);
   const updateRow = (idx: number, patch: Partial<EditableSummary>) => {
     onRowsChange((prev) => {
       const next = [...prev];
@@ -788,7 +793,8 @@ function CdpSummaryCards({
   const priorityRows = rows
     .map((row, idx) => ({ row, idx }))
     .filter(({ row }) => priorityFromScore0to10(row.score0to10) !== "low");
-  const visibleRows = showAllAreas ? rows.map((row, idx) => ({ row, idx })) : priorityRows;
+  const visibleRows = rows.map((row, idx) => ({ row, idx }));
+  const questionResponses = plan.linkedCnaAssessment?.responses ?? [];
 
   return (
     <div className="space-y-4">
@@ -797,8 +803,8 @@ function CdpSummaryCards({
           <div>
             <h3 className="text-sm font-medium">CNA Findings</h3>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Review all A-L focus areas before planning advisory sessions. Poor and Fair areas should guide the
-              session topics, agenda, and objectives.
+              Review the finalized question ratings before planning advisory sessions. EDOs decide the practical
+              topics using their professional judgement.
             </p>
           </div>
           <Button type="button" onClick={onSave} disabled={disabled}>
@@ -808,9 +814,6 @@ function CdpSummaryCards({
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border px-2 py-1">Poor/Fair areas: {priorityRows.length}</span>
               <span className="rounded-full border px-2 py-1">All focus areas: {rows.length}</span>
-          <Button type="button" size="sm" variant="outline" onClick={() => setShowAllAreas((v) => !v)}>
-            {showAllAreas ? "Show priority only" : "Show all A-L areas"}
-          </Button>
         </div>
       </div>
 
@@ -824,6 +827,9 @@ function CdpSummaryCards({
               : priority === "medium"
                 ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/25 dark:text-amber-300"
                 : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-300";
+          const responsesForArea = questionResponses.filter(
+            (response) => response.question.sectionCode === row.focusCode
+          ).sort((a, b) => a.question.sortOrder - b.question.sortOrder);
 
           return (
             <section key={row.focusCode} className="rounded-md border bg-card p-4 shadow-sm">
@@ -859,24 +865,27 @@ function CdpSummaryCards({
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <div className="space-y-1 lg:col-span-2">
-                  <Label className="text-xs">CNA gaps and evidence</Label>
-                  <Textarea
-                    rows={6}
-                    value={row.keyGaps ?? ""}
-                    onChange={(e) => updateRow(idx, { keyGaps: e.target.value })}
-                    className="min-h-32 resize-y text-sm leading-relaxed"
-                  />
-                </div>
-                <div className="space-y-1 lg:col-span-2">
-                  <Label className="text-xs">EDO notes for session topic</Label>
-                  <Textarea
-                    rows={4}
-                    value={row.recommendedIntervention ?? ""}
-                    onChange={(e) => updateRow(idx, { recommendedIntervention: e.target.value })}
-                    className="min-h-24 resize-y text-sm leading-relaxed"
-                    placeholder="Use the CNA finding to decide a practical advisory topic. Avoid copying generic interventions if a better topic fits this business."
-                  />
+                <div className="space-y-2 lg:col-span-2">
+                  <Label className="text-xs">Survey questions and ratings</Label>
+                  {responsesForArea.length > 0 ? (
+                    <div className="divide-y rounded-md border">
+                      {responsesForArea.map((response) => {
+                        const responseRating = cnaRatingForLabel(response.ratingLabel);
+                        return (
+                          <div key={response.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                            <p className="text-sm leading-relaxed">{response.question.questionText}</p>
+                            <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-xs font-semibold uppercase ${responseRating.className}`}>
+                              {responseRating.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      Question-level responses unavailable. Aggregate CNA rating: {rating.label}.
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Responsible staff</Label>
@@ -1103,100 +1112,68 @@ function sessionHasEvidence(session: CdpPlanFull["supportSessions"][number]) {
   return files.length > 0 || (session.evidenceUrls ?? []).length > 0 || Boolean(session.evidenceNotes?.trim());
 }
 
-function CdpGeneratedSummaryPanel({ plan }: { plan: CdpPlanFull }) {
-  const prioritySummaries = plan.focusSummaries.filter(
-    (row) => priorityFromScore0to10(row.score0to10) !== "low"
-  );
-  const approvedSessions = plan.supportSessions.filter((session) => session.approvalStatus === "approved");
-  const evidenceSessions = plan.supportSessions.filter(sessionHasEvidence);
-  const nextStepSessions = plan.supportSessions.filter((session) => Boolean(session.nextSteps?.trim()));
-  const recentApprovedSessions = approvedSessions
-    .slice()
-    .sort((a, b) => {
-      const aTime = a.sessionDate ? new Date(a.sessionDate).getTime() : 0;
-      const bTime = b.sessionDate ? new Date(b.sessionDate).getTime() : 0;
-      return bTime - aTime;
-    })
-    .slice(0, 3);
+function CdpSessionSummaryTable({ plan }: { plan: CdpPlanFull }) {
+  const statusClassName = (status: CdpPlanFull["supportSessions"][number]["approvalStatus"]) => {
+    if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    if (status === "rejected") return "border-red-200 bg-red-50 text-red-800";
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  };
 
   return (
-    <section className="mb-4 rounded-lg border bg-card p-4 shadow-sm">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-        <div>
-          <h3 className="text-base font-semibold">CDP summary preview</h3>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            This summarizes the CNA findings, approved session reports, evidence, and next actions that will shape the
-            final capacity development plan.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border px-2 py-1">Priority findings: {prioritySummaries.length}</span>
-          <span className="rounded-full border px-2 py-1">Approved reports: {approvedSessions.length}</span>
-          <span className="rounded-full border px-2 py-1">Evidence sessions: {evidenceSessions.length}</span>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-md border bg-muted/20 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CNA priorities</p>
-          <div className="mt-3 space-y-2">
-            {prioritySummaries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No Poor or Fair CNA findings yet.</p>
+    <section className="overflow-hidden rounded-md border bg-card">
+      <div className="overflow-x-auto">
+        <Table className="min-w-[1120px]">
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead>Code</TableHead>
+              <TableHead>Focus Area</TableHead>
+              <TableHead>Topic</TableHead>
+              <TableHead>Subtopic</TableHead>
+              <TableHead>BDS Date &amp; Time</TableHead>
+              <TableHead>Session Type</TableHead>
+              <TableHead>Meeting Link (if virtual)</TableHead>
+              <TableHead>BDS Objective</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {plan.supportSessions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">
+                  No sessions have been planned yet.
+                </TableCell>
+              </TableRow>
             ) : (
-              prioritySummaries.slice(0, 4).map((row) => (
-                <div key={row.focusCode} className="rounded-md bg-background p-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-semibold">{row.focusCode}</span>
-                    <span className="font-medium">{CDP_FOCUS_AREAS[row.focusCode].label}</span>
-                  </div>
-                  {row.keyGaps ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.keyGaps}</p> : null}
-                </div>
+              plan.supportSessions.map((session) => (
+                <TableRow key={session.id}>
+                  <TableCell className="font-mono font-semibold">{session.focusCode}</TableCell>
+                  <TableCell>{CDP_FOCUS_AREAS[session.focusCode].label}</TableCell>
+                  <TableCell className="max-w-52 whitespace-normal">{session.agenda || "—"}</TableCell>
+                  <TableCell className="max-w-52 whitespace-normal">{session.subtopic || "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {session.sessionDate ? new Date(session.sessionDate).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell className="capitalize">{session.sessionType}</TableCell>
+                  <TableCell className="max-w-56 whitespace-normal">
+                    {session.sessionType === "virtual" && session.meetingLink ? (
+                      <a href={session.meetingLink} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                        {session.meetingLink}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-64 whitespace-normal">{session.supportType || "—"}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium capitalize ${statusClassName(session.approvalStatus)}`}>
+                      {session.approvalStatus}
+                    </span>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </div>
-        </div>
-
-        <div className="rounded-md border bg-muted/20 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Session evidence</p>
-          <div className="mt-3 space-y-2">
-            {recentApprovedSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Approve completed session reports to build this summary.</p>
-            ) : (
-              recentApprovedSessions.map((session) => (
-                <div key={session.id} className="rounded-md bg-background p-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">Session {session.sessionNumber}</span>
-                    <span className="rounded-full border px-2 py-0.5 text-xs">{session.focusCode}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {session.evidenceNotes || session.keyActionsAgreed || session.agenda || "No report notes added yet."}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-md border bg-muted/20 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next actions</p>
-          <div className="mt-3 space-y-2">
-            {nextStepSessions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No next steps recorded from session reports yet.</p>
-            ) : (
-              nextStepSessions.slice(0, 4).map((session) => (
-                <div key={session.id} className="rounded-md bg-background p-2 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">Session {session.sessionNumber}</span>
-                    {session.followUpDate ? (
-                      <span className="text-xs text-muted-foreground">Follow-up {dateInputValue(session.followUpDate)}</span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{session.nextSteps}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+          </TableBody>
+        </Table>
       </div>
     </section>
   );
@@ -2199,34 +2176,7 @@ function CdpSessionsPanel({
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
-  const [evidenceFiles, setEvidenceFiles] = useState<CdpSessionEvidenceFile[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const canApproveSessions = CDP_APPROVER_ROLES.includes(currentUserRole as (typeof CDP_APPROVER_ROLES)[number]);
-  const { startUpload, isUploading } = useUploadThing("cdpEvidenceUploader", {
-    uploadProgressGranularity: "fine",
-    onUploadProgress: setUploadProgress,
-    onClientUploadComplete: (res) => {
-      const uploaded = (res ?? []).reduce<CdpSessionEvidenceFile[]>((files, file) => {
-          const url = file.serverData?.fileUrl ?? file.ufsUrl;
-          if (!url) return files;
-          files.push({
-            url,
-            name: file.serverData?.fileName ?? file.name ?? "evidence",
-            type: file.serverData?.fileType ?? file.type ?? "application/octet-stream",
-            uploadedById: file.serverData?.uploadedBy ?? currentUserId,
-            uploadedAt: new Date().toISOString(),
-          });
-          return files;
-        }, []);
-      setEvidenceFiles((prev) => [...prev, ...uploaded]);
-      setUploadProgress(0);
-      if (uploaded.length > 0) toast.success("Evidence uploaded");
-    },
-    onUploadError: (error) => {
-      setUploadProgress(0);
-      toast.error(error.message || "Evidence upload failed");
-    },
-  });
   const priorityFocusCodes = plan.focusSummaries
     .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
     .map((row) => row.focusCode);
@@ -2251,16 +2201,6 @@ function CdpSessionsPanel({
     const focusCodes = rawCodes.filter((c): c is (typeof CDP_FOCUS_CODES)[number] =>
       (CDP_FOCUS_CODES as readonly string[]).includes(c)
     );
-    const bootRaw = String(formData.get("bootcampWeek") ?? "").trim();
-    const bootcampWeek = bootRaw ? Number(bootRaw) : null;
-    const evidenceLines = String(formData.get("evidenceUrls") ?? "")
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const actionLines = String(formData.get("initialActionDescriptions") ?? "")
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
     start(async () => {
       const res = await createCdpSupportSession({
         planId: plan.id,
@@ -2269,25 +2209,25 @@ function CdpSessionsPanel({
         sessionDate: String(formData.get("sessionDate")),
         focusCodes,
         agenda: String(formData.get("agenda") ?? ""),
+        subtopic: String(formData.get("subtopic") ?? ""),
         supportType: String(formData.get("supportType") ?? ""),
-        durationHours: formData.get("durationHours") ? Number(formData.get("durationHours")) : null,
-        keyActionsAgreed: String(formData.get("keyActionsAgreed") ?? ""),
-        challengesRaised: String(formData.get("challengesRaised") ?? ""),
-        nextSteps: String(formData.get("nextSteps") ?? ""),
-        followUpDate: String(formData.get("followUpDate") ?? "") || null,
-        bootcampWeek: bootcampWeek != null && Number.isFinite(bootcampWeek) ? bootcampWeek : null,
+        durationHours: null,
+        keyActionsAgreed: null,
+        challengesRaised: null,
+        nextSteps: null,
+        followUpDate: null,
+        bootcampWeek: null,
         sessionType: String(formData.get("sessionType") ?? "") as "physical" | "virtual",
         meetingLink: String(formData.get("meetingLink") ?? "") || null,
-        evidenceNotes: String(formData.get("evidenceNotes") ?? "") || null,
-        evidenceUrls: evidenceLines.length ? evidenceLines : null,
-        evidenceFiles: evidenceFiles.length ? evidenceFiles : null,
-        initialActionDescriptions: actionLines.length ? actionLines : null,
+        evidenceNotes: null,
+        evidenceUrls: null,
+        evidenceFiles: null,
+        initialActionDescriptions: null,
       });
       if (!res.success) toast.error(res.error ?? "Failed");
       else {
         toast.success("Session logged");
         setShowAdd(false);
-        setEvidenceFiles([]);
         router.refresh();
       }
     });
@@ -2316,6 +2256,18 @@ function CdpSessionsPanel({
     });
   };
 
+  const reject = (id: number) => {
+    if (!confirm("Reject this session report? The EDO can edit and resubmit it.")) return;
+    start(async () => {
+      const res = await rejectCdpSupportSession(id);
+      if (!res.success) toast.error(res.error ?? "Failed");
+      else {
+        toast.success("Session report rejected");
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col justify-between gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-start">
@@ -2335,11 +2287,13 @@ function CdpSessionsPanel({
             <span className="rounded-full border px-2 py-1">With evidence: {evidenceSessionCount}</span>
           </div>
         </div>
-        <Button type="button" size="sm" variant="secondary" onClick={() => setShowAdd((s) => !s)} disabled={disabled || pending}>
-          {showAdd ? "Close" : mode === "planning" ? "Add planned session" : "Add session report"}
-        </Button>
+        {mode === "planning" ? (
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowAdd((s) => !s)} disabled={disabled || pending}>
+            {showAdd ? "Close" : "Add planned session"}
+          </Button>
+        ) : null}
       </div>
-      {showAdd ? (
+      {mode === "planning" && showAdd ? (
         <form
           className="grid gap-3 rounded-md border p-4 sm:grid-cols-2"
           onSubmit={(e) => {
@@ -2402,113 +2356,17 @@ function CdpSessionsPanel({
             <Label htmlFor="focusCodes">Focus codes (e.g. A,C,F)</Label>
             <Input id="focusCodes" name="focusCodes" placeholder="A, D" />
           </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="agenda">Topic and subtopic / agenda</Label>
-            <Textarea id="agenda" name="agenda" rows={2} placeholder="Example: Cash-flow management / separating business and household expenses" />
+          <div className="space-y-1">
+            <Label htmlFor="agenda">Topic</Label>
+            <Input id="agenda" name="agenda" placeholder="Example: Cash-flow management" required />
           </div>
           <div className="space-y-1">
+            <Label htmlFor="subtopic">Subtopic</Label>
+            <Input id="subtopic" name="subtopic" placeholder="Example: Separating business and household expenses" />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="supportType">BDS objective</Label>
-            <Input id="supportType" name="supportType" placeholder="What should the enterprise be able to do after this session?" />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="durationHours">Duration (hours)</Label>
-            <Input id="durationHours" name="durationHours" type="number" step="0.25" min={0} />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="keyActionsAgreed">Key agreed milestones</Label>
-            <Textarea id="keyActionsAgreed" name="keyActionsAgreed" rows={2} />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="evidenceNotes">Achievement from the session and observations</Label>
-            <Textarea
-              id="evidenceNotes"
-              name="evidenceNotes"
-              rows={2}
-              placeholder="Summarize what was achieved, observations made, and any outputs delivered."
-            />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="challengesRaised">Challenges flagged</Label>
-            <Textarea id="challengesRaised" name="challengesRaised" rows={2} />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="nextSteps">Next steps</Label>
-            <Textarea id="nextSteps" name="nextSteps" rows={2} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="followUpDate">Follow-up date</Label>
-            <Input id="followUpDate" name="followUpDate" type="date" />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="bootcampWeek">Bootcamp week (1–13, optional)</Label>
-            <Input id="bootcampWeek" name="bootcampWeek" type="number" min={1} max={13} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="evidenceFiles">Supporting evidence/documents</Label>
-            <div className="rounded-md border border-dashed bg-slate-50 p-3">
-              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md px-4 py-5 text-center text-sm text-slate-600 hover:bg-slate-100">
-                {isUploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-slate-700" />
-                ) : (
-                  <UploadCloud className="h-5 w-5 text-slate-700" />
-                )}
-                <span>
-                  {isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, photos, assessments, or plans"}
-                </span>
-                <input
-                  id="evidenceFiles"
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
-                  disabled={isUploading || pending}
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files ?? []);
-                    event.currentTarget.value = "";
-                    if (files.length > 0) void startUpload(files);
-                  }}
-                />
-              </label>
-              {evidenceFiles.length > 0 ? (
-                <div className="mt-3 space-y-2">
-                  {evidenceFiles.map((file, index) => (
-                    <div key={`${file.url}-${index}`} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm">
-                      <a
-                        href={getDocumentViewerHref(file.url, file.name)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex min-w-0 items-center gap-2 text-sky-700 hover:underline"
-                      >
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{file.name}</span>
-                      </a>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-destructive"
-                        onClick={() => setEvidenceFiles((prev) => prev.filter((_, i) => i !== index))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="evidenceUrls">Evidence URLs (one per line)</Label>
-            <Textarea id="evidenceUrls" name="evidenceUrls" rows={2} placeholder="https://..." />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="initialActionDescriptions">Follow-up action items (one per line)</Label>
-            <Textarea
-              id="initialActionDescriptions"
-              name="initialActionDescriptions"
-              rows={3}
-              placeholder="Each line becomes a trackable action. Required before the next session if you fill key actions agreed on a prior session."
-            />
+            <Textarea id="supportType" name="supportType" rows={3} placeholder="What should the enterprise be able to do after this session?" required />
           </div>
           <Button type="submit" disabled={pending}>
             Save session
@@ -2516,6 +2374,7 @@ function CdpSessionsPanel({
         </form>
       ) : null}
 
+      {mode === "planning" ? (
       <div className="grid gap-3 lg:grid-cols-2">
         {focusGroups.map(({ code, sessions }) => (
           <section key={code} className="rounded-md border bg-card p-4 shadow-sm">
@@ -2557,24 +2416,24 @@ function CdpSessionsPanel({
           </section>
         ))}
       </div>
+      ) : null}
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>#</TableHead>
-            <TableHead>Focus</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Bootcamp</TableHead>
-            <TableHead>Codes</TableHead>
-            <TableHead>Duration</TableHead>
-            <TableHead>Evidence</TableHead>
+            <TableHead>Session</TableHead>
+            <TableHead>Focus area</TableHead>
+            <TableHead>Topic</TableHead>
+            <TableHead>Date and type</TableHead>
+            <TableHead>{mode === "planning" ? "Subtopic" : "Report progress"}</TableHead>
+            <TableHead>{mode === "planning" ? "Status" : "Evidence"}</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {plan.supportSessions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-muted-foreground text-sm">
+              <TableCell colSpan={7} className="text-muted-foreground text-sm">
                 {mode === "planning"
                   ? "No sessions planned yet. Add the first advisory session from a CNA priority area."
                   : "No reports submitted yet. Complete a report after the advisory session or field visit."}
@@ -2584,15 +2443,31 @@ function CdpSessionsPanel({
             plan.supportSessions.map((s) => (
               <TableRow key={s.id}>
                 <TableCell>{s.sessionNumber}</TableCell>
-                <TableCell className="font-mono text-xs">{s.focusCode}</TableCell>
-                <TableCell className="text-xs whitespace-nowrap">
-                  {s.sessionDate ? new Date(s.sessionDate).toLocaleString() : "—"}
-                </TableCell>
-                <TableCell className="text-xs">{s.bootcampWeek ?? "—"}</TableCell>
-                <TableCell className="text-xs">{(s.focusCodes ?? []).join(", ") || "—"}</TableCell>
-                <TableCell className="text-xs">{s.durationHours ?? "—"}</TableCell>
                 <TableCell className="text-xs">
-                  {((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0 ? (
+                  <span className="font-mono font-semibold">{s.focusCode}</span>
+                  <span className="ml-2">{CDP_FOCUS_AREAS[s.focusCode].label}</span>
+                </TableCell>
+                <TableCell className="max-w-64 whitespace-normal text-xs">{s.agenda || "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">
+                  {s.sessionDate ? new Date(s.sessionDate).toLocaleString() : "—"}
+                  <span className="ml-2 capitalize text-muted-foreground">{s.sessionType}</span>
+                </TableCell>
+                <TableCell className="text-xs">
+                  {mode === "planning" ? (
+                    s.subtopic || "—"
+                  ) : (
+                    <div className="space-y-1">
+                      <span className="capitalize">{s.approvalStatus}</span>
+                      <p className="text-muted-foreground">
+                        {s.evidenceNotes?.trim() || s.keyActionsAgreed?.trim() ? "Report started" : "Awaiting report"}
+                      </p>
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {mode === "planning" ? (
+                    <span className="capitalize">{s.approvalStatus}</span>
+                  ) : ((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0 ? (
                     <div className="flex flex-col gap-1">
                       {((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).slice(0, 2).map((file, index) => (
                         <a
@@ -2623,18 +2498,20 @@ function CdpSessionsPanel({
                       disabled={disabled || pending}
                     >
                       <Pencil className="mr-1 h-3.5 w-3.5" />
-                      Edit
+                      {mode === "planning" ? "Edit plan" : "Complete report"}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => remove(s.id)}
-                      disabled={disabled || pending}
-                    >
-                      Delete
-                    </Button>
+                    {mode === "planning" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => remove(s.id)}
+                        disabled={disabled || pending}
+                      >
+                        Delete
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>
@@ -2646,6 +2523,8 @@ function CdpSessionsPanel({
       <CdpSessionEditSheet
         planId={plan.id}
         session={editingSession ?? null}
+        mode={mode}
+        currentUserId={currentUserId}
         open={Boolean(editingSession)}
         onOpenChange={(open) => {
           if (!open) setEditingSessionId(null);
@@ -2657,26 +2536,38 @@ function CdpSessionsPanel({
         disabled={disabled || pending}
       />
 
-      {canApproveSessions && plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
+      {mode === "reporting" && canApproveSessions && plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
         <div className="flex flex-wrap gap-2">
           {plan.supportSessions
             .filter((s) => s.approvalStatus !== "approved" && s.conductedById !== currentUserId)
             .map((s) => (
-              <Button
-                key={s.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => approve(s.id)}
-                disabled={disabled || pending}
-              >
-                Approve session {s.sessionNumber}
-              </Button>
+              <div key={s.id} className="flex items-center gap-2 rounded-md border p-2">
+                <span className="text-sm">Session {s.sessionNumber}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => approve(s.id)}
+                  disabled={disabled || pending}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => reject(s.id)}
+                  disabled={disabled || pending}
+                >
+                  Reject
+                </Button>
+              </div>
             ))}
         </div>
       ) : null}
 
-      <SessionActionItemsBlock plan={plan} disabled={disabled} />
+      {mode === "reporting" ? <SessionActionItemsBlock plan={plan} disabled={disabled} /> : null}
 
       <p className="text-xs text-muted-foreground">Business #{businessId}</p>
     </div>

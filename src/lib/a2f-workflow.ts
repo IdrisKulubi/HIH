@@ -285,7 +285,12 @@ export function getWorkflowNextAction(a2fId: number, entry: WorkflowEntryInput):
 }
 
 export function getPipelineListHint(
-    entry: WorkflowEntryInput & { status?: string; ddReportsCount?: number; hasGrantAgreement?: boolean }
+    entry: WorkflowEntryInput & {
+        status?: string;
+        ddReportsCount?: number;
+        initialDdComplete?: boolean;
+        hasGrantAgreement?: boolean;
+    }
 ): string {
     if (entry.matchingGrantApplications || entry.dueDiligenceReports) {
         if (!hasCompleteInitialDd(entry)) return "Due diligence";
@@ -298,10 +303,19 @@ export function getPipelineListHint(
     }
 
     const status = entry.status ?? "";
+    const isPreScoringStage = [
+        "a2f_pipeline",
+        "due_diligence_initial",
+        "pre_ic_scoring",
+    ].includes(status);
+    if (entry.initialDdComplete && isPreScoringStage) {
+        return "Pre-IC scoring";
+    }
+
     const hints: Record<string, string> = {
-        a2f_pipeline: hasCompleteInitialDd(entry) ? "MG application" : "Due diligence",
-        due_diligence_initial: (entry.ddReportsCount ?? 0) > 0 ? "Scoring" : "Due diligence",
-        pre_ic_scoring: "Scoring",
+        a2f_pipeline: "Due diligence",
+        due_diligence_initial: "Due diligence",
+        pre_ic_scoring: "Pre-IC scoring",
         ic_appraisal_review: "GAIR / IC",
         offer_issued: "Contracting",
         contracting: entry.hasGrantAgreement ? "Sign agreement" : "Contracting",
