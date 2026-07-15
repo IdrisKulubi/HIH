@@ -59,6 +59,7 @@ export interface A2fPipelineListItem {
     status: string;
     officerName: string | null;
     ddReportsCount: number;
+    initialDdComplete: boolean;
     hasGrantAgreement: boolean;
     totalDisbursed: number;
     createdAt: string;
@@ -123,11 +124,22 @@ export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineLi
             .select({
                 a2fId: a2fDueDiligenceReports.a2fId,
                 count: sql<number>`COUNT(*)::int`,
+                initialCompleteCount: sql<number>`
+                    COUNT(*) FILTER (
+                        WHERE ${a2fDueDiligenceReports.stage} = 'initial'
+                        AND ${a2fDueDiligenceReports.isComplete} = true
+                    )::int
+                `,
             })
             .from(a2fDueDiligenceReports)
             .where(inArray(a2fDueDiligenceReports.a2fId, pipelineIds))
             .groupBy(a2fDueDiligenceReports.a2fId);
         const ddCountMap = new Map(ddCounts.map(d => [d.a2fId, d.count]));
+        const initialDdCompleteSet = new Set(
+            ddCounts
+                .filter(d => d.initialCompleteCount > 0)
+                .map(d => d.a2fId)
+        );
 
         // Batch-fetch grant agreements existence
         const agreements = await db
@@ -167,6 +179,7 @@ export async function getA2fPipelineList(): Promise<ActionResponse<A2fPipelineLi
             status: e.status,
             officerName: e.officerId ? (officerMap.get(e.officerId) ?? null) : null,
             ddReportsCount: ddCountMap.get(e.id) ?? 0,
+            initialDdComplete: initialDdCompleteSet.has(e.id),
             hasGrantAgreement: agreementSet.has(e.id),
             totalDisbursed: disbursedMap.get(e.id) ?? 0,
             createdAt: e.createdAt.toISOString(),

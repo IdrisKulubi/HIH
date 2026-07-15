@@ -19,6 +19,7 @@ import {
   cnaAssessments,
   cnaDiagnostics,
   cnaQuestionBank,
+  cnaQuestionResponses,
   cnaRoleReviews,
   cnaScores,
   kycProfiles,
@@ -33,6 +34,8 @@ import {
   type CdpObjective,
   type CdpSessionActionItem,
   type CdpWeeklyMilestone,
+  type CnaQuestion,
+  type CnaQuestionResponse,
 } from "@/db/schema";
 import { buildGapItemInsert } from "@/lib/cdp/gap-generation";
 import {
@@ -159,7 +162,12 @@ export type CdpPlanFull = CapacityDevelopmentPlan & {
   objectives: CdpObjectiveWithKrs[];
   weeklyMilestones: CdpWeeklyMilestone[];
   endlineResponse: CdpEndlineResponse | null;
-  linkedCnaAssessment?: { id: number; status: string; lockedAt: Date | null } | null;
+  linkedCnaAssessment?: {
+    id: number;
+    status: string;
+    lockedAt: Date | null;
+    responses: (CnaQuestionResponse & { question: CnaQuestion })[];
+  } | null;
 };
 
 export type CdpEvidenceFile = {
@@ -397,6 +405,12 @@ export async function getCdpPlanFull(planId: number): Promise<ActionResponse<Cdp
         endlineResponse: true,
         linkedCnaAssessment: {
           columns: { id: true, status: true, lockedAt: true },
+          with: {
+            responses: {
+              orderBy: [asc(cnaQuestionResponses.questionId)],
+              with: { question: true },
+            },
+          },
         },
       },
     });
@@ -1133,6 +1147,7 @@ const sessionCreateSchema = z.object({
   sessionDate: z.string().min(1),
   focusCodes: z.array(cdpFocusCodeSchema).default([]),
   agenda: z.string().max(8000).optional().nullable(),
+  subtopic: z.string().max(8000).optional().nullable(),
   supportType: z.string().max(500).optional().nullable(),
   durationHours: z.number().min(0).max(24).optional().nullable(),
   keyActionsAgreed: z.string().max(8000).optional().nullable(),
@@ -1192,14 +1207,13 @@ export async function createCdpSupportSession(
       ...file,
       uploadedById: file.uploadedById ?? session.user!.id,
     }));
-    const evidenceGate = validateSessionEvidence({
-      sessionNumber: n,
-      sessionType,
-      evidenceUrls,
-      evidenceFileCount: evidenceFiles.length,
-      meetingLink: parsed.data.meetingLink ?? null,
-    });
-    if (evidenceGate) return errorResponse(evidenceGate);
+    const expectedType = expectedSessionType(n);
+    if (sessionType !== expectedType) {
+      return errorResponse(`Session ${n} must be ${expectedType}.`);
+    }
+    if (sessionType === "virtual" && !parsed.data.meetingLink?.trim()) {
+      return errorResponse(`Session ${n} is virtual and requires a meeting link.`);
+    }
 
     if (n > 1) {
       const prev = await db.query.cdpBusinessSupportSessions.findFirst({
@@ -1226,6 +1240,7 @@ export async function createCdpSupportSession(
           sessionDate,
           focusCodes,
           agenda: parsed.data.agenda?.trim() || null,
+          subtopic: parsed.data.subtopic?.trim() || null,
           supportType: parsed.data.supportType?.trim() || null,
           durationHours:
             parsed.data.durationHours != null ? String(parsed.data.durationHours) : null,
@@ -1294,22 +1309,16 @@ export async function updateCdpSupportSession(
     const sessionDate = new Date(parsed.data.sessionDate);
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
 
-    const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
-    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
-      ...file,
-      uploadedById: file.uploadedById ?? session.user!.id,
-    }));
     const focusCodes =
       parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
     const sessionType = parsed.data.sessionType ?? expectedSessionType(parsed.data.sessionNumber);
-    const evidenceGate = validateSessionEvidence({
-      sessionNumber: parsed.data.sessionNumber,
-      sessionType,
-      evidenceUrls,
-      evidenceFileCount: evidenceFiles.length,
-      meetingLink: parsed.data.meetingLink ?? null,
-    });
-    if (evidenceGate) return errorResponse(evidenceGate);
+    const expectedType = expectedSessionType(parsed.data.sessionNumber);
+    if (sessionType !== expectedType) {
+      return errorResponse(`Session ${parsed.data.sessionNumber} must be ${expectedType}.`);
+    }
+    if (sessionType === "virtual" && !parsed.data.meetingLink?.trim()) {
+      return errorResponse(`Session ${parsed.data.sessionNumber} is virtual and requires a meeting link.`);
+    }
 
     await db
       .update(cdpBusinessSupportSessions)
@@ -1319,19 +1328,11 @@ export async function updateCdpSupportSession(
         sessionDate,
         focusCodes,
         agenda: parsed.data.agenda?.trim() || null,
+        subtopic: parsed.data.subtopic?.trim() || null,
         supportType: parsed.data.supportType?.trim() || null,
-        durationHours:
-          parsed.data.durationHours != null ? String(parsed.data.durationHours) : null,
-        keyActionsAgreed: parsed.data.keyActionsAgreed?.trim() || null,
-        challengesRaised: parsed.data.challengesRaised?.trim() || null,
-        nextSteps: parsed.data.nextSteps?.trim() || null,
-        followUpDate: parseOptionalDate(parsed.data.followUpDate ?? null),
         sessionType,
         meetingLink: parsed.data.meetingLink?.trim() || null,
         bootcampWeek: parsed.data.bootcampWeek ?? null,
-        evidenceNotes: parsed.data.evidenceNotes?.trim() || null,
-        evidenceUrls,
-        evidenceFiles,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1371,6 +1372,85 @@ export async function deleteCdpSupportSession(
   }
 }
 
+const sessionReportUpdateSchema = sessionCreateSchema
+  .pick({
+    planId: true,
+    durationHours: true,
+    keyActionsAgreed: true,
+    challengesRaised: true,
+    nextSteps: true,
+    followUpDate: true,
+    evidenceNotes: true,
+    evidenceUrls: true,
+    evidenceFiles: true,
+  })
+  .extend({ sessionId: z.number().int().positive() });
+
+export async function updateCdpSessionReport(
+  input: z.infer<typeof sessionReportUpdateSchema>
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const parsed = sessionReportUpdateSchema.safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid session report");
+
+    const existing = await db.query.cdpBusinessSupportSessions.findFirst({
+      where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!existing?.plan || existing.planId !== parsed.data.planId) {
+      return errorResponse("Session not found");
+    }
+
+    const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
+    if (focusGate) return errorResponse(focusGate);
+
+    const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((url) => url.trim()).filter(Boolean);
+    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
+      ...file,
+      uploadedById: file.uploadedById ?? session.user!.id,
+    }));
+    const evidenceGate = validateSessionEvidence({
+      sessionNumber: existing.sessionNumber,
+      sessionType: existing.sessionType,
+      evidenceUrls,
+      evidenceFileCount: evidenceFiles.length,
+      meetingLink: existing.meetingLink,
+    });
+    if (evidenceGate) return errorResponse(evidenceGate);
+
+    await db
+      .update(cdpBusinessSupportSessions)
+      .set({
+        durationHours:
+          parsed.data.durationHours != null ? String(parsed.data.durationHours) : null,
+        keyActionsAgreed: parsed.data.keyActionsAgreed?.trim() || null,
+        challengesRaised: parsed.data.challengesRaised?.trim() || null,
+        nextSteps: parsed.data.nextSteps?.trim() || null,
+        followUpDate: parseOptionalDate(parsed.data.followUpDate ?? null),
+        evidenceNotes: parsed.data.evidenceNotes?.trim() || null,
+        evidenceUrls,
+        evidenceFiles,
+        conductedById: session.user.id,
+        approvalStatus: "pending",
+        approvedById: null,
+        approvedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
+
+    revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
+    return successResponse({ businessId: existing.plan.businessId });
+  } catch (e) {
+    console.error("updateCdpSessionReport", e);
+    return errorResponse("Failed to update session report");
+  }
+}
+
 export async function approveCdpSupportSession(
   sessionId: number
 ): Promise<ActionResponse<{ businessId: number }>> {
@@ -1388,6 +1468,14 @@ export async function approveCdpSupportSession(
     if (existing.conductedById === session.user.id) {
       return errorResponse("You cannot approve a session log you submitted.");
     }
+    const evidenceGate = validateSessionEvidence({
+      sessionNumber: existing.sessionNumber,
+      sessionType: existing.sessionType,
+      evidenceUrls: existing.evidenceUrls ?? [],
+      evidenceFileCount: Array.isArray(existing.evidenceFiles) ? existing.evidenceFiles.length : 0,
+      meetingLink: existing.meetingLink,
+    });
+    if (evidenceGate) return errorResponse(evidenceGate);
 
     await db
       .update(cdpBusinessSupportSessions)
@@ -1404,6 +1492,42 @@ export async function approveCdpSupportSession(
   } catch (e) {
     console.error("approveCdpSupportSession", e);
     return errorResponse("Failed to approve session");
+  }
+}
+
+export async function rejectCdpSupportSession(
+  sessionId: number
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isCdpApprover(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const existing = await db.query.cdpBusinessSupportSessions.findFirst({
+      where: eq(cdpBusinessSupportSessions.id, sessionId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!existing?.plan) return errorResponse("Session not found");
+    if (existing.conductedById === session.user.id) {
+      return errorResponse("You cannot review a session report you submitted.");
+    }
+
+    await db
+      .update(cdpBusinessSupportSessions)
+      .set({
+        approvalStatus: "rejected",
+        approvedById: session.user.id,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpBusinessSupportSessions.id, sessionId));
+
+    revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
+    return successResponse({ businessId: existing.plan.businessId });
+  } catch (e) {
+    console.error("rejectCdpSupportSession", e);
+    return errorResponse("Failed to reject session");
   }
 }
 
@@ -2117,8 +2241,12 @@ export async function buildCdpCsvExport(planId: number): Promise<ActionResponse<
           sessionDate: s.sessionDate ? new Date(s.sessionDate).toISOString() : "",
           bootcampWeek: s.bootcampWeek ?? "",
           focusCodes: (s.focusCodes ?? []).join(";"),
-          agenda: s.agenda ?? "",
-          supportType: s.supportType ?? "",
+          topic: s.agenda ?? "",
+          subtopic: s.subtopic ?? "",
+          bdsObjective: s.supportType ?? "",
+          sessionType: s.sessionType,
+          meetingLink: s.sessionType === "virtual" ? s.meetingLink ?? "" : "",
+          approvalStatus: s.approvalStatus,
           durationHours: s.durationHours ?? "",
           keyActionsAgreed: s.keyActionsAgreed ?? "",
           challengesRaised: s.challengesRaised ?? "",

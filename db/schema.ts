@@ -262,6 +262,7 @@ export const cdpSessionTypeEnum = pgEnum('cdp_session_type', ['physical', 'virtu
 export const cdpSessionApprovalStatusEnum = pgEnum('cdp_session_approval_status', [
   'pending',
   'approved',
+  'rejected',
 ]);
 
 export const cnaReviewerRoleEnum = pgEnum('cna_reviewer_role', [
@@ -1052,6 +1053,7 @@ export const cdpBusinessSupportSessions = pgTable(
     sessionDate: timestamp('session_date').notNull(),
     focusCodes: text('focus_codes').array().notNull().default(sql`ARRAY[]::text[]`),
     agenda: text('agenda'),
+    subtopic: text('subtopic'),
     supportType: text('support_type'),
     durationHours: decimal('duration_hours', { precision: 6, scale: 2 }),
     keyActionsAgreed: text('key_actions_agreed'),

@@ -218,6 +218,13 @@
       "when": 1781409600000,
       "tag": "0030_a2f_document_resolution_issues",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784073600000,
+      "tag": "0031_cdp_session_reporting_split",
+      "breakpoints": true
     }
   ]
 }
