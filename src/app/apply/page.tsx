@@ -8,13 +8,26 @@ import { areApplicationsOpen } from "@/lib/config";
 import { getUserApplication } from "@/lib/actions";
 
 export default async function ApplyPage() {
-  // Check if applications are open (automatic deadline check)
+  const session = await auth();
+
+  if (session?.user) {
+    // Returning applicants must retain access to their existing application and
+    // downstream A2F journey after the public application deadline.
+    const existingApplication = await getUserApplication();
+
+    if (existingApplication.success && existingApplication.data) {
+      const app = existingApplication.data;
+      if (app.status === "approved" || app.status === "finalist") {
+        redirect("/access-to-finance");
+      }
+      redirect("/profile");
+    }
+  }
+
+  // The deadline only gates new programme applications.
   if (!areApplicationsOpen()) {
     redirect('/apply/closed');
   }
-
-  // Check if user is authenticated
-  const session = await auth();
 
   if (!session?.user) {
     // User is not logged in - show login prompt
@@ -62,17 +75,6 @@ export default async function ApplyPage() {
         </Card>
       </div>
     );
-  }
-
-  // Check if user already has an application
-  const existingApplication = await getUserApplication();
-
-  if (existingApplication.success && existingApplication.data) {
-    const app = existingApplication.data;
-    if (app.status === "approved" || app.status === "finalist") {
-      redirect("/access-to-finance");
-    }
-    redirect('/profile');
   }
 
   // User is authenticated and has no application - redirect to preparation page

@@ -24,6 +24,6 @@ export function getRoleHomePath(role?: string | null) {
     case "applicant":
       return "/access-to-finance";
     default:
-      return "/apply/closed";
+      return "/profile";
   }
 }

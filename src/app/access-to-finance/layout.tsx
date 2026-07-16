@@ -16,7 +16,7 @@ export default async function AccessToFinanceLayout({
     const role = session?.user?.role ?? "";
 
     if (!session?.user) {
-        redirect("/login");
+        redirect("/login?callbackUrl=%2Faccess-to-finance");
     }
 
     if (role !== "applicant" && role !== "admin") {

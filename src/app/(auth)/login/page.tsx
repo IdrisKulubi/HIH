@@ -9,7 +9,11 @@ import { useSearchParams } from "next/navigation";
 function LoginPageContent() {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") === "signup" ? "signup" : "signin";
-  const callbackUrl = searchParams.get("callbackUrl") ?? undefined;
+  const requestedCallbackUrl = searchParams.get("callbackUrl");
+  const callbackUrl =
+    requestedCallbackUrl?.startsWith("/") && !requestedCallbackUrl.startsWith("//")
+      ? requestedCallbackUrl
+      : undefined;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] relative overflow-hidden">
