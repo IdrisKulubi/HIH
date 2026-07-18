@@ -15,6 +15,7 @@ import {
   Target,
   Users,
   ChartBar,
+  ChartLineUp,
   Calculator,
   ChatCircle,
   UserCheck,
@@ -98,8 +99,10 @@ const NAV_GROUPS: NavGroup[] = [
       pathname.startsWith("/admin/users") ||
       pathname.startsWith("/admin/feedback") ||
       pathname.startsWith("/admin/export") ||
+      pathname.startsWith("/admin/enterprise-progress") ||
       pathname.startsWith("/admin/support"),
     items: [
+      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
       { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },

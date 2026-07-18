@@ -67,7 +67,7 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
   {
     title: "Management",
     links: [
-      { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
+      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
       { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
