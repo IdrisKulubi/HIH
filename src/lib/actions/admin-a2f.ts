@@ -49,6 +49,7 @@ export interface AdminA2fPreScreeningRow {
   hardStopReasons: string[];
   invitationStatus: string | null;
   invitationError: string | null;
+  applicationFormStatus: "filled" | "not_filled";
   canSendInvite: boolean;
   inviteBlockedReason: string | null;
 }
@@ -168,6 +169,24 @@ export async function getAdminA2fDashboardData(): Promise<
           .where(inArray(a2fPreScreeningAttempts.applicationId, applicationIds))
           .orderBy(desc(a2fPreScreeningAttempts.createdAt))
       : [];
+    const applicationForms = applicationIds.length
+      ? await db
+          .select({
+            applicationId: a2fPipeline.applicationId,
+            status: a2fMatchingGrantApplications.status,
+          })
+          .from(a2fPipeline)
+          .innerJoin(
+            a2fMatchingGrantApplications,
+            eq(a2fMatchingGrantApplications.a2fId, a2fPipeline.id)
+          )
+          .where(inArray(a2fPipeline.applicationId, applicationIds))
+      : [];
+    const submittedApplicationIds = new Set(
+      applicationForms
+        .filter((row) => row.status === "submitted")
+        .map((row) => row.applicationId)
+    );
     const attemptIds = attempts.map((row) => row.id);
     const preOverrides = attemptIds.length
       ? await db
@@ -265,6 +284,9 @@ export async function getAdminA2fDashboardData(): Promise<
         hardStopReasons: submitted?.hardStopReasons ?? [],
         invitationStatus: submitted?.invitationStatus ?? null,
         invitationError: submitted?.invitationError ?? null,
+        applicationFormStatus: submittedApplicationIds.has(candidate.applicationId)
+          ? "filled"
+          : "not_filled",
         canSendInvite,
         inviteBlockedReason,
       };
