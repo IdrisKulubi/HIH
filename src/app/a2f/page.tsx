@@ -55,7 +55,11 @@ function formatKes(amount: number) {
 }
 import { useSession } from "next-auth/react";
 import { getA2fEntryPath, isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
-import { STAGE_CONFIG, getStageStyle } from "@/lib/a2f-pipeline-ui";
+import {
+    STAGE_CONFIG,
+    getEffectivePipelineStatus,
+    getStageStyle,
+} from "@/lib/a2f-pipeline-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE (wrapped with Suspense for useSearchParams)
@@ -97,26 +101,42 @@ function A2fDashboardContent() {
     const stats = useMemo(() => {
         const total = pipeline.length;
         const awaitingDd = pipeline.filter((p) =>
-            ["a2f_pipeline", "due_diligence_initial"].includes(p.status)
+            ["a2f_pipeline", "due_diligence_initial"].includes(
+                getEffectivePipelineStatus(p)
+            )
         ).length;
-        const active = pipeline.filter(p =>
-            !["post_ta_monitoring", "a2f_pipeline"].includes(p.status)
+        const active = pipeline.filter(p => {
+            const status = getEffectivePipelineStatus(p);
+            return !["post_ta_monitoring", "a2f_pipeline"].includes(status);
+        }).length;
+        const inIcReview = pipeline.filter(
+            p => getEffectivePipelineStatus(p) === "ic_appraisal_review"
         ).length;
-        const inIcReview = pipeline.filter(p => p.status === "ic_appraisal_review").length;
         const totalDisbursed = pipeline.reduce((s, p) => s + p.totalDisbursed, 0);
         return { total, active, awaitingDd, inIcReview, totalDisbursed };
+    }, [pipeline]);
+
+    const stageCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const entry of pipeline) {
+            const status = getEffectivePipelineStatus(entry);
+            counts.set(status, (counts.get(status) ?? 0) + 1);
+        }
+        return counts;
     }, [pipeline]);
 
     // Filtered data
     const filtered = useMemo(() => {
         return pipeline.filter(p => {
-            const term = search.toLowerCase();
+            const term = search.trim().toLowerCase();
             const matchSearch = !term
                 || p.businessName.toLowerCase().includes(term)
                 || p.applicantName.toLowerCase().includes(term)
                 || p.applicantEmail.toLowerCase().includes(term)
                 || String(p.applicationId).includes(term);
-            const matchStatus = statusFilter === "all" || p.status === statusFilter;
+            const effectiveStatus = getEffectivePipelineStatus(p);
+            const matchStatus =
+                statusFilter === "all" || effectiveStatus === statusFilter;
             return matchSearch && matchStatus;
         });
     }, [pipeline, search, statusFilter]);
@@ -329,13 +349,30 @@ function A2fDashboardContent() {
                             )}
                         </div>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[200px]">
+                            <SelectTrigger
+                                className="w-[220px]"
+                                aria-label="Filter by pipeline stage"
+                            >
                                 <SelectValue placeholder="All stages" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Stages</SelectItem>
+                                <SelectItem value="all">
+                                    <span className="flex w-full items-center justify-between gap-6">
+                                        <span>All stages</span>
+                                        <span className="tabular-nums text-muted-foreground">
+                                            {pipeline.length}
+                                        </span>
+                                    </span>
+                                </SelectItem>
                                 {Object.entries(STAGE_CONFIG).map(([value, cfg]) => (
-                                    <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+                                    <SelectItem key={value} value={value}>
+                                        <span className="flex w-full items-center justify-between gap-6">
+                                            <span>{cfg.label}</span>
+                                            <span className="tabular-nums text-muted-foreground">
+                                                {stageCounts.get(value) ?? 0}
+                                            </span>
+                                        </span>
+                                    </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -375,7 +412,9 @@ function A2fDashboardContent() {
                                     ? ddOnlyView
                                         ? "Cases appear here after enterprises pass A2F pre-screening"
                                         : "Add a DD-qualified application to get started"
-                                    : "Try adjusting your filters"}
+                                    : statusFilter !== "all"
+                                      ? `No cases are currently in ${getStageStyle(statusFilter).label}.`
+                                      : "Try a different search term."}
                             </p>
                         </div>
                     ) : (
@@ -393,7 +432,8 @@ function A2fDashboardContent() {
                             </TableHeader>
                             <TableBody>
                                 {filtered.map(entry => {
-                                    const stage = getStageStyle(entry.status);
+                                    const effectiveStatus = getEffectivePipelineStatus(entry);
+                                    const stage = getStageStyle(effectiveStatus);
                                     return (
                                         <TableRow key={entry.id} className="hover:bg-muted/30">
                                             <TableCell className="pl-6">

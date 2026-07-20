@@ -21,6 +21,28 @@ export function getStageStyle(status: string): StageStyle {
     };
 }
 
+interface EffectivePipelineStatusInput {
+    status: string;
+    initialDdComplete?: boolean;
+}
+
+/**
+ * Resolve the stage staff should see and filter by when workflow evidence is
+ * ahead of the persisted pipeline status.
+ */
+export function getEffectivePipelineStatus(
+    entry: EffectivePipelineStatusInput
+): string {
+    if (
+        entry.initialDdComplete
+        && ["a2f_pipeline", "due_diligence_initial"].includes(entry.status)
+    ) {
+        return "pre_ic_scoring";
+    }
+
+    return entry.status;
+}
+
 export type IcDecisionKey =
     | "approved"
     | "approved_with_conditions"
