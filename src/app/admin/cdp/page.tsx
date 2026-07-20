@@ -1,9 +1,13 @@
 import Link from "next/link";
-import { getCdpWorkflowRows } from "@/lib/actions/cdp";
+import { getCdpReportReviewQueue, getCdpWorkflowRows } from "@/lib/actions/cdp";
 import { CdpWorkflowQueue } from "@/components/admin/cdp/CdpWorkflowQueue";
+import { CdpReportReviewQueue } from "@/components/admin/cdp/CdpReportReviewQueue";
 
 export default async function AdminCdpIndexPage() {
-  const res = await getCdpWorkflowRows();
+  const [res, reviewRes] = await Promise.all([
+    getCdpWorkflowRows(),
+    getCdpReportReviewQueue(),
+  ]);
 
   if (!res.success || !res.data) {
     return (
@@ -31,6 +35,9 @@ export default async function AdminCdpIndexPage() {
           Open CNA Reviews
         </Link>
       </div>
+      {reviewRes.success && reviewRes.data ? (
+        <CdpReportReviewQueue rows={reviewRes.data} />
+      ) : null}
       <CdpWorkflowQueue rows={res.data} />
     </div>
   );

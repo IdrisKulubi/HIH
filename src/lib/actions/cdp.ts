@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
 import {
+  applicants,
   applications,
   businesses,
   capacityDevelopmentPlans,
@@ -23,6 +24,7 @@ import {
   cnaRoleReviews,
   cnaScores,
   kycProfiles,
+  userProfiles,
   type CapacityDevelopmentPlan,
   type CdpActivity,
   type CdpActivityProgressReview,
@@ -56,7 +58,7 @@ import {
 import { computeRoleBasedCnaResult } from "@/lib/cna/role-based-scoring";
 import { listQualifiedCnaBusinessRows } from "@/lib/cna/qualified-businesses";
 import { CNA_REVIEWER_ROLES, type CnaReviewerRole } from "@/lib/cna/role-based-types";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { stringify } from "csv-stringify/sync";
 import { z } from "zod";
@@ -203,6 +205,23 @@ export type CdpWorkflowRow = {
   actionHref: string;
 };
 
+export type CdpReportReviewRow = {
+  sessionId: number;
+  planId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  focusCode: string;
+  sessionNumber: number;
+  topic: string;
+  sessionDate: string;
+  submittedByName: string;
+  submittedAt: string;
+  evidenceCount: number;
+  reportSummary: string;
+  canReview: boolean;
+};
+
 function titleCaseStatus(status: string) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -307,6 +326,124 @@ export async function getCdpWorkflowRows(): Promise<ActionResponse<CdpWorkflowRo
   } catch (e) {
     console.error("getCdpWorkflowRows", e);
     return errorResponse("Failed to load CDP workflow queue");
+  }
+}
+
+function sessionHasReportContent(session: {
+  durationHours: string | null;
+  keyActionsAgreed: string | null;
+  challengesRaised: string | null;
+  nextSteps: string | null;
+  followUpDate: string | null;
+  evidenceNotes: string | null;
+  evidenceUrls: string[];
+  evidenceFiles: unknown;
+}) {
+  return Boolean(
+    session.durationHours ||
+      session.keyActionsAgreed?.trim() ||
+      session.challengesRaised?.trim() ||
+      session.nextSteps?.trim() ||
+      session.followUpDate ||
+      session.evidenceNotes?.trim() ||
+      session.evidenceUrls.length > 0 ||
+      (Array.isArray(session.evidenceFiles) && session.evidenceFiles.length > 0)
+  );
+}
+
+export async function getCdpReportReviewQueue(): Promise<ActionResponse<CdpReportReviewRow[]>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isCdpApprover(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const pendingSessions = await db
+      .select({
+        sessionId: cdpBusinessSupportSessions.id,
+        planId: cdpBusinessSupportSessions.planId,
+        businessId: capacityDevelopmentPlans.businessId,
+        businessName: businesses.name,
+        applicantFirstName: applicants.firstName,
+        applicantLastName: applicants.lastName,
+        focusCode: cdpBusinessSupportSessions.focusCode,
+        sessionNumber: cdpBusinessSupportSessions.sessionNumber,
+        topic: cdpBusinessSupportSessions.agenda,
+        sessionDate: cdpBusinessSupportSessions.sessionDate,
+        conductedById: cdpBusinessSupportSessions.conductedById,
+        durationHours: cdpBusinessSupportSessions.durationHours,
+        keyActionsAgreed: cdpBusinessSupportSessions.keyActionsAgreed,
+        challengesRaised: cdpBusinessSupportSessions.challengesRaised,
+        nextSteps: cdpBusinessSupportSessions.nextSteps,
+        followUpDate: cdpBusinessSupportSessions.followUpDate,
+        evidenceNotes: cdpBusinessSupportSessions.evidenceNotes,
+        evidenceUrls: cdpBusinessSupportSessions.evidenceUrls,
+        evidenceFiles: cdpBusinessSupportSessions.evidenceFiles,
+        updatedAt: cdpBusinessSupportSessions.updatedAt,
+      })
+      .from(cdpBusinessSupportSessions)
+      .innerJoin(
+        capacityDevelopmentPlans,
+        eq(capacityDevelopmentPlans.id, cdpBusinessSupportSessions.planId)
+      )
+      .innerJoin(businesses, eq(businesses.id, capacityDevelopmentPlans.businessId))
+      .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+      .where(eq(cdpBusinessSupportSessions.approvalStatus, "pending"))
+      .orderBy(desc(cdpBusinessSupportSessions.updatedAt));
+
+    const submittedReports = pendingSessions.filter(sessionHasReportContent);
+    const submitterIds = [
+      ...new Set(
+        submittedReports
+          .map((row) => row.conductedById)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const submitterProfiles = submitterIds.length
+      ? await db
+          .select({
+            userId: userProfiles.userId,
+            firstName: userProfiles.firstName,
+            lastName: userProfiles.lastName,
+          })
+          .from(userProfiles)
+          .where(inArray(userProfiles.userId, submitterIds))
+      : [];
+    const submitterNames = new Map(
+      submitterProfiles.map((profile) => [
+        profile.userId,
+        `${profile.firstName} ${profile.lastName}`.trim(),
+      ])
+    );
+
+    return successResponse(
+      submittedReports.map((row) => ({
+        sessionId: row.sessionId,
+        planId: row.planId,
+        businessId: row.businessId,
+        businessName: row.businessName,
+        applicantName: `${row.applicantFirstName} ${row.applicantLastName}`.trim(),
+        focusCode: row.focusCode,
+        sessionNumber: row.sessionNumber,
+        topic: row.topic?.trim() || `Session ${row.sessionNumber}`,
+        sessionDate: row.sessionDate.toISOString(),
+        submittedByName: row.conductedById
+          ? submitterNames.get(row.conductedById) ?? "CDP staff member"
+          : "CDP staff member",
+        submittedAt: row.updatedAt.toISOString(),
+        evidenceCount:
+          row.evidenceUrls.length + (Array.isArray(row.evidenceFiles) ? row.evidenceFiles.length : 0),
+        reportSummary:
+          row.evidenceNotes?.trim() ||
+          row.keyActionsAgreed?.trim() ||
+          row.nextSteps?.trim() ||
+          "Report submitted with supporting evidence.",
+        canReview: row.conductedById !== session.user.id,
+      }))
+    );
+  } catch (e) {
+    console.error("getCdpReportReviewQueue", e);
+    return errorResponse("Failed to load pending CDP reports");
   }
 }
 
@@ -1305,6 +1442,9 @@ export async function updateCdpSupportSession(
     if (!existing?.plan || existing.planId !== parsed.data.planId) {
       return errorResponse("Session not found");
     }
+    if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
+      return errorResponse("Only the session creator or a CDP manager can edit this session.");
+    }
 
     const sessionDate = new Date(parsed.data.sessionDate);
     if (Number.isNaN(sessionDate.getTime())) return errorResponse("Invalid session date");
@@ -1333,6 +1473,9 @@ export async function updateCdpSupportSession(
         sessionType,
         meetingLink: parsed.data.meetingLink?.trim() || null,
         bootcampWeek: parsed.data.bootcampWeek ?? null,
+        approvalStatus: "pending",
+        approvedById: null,
+        approvedAt: null,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1360,7 +1503,10 @@ export async function deleteCdpSupportSession(
     });
     if (!existing?.plan) return errorResponse("Session not found");
     if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
-      return errorResponse("Only the session creator, admin, or oversight can delete this session.");
+      return errorResponse("Only the session creator or a CDP manager can delete this session.");
+    }
+    if (existing.approvalStatus === "approved") {
+      return errorResponse("Approved session reports cannot be deleted.");
     }
 
     await db.delete(cdpBusinessSupportSessions).where(eq(cdpBusinessSupportSessions.id, sessionId));
@@ -1404,6 +1550,9 @@ export async function updateCdpSessionReport(
     });
     if (!existing?.plan || existing.planId !== parsed.data.planId) {
       return errorResponse("Session not found");
+    }
+    if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
+      return errorResponse("Only the session owner or a CDP manager can edit this report.");
     }
 
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
@@ -1468,6 +1617,9 @@ export async function approveCdpSupportSession(
     if (existing.conductedById === session.user.id) {
       return errorResponse("You cannot approve a session log you submitted.");
     }
+    if (!sessionHasReportContent(existing)) {
+      return errorResponse("Complete and submit the session report before approving it.");
+    }
     const evidenceGate = validateSessionEvidence({
       sessionNumber: existing.sessionNumber,
       sessionType: existing.sessionType,
@@ -1511,6 +1663,9 @@ export async function rejectCdpSupportSession(
     if (!existing?.plan) return errorResponse("Session not found");
     if (existing.conductedById === session.user.id) {
       return errorResponse("You cannot review a session report you submitted.");
+    }
+    if (!sessionHasReportContent(existing)) {
+      return errorResponse("Complete and submit the session report before reviewing it.");
     }
 
     await db

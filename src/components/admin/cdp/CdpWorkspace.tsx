@@ -64,6 +64,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CdpSessionEditSheet } from "./CdpSessionEditSheet";
+import { CdpSessionRowActions } from "./CdpSessionRowActions";
 import { ExcelExportButton, type ExcelExportColumn } from "@/components/shared/ExcelExportButton";
 import {
   Table,
@@ -74,12 +75,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { FileText, Loader2, Pencil, Trash2 } from "lucide-react";
+import { FileText, Loader2, Pencil } from "lucide-react";
 
 const SCORE_OPTIONS = [0, 5, 10] as const;
 
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 const PROGRESS_STATUSES = ["not_started", "in_progress", "done", "blocked"] as const;
+const CDP_MANAGER_ROLES = ["admin", "oversight", "redo", "bds_edo"] as const;
 
 type EditableSummary = CdpFocusSummaryInput;
 type CdpSessionEvidenceFile = CdpEvidenceFile;
@@ -2246,6 +2248,27 @@ function CdpSessionsPanel({
   const [showAdd, setShowAdd] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const canApproveSessions = CDP_APPROVER_ROLES.includes(currentUserRole as (typeof CDP_APPROVER_ROLES)[number]);
+  const isSessionManager = CDP_MANAGER_ROLES.includes(
+    currentUserRole as (typeof CDP_MANAGER_ROLES)[number]
+  );
+  const canManageSession = (session: CdpPlanFull["supportSessions"][number]) =>
+    isSessionManager || session.conductedById === currentUserId;
+  const reportStarted = (session: CdpPlanFull["supportSessions"][number]) =>
+    Boolean(
+      session.durationHours ||
+        session.keyActionsAgreed?.trim() ||
+        session.evidenceNotes?.trim() ||
+        session.challengesRaised?.trim() ||
+        session.nextSteps?.trim() ||
+        (session.evidenceUrls ?? []).length > 0 ||
+        ((session.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0
+    );
+  const reviewableSessions = plan.supportSessions.filter(
+    (session) => session.approvalStatus === "pending" && reportStarted(session)
+  );
+  const actionableReviewSessions = reviewableSessions.filter(
+    (session) => session.conductedById !== currentUserId
+  );
   const priorityFocusCodes = plan.focusSummaries
     .filter((row) => priorityFromScore0to10(row.score0to10) !== "low")
     .map((row) => row.focusCode);
@@ -2478,6 +2501,19 @@ function CdpSessionsPanel({
                       {session.durationHours ? ` - ${session.durationHours} hrs` : ""}
                     </p>
                     {session.agenda ? <p className="mt-2 text-xs">{session.agenda}</p> : null}
+                    {canManageSession(session) ? (
+                      <div className="mt-3 border-t pt-2">
+                        <CdpSessionRowActions
+                          mode="planning"
+                          reportStarted={reportStarted(session)}
+                          canManage
+                          canDelete={session.approvalStatus !== "approved"}
+                          disabled={disabled || pending}
+                          onEdit={() => setEditingSessionId(session.id)}
+                          onDelete={() => remove(session.id)}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -2558,30 +2594,15 @@ function CdpSessionsPanel({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingSessionId(s.id)}
-                      disabled={disabled || pending}
-                    >
-                      <Pencil className="mr-1 h-3.5 w-3.5" />
-                      {mode === "planning" ? "Edit plan" : "Complete report"}
-                    </Button>
-                    {mode === "planning" ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => remove(s.id)}
-                        disabled={disabled || pending}
-                      >
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
+                  <CdpSessionRowActions
+                    mode={mode}
+                    reportStarted={reportStarted(s)}
+                    canManage={canManageSession(s)}
+                    canDelete={s.approvalStatus !== "approved"}
+                    disabled={disabled || pending}
+                    onEdit={() => setEditingSessionId(s.id)}
+                    onDelete={() => remove(s.id)}
+                  />
                 </TableCell>
               </TableRow>
             ))
@@ -2605,11 +2626,9 @@ function CdpSessionsPanel({
         disabled={disabled || pending}
       />
 
-      {mode === "reporting" && canApproveSessions && plan.supportSessions.some((s) => s.approvalStatus !== "approved") ? (
+      {mode === "reporting" && canApproveSessions && actionableReviewSessions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {plan.supportSessions
-            .filter((s) => s.approvalStatus !== "approved" && s.conductedById !== currentUserId)
-            .map((s) => (
+          {actionableReviewSessions.map((s) => (
               <div key={s.id} className="flex items-center gap-2 rounded-md border p-2">
                 <span className="text-sm">Session {s.sessionNumber}</span>
                 <Button
