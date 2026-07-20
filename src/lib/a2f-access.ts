@@ -3,11 +3,11 @@ import {
     a2fMatchingGrantApplications,
     a2fPreScreeningAttempts,
     a2fPipeline,
-    applications,
     investmentAppraisals,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
+import { resolveApplicantApplicationId } from "@/lib/server/applicant-application-link";
 
 export const ADMIN_ROLES = ["admin"] as const;
 
@@ -143,12 +143,8 @@ export async function assertApplicantOwnsPipeline(
         return { ok: false, error: "Pipeline entry not found" };
     }
 
-    const application = await db.query.applications.findFirst({
-        where: eq(applications.id, pipeline.applicationId),
-        columns: { userId: true },
-    });
-
-    if (!application || application.userId !== userId) {
+    const ownedApplicationId = await resolveApplicantApplicationId(userId);
+    if (ownedApplicationId !== pipeline.applicationId) {
         return { ok: false, error: "Forbidden" };
     }
 

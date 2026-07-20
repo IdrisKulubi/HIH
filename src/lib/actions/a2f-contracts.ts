@@ -10,7 +10,7 @@ import {
     applicants,
     users,
 } from "../../../db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { advancePipelineStatus } from "./a2f-pipeline";
 import { sendEmail } from "@/lib/email";
@@ -25,6 +25,7 @@ import {
     A2F_STAFF_ROLES,
 } from "@/lib/a2f-access";
 import { UTApi, UTFile } from "uploadthing/server";
+import { resolveApplicantApplicationId } from "@/lib/server/applicant-application-link";
 
 export type { ContractTemplateVariables } from "@/lib/contract-template-types";
 
@@ -425,17 +426,12 @@ export async function getApplicantContracts() {
         const session = await auth();
         if (!session?.user) return { success: false, message: "Unauthorized" };
 
-        // Find the user's application
-        const userApps = await db.query.applications.findMany({
-            where: eq(applications.userId, session.user.id),
-        });
-        if (!userApps.length) return { success: true, data: [] };
-
-        const appIds = userApps.map(a => a.id);
+        const applicationId = await resolveApplicantApplicationId(session.user.id);
+        if (!applicationId) return { success: true, data: [] };
 
         // Find pipeline entries for their applications
         const pipelines = await db.query.a2fPipeline.findMany({
-            where: inArray(a2fPipeline.applicationId, appIds),
+            where: eq(a2fPipeline.applicationId, applicationId),
         });
 
         if (!pipelines.length) return { success: true, data: [] };
