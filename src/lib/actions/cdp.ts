@@ -61,6 +61,7 @@ import { CNA_REVIEWER_ROLES, type CnaReviewerRole } from "@/lib/cna/role-based-t
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { stringify } from "csv-stringify/sync";
+import { UTApi } from "uploadthing/server";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 
@@ -173,12 +174,44 @@ export type CdpPlanFull = CapacityDevelopmentPlan & {
 };
 
 export type CdpEvidenceFile = {
+  key?: string;
   url: string;
   name: string;
   type: string;
   uploadedById: string | null;
   uploadedAt: string;
 };
+
+function getUploadThingFileKey(file: CdpEvidenceFile): string | null {
+  if (file.key) return file.key;
+
+  try {
+    const url = new URL(file.url);
+    const isUploadThingHost =
+      url.hostname === "utfs.io" ||
+      url.hostname === "ufs.sh" ||
+      url.hostname.endsWith(".utfs.io") ||
+      url.hostname.endsWith(".ufs.sh");
+    if (!isUploadThingHost) return null;
+
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) ?? "") || null;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteCdpEvidenceUploads(files: CdpEvidenceFile[]) {
+  const keys = [...new Set(files.map(getUploadThingFileKey).filter((key): key is string => Boolean(key)))];
+  if (keys.length === 0) return;
+
+  try {
+    await new UTApi().deleteFiles(keys);
+  } catch (error) {
+    // The report metadata is authoritative. Failed storage cleanup must not
+    // prevent a user from removing or replacing an attachment.
+    console.error("deleteCdpEvidenceUploads", error);
+  }
+}
 
 export type FinalizedCnaForCdp = {
   id: number;
@@ -1299,6 +1332,7 @@ const sessionCreateSchema = z.object({
   evidenceFiles: z
     .array(
       z.object({
+        key: z.string().min(1).max(500).optional(),
         url: z.string().url().max(1000),
         name: z.string().min(1).max(500),
         type: z.string().max(200),
@@ -1510,6 +1544,7 @@ export async function deleteCdpSupportSession(
     }
 
     await db.delete(cdpBusinessSupportSessions).where(eq(cdpBusinessSupportSessions.id, sessionId));
+    await deleteCdpEvidenceUploads((existing.evidenceFiles ?? []) as CdpEvidenceFile[]);
     revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
     return successResponse({ businessId: existing.plan.businessId });
   } catch (e) {
@@ -1563,6 +1598,10 @@ export async function updateCdpSessionReport(
       ...file,
       uploadedById: file.uploadedById ?? session.user!.id,
     }));
+    const retainedEvidenceUrls = new Set(evidenceFiles.map((file) => file.url));
+    const removedEvidenceFiles = ((existing.evidenceFiles ?? []) as CdpEvidenceFile[]).filter(
+      (file) => !retainedEvidenceUrls.has(file.url)
+    );
     const evidenceGate = validateSessionEvidence({
       sessionNumber: existing.sessionNumber,
       sessionType: existing.sessionType,
@@ -1592,11 +1631,74 @@ export async function updateCdpSessionReport(
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
 
+    await deleteCdpEvidenceUploads(removedEvidenceFiles);
     revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
     return successResponse({ businessId: existing.plan.businessId });
   } catch (e) {
     console.error("updateCdpSessionReport", e);
     return errorResponse("Failed to update session report");
+  }
+}
+
+export async function deleteCdpSessionReport(
+  input: { planId: number; sessionId: number }
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id || !isPhase2Admin(session.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const parsed = z
+      .object({
+        planId: z.number().int().positive(),
+        sessionId: z.number().int().positive(),
+      })
+      .safeParse(input);
+    if (!parsed.success) return errorResponse("Invalid session report");
+
+    const existing = await db.query.cdpBusinessSupportSessions.findFirst({
+      where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),
+      with: { plan: { columns: { businessId: true, id: true } } },
+    });
+    if (!existing?.plan || existing.planId !== parsed.data.planId) {
+      return errorResponse("Session not found");
+    }
+    if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
+      return errorResponse("Only the session owner or a CDP manager can delete this report.");
+    }
+    if (existing.approvalStatus === "approved") {
+      return errorResponse("Approved session reports cannot be deleted.");
+    }
+
+    const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
+    if (focusGate) return errorResponse(focusGate);
+
+    const evidenceFiles = (existing.evidenceFiles ?? []) as CdpEvidenceFile[];
+    await db
+      .update(cdpBusinessSupportSessions)
+      .set({
+        durationHours: null,
+        keyActionsAgreed: null,
+        challengesRaised: null,
+        nextSteps: null,
+        followUpDate: null,
+        evidenceNotes: null,
+        evidenceUrls: [],
+        evidenceFiles: [],
+        approvalStatus: "pending",
+        approvedById: null,
+        approvedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
+
+    await deleteCdpEvidenceUploads(evidenceFiles);
+    revalidateCdpPaths(existing.plan.businessId, existing.plan.id);
+    return successResponse({ businessId: existing.plan.businessId });
+  } catch (error) {
+    console.error("deleteCdpSessionReport", error);
+    return errorResponse("Failed to delete session report");
   }
 }
 

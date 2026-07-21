@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { CdpEvidenceFile, CdpPlanFull } from "@/lib/actions/cdp";
-import { updateCdpSessionReport, updateCdpSupportSession } from "@/lib/actions/cdp";
+import {
+  deleteCdpSessionReport,
+  updateCdpSessionReport,
+  updateCdpSupportSession,
+} from "@/lib/actions/cdp";
 import { CDP_FOCUS_AREAS, CDP_FOCUS_CODES } from "@/lib/cdp/focus-areas";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { useUploadThing } from "@/utils/uploadthing";
@@ -18,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Loader2, UploadCloud } from "lucide-react";
+import { FileText, Loader2, RefreshCw, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 
 type CdpSession = CdpPlanFull["supportSessions"][number];
@@ -82,10 +86,12 @@ export function CdpSessionEditSheet({
 }) {
   const [pending, start] = useTransition();
   const [evidenceFiles, setEvidenceFiles] = useState<CdpEvidenceFile[]>([]);
+  const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     setEvidenceFiles(((session?.evidenceFiles as CdpEvidenceFile[] | null) ?? []));
+    setReplacementIndex(null);
   }, [session]);
 
   const { startUpload, isUploading } = useUploadThing("cdpEvidenceUploader", {
@@ -96,6 +102,7 @@ export function CdpSessionEditSheet({
         const url = file.serverData?.fileUrl ?? file.ufsUrl;
         if (!url) return files;
         files.push({
+          key: file.serverData?.fileKey ?? file.key,
           url,
           name: file.serverData?.fileName ?? file.name ?? "evidence",
           type: file.serverData?.fileType ?? file.type ?? "application/octet-stream",
@@ -104,11 +111,23 @@ export function CdpSessionEditSheet({
         });
         return files;
       }, []);
-      setEvidenceFiles((current) => [...current, ...uploaded]);
+      setEvidenceFiles((current) => {
+        if (replacementIndex === null || uploaded.length === 0) {
+          return [...current, ...uploaded];
+        }
+
+        return current.map((file, index) =>
+          index === replacementIndex ? uploaded[0] : file
+        );
+      });
+      setReplacementIndex(null);
       setUploadProgress(0);
-      if (uploaded.length > 0) toast.success("Evidence uploaded");
+      if (uploaded.length > 0) {
+        toast.success(replacementIndex === null ? "Evidence uploaded" : "Document replaced");
+      }
     },
     onUploadError: (error) => {
+      setReplacementIndex(null);
       setUploadProgress(0);
       toast.error(error.message || "Evidence upload failed");
     },
@@ -168,6 +187,44 @@ export function CdpSessionEditSheet({
   };
 
   const isPlanning = mode === "planning";
+  const hasReportContent =
+    !isPlanning &&
+    Boolean(
+      session?.durationHours ||
+        session?.keyActionsAgreed ||
+        session?.challengesRaised ||
+        session?.nextSteps ||
+        session?.followUpDate ||
+        session?.evidenceNotes ||
+        session?.evidenceUrls?.length ||
+        session?.evidenceFiles?.length
+    );
+
+  const handleDeleteReport = () => {
+    if (!session) return;
+    if (
+      !window.confirm(
+        "Delete this entire report and its evidence? The planned session will remain."
+      )
+    ) {
+      return;
+    }
+
+    start(async () => {
+      const result = await deleteCdpSessionReport({
+        planId,
+        sessionId: session.id,
+      });
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to delete report");
+        return;
+      }
+
+      toast.success("Session report deleted");
+      onOpenChange(false);
+      onSaved();
+    });
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -312,25 +369,77 @@ export function CdpSessionEditSheet({
                     <p className="text-xs font-medium">Evidence attached to this report</p>
                     <div className="mt-2 space-y-2">
                       {evidenceFiles.map((file, index) => (
-                        <a
+                        <div
                           key={`${file.url}-${index}`}
-                          href={getDocumentViewerHref(file.url, file.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex min-w-0 items-center gap-2 text-sm text-sky-700 hover:underline"
+                          className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5"
                         >
-                          <FileText className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{file.name}</span>
-                        </a>
+                          <a
+                            href={getDocumentViewerHref(file.url, file.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-w-0 flex-1 items-center gap-2 text-sm text-sky-700 hover:underline"
+                          >
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                          </a>
+                          <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-muted">
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Replace
+                            <input
+                              type="file"
+                              className="sr-only"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                              disabled={isUploading || pending}
+                              onChange={(event) => {
+                                const file = event.currentTarget.files?.[0];
+                                event.currentTarget.value = "";
+                                if (!file) return;
+                                setReplacementIndex(index);
+                                void startUpload([file]);
+                              }}
+                            />
+                          </label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-destructive hover:text-destructive"
+                            disabled={isUploading || pending}
+                            aria-label={`Remove ${file.name}`}
+                            onClick={() =>
+                              setEvidenceFiles((current) =>
+                                current.filter((_, fileIndex) => fileIndex !== index)
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Remove</span>
+                          </Button>
+                        </div>
                       ))}
                     </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Attachment changes are applied when you submit the report.
+                    </p>
                   </div>
                 ) : null}
               </section>
             )}
 
             <SheetFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex w-full flex-wrap justify-end gap-2">
+                {hasReportContent ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="mr-auto"
+                    onClick={handleDeleteReport}
+                    disabled={disabled || pending || isUploading || session?.approvalStatus === "approved"}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete report
+                  </Button>
+                ) : null}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
                   Cancel
                 </Button>

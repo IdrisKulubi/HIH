@@ -81,6 +81,7 @@ const cdpEvidenceUploader = f({
   .onUploadComplete(async ({ metadata, file }) => {
     return {
       uploadedBy: metadata.userId,
+      fileKey: file.key,
       fileName: file.name,
       fileUrl: file.url,
       fileType: file.type ?? "application/octet-stream",

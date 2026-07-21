@@ -1078,6 +1078,7 @@ export const cdpBusinessSupportSessions = pgTable(
     evidenceFiles: jsonb('evidence_files')
       .$type<
         {
+          key?: string;
           url: string;
           name: string;
           type: string;
