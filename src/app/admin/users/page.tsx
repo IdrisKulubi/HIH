@@ -31,7 +31,7 @@ export default async function UsersPage() {
                             User Management
                         </h1>
                         <p className="text-slate-500 text-sm">
-                            Add new admins and manage user roles
+                            Add users, update names and emails, and manage roles
                         </p>
                     </div>
                 </div>
