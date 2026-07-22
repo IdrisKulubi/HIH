@@ -14,8 +14,6 @@ import {
 } from "@phosphor-icons/react";
 import {
     type A2fEnterpriseTrack,
-    getMatchingGrantRevenueEligibilityMessage,
-    isMatchingGrantTrackEligible,
 } from "@/lib/a2f-constants";
 import {
     type EnterpriseIdentification,
@@ -83,9 +81,9 @@ export const MG_WIZARD_STEPS: MgWizardStep[] = [
     },
     {
         id: "financials",
-        label: "Financials & Eligibility",
+        label: "Financial Overview",
         shortLabel: "Financials",
-        description: "Revenue history and track eligibility",
+        description: "Revenue history and financial position",
         icon: ChartLineUp,
     },
     {
@@ -138,10 +136,8 @@ export function getStepValidationErrors(
         case "financials": {
             const revenue = resolveAnnualRevenueForEligibility(form.financial, context.pipelineRevenue);
             if (revenue <= 0) {
-                return ["Enter annual revenue (2025 or an earlier year) for eligibility checking."];
+                return ["Enter annual revenue for 2025 or an earlier year."];
             }
-            const gateMsg = getMatchingGrantRevenueEligibilityMessage(context.track, revenue);
-            if (gateMsg) return [gateMsg];
             return [];
         }
         case "grant_request": {
@@ -243,7 +239,6 @@ export function getWizardReviewSummary(
         enterpriseName: form.enterprise.name || "—",
         trackLabel: context.track === "acceleration" ? "Accelerator" : "Foundation",
         revenue,
-        revenueEligible: isMatchingGrantTrackEligible(context.track, revenue),
         totalProject: form.totalProjectAmount,
         bireGrant: form.bireGrantAmount,
         enterpriseContribution: form.enterpriseContributionAmount,

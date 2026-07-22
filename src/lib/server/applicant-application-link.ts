@@ -9,6 +9,27 @@ import {
 import { desc, eq, sql } from "drizzle-orm";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
 
+async function resolveUniqueInvitedApplicationId(
+    candidates: Array<{ id: number }>
+): Promise<number | null> {
+    const invitedApplicationIds: number[] = [];
+
+    for (const candidate of candidates) {
+        const screening = await getEffectiveScreeningForApplication(candidate.id);
+        if (screening?.outcome !== "pass") continue;
+
+        const invitation = await db.query.a2fPreScreeningAttempts.findFirst({
+            where: eq(a2fPreScreeningAttempts.id, screening.attemptId),
+            columns: { invitationStatus: true },
+        });
+        if (invitation?.invitationStatus === "sent") {
+            invitedApplicationIds.push(candidate.id);
+        }
+    }
+
+    return invitedApplicationIds.length === 1 ? invitedApplicationIds[0] : null;
+}
+
 /**
  * Resolve the programme application owned by an authenticated applicant.
  *
@@ -27,6 +48,26 @@ export async function resolveApplicantApplicationId(
     });
     if (directApplication) return directApplication.id;
 
+    // Some imported records link the authenticated account on applicants.userId
+    // while applications.userId still points to an older account.
+    const applicantOwnedApplications = await db
+        .select({ id: applications.id })
+        .from(applications)
+        .innerJoin(businesses, eq(businesses.id, applications.businessId))
+        .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+        .where(eq(applicants.userId, userId))
+        .orderBy(desc(applications.updatedAt))
+        .limit(20);
+    if (applicantOwnedApplications.length === 1) {
+        return applicantOwnedApplications[0].id;
+    }
+    if (applicantOwnedApplications.length > 1) {
+        const invitedApplicationId = await resolveUniqueInvitedApplicationId(
+            applicantOwnedApplications
+        );
+        if (invitedApplicationId) return invitedApplicationId;
+    }
+
     const user = await db.query.users.findFirst({
         where: eq(users.id, userId),
         columns: { email: true },
@@ -41,12 +82,14 @@ export async function resolveApplicantApplicationId(
         .innerJoin(users, eq(users.id, applications.userId))
         .where(sql`lower(trim(${users.email})) = ${normalizedEmail}`)
         .orderBy(desc(applications.updatedAt))
-        .limit(2);
+        .limit(20);
 
     if (canonicalApplications.length === 1) {
         return canonicalApplications[0].id;
     }
-    if (canonicalApplications.length > 1) return null;
+    if (canonicalApplications.length > 1) {
+        return resolveUniqueInvitedApplicationId(canonicalApplications);
+    }
 
     const emailMatchedApplications = await db
         .select({ id: applications.id })
@@ -55,19 +98,9 @@ export async function resolveApplicantApplicationId(
         .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
         .where(sql`lower(trim(${applicants.email})) = ${normalizedEmail}`)
         .orderBy(desc(applications.updatedAt))
-        .limit(2);
+        .limit(20);
 
-    // Never guess ownership when a contact email appears on multiple cases.
-    if (emailMatchedApplications.length !== 1) return null;
-
-    const applicationId = emailMatchedApplications[0].id;
-    const screening = await getEffectiveScreeningForApplication(applicationId);
-    if (screening?.outcome !== "pass") return null;
-
-    const invitation = await db.query.a2fPreScreeningAttempts.findFirst({
-        where: eq(a2fPreScreeningAttempts.id, screening.attemptId),
-        columns: { invitationStatus: true },
-    });
-
-    return invitation?.invitationStatus === "sent" ? applicationId : null;
+    // A duplicate contact email is safe only when exactly one matching case
+    // has passed screening and received an A2F invitation.
+    return resolveUniqueInvitedApplicationId(emailMatchedApplications);
 }

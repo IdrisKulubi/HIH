@@ -550,7 +550,7 @@ export async function getAdminA2fDashboardData(): Promise<
   }
 }
 
-async function sendInvitation(attemptId: number, applicationId: number) {
+async function sendInvitation(attemptId: number, applicationId: number, a2fId: number) {
   const [application] = await db
     .select({
       applicantEmail: applicants.email,
@@ -569,7 +569,7 @@ async function sendInvitation(attemptId: number, applicationId: number) {
     applicantName:
       `${application.applicantFirstName} ${application.applicantLastName}`.trim(),
     businessName: application.businessName,
-    applicationUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org"}/access-to-finance`,
+    applicationUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org"}/access-to-finance/application/${a2fId}`,
   });
   await db
     .update(a2fPreScreeningAttempts)
@@ -633,7 +633,7 @@ export async function sendA2fApplicationInvite(
       return successResponse({ emailStatus: "sent", a2fId });
     }
 
-    const emailStatus = await sendInvitation(attempt.id, attempt.applicationId);
+    const emailStatus = await sendInvitation(attempt.id, attempt.applicationId, a2fId);
 
     revalidatePath("/admin/a2f");
     revalidatePath("/a2f");

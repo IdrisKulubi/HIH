@@ -107,7 +107,6 @@ import {
     validateBudgetUseOfFunds,
     resolveAnnualRevenueForEligibility,
 } from "@/lib/matching-grant-form-types";
-import { isMatchingGrantTrackEligible } from "@/lib/a2f-constants";
 import { useSession } from "next-auth/react";
 import { isMatchingGrantReadOnlyRole } from "@/lib/a2f-nav";
 
@@ -423,10 +422,6 @@ export function MatchingGrantApplicationWizard({
         () => resolveAnnualRevenueForEligibility(form.financial, pipelineRevenue),
         [form.financial, pipelineRevenue]
     );
-    const revenueEligible = useMemo(
-        () => isMatchingGrantTrackEligible(track, eligibilityRevenue),
-        [track, eligibilityRevenue]
-    );
 
     const grantShare = pct(form.bireGrantAmount, form.totalProjectAmount);
     const enterpriseShare = pct(form.enterpriseContributionAmount, form.totalProjectAmount);
@@ -721,10 +716,9 @@ export function MatchingGrantApplicationWizard({
 
                 <div className="space-y-6 min-w-0">
                     <Card className="border-blue-200 bg-blue-50/50">
-                        <CardContent className="pt-5 grid gap-4 md:grid-cols-5 text-sm">
+                        <CardContent className="pt-5 grid gap-4 md:grid-cols-4 text-sm">
                             <InfoMetric label="Track" value={track === "acceleration" ? "Accelerator" : "Foundation"} />
-                            <InfoMetric label="Revenue for Eligibility" value={eligibilityRevenue > 0 ? `KES ${eligibilityRevenue.toLocaleString("en-KE")}` : "Not set"} />
-                            <InfoMetric label="Revenue Gate" value={revenueEligible ? "Eligible" : eligibilityRevenue > 0 ? "Ineligible" : "Pending"} />
+                            <InfoMetric label="Annual Revenue" value={eligibilityRevenue > 0 ? `KES ${eligibilityRevenue.toLocaleString("en-KE")}` : "Not set"} />
                             <InfoMetric label="BIRE Share" value={`${grantShare}%`} />
                             <InfoMetric label="Enterprise Share" value={`${enterpriseShare}%`} />
                         </CardContent>
@@ -742,7 +736,6 @@ export function MatchingGrantApplicationWizard({
                             form={form}
                             setForm={setForm}
                             setField={setField}
-                            track={track}
                             readOnly={readOnly}
                         />
                     </fieldset>
@@ -874,24 +867,20 @@ function setFinancialField(
 function FinancialOverviewSection({
     form,
     setForm,
-    track,
 }: {
     form: FormState;
     setForm: React.Dispatch<React.SetStateAction<FormState>>;
-    track: "foundation" | "acceleration";
 }) {
-    const gateHint = track === "acceleration"
-        ? "Accelerator Track: annual revenue must be above KES 3,000,000."
-        : "Foundation Track: annual revenue must be from KES 500,000 to KES 3,000,000.";
-
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                     <Calculator className="size-5 text-indigo-600" />
-                    Financial Overview & Revenue Eligibility
+                    Financial Overview
                 </CardTitle>
-                <CardDescription>{gateHint} Enter the most recent annual revenue in 2025 first; earlier years are optional.</CardDescription>
+                <CardDescription>
+                    Enter the most recent annual revenue in 2025 first; earlier years are optional.
+                </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
                 <NumberField label="Annual Revenue 2025 (KES) *" value={form.financial.annualRevenue2025} onChange={v => setFinancialField(setForm, "annualRevenue2025", v)} />
@@ -1185,14 +1174,12 @@ function WizardStepContent({
     form,
     setForm,
     setField,
-    track,
     readOnly,
 }: {
     stepId: MgWizardStepId;
     form: FormState;
     setForm: React.Dispatch<React.SetStateAction<FormState>>;
     setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-    track: "foundation" | "acceleration";
     readOnly: boolean;
 }) {
     switch (stepId) {
@@ -1206,7 +1193,7 @@ function WizardStepContent({
                 </>
             );
         case "financials":
-            return <FinancialOverviewSection form={form} setForm={setForm} track={track} />;
+            return <FinancialOverviewSection form={form} setForm={setForm} />;
         case "grant_request":
             return (
                 <>
@@ -1358,10 +1345,9 @@ function WizardReviewSummary({
                     <ReviewRow label="Enterprise" value={summary.enterpriseName} />
                     <ReviewRow label="Track" value={summary.trackLabel} />
                     <ReviewRow
-                        label="Annual revenue (eligibility)"
+                        label="Annual revenue"
                         value={summary.revenue > 0 ? `KES ${summary.revenue.toLocaleString("en-KE")}` : "Not set"}
                     />
-                    <ReviewRow label="Revenue gate" value={summary.revenueEligible ? "Eligible" : summary.revenue > 0 ? "Ineligible" : "Pending"} />
                     <ReviewRow label="Total project" value={summary.totalProject > 0 ? `KES ${summary.totalProject.toLocaleString("en-KE")}` : "—"} />
                     <ReviewRow label="BIRE grant requested" value={summary.bireGrant > 0 ? `KES ${summary.bireGrant.toLocaleString("en-KE")}` : "—"} />
                     <ReviewRow label="Enterprise contribution" value={summary.enterpriseContribution > 0 ? `KES ${summary.enterpriseContribution.toLocaleString("en-KE")}` : "—"} />

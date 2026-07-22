@@ -5,8 +5,6 @@
 
 import {
     type A2fEnterpriseTrack,
-    getMatchingGrantRevenueEligibilityMessage,
-    isMatchingGrantTrackEligible,
 } from "@/lib/a2f-constants";
 
 export interface EnterpriseIdentification {
@@ -466,14 +464,14 @@ export function resolveAnnualRevenueForEligibility(
 
 export function serializeFinancialOverview(
     financial: MatchingGrantFinancialOverview,
-    track: A2fEnterpriseTrack | null | undefined,
+    _track: A2fEnterpriseTrack | null | undefined,
     fallbackRevenue: number
 ): Record<string, unknown> {
     const revenueUsed = resolveAnnualRevenueForEligibility(financial, fallbackRevenue);
     return {
         ...financial,
         revenueUsedForEligibility: revenueUsed,
-        revenueEligible: isMatchingGrantTrackEligible(track, revenueUsed),
+        revenueEligible: revenueUsed > 0,
     };
 }
 
@@ -727,7 +725,9 @@ export function validateMatchingGrantSubmitFields(input: {
         input.financialOverview,
         input.fallbackRevenue ?? 0
     );
-    return getMatchingGrantRevenueEligibilityMessage(input.track, revenue);
+    return revenue > 0
+        ? null
+        : "Annual revenue is required before submitting the Matching Grant application.";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
