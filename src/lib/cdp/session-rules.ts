@@ -31,6 +31,19 @@ export function validateSessionEvidence(input: {
   return null;
 }
 
+/** Planning only requires the prior session row to exist (any approval status). */
+export function validatePreviousSessionPlanGate(
+  sessionNumber: number,
+  previous: CdpBusinessSupportSession | null | undefined
+) {
+  if (sessionNumber <= 1) return null;
+  if (!previous) {
+    return `Plan Session ${sessionNumber - 1} before planning Session ${sessionNumber}.`;
+  }
+  return null;
+}
+
+/** Reporting requires the prior session to be approved with follow-ups closed. */
 export function validatePreviousSessionGate(
   sessionNumber: number,
   previous:

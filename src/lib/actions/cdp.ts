@@ -49,7 +49,12 @@ import {
   suggestedFocusSummariesFromLegacyCna,
 } from "@/lib/cdp/legacy-cna-bridge";
 import { CDP_FOCUS_CODES, cdpFocusCodeSchema, cdpFocusSummaryInputSchema } from "@/lib/cdp/focus-areas";
-import { expectedSessionType, validatePreviousSessionGate, validateSessionEvidence } from "@/lib/cdp/session-rules";
+import {
+  expectedSessionType,
+  validatePreviousSessionGate,
+  validatePreviousSessionPlanGate,
+  validateSessionEvidence,
+} from "@/lib/cdp/session-rules";
 import {
   assertCdpActivationReadiness,
   computeCdpPipelineCompleteness,
@@ -1382,9 +1387,6 @@ export async function createCdpSupportSession(
     if (sessionType !== expectedType) {
       return errorResponse(`Session ${n} must be ${expectedType}.`);
     }
-    if (sessionType === "virtual" && !parsed.data.meetingLink?.trim()) {
-      return errorResponse(`Session ${n} is virtual and requires a meeting link.`);
-    }
 
     if (n > 1) {
       const prev = await db.query.cdpBusinessSupportSessions.findFirst({
@@ -1393,11 +1395,8 @@ export async function createCdpSupportSession(
           eq(cdpBusinessSupportSessions.focusCode, parsed.data.focusCode),
           eq(cdpBusinessSupportSessions.sessionNumber, n - 1)
         ),
-        with: {
-          actionItems: true,
-        },
       });
-      const previousGate = validatePreviousSessionGate(n, prev);
+      const previousGate = validatePreviousSessionPlanGate(n, prev);
       if (previousGate) return errorResponse(previousGate);
     }
 
@@ -1489,9 +1488,6 @@ export async function updateCdpSupportSession(
     const expectedType = expectedSessionType(parsed.data.sessionNumber);
     if (sessionType !== expectedType) {
       return errorResponse(`Session ${parsed.data.sessionNumber} must be ${expectedType}.`);
-    }
-    if (sessionType === "virtual" && !parsed.data.meetingLink?.trim()) {
-      return errorResponse(`Session ${parsed.data.sessionNumber} is virtual and requires a meeting link.`);
     }
 
     await db
@@ -1592,6 +1588,21 @@ export async function updateCdpSessionReport(
 
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
     if (focusGate) return errorResponse(focusGate);
+
+    if (existing.sessionNumber > 1) {
+      const prev = await db.query.cdpBusinessSupportSessions.findFirst({
+        where: and(
+          eq(cdpBusinessSupportSessions.planId, existing.planId),
+          eq(cdpBusinessSupportSessions.focusCode, existing.focusCode),
+          eq(cdpBusinessSupportSessions.sessionNumber, existing.sessionNumber - 1)
+        ),
+        with: {
+          actionItems: true,
+        },
+      });
+      const previousGate = validatePreviousSessionGate(existing.sessionNumber, prev);
+      if (previousGate) return errorResponse(previousGate);
+    }
 
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((url) => url.trim()).filter(Boolean);
     const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
