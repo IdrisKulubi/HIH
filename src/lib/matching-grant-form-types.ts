@@ -117,14 +117,14 @@ export const EMPTY_BUSINESS_OVERVIEW: MatchingGrantBusinessOverview = {
 };
 
 export interface MatchingGrantFinancialOverview {
-    annualRevenue2025: number;
-    annualRevenue2024: number;
-    annualRevenue2023: number;
-    monthlyRevenue: number;
-    monthlyOperatingCosts: number;
+    annualRevenue2025: number | null;
+    annualRevenue2024: number | null;
+    annualRevenue2023: number | null;
+    monthlyRevenue: number | null;
+    monthlyOperatingCosts: number | null;
     profitability: string;
-    employeeCount: number;
-    casualWorkers: number;
+    employeeCount: number | null;
+    casualWorkers: number | null;
     revenueStreams: string;
     financialObligations: string;
     recordkeepingStatus: string;
@@ -132,14 +132,14 @@ export interface MatchingGrantFinancialOverview {
 }
 
 export const EMPTY_FINANCIAL_OVERVIEW: MatchingGrantFinancialOverview = {
-    annualRevenue2025: 0,
-    annualRevenue2024: 0,
-    annualRevenue2023: 0,
-    monthlyRevenue: 0,
-    monthlyOperatingCosts: 0,
+    annualRevenue2025: null,
+    annualRevenue2024: null,
+    annualRevenue2023: null,
+    monthlyRevenue: null,
+    monthlyOperatingCosts: null,
     profitability: "",
-    employeeCount: 0,
-    casualWorkers: 0,
+    employeeCount: null,
+    casualWorkers: null,
     revenueStreams: "",
     financialObligations: "",
     recordkeepingStatus: "",
@@ -361,6 +361,12 @@ function num(value: unknown): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+function optionalNum(value: unknown): number | null {
+    if (value === null || value === undefined || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 function formatDate(value: unknown): string {
     if (!value) return "";
     if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -434,14 +440,14 @@ export function parseProgrammeEngagement(raw: Record<string, unknown> | null | u
 export function parseFinancialOverview(raw: Record<string, unknown> | null | undefined): MatchingGrantFinancialOverview {
     if (!raw) return { ...EMPTY_FINANCIAL_OVERVIEW };
     return {
-        annualRevenue2025: num(raw.annualRevenue2025),
-        annualRevenue2024: num(raw.annualRevenue2024),
-        annualRevenue2023: num(raw.annualRevenue2023),
-        monthlyRevenue: num(raw.monthlyRevenue),
-        monthlyOperatingCosts: num(raw.monthlyOperatingCosts),
+        annualRevenue2025: optionalNum(raw.annualRevenue2025),
+        annualRevenue2024: optionalNum(raw.annualRevenue2024),
+        annualRevenue2023: optionalNum(raw.annualRevenue2023),
+        monthlyRevenue: optionalNum(raw.monthlyRevenue),
+        monthlyOperatingCosts: optionalNum(raw.monthlyOperatingCosts),
         profitability: str(raw.profitability),
-        employeeCount: num(raw.employeeCount),
-        casualWorkers: num(raw.casualWorkers),
+        employeeCount: optionalNum(raw.employeeCount),
+        casualWorkers: optionalNum(raw.casualWorkers),
         revenueStreams: str(raw.revenueStreams),
         financialObligations: str(raw.financialObligations),
         recordkeepingStatus: str(raw.recordkeepingStatus),
@@ -456,9 +462,9 @@ export function resolveAnnualRevenueForEligibility(
     const parsed = financialOverview && typeof financialOverview === "object" && "annualRevenue2025" in financialOverview
         ? financialOverview as MatchingGrantFinancialOverview
         : parseFinancialOverview(financialOverview as Record<string, unknown> | undefined);
-    if (parsed.annualRevenue2025 > 0) return parsed.annualRevenue2025;
-    if (parsed.annualRevenue2024 > 0) return parsed.annualRevenue2024;
-    if (parsed.annualRevenue2023 > 0) return parsed.annualRevenue2023;
+    if (parsed.annualRevenue2025 != null && parsed.annualRevenue2025 > 0) return parsed.annualRevenue2025;
+    if (parsed.annualRevenue2024 != null && parsed.annualRevenue2024 > 0) return parsed.annualRevenue2024;
+    if (parsed.annualRevenue2023 != null && parsed.annualRevenue2023 > 0) return parsed.annualRevenue2023;
     return fallbackRevenue > 0 ? fallbackRevenue : 0;
 }
 
@@ -674,62 +680,6 @@ export function serializeEnterpriseIdentification(
     };
 }
 
-/** Returns an error message when submit validation fails, otherwise null. */
-export function validateMatchingGrantSubmitFields(input: {
-    status?: string;
-    track?: A2fEnterpriseTrack | null;
-    capexOnlyConfirmed?: boolean;
-    enterpriseIdentification?: Record<string, unknown>;
-    leadEntrepreneur?: Record<string, unknown>;
-    financialOverview?: Record<string, unknown>;
-    budgetItems?: Array<Record<string, unknown>>;
-    declaration?: Record<string, unknown>;
-    fallbackRevenue?: number;
-}): string | null {
-    if (input.status !== "submitted") return null;
-    if (!input.capexOnlyConfirmed) {
-        return "Confirm CAPEX-only use before submitting the Matching Grant application.";
-    }
-    const enterprise = parseEnterpriseIdentification(input.enterpriseIdentification);
-    if (!enterprise.name.trim()) {
-        return "Enterprise name is required before submitting the Matching Grant application.";
-    }
-    if (!enterprise.county.trim()) {
-        return "County / location is required before submitting the Matching Grant application.";
-    }
-    const lead = parseLeadEntrepreneur(input.leadEntrepreneur);
-    if (!lead.name.trim()) {
-        return "Lead entrepreneur name is required before submitting the Matching Grant application.";
-    }
-    const declaration = input.declaration ?? {};
-    if (!declaration.accepted) {
-        return "Applicant declaration must be accepted before submitting the Matching Grant application.";
-    }
-    if (!declaration.useOfFundsAcknowledged) {
-        return "Confirm that the budget excludes ineligible uses (personal expenses, loan repayments, unrelated overheads) before submitting.";
-    }
-    const budgetRows = parseBudgetItems(input.budgetItems);
-    const filledRows = budgetRows.filter((row) => row.item.trim());
-    if (filledRows.length === 0) {
-        return "Add at least one detailed budget line item before submitting the Matching Grant application.";
-    }
-    for (const row of filledRows) {
-        if (!row.category.trim()) {
-            return "Each budget line item must have a CAPEX category before submitting.";
-        }
-        if (!row.confirmedEligible) {
-            return "Each budget line item must be confirmed as CAPEX-eligible before submitting.";
-        }
-    }
-    const revenue = resolveAnnualRevenueForEligibility(
-        input.financialOverview,
-        input.fallbackRevenue ?? 0
-    );
-    return revenue > 0
-        ? null
-        : "Annual revenue is required before submitting the Matching Grant application.";
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function seedFromPipeline(entry: any): {
     enterprise: EnterpriseIdentification;
@@ -792,10 +742,12 @@ export function seedFromPipeline(entry: any): {
     };
 
     const revenue = Number(biz?.revenueLastYear ?? 0);
+    const employeeCount =
+        biz?.fullTimeEmployeesTotal != null ? Number(biz.fullTimeEmployeesTotal) : null;
     const financial: MatchingGrantFinancialOverview = {
         ...EMPTY_FINANCIAL_OVERVIEW,
-        annualRevenue2025: revenue > 0 ? revenue : 0,
-        employeeCount: Number(biz?.fullTimeEmployeesTotal ?? 0),
+        annualRevenue2025: revenue > 0 ? revenue : null,
+        employeeCount: Number.isFinite(employeeCount) ? employeeCount : null,
         recordkeepingStatus: biz?.hasFinancialRecords ? "Financial records available" : "",
         narrative: revenue > 0
             ? `Annual revenue (last year): KES ${revenue.toLocaleString("en-KE")}`

@@ -107,6 +107,7 @@ import {
     validateBudgetUseOfFunds,
     resolveAnnualRevenueForEligibility,
 } from "@/lib/matching-grant-form-types";
+import { MG_NA_GUIDANCE } from "@/lib/matching-grant-validation";
 import { useSession } from "next-auth/react";
 import { isMatchingGrantReadOnlyRole } from "@/lib/a2f-nav";
 
@@ -192,6 +193,18 @@ function numberValue(value: string) {
 
 function pct(part: number, total: number) {
     return total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
+}
+
+function req(label: string) {
+    return `${label} *`;
+}
+
+function RequiredFieldsNotice() {
+    return (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+            {MG_NA_GUIDANCE}
+        </div>
+    );
 }
 
 function toInput(data: FormState): MatchingGrantApplicationInput {
@@ -730,6 +743,8 @@ export function MatchingGrantApplicationWizard({
                         />
                     </div>
 
+                    <RequiredFieldsNotice />
+
                     <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
                         <WizardStepContent
                             stepId={currentStepId}
@@ -859,7 +874,7 @@ function setBusinessField(
 function setFinancialField(
     setForm: React.Dispatch<React.SetStateAction<FormState>>,
     key: keyof MatchingGrantFinancialOverview,
-    value: string | number
+    value: string | number | null
 ) {
     setForm(prev => ({ ...prev, financial: { ...prev.financial, [key]: value } }));
 }
@@ -880,21 +895,22 @@ function FinancialOverviewSection({
                 </CardTitle>
                 <CardDescription>
                     Enter the most recent annual revenue in 2025 first; earlier years are optional.
+                    Use 0 where the amount is genuinely zero.
                 </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
-                <NumberField label="Annual Revenue 2025 (KES) *" value={form.financial.annualRevenue2025} onChange={v => setFinancialField(setForm, "annualRevenue2025", v)} />
-                <NumberField label="Annual Revenue 2024 (KES)" value={form.financial.annualRevenue2024} onChange={v => setFinancialField(setForm, "annualRevenue2024", v)} />
-                <NumberField label="Annual Revenue 2023 (KES)" value={form.financial.annualRevenue2023} onChange={v => setFinancialField(setForm, "annualRevenue2023", v)} />
-                <NumberField label="Average Monthly Revenue (KES)" value={form.financial.monthlyRevenue} onChange={v => setFinancialField(setForm, "monthlyRevenue", v)} />
-                <NumberField label="Monthly Operating Costs (KES)" value={form.financial.monthlyOperatingCosts} onChange={v => setFinancialField(setForm, "monthlyOperatingCosts", v)} />
-                <TextField label="Profitability" value={form.financial.profitability} onChange={v => setFinancialField(setForm, "profitability", v)} />
-                <NumberField label="Full-Time Employees" value={form.financial.employeeCount} onChange={v => setFinancialField(setForm, "employeeCount", v)} />
-                <NumberField label="Casual / Contract Workers" value={form.financial.casualWorkers} onChange={v => setFinancialField(setForm, "casualWorkers", v)} />
-                <TextField label="Financial Recordkeeping Status" value={form.financial.recordkeepingStatus} onChange={v => setFinancialField(setForm, "recordkeepingStatus", v)} />
-                <LongField label="Revenue Streams" value={form.financial.revenueStreams} onChange={v => setFinancialField(setForm, "revenueStreams", v)} className="md:col-span-3" />
-                <LongField label="Financial Obligations" value={form.financial.financialObligations} onChange={v => setFinancialField(setForm, "financialObligations", v)} className="md:col-span-3" />
-                <LongField label="Additional Financial Notes" value={form.financial.narrative} onChange={v => setFinancialField(setForm, "narrative", v)} className="md:col-span-3" />
+                <NullableNumberField label={req("Annual Revenue 2025 (KES)")} value={form.financial.annualRevenue2025} onChange={v => setFinancialField(setForm, "annualRevenue2025", v)} />
+                <NullableNumberField label={req("Annual Revenue 2024 (KES)")} value={form.financial.annualRevenue2024} onChange={v => setFinancialField(setForm, "annualRevenue2024", v)} />
+                <NullableNumberField label={req("Annual Revenue 2023 (KES)")} value={form.financial.annualRevenue2023} onChange={v => setFinancialField(setForm, "annualRevenue2023", v)} />
+                <NullableNumberField label={req("Average Monthly Revenue (KES)")} value={form.financial.monthlyRevenue} onChange={v => setFinancialField(setForm, "monthlyRevenue", v)} />
+                <NullableNumberField label={req("Monthly Operating Costs (KES)")} value={form.financial.monthlyOperatingCosts} onChange={v => setFinancialField(setForm, "monthlyOperatingCosts", v)} />
+                <TextField label={req("Profitability")} value={form.financial.profitability} onChange={v => setFinancialField(setForm, "profitability", v)} />
+                <NullableNumberField label={req("Full-Time Employees")} value={form.financial.employeeCount} onChange={v => setFinancialField(setForm, "employeeCount", v)} />
+                <NullableNumberField label={req("Casual / Contract Workers")} value={form.financial.casualWorkers} onChange={v => setFinancialField(setForm, "casualWorkers", v)} />
+                <TextField label={req("Financial Recordkeeping Status")} value={form.financial.recordkeepingStatus} onChange={v => setFinancialField(setForm, "recordkeepingStatus", v)} />
+                <LongField label={req("Revenue Streams")} value={form.financial.revenueStreams} onChange={v => setFinancialField(setForm, "revenueStreams", v)} className="md:col-span-3" />
+                <LongField label={req("Financial Obligations")} value={form.financial.financialObligations} onChange={v => setFinancialField(setForm, "financialObligations", v)} className="md:col-span-3" />
+                <LongField label={req("Additional Financial Notes")} value={form.financial.narrative} onChange={v => setFinancialField(setForm, "narrative", v)} className="md:col-span-3" />
             </CardContent>
         </Card>
     );
@@ -986,19 +1002,19 @@ function EnterpriseIdentificationSection({ form, setForm }: { form: FormState; s
                 <CardDescription>Legal entity and location details for the Matching Grant application.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <TextField label="Enterprise Name *" value={form.enterprise.name} onChange={v => setEnterpriseField(setForm, "name", v)} />
-                <TextField label="Trading Name" value={form.enterprise.tradingName} onChange={v => setEnterpriseField(setForm, "tradingName", v)} />
-                <TextField label="Registration Number" value={form.enterprise.registrationNumber} onChange={v => setEnterpriseField(setForm, "registrationNumber", v)} />
-                <TextField label="Legal Structure" value={form.enterprise.legalStructure} onChange={v => setEnterpriseField(setForm, "legalStructure", v)} />
-                <TextField label="Registration Date" value={form.enterprise.registrationDate} onChange={v => setEnterpriseField(setForm, "registrationDate", v)} placeholder="YYYY-MM-DD" />
-                <TextField label="Year Operations Started" value={form.enterprise.yearOperationsStarted} onChange={v => setEnterpriseField(setForm, "yearOperationsStarted", v)} />
-                <TextField label="Sector" value={form.enterprise.sector} onChange={v => setEnterpriseField(setForm, "sector", v)} />
-                <TextField label="County *" value={form.enterprise.county} onChange={v => setEnterpriseField(setForm, "county", v)} />
-                <TextField label="Sub-County / Ward" value={form.enterprise.subCountyWard} onChange={v => setEnterpriseField(setForm, "subCountyWard", v)} />
-                <TextField label="GPS / Pin Location" value={form.enterprise.gpsLocation} onChange={v => setEnterpriseField(setForm, "gpsLocation", v)} />
-                <LongField label="Physical Address" value={form.enterprise.physicalAddress} onChange={v => setEnterpriseField(setForm, "physicalAddress", v)} />
-                <TextField label="Postal Address" value={form.enterprise.postalAddress} onChange={v => setEnterpriseField(setForm, "postalAddress", v)} />
-                <LongField label="Ownership Structure" value={form.enterprise.ownershipStructure} onChange={v => setEnterpriseField(setForm, "ownershipStructure", v)} className="md:col-span-2" />
+                <TextField label={req("Enterprise Name")} value={form.enterprise.name} onChange={v => setEnterpriseField(setForm, "name", v)} />
+                <TextField label={req("Trading Name")} value={form.enterprise.tradingName} onChange={v => setEnterpriseField(setForm, "tradingName", v)} />
+                <TextField label={req("Registration Number")} value={form.enterprise.registrationNumber} onChange={v => setEnterpriseField(setForm, "registrationNumber", v)} />
+                <TextField label={req("Legal Structure")} value={form.enterprise.legalStructure} onChange={v => setEnterpriseField(setForm, "legalStructure", v)} />
+                <TextField label={req("Registration Date")} value={form.enterprise.registrationDate} onChange={v => setEnterpriseField(setForm, "registrationDate", v)} placeholder="YYYY-MM-DD" />
+                <TextField label={req("Year Operations Started")} value={form.enterprise.yearOperationsStarted} onChange={v => setEnterpriseField(setForm, "yearOperationsStarted", v)} />
+                <TextField label={req("Sector")} value={form.enterprise.sector} onChange={v => setEnterpriseField(setForm, "sector", v)} />
+                <TextField label={req("County")} value={form.enterprise.county} onChange={v => setEnterpriseField(setForm, "county", v)} />
+                <TextField label={req("Sub-County / Ward")} value={form.enterprise.subCountyWard} onChange={v => setEnterpriseField(setForm, "subCountyWard", v)} />
+                <TextField label={req("GPS / Pin Location")} value={form.enterprise.gpsLocation} onChange={v => setEnterpriseField(setForm, "gpsLocation", v)} />
+                <LongField label={req("Physical Address")} value={form.enterprise.physicalAddress} onChange={v => setEnterpriseField(setForm, "physicalAddress", v)} />
+                <TextField label={req("Postal Address")} value={form.enterprise.postalAddress} onChange={v => setEnterpriseField(setForm, "postalAddress", v)} />
+                <LongField label={req("Ownership Structure")} value={form.enterprise.ownershipStructure} onChange={v => setEnterpriseField(setForm, "ownershipStructure", v)} className="md:col-span-2" />
             </CardContent>
         </Card>
     );
@@ -1014,16 +1030,16 @@ function LeadEntrepreneurSection({ form, setForm }: { form: FormState; setForm: 
                 </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <TextField label="Full Name *" value={form.lead.name} onChange={v => setLeadField(setForm, "name", v)} />
-                <TextField label="ID / Passport Number" value={form.lead.idNumber} onChange={v => setLeadField(setForm, "idNumber", v)} />
-                <TextField label="Gender" value={form.lead.gender} onChange={v => setLeadField(setForm, "gender", v)} />
-                <TextField label="Date of Birth" value={form.lead.dateOfBirth} onChange={v => setLeadField(setForm, "dateOfBirth", v)} placeholder="YYYY-MM-DD" />
-                <TextField label="Applicant Category" value={form.lead.applicantCategory} onChange={v => setLeadField(setForm, "applicantCategory", v)} />
-                <TextField label="Role in Enterprise" value={form.lead.role} onChange={v => setLeadField(setForm, "role", v)} />
-                <TextField label="Phone" value={form.lead.phone} onChange={v => setLeadField(setForm, "phone", v)} />
-                <TextField label="Email" value={form.lead.email} onChange={v => setLeadField(setForm, "email", v)} />
-                <LongField label="Education" value={form.lead.education} onChange={v => setLeadField(setForm, "education", v)} />
-                <LongField label="Relevant Experience" value={form.lead.experience} onChange={v => setLeadField(setForm, "experience", v)} />
+                <TextField label={req("Full Name")} value={form.lead.name} onChange={v => setLeadField(setForm, "name", v)} />
+                <TextField label={req("ID / Passport Number")} value={form.lead.idNumber} onChange={v => setLeadField(setForm, "idNumber", v)} />
+                <TextField label={req("Gender")} value={form.lead.gender} onChange={v => setLeadField(setForm, "gender", v)} />
+                <TextField label={req("Date of Birth")} value={form.lead.dateOfBirth} onChange={v => setLeadField(setForm, "dateOfBirth", v)} placeholder="YYYY-MM-DD" />
+                <TextField label={req("Applicant Category")} value={form.lead.applicantCategory} onChange={v => setLeadField(setForm, "applicantCategory", v)} />
+                <TextField label={req("Role in Enterprise")} value={form.lead.role} onChange={v => setLeadField(setForm, "role", v)} />
+                <TextField label={req("Phone")} value={form.lead.phone} onChange={v => setLeadField(setForm, "phone", v)} />
+                <TextField label={req("Email")} value={form.lead.email} onChange={v => setLeadField(setForm, "email", v)} />
+                <LongField label={req("Education")} value={form.lead.education} onChange={v => setLeadField(setForm, "education", v)} />
+                <LongField label={req("Relevant Experience")} value={form.lead.experience} onChange={v => setLeadField(setForm, "experience", v)} />
             </CardContent>
         </Card>
     );
@@ -1037,7 +1053,7 @@ function OtherOwnersSection({ form, setForm }: { form: FormState; setForm: React
                     <UsersThree className="size-5 text-slate-600" />
                     Other Owners or Partners
                 </CardTitle>
-                <CardDescription>Complete where applicable; leave blank if sole ownership.</CardDescription>
+                <CardDescription>Complete every field on each owner row you add. Leave this section empty if you are the sole owner.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
                 {form.otherOwners.map((row, index) => (
@@ -1060,11 +1076,11 @@ function OtherOwnersSection({ form, setForm }: { form: FormState; setForm: React
                             )}
                         </div>
                         <div className="grid gap-3 md:grid-cols-5">
-                            <TextField label="Name" value={row.name} onChange={v => updateOwner(setForm, index, { name: v })} />
-                            <TextField label="Role" value={row.role} onChange={v => updateOwner(setForm, index, { role: v })} />
-                            <NumberField label="Ownership %" value={row.ownershipPct} onChange={v => updateOwner(setForm, index, { ownershipPct: v })} />
-                            <TextField label="Gender" value={row.gender} onChange={v => updateOwner(setForm, index, { gender: v })} />
-                            <TextField label="Category" value={row.category} onChange={v => updateOwner(setForm, index, { category: v })} />
+                            <TextField label={req("Name")} value={row.name} onChange={v => updateOwner(setForm, index, { name: v })} />
+                            <TextField label={req("Role")} value={row.role} onChange={v => updateOwner(setForm, index, { role: v })} />
+                            <NumberField label={req("Ownership %")} value={row.ownershipPct} onChange={v => updateOwner(setForm, index, { ownershipPct: v })} />
+                            <TextField label={req("Gender")} value={row.gender} onChange={v => updateOwner(setForm, index, { gender: v })} />
+                            <TextField label={req("Category")} value={row.category} onChange={v => updateOwner(setForm, index, { category: v })} />
                         </div>
                     </div>
                 ))}
@@ -1110,12 +1126,12 @@ function OtherFundingSection({ form, setForm }: { form: FormState; setForm: Reac
                 <CardDescription>Other grants, loans, investors, savings, and future leverage potential.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <LongField label="Other Grants" value={form.otherFunding.otherGrants} onChange={v => setOtherFundingField(setForm, "otherGrants", v)} />
-                <LongField label="Loans" value={form.otherFunding.loans} onChange={v => setOtherFundingField(setForm, "loans", v)} />
-                <LongField label="Investors" value={form.otherFunding.investors} onChange={v => setOtherFundingField(setForm, "investors", v)} />
-                <LongField label="Own Savings" value={form.otherFunding.ownSavings} onChange={v => setOtherFundingField(setForm, "ownSavings", v)} />
-                <LongField label="Future Investment / Lender Leverage" value={form.otherFunding.leveragePotential} onChange={v => setOtherFundingField(setForm, "leveragePotential", v)} className="md:col-span-2" />
-                <LongField label="Summary / Additional Notes" value={form.otherFunding.description} onChange={v => setOtherFundingField(setForm, "description", v)} className="md:col-span-2" />
+                <LongField label={req("Other Grants")} value={form.otherFunding.otherGrants} onChange={v => setOtherFundingField(setForm, "otherGrants", v)} />
+                <LongField label={req("Loans")} value={form.otherFunding.loans} onChange={v => setOtherFundingField(setForm, "loans", v)} />
+                <LongField label={req("Investors")} value={form.otherFunding.investors} onChange={v => setOtherFundingField(setForm, "investors", v)} />
+                <LongField label={req("Own Savings")} value={form.otherFunding.ownSavings} onChange={v => setOtherFundingField(setForm, "ownSavings", v)} />
+                <LongField label={req("Future Investment / Lender Leverage")} value={form.otherFunding.leveragePotential} onChange={v => setOtherFundingField(setForm, "leveragePotential", v)} className="md:col-span-2" />
+                <LongField label={req("Summary / Additional Notes")} value={form.otherFunding.description} onChange={v => setOtherFundingField(setForm, "description", v)} className="md:col-span-2" />
             </CardContent>
         </Card>
     );
@@ -1131,16 +1147,16 @@ function GovernanceComplianceSection({ form, setForm }: { form: FormState; setFo
                 </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <TextField label="Registration Status" value={form.governance.registrationStatus} onChange={v => setGovernanceField(setForm, "registrationStatus", v)} />
-                <TextField label="KRA PIN" value={form.governance.kraPin} onChange={v => setGovernanceField(setForm, "kraPin", v)} />
-                <LongField label="Sector Licenses / Permits" value={form.governance.licensesPermits} onChange={v => setGovernanceField(setForm, "licensesPermits", v)} />
-                <TextField label="Tax Compliance" value={form.governance.taxCompliance} onChange={v => setGovernanceField(setForm, "taxCompliance", v)} />
-                <LongField label="Litigation or Disputes" value={form.governance.litigationDisputes} onChange={v => setGovernanceField(setForm, "litigationDisputes", v)} />
-                <LongField label="Previous Grant / Programme Funding" value={form.governance.previousProgrammeFunding} onChange={v => setGovernanceField(setForm, "previousProgrammeFunding", v)} />
-                <LongField label="Key Risks" value={form.governance.risks} onChange={v => setGovernanceField(setForm, "risks", v)} />
-                <LongField label="Mitigation Plan" value={form.governance.mitigationPlan} onChange={v => setGovernanceField(setForm, "mitigationPlan", v)} />
-                <LongField label="Compliance Gaps" value={form.governance.complianceGaps} onChange={v => setGovernanceField(setForm, "complianceGaps", v)} className="md:col-span-2" />
-                <LongField label="Additional Notes" value={form.governance.notes} onChange={v => setGovernanceField(setForm, "notes", v)} className="md:col-span-2" />
+                <TextField label={req("Registration Status")} value={form.governance.registrationStatus} onChange={v => setGovernanceField(setForm, "registrationStatus", v)} />
+                <TextField label={req("KRA PIN")} value={form.governance.kraPin} onChange={v => setGovernanceField(setForm, "kraPin", v)} />
+                <LongField label={req("Sector Licenses / Permits")} value={form.governance.licensesPermits} onChange={v => setGovernanceField(setForm, "licensesPermits", v)} />
+                <TextField label={req("Tax Compliance")} value={form.governance.taxCompliance} onChange={v => setGovernanceField(setForm, "taxCompliance", v)} />
+                <LongField label={req("Litigation or Disputes")} value={form.governance.litigationDisputes} onChange={v => setGovernanceField(setForm, "litigationDisputes", v)} />
+                <LongField label={req("Previous Grant / Programme Funding")} value={form.governance.previousProgrammeFunding} onChange={v => setGovernanceField(setForm, "previousProgrammeFunding", v)} />
+                <LongField label={req("Key Risks")} value={form.governance.risks} onChange={v => setGovernanceField(setForm, "risks", v)} />
+                <LongField label={req("Mitigation Plan")} value={form.governance.mitigationPlan} onChange={v => setGovernanceField(setForm, "mitigationPlan", v)} />
+                <LongField label={req("Compliance Gaps")} value={form.governance.complianceGaps} onChange={v => setGovernanceField(setForm, "complianceGaps", v)} className="md:col-span-2" />
+                <LongField label={req("Additional Notes")} value={form.governance.notes} onChange={v => setGovernanceField(setForm, "notes", v)} className="md:col-span-2" />
             </CardContent>
         </Card>
     );
@@ -1157,13 +1173,13 @@ function ProgrammeEngagementSection({ form, setForm }: { form: FormState; setFor
                 <CardDescription>BIRE technical assistance and hub engagement history.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <TextField label="BIRE Client ID" value={form.programme.bireClientId} onChange={v => setProgrammeField(setForm, "bireClientId", v)} />
-                <TextField label="Regional Hub" value={form.programme.regionalHub} onChange={v => setProgrammeField(setForm, "regionalHub", v)} />
-                <TextField label="TA Lead" value={form.programme.taLead} onChange={v => setProgrammeField(setForm, "taLead", v)} />
-                <TextField label="Date Joined Programme" value={form.programme.dateJoined} onChange={v => setProgrammeField(setForm, "dateJoined", v)} placeholder="YYYY-MM-DD" />
-                <TextField label="Duration in TA Support (months)" value={form.programme.taDurationMonths} onChange={v => setProgrammeField(setForm, "taDurationMonths", v)} />
-                <LongField label="Key TA Milestones Achieved" value={form.programme.taMilestones} onChange={v => setProgrammeField(setForm, "taMilestones", v)} />
-                <LongField label="Programme Support Received" value={form.programme.supportReceived} onChange={v => setProgrammeField(setForm, "supportReceived", v)} className="md:col-span-2" />
+                <TextField label={req("BIRE Client ID")} value={form.programme.bireClientId} onChange={v => setProgrammeField(setForm, "bireClientId", v)} />
+                <TextField label={req("Regional Hub")} value={form.programme.regionalHub} onChange={v => setProgrammeField(setForm, "regionalHub", v)} />
+                <TextField label={req("TA Lead")} value={form.programme.taLead} onChange={v => setProgrammeField(setForm, "taLead", v)} />
+                <TextField label={req("Date Joined Programme")} value={form.programme.dateJoined} onChange={v => setProgrammeField(setForm, "dateJoined", v)} placeholder="YYYY-MM-DD" />
+                <TextField label={req("Duration in TA Support (months)")} value={form.programme.taDurationMonths} onChange={v => setProgrammeField(setForm, "taDurationMonths", v)} />
+                <LongField label={req("Key TA Milestones Achieved")} value={form.programme.taMilestones} onChange={v => setProgrammeField(setForm, "taMilestones", v)} />
+                <LongField label={req("Programme Support Received")} value={form.programme.supportReceived} onChange={v => setProgrammeField(setForm, "supportReceived", v)} className="md:col-span-2" />
             </CardContent>
         </Card>
     );
@@ -1224,7 +1240,7 @@ function WizardStepContent({
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <TextField label="Applicant Full Name" value={form.declarationName} onChange={v => setField("declarationName", v)} />
+                            <TextField label={req("Applicant Full Name")} value={form.declarationName} onChange={v => setField("declarationName", v)} />
                             <div className="flex items-center gap-2 rounded-lg border p-3">
                                 <Checkbox
                                     id="declaration"
@@ -1263,14 +1279,14 @@ function GrantRequestSection({
                 <CardDescription>Capture the CAPEX-only request and the proposed co-investment structure for this investment case.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
-                <TextField label="Project Title" value={form.projectTitle} onChange={v => setField("projectTitle", v)} className="md:col-span-3" />
-                <NumberField label="Total Project Investment (KES)" value={form.totalProjectAmount} onChange={v => setField("totalProjectAmount", v)} />
-                <NumberField label="BIRE Grant Amount (KES)" value={form.bireGrantAmount} onChange={v => setField("bireGrantAmount", v)} />
-                <NumberField label="Enterprise Contribution (KES)" value={form.enterpriseContributionAmount} onChange={v => setField("enterpriseContributionAmount", v)} />
-                <TextField label="Co-Investment Source" value={form.coInvestmentSource} onChange={v => setField("coInvestmentSource", v)} className="md:col-span-3" />
-                <LongField label="Why is this funding needed now?" value={form.fundingNeed} onChange={v => setField("fundingNeed", v)} />
-                <LongField label="What would happen without this grant?" value={form.withoutGrantImpact} onChange={v => setField("withoutGrantImpact", v)} />
-                <LongField label="Co-investment notes / justification" value={form.coInvestmentJustification} onChange={v => setField("coInvestmentJustification", v)} />
+                <TextField label={req("Project Title")} value={form.projectTitle} onChange={v => setField("projectTitle", v)} className="md:col-span-3" />
+                <NumberField label={req("Total Project Investment (KES)")} value={form.totalProjectAmount} onChange={v => setField("totalProjectAmount", v)} />
+                <NumberField label={req("BIRE Grant Amount (KES)")} value={form.bireGrantAmount} onChange={v => setField("bireGrantAmount", v)} />
+                <NumberField label={req("Enterprise Contribution (KES)")} value={form.enterpriseContributionAmount} onChange={v => setField("enterpriseContributionAmount", v)} />
+                <TextField label={req("Co-Investment Source")} value={form.coInvestmentSource} onChange={v => setField("coInvestmentSource", v)} className="md:col-span-3" />
+                <LongField label={req("Why is this funding needed now?")} value={form.fundingNeed} onChange={v => setField("fundingNeed", v)} />
+                <LongField label={req("What would happen without this grant?")} value={form.withoutGrantImpact} onChange={v => setField("withoutGrantImpact", v)} />
+                <LongField label={req("Co-investment notes / justification")} value={form.coInvestmentJustification} onChange={v => setField("coInvestmentJustification", v)} />
                 <div className="md:col-span-3 flex items-center gap-2 rounded-lg border p-3">
                     <Checkbox
                         id="capex"
@@ -1302,24 +1318,24 @@ function BusinessImpactSection({
                 <CardDescription>Sector, market, and financial narrative for scoring and GAIR.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-                <LongField label="Business Description" value={form.business.businessDescription} onChange={v => setBusinessField(setForm, "businessDescription", v)} />
-                <LongField label="Problem Solved" value={form.business.problemSolved} onChange={v => setBusinessField(setForm, "problemSolved", v)} />
-                <TextField label="Value Chain Node" value={form.business.valueChainNode} onChange={v => setBusinessField(setForm, "valueChainNode", v)} />
-                <LongField label="Products / Services" value={form.business.productsServices} onChange={v => setBusinessField(setForm, "productsServices", v)} />
-                <LongField label="Target Market & Estimated Size" value={form.business.targetMarket} onChange={v => setBusinessField(setForm, "targetMarket", v)} />
-                <LongField label="Target Customers" value={form.business.targetCustomers} onChange={v => setBusinessField(setForm, "targetCustomers", v)} />
-                <LongField label="Marketing & Sales Strategy" value={form.business.marketingSalesStrategy} onChange={v => setBusinessField(setForm, "marketingSalesStrategy", v)} className="md:col-span-2" />
-                <LongField label="Competitive Advantages" value={form.business.competitiveAdvantages} onChange={v => setBusinessField(setForm, "competitiveAdvantages", v)} className="md:col-span-2" />
-                <TextField label="Projected Monthly Revenue After Investment" value={form.projectedMonthlyRevenue} onChange={v => setField("projectedMonthlyRevenue", v)} />
-                <TextField label="Projected Annual Revenue After Investment" value={form.projectedAnnualRevenue} onChange={v => setField("projectedAnnualRevenue", v)} />
-                <TextField label="Projected Revenue Growth Rate" value={form.projectedGrowthRate} onChange={v => setField("projectedGrowthRate", v)} />
-                <TextField label="Projection Assumptions" value={form.projectionAssumptions} onChange={v => setField("projectionAssumptions", v)} />
-                <LongField label="Employment Terms" value={form.employmentTerms} onChange={v => setField("employmentTerms", v)} />
-                <LongField label="Inclusion Strategy" value={form.inclusionStrategy} onChange={v => setField("inclusionStrategy", v)} />
-                <LongField label="Environmental / Climate Impact" value={form.environmentalImpact} onChange={v => setField("environmentalImpact", v)} />
-                <LongField label="Environmental Outcome Indicators" value={form.environmentalIndicators} onChange={v => setField("environmentalIndicators", v)} />
-                <LongField label="Value Chain / Community Impact" value={form.communityImpact} onChange={v => setField("communityImpact", v)} />
-                <LongField label="Innovation Element" value={form.innovationElement} onChange={v => setField("innovationElement", v)} />
+                <LongField label={req("Business Description")} value={form.business.businessDescription} onChange={v => setBusinessField(setForm, "businessDescription", v)} />
+                <LongField label={req("Problem Solved")} value={form.business.problemSolved} onChange={v => setBusinessField(setForm, "problemSolved", v)} />
+                <TextField label={req("Value Chain Node")} value={form.business.valueChainNode} onChange={v => setBusinessField(setForm, "valueChainNode", v)} />
+                <LongField label={req("Products / Services")} value={form.business.productsServices} onChange={v => setBusinessField(setForm, "productsServices", v)} />
+                <LongField label={req("Target Market & Estimated Size")} value={form.business.targetMarket} onChange={v => setBusinessField(setForm, "targetMarket", v)} />
+                <LongField label={req("Target Customers")} value={form.business.targetCustomers} onChange={v => setBusinessField(setForm, "targetCustomers", v)} />
+                <LongField label={req("Marketing & Sales Strategy")} value={form.business.marketingSalesStrategy} onChange={v => setBusinessField(setForm, "marketingSalesStrategy", v)} className="md:col-span-2" />
+                <LongField label={req("Competitive Advantages")} value={form.business.competitiveAdvantages} onChange={v => setBusinessField(setForm, "competitiveAdvantages", v)} className="md:col-span-2" />
+                <TextField label={req("Projected Monthly Revenue After Investment")} value={form.projectedMonthlyRevenue} onChange={v => setField("projectedMonthlyRevenue", v)} />
+                <TextField label={req("Projected Annual Revenue After Investment")} value={form.projectedAnnualRevenue} onChange={v => setField("projectedAnnualRevenue", v)} />
+                <TextField label={req("Projected Revenue Growth Rate")} value={form.projectedGrowthRate} onChange={v => setField("projectedGrowthRate", v)} />
+                <TextField label={req("Projection Assumptions")} value={form.projectionAssumptions} onChange={v => setField("projectionAssumptions", v)} />
+                <LongField label={req("Employment Terms")} value={form.employmentTerms} onChange={v => setField("employmentTerms", v)} />
+                <LongField label={req("Inclusion Strategy")} value={form.inclusionStrategy} onChange={v => setField("inclusionStrategy", v)} />
+                <LongField label={req("Environmental / Climate Impact")} value={form.environmentalImpact} onChange={v => setField("environmentalImpact", v)} />
+                <LongField label={req("Environmental Outcome Indicators")} value={form.environmentalIndicators} onChange={v => setField("environmentalIndicators", v)} />
+                <LongField label={req("Value Chain / Community Impact")} value={form.communityImpact} onChange={v => setField("communityImpact", v)} />
+                <LongField label={req("Innovation Element")} value={form.innovationElement} onChange={v => setField("innovationElement", v)} />
             </CardContent>
         </Card>
     );
@@ -1439,6 +1455,42 @@ function NumberField({
                 value={value}
                 readOnly={readOnly}
                 onChange={readOnly ? undefined : (e) => onChange?.(numberValue(e.target.value))}
+                className={cn("mt-1.5", readOnly && "bg-muted/50 cursor-default")}
+            />
+        </div>
+    );
+}
+
+function NullableNumberField({
+    label,
+    value,
+    onChange,
+    readOnly = false,
+}: {
+    label: string;
+    value: number | null;
+    onChange?: (value: number | null) => void;
+    readOnly?: boolean;
+}) {
+    return (
+        <div>
+            <Label className="text-xs font-medium">{label}</Label>
+            <Input
+                type="number"
+                value={value ?? ""}
+                readOnly={readOnly}
+                onChange={
+                    readOnly
+                        ? undefined
+                        : (e) => {
+                              const raw = e.target.value;
+                              if (raw === "") {
+                                  onChange?.(null);
+                                  return;
+                              }
+                              onChange?.(Number(raw));
+                          }
+                }
                 className={cn("mt-1.5", readOnly && "bg-muted/50 cursor-default")}
             />
         </div>

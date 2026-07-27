@@ -13,50 +13,22 @@ import {
     FileText,
 } from "@phosphor-icons/react";
 import {
-    type A2fEnterpriseTrack,
-} from "@/lib/a2f-constants";
+    type MatchingGrantValidationContext,
+    type MatchingGrantValidationInput,
+    type MgWizardStepId,
+    getMatchingGrantStepValidationErrors,
+    getMatchingGrantValidationErrors,
+} from "@/lib/matching-grant-validation";
 import {
-    type EnterpriseIdentification,
-    type LeadEntrepreneur,
-    type MatchingGrantFinancialOverview,
-    type MatchingGrantBudgetItem,
     resolveAnnualRevenueForEligibility,
-    validateBudgetUseOfFunds,
 } from "@/lib/matching-grant-form-types";
 import {
-    type MgSupportingDocumentRow,
     countMandatoryMgDocumentsEnclosed,
-    validateMandatoryMgDocuments,
 } from "@/lib/mg-supporting-documents";
 
-export type MgWizardStepId =
-    | "enterprise"
-    | "financials"
-    | "grant_request"
-    | "business_impact"
-    | "investment_plan"
-    | "documents";
+export type { MgWizardStepId, MatchingGrantValidationInput as MatchingGrantWizardForm };
 
-export interface MatchingGrantWizardForm {
-    enterprise: EnterpriseIdentification;
-    lead: LeadEntrepreneur;
-    financial: MatchingGrantFinancialOverview;
-    projectTitle: string;
-    totalProjectAmount: number;
-    bireGrantAmount: number;
-    enterpriseContributionAmount: number;
-    capexOnlyConfirmed: boolean;
-    budgetItems: MatchingGrantBudgetItem[];
-    declarationAccepted: boolean;
-    useOfFundsAcknowledged: boolean;
-    declarationName: string;
-    documents: MgSupportingDocumentRow[];
-}
-
-export interface MatchingGrantWizardContext {
-    track: A2fEnterpriseTrack;
-    pipelineRevenue: number;
-}
+export interface MatchingGrantWizardContext extends MatchingGrantValidationContext {}
 
 export interface MgWizardStep {
     id: MgWizardStepId;
@@ -122,81 +94,21 @@ export function wizardStorageKey(a2fId: number) {
 
 export function getStepValidationErrors(
     stepId: MgWizardStepId,
-    form: MatchingGrantWizardForm,
+    form: MatchingGrantValidationInput,
     context: MatchingGrantWizardContext
 ): string[] {
-    switch (stepId) {
-        case "enterprise": {
-            const errors: string[] = [];
-            if (!form.enterprise.name.trim()) errors.push("Enterprise name is required.");
-            if (!form.enterprise.county.trim()) errors.push("County / location is required.");
-            if (!form.lead.name.trim()) errors.push("Lead entrepreneur name is required.");
-            return errors;
-        }
-        case "financials": {
-            const revenue = resolveAnnualRevenueForEligibility(form.financial, context.pipelineRevenue);
-            if (revenue <= 0) {
-                return ["Enter annual revenue for 2025 or an earlier year."];
-            }
-            return [];
-        }
-        case "grant_request": {
-            const errors: string[] = [];
-            if (!form.projectTitle.trim()) errors.push("Project title is required.");
-            if (form.totalProjectAmount <= 0) errors.push("Total project investment must be greater than zero.");
-            if (!form.capexOnlyConfirmed) errors.push("Confirm CAPEX-only use for this grant request.");
-            if (
-                form.totalProjectAmount > 0
-                && Math.abs(form.totalProjectAmount - (form.bireGrantAmount + form.enterpriseContributionAmount)) > 1
-            ) {
-                errors.push("BIRE grant and enterprise contribution must add up to total project amount.");
-            }
-            return errors;
-        }
-        case "business_impact":
-            return [];
-        case "investment_plan": {
-            const errors: string[] = [];
-            if (!form.useOfFundsAcknowledged) {
-                errors.push(
-                    "Confirm the budget excludes ineligible uses (personal expenses, loan repayments, unrelated overheads)."
-                );
-            }
-            const filled = form.budgetItems.filter(row => row.item.trim());
-            if (filled.length === 0) {
-                errors.push("Add at least one budget line item.");
-            } else {
-                errors.push(...validateBudgetUseOfFunds(form.budgetItems));
-            }
-            return errors;
-        }
-        case "documents": {
-            const errors: string[] = [];
-            errors.push(...validateMandatoryMgDocuments(form.documents));
-            if (!form.declarationName.trim()) errors.push("Applicant full name is required for declaration.");
-            if (!form.declarationAccepted) {
-                errors.push("Applicant declaration must be accepted.");
-            }
-            return errors;
-        }
-        default:
-            return [];
-    }
+    return getMatchingGrantStepValidationErrors(stepId, form, context);
 }
 
 export function getAllStepValidationErrors(
-    form: MatchingGrantWizardForm,
+    form: MatchingGrantValidationInput,
     context: MatchingGrantWizardContext
 ): Record<MgWizardStepId, string[]> {
-    const out = {} as Record<MgWizardStepId, string[]>;
-    for (const step of MG_WIZARD_STEPS) {
-        out[step.id] = getStepValidationErrors(step.id, form, context);
-    }
-    return out;
+    return getMatchingGrantValidationErrors(form, context);
 }
 
 export function getFirstStepIndexWithErrors(
-    form: MatchingGrantWizardForm,
+    form: MatchingGrantValidationInput,
     context: MatchingGrantWizardContext
 ): number | null {
     const all = getAllStepValidationErrors(form, context);
@@ -215,7 +127,7 @@ export type StepErrorsGroup = {
 };
 
 export function flattenStepErrorsWithLabels(
-    form: MatchingGrantWizardForm,
+    form: MatchingGrantValidationInput,
     context: MatchingGrantWizardContext
 ): StepErrorsGroup[] {
     const all = getAllStepValidationErrors(form, context);
@@ -228,7 +140,7 @@ export function flattenStepErrorsWithLabels(
 }
 
 export function getWizardReviewSummary(
-    form: MatchingGrantWizardForm,
+    form: MatchingGrantValidationInput,
     context: MatchingGrantWizardContext
 ) {
     const revenue = resolveAnnualRevenueForEligibility(form.financial, context.pipelineRevenue);

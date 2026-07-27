@@ -22,9 +22,11 @@ import {
     parseGovernanceCompliance,
     resolveAnnualRevenueForEligibility,
     serializeFinancialOverview,
-    validateMatchingGrantSubmitFields,
     type MatchingGrantOfficialUse,
 } from "@/lib/matching-grant-form-types";
+import {
+    validateMatchingGrantSubmitPayload,
+} from "@/lib/matching-grant-validation";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import {
     A2F_STAFF_ROLES,
@@ -239,17 +241,35 @@ export async function saveMatchingGrantApplication(
         const validation = validateMatchingGrantApplication(input);
         const track = pipeline.application.track as A2fEnterpriseTrack;
         const fallbackRevenue = Number(pipeline.application.business?.revenueLastYear ?? 0);
-        const submitError = validateMatchingGrantSubmitFields({
-            status: input.status,
-            track,
-            capexOnlyConfirmed: input.capexOnlyConfirmed,
-            enterpriseIdentification: input.enterpriseIdentification,
-            leadEntrepreneur: input.leadEntrepreneur,
-            financialOverview: input.financialOverview,
-            budgetItems: input.budgetItems,
-            declaration: input.declaration,
-            fallbackRevenue,
-        });
+        const submitError = validateMatchingGrantSubmitPayload(
+            {
+                status: input.status,
+                projectTitle: input.projectTitle,
+                totalProjectAmount: input.totalProjectAmount,
+                bireGrantAmount: input.bireGrantAmount,
+                enterpriseContributionAmount: input.enterpriseContributionAmount,
+                coInvestmentSource: input.coInvestmentSource,
+                coInvestmentJustification: input.coInvestmentJustification,
+                fundingNeed: input.fundingNeed,
+                withoutGrantImpact: input.withoutGrantImpact,
+                capexOnlyConfirmed: input.capexOnlyConfirmed,
+                enterpriseIdentification: input.enterpriseIdentification,
+                leadEntrepreneur: input.leadEntrepreneur,
+                programmeEngagement: input.programmeEngagement,
+                businessOverview: input.businessOverview,
+                financialOverview: input.financialOverview,
+                otherFunding: input.otherFunding,
+                governanceCompliance: input.governanceCompliance,
+                budgetItems: input.budgetItems,
+                implementationMilestones: input.implementationMilestones,
+                financialProjections: input.financialProjections,
+                jobCreationPlan: input.jobCreationPlan,
+                impact: input.impact,
+                supportingDocuments: input.supportingDocuments,
+                declaration: input.declaration,
+            },
+            { track, pipelineRevenue: fallbackRevenue }
+        );
         if (submitError) return errorResponse(submitError);
 
         const parsedFinancial = parseFinancialOverview(input.financialOverview);
