@@ -180,13 +180,20 @@ export function CdpSessionEditSheet({
         return;
       }
 
-      toast.success(mode === "planning" ? "Session plan updated" : "Session report submitted for review");
+      toast.success(
+        mode === "planning"
+          ? "Session plan updated"
+          : session.approvalStatus === "rejected"
+            ? "Session report resubmitted for review"
+            : "Session report submitted for review"
+      );
       onOpenChange(false);
       onSaved();
     });
   };
 
   const isPlanning = mode === "planning";
+  const isReturned = !isPlanning && session?.approvalStatus === "rejected";
   const hasReportContent =
     !isPlanning &&
     Boolean(
@@ -231,12 +238,19 @@ export function CdpSessionEditSheet({
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader className="border-b px-6 py-5">
           <SheetTitle>
-            {isPlanning ? "Edit session plan" : "Complete session report"} {session?.sessionNumber ?? ""}
+            {isPlanning
+              ? "Edit session plan"
+              : isReturned
+                ? "Edit returned report"
+                : "Complete session report"}{" "}
+            {session?.sessionNumber ?? ""}
           </SheetTitle>
           <SheetDescription>
             {isPlanning
               ? "Set what will happen before the advisory session starts."
-              : "Record the completed session outcomes and supporting evidence."}
+              : isReturned
+                ? "Update the report based on the return reason, then resubmit for review."
+                : "Record the completed session outcomes and supporting evidence."}
           </SheetDescription>
         </SheetHeader>
 
@@ -248,6 +262,15 @@ export function CdpSessionEditSheet({
               submitEdit(new FormData(event.currentTarget));
             }}
           >
+            {isReturned ? (
+              <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+                <p className="font-medium">This report was returned</p>
+                {session.rejectionReason?.trim() ? (
+                  <p className="mt-2 whitespace-pre-wrap leading-relaxed">{session.rejectionReason.trim()}</p>
+                ) : null}
+                <p className="mt-2 text-xs text-rose-800">Update the report and submit again.</p>
+              </div>
+            ) : null}
             {isPlanning ? (
               <section className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
@@ -445,7 +468,7 @@ export function CdpSessionEditSheet({
                 </Button>
                 <Button type="submit" disabled={disabled || pending || isUploading}>
                   {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isPlanning ? "Save plan" : "Submit report"}
+                  {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
                 </Button>
               </div>
             </SheetFooter>

@@ -101,6 +101,7 @@ function isCdpWorkstreamRole(role?: string | null): role is CnaReviewerRole {
 
 function revalidateCdpPaths(businessId: number, planId?: number) {
   revalidatePath("/admin/cdp");
+  revalidatePath("/admin/cdp/approvals");
   revalidatePath(`/admin/cdp/${businessId}`);
   if (planId != null) {
     revalidatePath(`/admin/cdp/${businessId}?planId=${planId}`);
@@ -257,6 +258,14 @@ export type CdpReportReviewRow = {
   submittedAt: string;
   evidenceCount: number;
   reportSummary: string;
+  durationHours: string | null;
+  keyActionsAgreed: string | null;
+  challengesRaised: string | null;
+  nextSteps: string | null;
+  followUpDate: string | null;
+  evidenceNotes: string | null;
+  evidenceUrls: string[];
+  evidenceFiles: CdpEvidenceFile[];
   canReview: boolean;
 };
 
@@ -455,29 +464,41 @@ export async function getCdpReportReviewQueue(): Promise<ActionResponse<CdpRepor
     );
 
     return successResponse(
-      submittedReports.map((row) => ({
-        sessionId: row.sessionId,
-        planId: row.planId,
-        businessId: row.businessId,
-        businessName: row.businessName,
-        applicantName: `${row.applicantFirstName} ${row.applicantLastName}`.trim(),
-        focusCode: row.focusCode,
-        sessionNumber: row.sessionNumber,
-        topic: row.topic?.trim() || `Session ${row.sessionNumber}`,
-        sessionDate: row.sessionDate.toISOString(),
-        submittedByName: row.conductedById
-          ? submitterNames.get(row.conductedById) ?? "CDP staff member"
-          : "CDP staff member",
-        submittedAt: row.updatedAt.toISOString(),
-        evidenceCount:
-          row.evidenceUrls.length + (Array.isArray(row.evidenceFiles) ? row.evidenceFiles.length : 0),
-        reportSummary:
-          row.evidenceNotes?.trim() ||
-          row.keyActionsAgreed?.trim() ||
-          row.nextSteps?.trim() ||
-          "Report submitted with supporting evidence.",
-        canReview: row.conductedById !== session.user.id,
-      }))
+      submittedReports.map((row) => {
+        const evidenceFiles = Array.isArray(row.evidenceFiles)
+          ? (row.evidenceFiles as CdpEvidenceFile[])
+          : [];
+        return {
+          sessionId: row.sessionId,
+          planId: row.planId,
+          businessId: row.businessId,
+          businessName: row.businessName,
+          applicantName: `${row.applicantFirstName} ${row.applicantLastName}`.trim(),
+          focusCode: row.focusCode,
+          sessionNumber: row.sessionNumber,
+          topic: row.topic?.trim() || `Session ${row.sessionNumber}`,
+          sessionDate: row.sessionDate.toISOString(),
+          submittedByName: row.conductedById
+            ? submitterNames.get(row.conductedById) ?? "CDP staff member"
+            : "CDP staff member",
+          submittedAt: row.updatedAt.toISOString(),
+          evidenceCount: row.evidenceUrls.length + evidenceFiles.length,
+          reportSummary:
+            row.evidenceNotes?.trim() ||
+            row.keyActionsAgreed?.trim() ||
+            row.nextSteps?.trim() ||
+            "Report submitted with supporting evidence.",
+          durationHours: row.durationHours != null ? String(row.durationHours) : null,
+          keyActionsAgreed: row.keyActionsAgreed,
+          challengesRaised: row.challengesRaised,
+          nextSteps: row.nextSteps,
+          followUpDate: row.followUpDate ? String(row.followUpDate) : null,
+          evidenceNotes: row.evidenceNotes,
+          evidenceUrls: row.evidenceUrls,
+          evidenceFiles,
+          canReview: row.conductedById !== session.user.id,
+        };
+      })
     );
   } catch (e) {
     console.error("getCdpReportReviewQueue", e);
@@ -1506,6 +1527,7 @@ export async function updateCdpSupportSession(
         approvalStatus: "pending",
         approvedById: null,
         approvedAt: null,
+        rejectionReason: null,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1638,6 +1660,7 @@ export async function updateCdpSessionReport(
         approvalStatus: "pending",
         approvedById: null,
         approvedAt: null,
+        rejectionReason: null,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1700,6 +1723,7 @@ export async function deleteCdpSessionReport(
         approvalStatus: "pending",
         approvedById: null,
         approvedAt: null,
+        rejectionReason: null,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1748,6 +1772,7 @@ export async function approveCdpSupportSession(
         approvalStatus: "approved",
         approvedById: session.user.id,
         approvedAt: new Date(),
+        rejectionReason: null,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, sessionId));
@@ -1761,12 +1786,18 @@ export async function approveCdpSupportSession(
 }
 
 export async function rejectCdpSupportSession(
-  sessionId: number
+  sessionId: number,
+  reason: string
 ): Promise<ActionResponse<{ businessId: number }>> {
   try {
     const session = await auth();
     if (!session?.user?.id || !isCdpApprover(session.user.role ?? null)) {
       return errorResponse("Unauthorized");
+    }
+
+    const parsedReason = z.string().trim().min(5).max(2000).safeParse(reason);
+    if (!parsedReason.success) {
+      return errorResponse("Enter a return reason of at least 5 characters.");
     }
 
     const existing = await db.query.cdpBusinessSupportSessions.findFirst({
@@ -1787,6 +1818,7 @@ export async function rejectCdpSupportSession(
         approvalStatus: "rejected",
         approvedById: session.user.id,
         approvedAt: new Date(),
+        rejectionReason: parsedReason.data,
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, sessionId));

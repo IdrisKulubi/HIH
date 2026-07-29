@@ -1067,6 +1067,7 @@ export const cdpBusinessSupportSessions = pgTable(
       .notNull(),
     approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     approvedAt: timestamp('approved_at'),
+    rejectionReason: text('rejection_reason'),
     meetingLink: text('meeting_link'),
     /** Optional link to 13-week bootcamp curriculum week (1–13). */
     bootcampWeek: integer('bootcamp_week'),

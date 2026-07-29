@@ -6,6 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 export function CdpSessionRowActions({
   mode,
   reportStarted,
+  approvalStatus,
   canManage,
   canDelete,
   disabled,
@@ -14,6 +15,7 @@ export function CdpSessionRowActions({
 }: {
   mode: "planning" | "reporting";
   reportStarted: boolean;
+  approvalStatus?: "pending" | "approved" | "rejected";
   canManage: boolean;
   canDelete: boolean;
   disabled: boolean;
@@ -24,11 +26,25 @@ export function CdpSessionRowActions({
     return <span className="text-xs text-muted-foreground">View only</span>;
   }
 
+  const isReturned = approvalStatus === "rejected";
+  const reportActionLabel = isReturned
+    ? "Edit & resubmit"
+    : reportStarted
+      ? "Edit report"
+      : "Complete report";
+
   return (
     <div className="flex flex-wrap justify-end gap-1">
-      <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={disabled}>
+      <Button
+        type="button"
+        variant={isReturned ? "default" : "ghost"}
+        size="sm"
+        className={isReturned ? "bg-emerald-700 text-white hover:bg-emerald-800" : undefined}
+        onClick={onEdit}
+        disabled={disabled}
+      >
         <Pencil className="mr-1 h-3.5 w-3.5" />
-        {mode === "planning" ? "Edit plan" : reportStarted ? "Edit report" : "Complete report"}
+        {mode === "planning" ? "Edit plan" : reportActionLabel}
       </Button>
       {mode === "planning" ? (
         <Button

@@ -61,6 +61,7 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
       { href: "/admin/kyc", label: "KYC Verification", icon: ShieldCheck },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
+      { href: "/admin/cdp/approvals", label: "Report Approvals", icon: CheckCircle },
       { href: "/admin/mentorship", label: "Mentorship", icon: Users },
     ],
   },

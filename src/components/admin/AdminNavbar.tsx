@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/kyc", label: "KYC", icon: ShieldCheck },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
+      { href: "/admin/cdp/approvals", label: "Report Approvals", icon: CheckCircle },
       { href: "/admin/mentorship", label: "Mentorship", icon: Users },
     ],
   },
@@ -113,6 +114,9 @@ const NAV_GROUPS: NavGroup[] = [
 
 function isLinkActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
+  if (href === "/admin/cdp") {
+    return pathname === "/admin/cdp" || /^\/admin\/cdp\/\d+/.test(pathname);
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

@@ -64,6 +64,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CdpSessionEditSheet } from "./CdpSessionEditSheet";
+import { CdpSessionReturnDialog } from "./CdpSessionReturnDialog";
 import { CdpSessionRowActions } from "./CdpSessionRowActions";
 import { ExcelExportButton, type ExcelExportColumn } from "@/components/shared/ExcelExportButton";
 import {
@@ -125,6 +126,31 @@ const CDP_REPORT_EXPORT_COLUMNS: ExcelExportColumn<CdpReportExportRow>[] = [
 ];
 
 const CDP_APPROVER_ROLES = ["admin", "oversight", "redo"] as const;
+
+type CdpSessionApprovalStatus = CdpPlanFull["supportSessions"][number]["approvalStatus"];
+
+function sessionApprovalLabel(status: CdpSessionApprovalStatus) {
+  if (status === "rejected") return "Returned";
+  if (status === "approved") return "Approved";
+  if (status === "pending") return "Pending review";
+  return status;
+}
+
+function sessionApprovalClassName(status: CdpSessionApprovalStatus) {
+  if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "rejected") return "border-rose-200 bg-rose-50 text-rose-800";
+  return "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+function SessionReturnedCallout({ reason }: { reason: string | null | undefined }) {
+  if (!reason?.trim()) return null;
+  return (
+    <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+      <p className="font-medium">Return reason</p>
+      <p className="mt-1 whitespace-pre-wrap leading-relaxed">{reason.trim()}</p>
+    </div>
+  );
+}
 
 function cdpRatingForScore(score: number | null | undefined) {
   if (score === 0) {
@@ -1184,12 +1210,6 @@ function sessionHasEvidence(session: CdpPlanFull["supportSessions"][number]) {
 }
 
 function CdpSessionSummaryTable({ plan }: { plan: CdpPlanFull }) {
-  const statusClassName = (status: CdpPlanFull["supportSessions"][number]["approvalStatus"]) => {
-    if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    if (status === "rejected") return "border-red-200 bg-red-50 text-red-800";
-    return "border-amber-200 bg-amber-50 text-amber-800";
-  };
-
   return (
     <section className="overflow-hidden rounded-md border bg-card">
       <div className="overflow-x-auto">
@@ -1236,8 +1256,10 @@ function CdpSessionSummaryTable({ plan }: { plan: CdpPlanFull }) {
                   </TableCell>
                   <TableCell className="max-w-64 whitespace-normal">{session.supportType || "—"}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium capitalize ${statusClassName(session.approvalStatus)}`}>
-                      {session.approvalStatus}
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${sessionApprovalClassName(session.approvalStatus)}`}
+                    >
+                      {sessionApprovalLabel(session.approvalStatus)}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -1952,8 +1974,10 @@ function CdpActivitiesPanel({
                   <div key={session.id} className="rounded-md border p-3 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">Session {session.sessionNumber}</span>
-                      <span className="rounded-full border px-2 py-0.5 text-xs capitalize">
-                        {session.approvalStatus}
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs ${sessionApprovalClassName(session.approvalStatus)}`}
+                      >
+                        {sessionApprovalLabel(session.approvalStatus)}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -2247,6 +2271,7 @@ function CdpSessionsPanel({
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
+  const [rejectSessionId, setRejectSessionId] = useState<number | null>(null);
   const canApproveSessions = CDP_APPROVER_ROLES.includes(currentUserRole as (typeof CDP_APPROVER_ROLES)[number]);
   const isSessionManager = CDP_MANAGER_ROLES.includes(
     currentUserRole as (typeof CDP_MANAGER_ROLES)[number]
@@ -2278,6 +2303,9 @@ function CdpSessionsPanel({
   }));
   const editingSession = editingSessionId
     ? plan.supportSessions.find((session) => session.id === editingSessionId)
+    : null;
+  const rejectSession = rejectSessionId
+    ? plan.supportSessions.find((session) => session.id === rejectSessionId) ?? null
     : null;
   const approvedSessionCount = plan.supportSessions.filter((session) => session.approvalStatus === "approved").length;
   const evidenceSessionCount = plan.supportSessions.filter(sessionHasEvidence).length;
@@ -2348,13 +2376,14 @@ function CdpSessionsPanel({
     });
   };
 
-  const reject = (id: number) => {
-    if (!confirm("Reject this session report? The EDO can edit and resubmit it.")) return;
+  const confirmReject = (reason: string) => {
+    if (!rejectSessionId) return;
     start(async () => {
-      const res = await rejectCdpSupportSession(id);
+      const res = await rejectCdpSupportSession(rejectSessionId, reason);
       if (!res.success) toast.error(res.error ?? "Failed");
       else {
-        toast.success("Session report rejected");
+        toast.success("Session report returned for edits");
+        setRejectSessionId(null);
         router.refresh();
       }
     });
@@ -2491,8 +2520,10 @@ function CdpSessionsPanel({
                   <div key={session.id} className="rounded-md border p-3 text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">Session {session.sessionNumber}</span>
-                      <span className="rounded-full border px-2 py-0.5 text-xs capitalize">
-                        {session.approvalStatus}
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs ${sessionApprovalClassName(session.approvalStatus)}`}
+                      >
+                        {sessionApprovalLabel(session.approvalStatus)}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -2506,6 +2537,7 @@ function CdpSessionsPanel({
                         <CdpSessionRowActions
                           mode="planning"
                           reportStarted={reportStarted(session)}
+                          approvalStatus={session.approvalStatus}
                           canManage
                           canDelete={session.approvalStatus !== "approved"}
                           disabled={disabled || pending}
@@ -2561,17 +2593,31 @@ function CdpSessionsPanel({
                   {mode === "planning" ? (
                     s.subtopic || "—"
                   ) : (
-                    <div className="space-y-1">
-                      <span className="capitalize">{s.approvalStatus}</span>
-                      <p className="text-muted-foreground">
-                        {s.evidenceNotes?.trim() || s.keyActionsAgreed?.trim() ? "Report started" : "Awaiting report"}
-                      </p>
+                    <div className="space-y-2">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${sessionApprovalClassName(s.approvalStatus)}`}
+                      >
+                        {sessionApprovalLabel(s.approvalStatus)}
+                      </span>
+                      {s.approvalStatus === "rejected" ? (
+                        <SessionReturnedCallout reason={s.rejectionReason} />
+                      ) : (
+                        <p className="text-muted-foreground">
+                          {s.evidenceNotes?.trim() || s.keyActionsAgreed?.trim()
+                            ? "Report started"
+                            : "Awaiting report"}
+                        </p>
+                      )}
                     </div>
                   )}
                 </TableCell>
                 <TableCell className="text-xs">
                   {mode === "planning" ? (
-                    <span className="capitalize">{s.approvalStatus}</span>
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${sessionApprovalClassName(s.approvalStatus)}`}
+                    >
+                      {sessionApprovalLabel(s.approvalStatus)}
+                    </span>
                   ) : ((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).length > 0 ? (
                     <div className="flex flex-col gap-1">
                       {((s.evidenceFiles as CdpSessionEvidenceFile[] | null) ?? []).slice(0, 2).map((file, index) => (
@@ -2597,6 +2643,7 @@ function CdpSessionsPanel({
                   <CdpSessionRowActions
                     mode={mode}
                     reportStarted={reportStarted(s)}
+                    approvalStatus={s.approvalStatus}
                     canManage={canManageSession(s)}
                     canDelete={s.approvalStatus !== "approved"}
                     disabled={disabled || pending}
@@ -2645,10 +2692,10 @@ function CdpSessionsPanel({
                   variant="outline"
                   size="sm"
                   className="text-destructive"
-                  onClick={() => reject(s.id)}
+                  onClick={() => setRejectSessionId(s.id)}
                   disabled={disabled || pending}
                 >
-                  Reject
+                  Return
                 </Button>
               </div>
             ))}
@@ -2656,6 +2703,18 @@ function CdpSessionsPanel({
       ) : null}
 
       {mode === "reporting" ? <SessionActionItemsBlock plan={plan} disabled={disabled} /> : null}
+
+      <CdpSessionReturnDialog
+        open={rejectSessionId !== null}
+        onOpenChange={(open) => !open && setRejectSessionId(null)}
+        description={
+          rejectSession
+            ? `Session ${rejectSession.sessionNumber}. The session owner can edit and resubmit it.`
+            : undefined
+        }
+        pending={pending}
+        onConfirm={confirmReject}
+      />
 
       <p className="text-xs text-muted-foreground">Business #{businessId}</p>
     </div>
