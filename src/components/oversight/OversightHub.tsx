@@ -55,22 +55,32 @@ export function OversightHub({
             Review assigned due diligence approvals and open programme queues
           </p>
         </div>
-        {summary.pendingApprovals > 0 && (
-          <Button asChild className="shrink-0">
-            <Link href="/oversight/approvals">
-              Review approvals
-              <ArrowRight className="ml-1.5 size-4" />
-            </Link>
-          </Button>
-        )}
-        {summary.a2fDdAwaiting > 0 && ddOnlyA2f && (
-          <Button asChild className="shrink-0 bg-emerald-700 hover:bg-emerald-800">
-            <Link href="/a2f">
-              Open A2F due diligence
-              <ArrowRight className="ml-1.5 size-4" />
-            </Link>
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {summary.pendingApprovals > 0 && (
+            <Button asChild>
+              <Link href="/oversight/approvals">
+                Review approvals
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          )}
+          {summary.pendingCdpReports > 0 && (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/admin/cdp/approvals">
+                Review reports
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          )}
+          {summary.a2fDdAwaiting > 0 && ddOnlyA2f && (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/a2f">
+                Open A2F due diligence
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {summary.urgentApprovals > 0 && (
@@ -118,9 +128,21 @@ export function OversightHub({
           <p className="mt-1 text-3xl font-bold tabular-nums">{summary.urgentApprovals}</p>
           <p className="mt-1 text-xs text-muted-foreground">Less than 4 hours remaining</p>
         </div>
-        <div className="rounded-xl border bg-muted/50 px-4 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {ddOnlyA2f ? "A2F due diligence" : "CDP work queue"}
+        <div
+          className={`rounded-xl border px-4 py-4 ${
+            !ddOnlyA2f && summary.pendingCdpReports > 0
+              ? "border-emerald-200/60 bg-emerald-50/80"
+              : "border-slate-200 bg-muted/50"
+          }`}
+        >
+          <p
+            className={`text-xs font-medium uppercase tracking-wide ${
+              !ddOnlyA2f && summary.pendingCdpReports > 0
+                ? "text-emerald-800"
+                : "text-muted-foreground"
+            }`}
+          >
+            {ddOnlyA2f ? "A2F due diligence" : "Session report approvals"}
           </p>
           {ddOnlyA2f ? (
             <>
@@ -135,10 +157,20 @@ export function OversightHub({
             </>
           ) : (
             <>
-              <p className="mt-1 text-sm font-medium text-slate-700">Open queue for status</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                CNA and CDP progress is tracked in the work queue
+              <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">
+                {summary.pendingCdpReports}
               </p>
+              <p className="mt-1 text-xs text-slate-600">
+                {summary.pendingCdpReports === 1
+                  ? "Report awaiting your review"
+                  : "Reports awaiting your review"}
+              </p>
+              <Link
+                href="/admin/cdp/approvals"
+                className="mt-2 inline-flex text-xs font-medium text-emerald-800 hover:text-emerald-900 hover:underline"
+              >
+                Open report approvals
+              </Link>
             </>
           )}
         </div>
@@ -171,6 +203,14 @@ export function OversightHub({
             count={summary.pendingApprovals}
             countLabel="assigned"
             primary={summary.pendingApprovals > 0}
+          />
+          <HubQueueRow
+            title="Session report approvals"
+            description="Approve or return submitted CDP session reports"
+            href="/admin/cdp/approvals"
+            count={summary.pendingCdpReports}
+            countLabel="pending"
+            primary={summary.pendingCdpReports > 0}
           />
           <HubQueueRow
             title="CDP work queue"

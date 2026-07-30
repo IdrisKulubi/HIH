@@ -459,7 +459,7 @@ export function CdpReportReviewQueue({
             ? `${rejectTarget.businessName} · Session ${rejectTarget.sessionNumber}. The session owner can edit and resubmit it.`
             : undefined
         }
-        pending={pending && rejectTarget && activeSessionId === rejectTarget.sessionId}
+        pending={Boolean(pending && rejectTarget && activeSessionId === rejectTarget.sessionId)}
         onConfirm={confirmReject}
       />
     </section>
