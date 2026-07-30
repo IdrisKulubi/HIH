@@ -4,9 +4,9 @@
 import assert from "node:assert/strict";
 import type { CdpBusinessSupportSession } from "@/db/schema";
 import {
-  expectedSessionType,
   validatePreviousSessionGate,
   validatePreviousSessionPlanGate,
+  validateSessionEvidence,
 } from "./session-rules";
 
 function fakeSession(
@@ -44,9 +44,23 @@ function fakeSession(
 }
 
 function main() {
-  assert.equal(expectedSessionType(1), "physical");
-  assert.equal(expectedSessionType(2), "virtual");
-  assert.equal(expectedSessionType(6), "physical");
+  assert.equal(
+    validateSessionEvidence({
+      sessionNumber: 2,
+      sessionType: "physical",
+      evidenceUrls: ["https://example.com/photo.jpg"],
+    }),
+    null
+  );
+  assert.equal(
+    validateSessionEvidence({
+      sessionNumber: 2,
+      sessionType: "virtual",
+      evidenceUrls: [],
+      meetingLink: "https://meet.example.com/room",
+    }),
+    null
+  );
 
   assert.equal(validatePreviousSessionPlanGate(1, null), null);
   assert.equal(

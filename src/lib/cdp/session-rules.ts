@@ -2,10 +2,6 @@ import type { CdpBusinessSupportSession, CdpSessionActionItem } from "@/db/schem
 
 export type CdpSessionType = "physical" | "virtual";
 
-export function expectedSessionType(sessionNumber: number): CdpSessionType {
-  return sessionNumber === 1 || sessionNumber === 6 ? "physical" : "virtual";
-}
-
 export function validateSessionEvidence(input: {
   sessionNumber: number;
   sessionType: CdpSessionType;
@@ -13,18 +9,17 @@ export function validateSessionEvidence(input: {
   evidenceFileCount?: number;
   meetingLink?: string | null;
 }) {
-  const expected = expectedSessionType(input.sessionNumber);
-  if (input.sessionType !== expected) {
-    return `Session ${input.sessionNumber} must be ${expected}.`;
-  }
-
   const evidenceCount = input.evidenceUrls.length + (input.evidenceFileCount ?? 0);
 
-  if (expected === "physical" && evidenceCount === 0) {
+  if (input.sessionType === "physical" && evidenceCount === 0) {
     return `Session ${input.sessionNumber} is physical and requires an evidence upload or URL.`;
   }
 
-  if (expected === "virtual" && evidenceCount === 0 && !input.meetingLink?.trim()) {
+  if (
+    input.sessionType === "virtual" &&
+    evidenceCount === 0 &&
+    !input.meetingLink?.trim()
+  ) {
     return `Session ${input.sessionNumber} is virtual and requires a meeting link, evidence upload, or evidence URL.`;
   }
 

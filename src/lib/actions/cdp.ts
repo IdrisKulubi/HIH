@@ -50,7 +50,6 @@ import {
 } from "@/lib/cdp/legacy-cna-bridge";
 import { CDP_FOCUS_CODES, cdpFocusCodeSchema, cdpFocusSummaryInputSchema } from "@/lib/cdp/focus-areas";
 import {
-  expectedSessionType,
   validatePreviousSessionGate,
   validatePreviousSessionPlanGate,
   validateSessionEvidence,
@@ -1398,16 +1397,12 @@ export async function createCdpSupportSession(
     const n = parsed.data.sessionNumber;
     const focusCodes =
       parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
-    const sessionType = parsed.data.sessionType ?? expectedSessionType(n);
+    const sessionType = parsed.data.sessionType ?? "virtual";
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
     const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
       ...file,
       uploadedById: file.uploadedById ?? session.user!.id,
     }));
-    const expectedType = expectedSessionType(n);
-    if (sessionType !== expectedType) {
-      return errorResponse(`Session ${n} must be ${expectedType}.`);
-    }
 
     if (n > 1) {
       const prev = await db.query.cdpBusinessSupportSessions.findFirst({
@@ -1505,11 +1500,7 @@ export async function updateCdpSupportSession(
 
     const focusCodes =
       parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
-    const sessionType = parsed.data.sessionType ?? expectedSessionType(parsed.data.sessionNumber);
-    const expectedType = expectedSessionType(parsed.data.sessionNumber);
-    if (sessionType !== expectedType) {
-      return errorResponse(`Session ${parsed.data.sessionNumber} must be ${expectedType}.`);
-    }
+    const sessionType = parsed.data.sessionType ?? "virtual";
 
     await db
       .update(cdpBusinessSupportSessions)

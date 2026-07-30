@@ -56,7 +56,6 @@ import {
   CDP_INTERVENTION_CATALOG,
   getInterventionByKey,
 } from "@/lib/cdp/intervention-catalog";
-import { expectedSessionType } from "@/lib/cdp/session-rules";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2446,11 +2445,6 @@ function CdpSessionsPanel({
               min={1}
               max={6}
               required
-              onChange={(e) => {
-                const n = Number(e.currentTarget.value);
-                const select = e.currentTarget.form?.elements.namedItem("sessionType") as HTMLSelectElement | null;
-                if (select && Number.isFinite(n)) select.value = expectedSessionType(n);
-              }}
             />
           </div>
           <div className="space-y-1">
