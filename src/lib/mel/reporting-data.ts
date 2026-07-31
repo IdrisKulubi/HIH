@@ -190,8 +190,8 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     db.select({ id: applications.id, businessId: applications.businessId }).from(applications),
     db.select({ id: cnaAssessments.id, businessId: cnaAssessments.businessId }).from(cnaAssessments).where(eq(cnaAssessments.status, "locked")),
     db.select({ id: capacityDevelopmentPlans.id, businessId: capacityDevelopmentPlans.businessId }).from(capacityDevelopmentPlans).where(eq(capacityDevelopmentPlans.status, "active")),
-    db.select({ userId: kajabiUserMapping.userId, externalId: kajabiUserMapping.kajabiExternalId }).from(kajabiUserMapping).where(eq(kajabiUserMapping.hasActiveAccess, true)),
-    db.select({ id: kajabiProgressWebhooks.id, externalId: kajabiProgressWebhooks.kajabiExternalId, eventTitle: kajabiProgressWebhooks.eventTitle }).from(kajabiProgressWebhooks),
+    safeKajabiMappings(),
+    safeKajabiEvents(),
   ]);
 
   const scopedAllSubmissions = allSubmissions.filter((submission) => {
@@ -392,6 +392,58 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
 
 function unique(values: Array<string | null>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))].sort();
+}
+
+function isMissingRelation(error: unknown, tableName: string) {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (current instanceof Error) {
+      parts.push(current.message);
+      current = current.cause;
+      continue;
+    }
+    parts.push(String(current));
+    break;
+  }
+  const message = parts.join("\n");
+  return (
+    message.includes(tableName) &&
+    (message.includes("does not exist") ||
+      message.includes("42P01") ||
+      // Drizzle often surfaces only the failed SQL when the relation is missing.
+      message.includes("Failed query"))
+  );
+}
+
+async function safeKajabiMappings() {
+  try {
+    return await db
+      .select({
+        userId: kajabiUserMapping.userId,
+        externalId: kajabiUserMapping.kajabiExternalId,
+      })
+      .from(kajabiUserMapping)
+      .where(eq(kajabiUserMapping.hasActiveAccess, true));
+  } catch (error) {
+    if (isMissingRelation(error, "kajabi_user_mapping")) return [];
+    throw error;
+  }
+}
+
+async function safeKajabiEvents() {
+  try {
+    return await db
+      .select({
+        id: kajabiProgressWebhooks.id,
+        externalId: kajabiProgressWebhooks.kajabiExternalId,
+        eventTitle: kajabiProgressWebhooks.eventTitle,
+      })
+      .from(kajabiProgressWebhooks);
+  } catch (error) {
+    if (isMissingRelation(error, "kajabi_progress_webhooks")) return [];
+    throw error;
+  }
 }
 
 function sum<T>(values: T[], selector: (value: T) => number): number {

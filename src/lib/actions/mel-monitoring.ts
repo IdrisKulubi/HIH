@@ -47,6 +47,7 @@ export type MelMonitoringWorkspaceRow = {
   businessId: number;
   businessName: string;
   applicantName: string;
+  email: string;
   track: string | null;
   sector: string;
   county: string | null;
@@ -154,6 +155,7 @@ export async function getMelMonitoringWorkspace(): Promise<ActionResponse<MelMon
           businessId: businesses.id,
           businessName: businesses.name,
           applicantName: sql<string>`${applicants.firstName} || ' ' || ${applicants.lastName}`,
+          email: applicants.email,
           track: applications.track,
           sector: businesses.sector,
           county: businesses.county,

@@ -64,4 +64,4 @@ CREATE INDEX "mel_operational_events_type_created_idx" ON "mel_operational_event
 CREATE INDEX "mel_operational_events_severity_idx" ON "mel_operational_events" ("severity","resolved_at");
 CREATE INDEX "mel_operational_checks_category_status_idx" ON "mel_operational_checks" ("category","status");
 --> statement-breakpoint
-INSERT INTO "mel_rollout_control" ("id") VALUES (1) ON CONFLICT ("id") DO NOTHING;
+INSERT INTO "mel_rollout_control" ("id", "collection_enabled", "reporting_enabled") VALUES (1, true, true) ON CONFLICT ("id") DO NOTHING;

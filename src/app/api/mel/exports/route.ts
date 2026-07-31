@@ -59,8 +59,16 @@ export async function GET(request: Request) {
     return new Response(csv, { headers: downloadHeaders(`${fileBase}.csv`, "text/csv; charset=utf-8") });
   } catch (error) {
     console.error("MEL export failed", error);
-    await recordMelOperationalEvent({ severity: "error", eventType: "export_failed", message: error instanceof Error ? error.message : "MEL export failed." });
-    return Response.json({ error: error instanceof Error ? error.message : "MEL export failed." }, { status: 403 });
+    try {
+      await recordMelOperationalEvent({
+        severity: "error",
+        eventType: "export_failed",
+        message: error instanceof Error ? error.message : "MEL export failed.",
+      });
+    } catch (eventError) {
+      console.error("MEL export failure event could not be recorded", eventError);
+    }
+    return Response.json({ error: error instanceof Error ? error.message : "MEL export failed." }, { status: 500 });
   }
 }
 
