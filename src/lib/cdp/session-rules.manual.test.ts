@@ -35,6 +35,7 @@ function fakeSession(
     evidenceFiles: [],
     conductedById: "user-1",
     approvalStatus: "pending",
+    rejectionReason: null,
     approvedById: null,
     approvedAt: null,
     createdAt: new Date(),

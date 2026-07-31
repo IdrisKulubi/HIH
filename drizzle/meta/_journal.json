@@ -225,6 +225,48 @@
       "when": 1784073600000,
       "tag": "0031_cdp_session_reporting_split",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784246400000,
+      "tag": "0032_cdp_session_rejection_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785456000000,
+      "tag": "0033_mel_phase1_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0034_mel_phase2_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785628800000,
+      "tag": "0035_mel_phase3_review_dqa",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1785715200000,
+      "tag": "0036_mel_phase4_reporting",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785801600000,
+      "tag": "0037_mel_phase5_operations",
+      "breakpoints": true
     }
   ]
 }

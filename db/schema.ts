@@ -13,7 +13,8 @@ import {
   primaryKey,
   index,
   uniqueIndex,
-  jsonb
+  jsonb,
+  check
 } from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
@@ -232,6 +233,127 @@ export const mentorshipMatchStatusEnum = pgEnum('mentorship_match_status', [
   'completed',
   'terminated'
 ]);
+
+/** MEL Phase 1: reporting calendar, ITT catalogue, targets, and audit trail. */
+export const melReportingPeriodStatusEnum = pgEnum('mel_reporting_period_status', [
+  'planned',
+  'open',
+  'closed',
+  'archived'
+]);
+export const melResultLevelEnum = pgEnum('mel_result_level', [
+  'impact',
+  'long_term_outcome',
+  'output',
+  'operational'
+]);
+export const melIndicatorUnitEnum = pgEnum('mel_indicator_unit', [
+  'count',
+  'kes',
+  'percentage',
+  'kilograms',
+  'status',
+  'score'
+]);
+export const melIndicatorSourceTypeEnum = pgEnum('mel_indicator_source_type', [
+  'system',
+  'quarterly_enterprise_form',
+  'programme_mel_entry',
+  'integration',
+  'derived'
+]);
+export const melAggregationEnum = pgEnum('mel_aggregation', [
+  'sum',
+  'median',
+  'count',
+  'distinct_count',
+  'ratio',
+  'latest_value'
+]);
+
+export const melMonitoringStatusEnum = pgEnum('mel_monitoring_status', [
+  'draft',
+  'submitted',
+  'returned',
+  'resubmitted',
+  'redo_review',
+  'returned_by_redo',
+  'mel_review',
+  'returned_by_mel',
+  'approved',
+  'reopened',
+  'voided',
+]);
+
+export const melMonitoringSourceModeEnum = pgEnum('mel_monitoring_source_mode', [
+  'current',
+  'catch_up',
+]);
+
+export const melJobTypeEnum = pgEnum('mel_job_type', ['direct', 'indirect']);
+export const melEvidenceStatusEnum = pgEnum('mel_evidence_status', ['active', 'removed']);
+export const melAchievementStatusEnum = pgEnum('mel_achievement_status', [
+  'pending',
+  'approved',
+  'rejected',
+]);
+
+export const melReviewStageEnum = pgEnum('mel_review_stage', ['redo', 'mel', 'administrative']);
+export const melReviewActionEnum = pgEnum('mel_review_action', [
+  'advanced',
+  'returned',
+  'approved',
+  'reopened',
+  'voided',
+  'reassigned',
+]);
+export const melDqaCategoryEnum = pgEnum('mel_dqa_category', [
+  'completeness',
+  'consistency',
+  'plausibility',
+  'timeliness',
+]);
+export const melDqaStatusEnum = pgEnum('mel_dqa_status', ['open', 'accepted', 'resolved']);
+export const melEvidenceReviewStatusEnum = pgEnum('mel_evidence_review_status', [
+  'pending',
+  'verified',
+  'rejected',
+]);
+export const melLearningActionStatusEnum = pgEnum('mel_learning_action_status', [
+  'open',
+  'in_progress',
+  'completed',
+  'cancelled',
+]);
+export const melNotificationStatusEnum = pgEnum('mel_notification_status', [
+  'pending',
+  'sent',
+  'failed',
+]);
+export const melProgrammeResultStatusEnum = pgEnum('mel_programme_result_status', [
+  'draft',
+  'approved',
+  'reopened',
+  'voided',
+]);
+export const melTrafficLightEnum = pgEnum('mel_traffic_light', [
+  'red',
+  'amber',
+  'green',
+  'not_available',
+]);
+export const melInstrumentTypeEnum = pgEnum('mel_instrument_type', [
+  'baseline', 'quarterly_monitoring', 'midline', 'endline', 'special_study',
+]);
+export const melInstrumentStatusEnum = pgEnum('mel_instrument_status', ['draft', 'published', 'retired']);
+export const melQuestionResponseTypeEnum = pgEnum('mel_question_response_type', [
+  'short_text', 'long_text', 'integer', 'decimal', 'currency', 'percentage', 'date', 'boolean', 'single_select', 'multi_select', 'file',
+]);
+export const melImportProviderEnum = pgEnum('mel_import_provider', ['kobo', 'odk', 'file', 'legacy']);
+export const melImportStatusEnum = pgEnum('mel_import_status', ['pending', 'processing', 'completed', 'completed_with_errors', 'failed']);
+export const melImportRecordStatusEnum = pgEnum('mel_import_record_status', ['quarantined', 'validated', 'promoted', 'duplicate', 'rejected']);
+export const melOperationalCheckStatusEnum = pgEnum('mel_operational_check_status', ['not_started', 'in_progress', 'passed', 'failed', 'waived']);
+export const melRolloutStageEnum = pgEnum('mel_rollout_stage', ['internal_test', 'pilot', 'programme_rollout', 'stabilization', 'complete']);
 
 /** BIRE Capacity Development Plan (CDP) */
 export const cdpPlanStatusEnum = pgEnum('cdp_plan_status', ['draft', 'active', 'archived']);
@@ -1279,6 +1401,837 @@ export const businessPerformanceMetrics = pgTable(
   })
 );
 
+export const melProgrammeSettings = pgTable(
+  'mel_programme_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    programmeName: varchar('programme_name', { length: 255 }).default('BIRE Programme').notNull(),
+    timezone: varchar('timezone', { length: 100 }).default('Africa/Nairobi').notNull(),
+    redThreshold: decimal('red_threshold', { precision: 5, scale: 2 }).default('50').notNull(),
+    greenThreshold: decimal('green_threshold', { precision: 5, scale: 2 }).default('80').notNull(),
+    financiallyResilientDefinition: text('financially_resilient_definition'),
+    includeRefugeeDisaggregation: boolean('include_refugee_disaggregation').default(false).notNull(),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    singletonId: check('mel_programme_settings_singleton_id_check', sql`${table.id} = 1`),
+    thresholdOrder: check(
+      'mel_programme_settings_threshold_order_check',
+      sql`${table.redThreshold} >= 0 AND ${table.greenThreshold} <= 100 AND ${table.redThreshold} < ${table.greenThreshold}`
+    ),
+  })
+);
+
+export const melReportingPeriods = pgTable(
+  'mel_reporting_periods',
+  {
+    id: serial('id').primaryKey(),
+    code: varchar('code', { length: 30 }).notNull().unique(),
+    label: varchar('label', { length: 120 }).notNull(),
+    programmeYear: integer('programme_year').notNull(),
+    sequence: integer('sequence').notNull(),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    collectionOpenDate: date('collection_open_date', { mode: 'string' }).notNull(),
+    collectionCloseDate: date('collection_close_date', { mode: 'string' }).notNull(),
+    status: melReportingPeriodStatusEnum('status').default('planned').notNull(),
+    allowCatchUp: boolean('allow_catch_up').default(true).notNull(),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    programmeSequenceUnique: uniqueIndex('mel_reporting_periods_programme_sequence_unique')
+      .on(table.programmeYear, table.sequence),
+    statusIdx: index('mel_reporting_periods_status_idx').on(table.status),
+    datesIdx: index('mel_reporting_periods_dates_idx').on(table.startDate, table.endDate),
+    dateOrder: check('mel_reporting_periods_date_order_check', sql`${table.startDate} <= ${table.endDate}`),
+    collectionDateOrder: check(
+      'mel_reporting_periods_collection_date_order_check',
+      sql`${table.collectionOpenDate} <= ${table.collectionCloseDate}`
+    ),
+  })
+);
+
+export const melIndicatorDefinitions = pgTable(
+  'mel_indicator_definitions',
+  {
+    id: serial('id').primaryKey(),
+    code: varchar('code', { length: 80 }).notNull().unique(),
+    resultCode: varchar('result_code', { length: 40 }).notNull(),
+    resultLevel: melResultLevelEnum('result_level').notNull(),
+    resultStatement: text('result_statement').notNull(),
+    name: text('name').notNull(),
+    definition: text('definition'),
+    unit: melIndicatorUnitEnum('unit').notNull(),
+    sourceType: melIndicatorSourceTypeEnum('source_type').notNull(),
+    frequency: varchar('frequency', { length: 40 }).default('quarterly').notNull(),
+    aggregation: melAggregationEnum('aggregation').notNull(),
+    lowerIsBetter: boolean('lower_is_better').default(false).notNull(),
+    numeratorDefinition: text('numerator_definition'),
+    denominatorDefinition: text('denominator_definition'),
+    disaggregationDimensions: jsonb('disaggregation_dimensions').$type<string[]>().default([]).notNull(),
+    evidenceRequired: boolean('evidence_required').default(false).notNull(),
+    isOneTime: boolean('is_one_time').default(false).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    version: integer('version').default(1).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    unresolvedNotes: text('unresolved_notes'),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    resultCodeIdx: index('mel_indicator_definitions_result_code_idx').on(table.resultCode),
+    activeIdx: index('mel_indicator_definitions_active_idx').on(table.isActive),
+    sourceIdx: index('mel_indicator_definitions_source_idx').on(table.sourceType),
+    versionPositive: check('mel_indicator_definitions_version_positive_check', sql`${table.version} > 0`),
+  })
+);
+
+export const melIndicatorBaselines = pgTable(
+  'mel_indicator_baselines',
+  {
+    id: serial('id').primaryKey(),
+    indicatorId: integer('indicator_id')
+      .notNull()
+      .references(() => melIndicatorDefinitions.id, { onDelete: 'cascade' }),
+    segmentKey: varchar('segment_key', { length: 100 }).default('overall').notNull(),
+    value: decimal('value', { precision: 18, scale: 4 }),
+    valueText: text('value_text'),
+    periodLabel: varchar('period_label', { length: 100 }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    indicatorSegmentUnique: uniqueIndex('mel_indicator_baselines_indicator_segment_unique')
+      .on(table.indicatorId, table.segmentKey),
+    indicatorIdx: index('mel_indicator_baselines_indicator_id_idx').on(table.indicatorId),
+    valuePresent: check(
+      'mel_indicator_baselines_value_present_check',
+      sql`${table.value} IS NOT NULL OR ${table.valueText} IS NOT NULL`
+    ),
+  })
+);
+
+export const melIndicatorTargets = pgTable(
+  'mel_indicator_targets',
+  {
+    id: serial('id').primaryKey(),
+    indicatorId: integer('indicator_id')
+      .notNull()
+      .references(() => melIndicatorDefinitions.id, { onDelete: 'cascade' }),
+    programmeYear: integer('programme_year').notNull(),
+    reportingPeriodId: integer('reporting_period_id').references(() => melReportingPeriods.id, {
+      onDelete: 'cascade',
+    }),
+    segmentKey: varchar('segment_key', { length: 100 }).default('overall').notNull(),
+    value: decimal('value', { precision: 18, scale: 4 }),
+    valueText: text('value_text'),
+    notes: text('notes'),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    annualTargetUnique: uniqueIndex('mel_indicator_targets_annual_unique')
+      .on(table.indicatorId, table.programmeYear, table.segmentKey)
+      .where(sql`${table.reportingPeriodId} IS NULL`),
+    periodTargetUnique: uniqueIndex('mel_indicator_targets_period_unique')
+      .on(table.indicatorId, table.reportingPeriodId, table.segmentKey)
+      .where(sql`${table.reportingPeriodId} IS NOT NULL`),
+    indicatorIdx: index('mel_indicator_targets_indicator_id_idx').on(table.indicatorId),
+    periodIdx: index('mel_indicator_targets_period_id_idx').on(table.reportingPeriodId),
+    valuePresent: check(
+      'mel_indicator_targets_value_present_check',
+      sql`${table.value} IS NOT NULL OR ${table.valueText} IS NOT NULL`
+    ),
+  })
+);
+
+export const melAuditEvents = pgTable(
+  'mel_audit_events',
+  {
+    id: serial('id').primaryKey(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    actorRole: varchar('actor_role', { length: 50 }).notNull(),
+    entityType: varchar('entity_type', { length: 80 }).notNull(),
+    entityId: varchar('entity_id', { length: 100 }).notNull(),
+    action: varchar('action', { length: 80 }).notNull(),
+    reason: text('reason'),
+    before: jsonb('before').$type<Record<string, unknown> | null>(),
+    after: jsonb('after').$type<Record<string, unknown> | null>(),
+    correlationId: varchar('correlation_id', { length: 100 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    entityIdx: index('mel_audit_events_entity_idx').on(table.entityType, table.entityId),
+    actorIdx: index('mel_audit_events_actor_id_idx').on(table.actorId),
+    createdAtIdx: index('mel_audit_events_created_at_idx').on(table.createdAt),
+  })
+);
+
+export const melEnterpriseAssignments = pgTable(
+  'mel_enterprise_assignments',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    collectorId: text('collector_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    assignedById: text('assigned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    isActive: boolean('is_active').default(true).notNull(),
+    assignedAt: timestamp('assigned_at').defaultNow().notNull(),
+    endedAt: timestamp('ended_at'),
+  },
+  (table) => ({
+    activeAssignmentUnique: uniqueIndex('mel_enterprise_assignments_active_unique')
+      .on(table.businessId, table.collectorId)
+      .where(sql`${table.isActive} = true`),
+    collectorIdx: index('mel_enterprise_assignments_collector_idx').on(table.collectorId, table.isActive),
+    businessIdx: index('mel_enterprise_assignments_business_idx').on(table.businessId, table.isActive),
+  })
+);
+
+export const melMonitoringSubmissions = pgTable(
+  'mel_monitoring_submissions',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    reportingPeriodId: integer('reporting_period_id')
+      .notNull()
+      .references(() => melReportingPeriods.id, { onDelete: 'restrict' }),
+    instrumentCode: varchar('instrument_code', { length: 80 }).default('quarterly_enterprise_monitoring').notNull(),
+    collectorId: text('collector_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    collectorRole: varchar('collector_role', { length: 50 }).notNull(),
+    assignedRedoId: text('assigned_redo_id').references(() => users.id, { onDelete: 'set null' }),
+    sourceMode: melMonitoringSourceModeEnum('source_mode').default('current').notNull(),
+    visitDate: date('visit_date'),
+    status: melMonitoringStatusEnum('status').default('draft').notNull(),
+    submissionVersion: integer('submission_version').default(1).notNull(),
+    returnCount: integer('return_count').default(0).notNull(),
+    resubmissionCount: integer('resubmission_count').default(0).notNull(),
+    profileSnapshot: jsonb('profile_snapshot').$type<Record<string, unknown>>().default({}).notNull(),
+    instrumentVersion: integer('instrument_version').default(1).notNull(),
+    lastSavedAt: timestamp('last_saved_at').defaultNow().notNull(),
+    submittedAt: timestamp('submitted_at'),
+    approvedAt: timestamp('approved_at'),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reopenedAt: timestamp('reopened_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessPeriodInstrumentUnique: uniqueIndex('mel_monitoring_submission_business_period_instrument_unique')
+      .on(table.businessId, table.reportingPeriodId, table.instrumentCode),
+    collectorIdx: index('mel_monitoring_submission_collector_idx').on(table.collectorId, table.status),
+    businessIdx: index('mel_monitoring_submission_business_idx').on(table.businessId),
+    periodIdx: index('mel_monitoring_submission_period_idx').on(table.reportingPeriodId),
+    statusPeriodIdx: index('mel_monitoring_submissions_status_period_idx').on(table.status, table.reportingPeriodId),
+    versionPositive: check('mel_monitoring_submission_version_positive_check', sql`${table.submissionVersion} > 0`),
+  })
+);
+
+export const melMonitoringResponses = pgTable(
+  'mel_monitoring_responses',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .unique()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+
+    businessPlanImproved: boolean('business_plan_improved'),
+
+    revenue: decimal('revenue', { precision: 18, scale: 2 }),
+    costs: decimal('costs', { precision: 18, scale: 2 }),
+    profitLoss: decimal('profit_loss', { precision: 18, scale: 2 }),
+    financialChangeExplanation: text('financial_change_explanation'),
+
+    marketResearchCompleted: boolean('market_research_completed'),
+    marketIntelligenceAccessed: boolean('market_intelligence_accessed'),
+    newMarketSegments: integer('new_market_segments'),
+    technologyAdopted: boolean('technology_adopted'),
+    technologyDetails: text('technology_details'),
+    newProductsDeveloped: boolean('new_products_developed'),
+    newProductsDetails: text('new_products_details'),
+
+    linkedToFinanceProvider: boolean('linked_to_finance_provider'),
+    financeType: varchar('finance_type', { length: 120 }),
+    financeTypeOther: text('finance_type_other'),
+    financeValue: decimal('finance_value', { precision: 18, scale: 2 }),
+    financialPlanCompleted: boolean('financial_plan_completed'),
+    activeInsurance: boolean('active_insurance'),
+    investorReadinessCompleted: boolean('investor_readiness_completed'),
+
+    lifeCycleAssessmentCompleted: boolean('life_cycle_assessment_completed'),
+    ecoCertificationActive: boolean('eco_certification_active'),
+    esgReportCompleted: boolean('esg_report_completed'),
+    socialSafeguardingGuidelines: boolean('social_safeguarding_guidelines'),
+    circularGrowthReported: boolean('circular_growth_reported'),
+    circularGrowthValue: decimal('circular_growth_value', { precision: 18, scale: 2 }),
+
+    strategicPartnerships: boolean('strategic_partnerships'),
+    strategicPartnershipDetails: text('strategic_partnership_details'),
+    forumParticipation: boolean('forum_participation'),
+    forumDetails: text('forum_details'),
+    publicPrivatePartnership: boolean('public_private_partnership'),
+    publicPrivatePartnershipDetails: text('public_private_partnership_details'),
+
+    mainChallenges: text('main_challenges'),
+    negativeProgrammeImpacts: text('negative_programme_impacts'),
+    additionalSupportNeeded: text('additional_support_needed'),
+    collectorComment: text('collector_comment'),
+    completedSections: jsonb('completed_sections').$type<string[]>().default([]).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionIdx: index('mel_monitoring_responses_submission_idx').on(table.submissionId),
+    nonNegativeFinancials: check(
+      'mel_monitoring_responses_non_negative_financials_check',
+      sql`(${table.revenue} IS NULL OR ${table.revenue} >= 0)
+        AND (${table.costs} IS NULL OR ${table.costs} >= 0)
+        AND (${table.financeValue} IS NULL OR ${table.financeValue} >= 0)
+        AND (${table.circularGrowthValue} IS NULL OR ${table.circularGrowthValue} >= 0)
+        AND (${table.newMarketSegments} IS NULL OR ${table.newMarketSegments} >= 0)`
+    ),
+  })
+);
+
+export const melMonitoringJobs = pgTable(
+  'mel_monitoring_jobs',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    jobType: melJobTypeEnum('job_type').notNull(),
+    quarterlyTotal: integer('quarterly_total'),
+    male: integer('male'),
+    female: integer('female'),
+    youth: integer('youth'),
+    plwd: integer('plwd'),
+    refugee: integer('refugee'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionTypeUnique: uniqueIndex('mel_monitoring_jobs_submission_type_unique')
+      .on(table.submissionId, table.jobType),
+    submissionIdx: index('mel_monitoring_jobs_submission_idx').on(table.submissionId),
+    validBreakdown: check(
+      'mel_monitoring_jobs_valid_breakdown_check',
+      sql`(${table.quarterlyTotal} IS NULL OR ${table.quarterlyTotal} >= 0)
+        AND (${table.male} IS NULL OR ${table.male} >= 0)
+        AND (${table.female} IS NULL OR ${table.female} >= 0)
+        AND (${table.youth} IS NULL OR ${table.youth} >= 0)
+        AND (${table.plwd} IS NULL OR ${table.plwd} >= 0)
+        AND (${table.refugee} IS NULL OR ${table.refugee} >= 0)
+        AND (${table.quarterlyTotal} IS NULL OR ${table.male} IS NULL OR ${table.female} IS NULL OR ${table.male} + ${table.female} = ${table.quarterlyTotal})
+        AND (${table.quarterlyTotal} IS NULL OR ${table.youth} IS NULL OR ${table.youth} <= ${table.quarterlyTotal})
+        AND (${table.quarterlyTotal} IS NULL OR ${table.plwd} IS NULL OR ${table.plwd} <= ${table.quarterlyTotal})
+        AND (${table.quarterlyTotal} IS NULL OR ${table.refugee} IS NULL OR ${table.refugee} <= ${table.quarterlyTotal})`
+    ),
+  })
+);
+
+export const melMonitoringWaste = pgTable(
+  'mel_monitoring_waste',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    wasteStream: varchar('waste_stream', { length: 80 }).notNull(),
+    kilograms: decimal('kilograms', { precision: 18, scale: 3 }).default('0').notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionStreamUnique: uniqueIndex('mel_monitoring_waste_submission_stream_unique')
+      .on(table.submissionId, table.wasteStream),
+    nonNegative: check('mel_monitoring_waste_non_negative_check', sql`${table.kilograms} >= 0`),
+  })
+);
+
+export const melMonitoringEvidence = pgTable(
+  'mel_monitoring_evidence',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    questionCode: varchar('question_code', { length: 100 }).notNull(),
+    fileKey: varchar('file_key', { length: 255 }).notNull(),
+    fileUrl: text('file_url').notNull(),
+    fileName: varchar('file_name', { length: 255 }).notNull(),
+    fileType: varchar('file_type', { length: 150 }).notNull(),
+    fileSize: integer('file_size'),
+    uploaderId: text('uploader_id').references(() => users.id, { onDelete: 'set null' }),
+    replacesEvidenceId: integer('replaces_evidence_id'),
+    status: melEvidenceStatusEnum('status').default('active').notNull(),
+    removedAt: timestamp('removed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionIdx: index('mel_monitoring_evidence_submission_idx').on(table.submissionId),
+    questionIdx: index('mel_monitoring_evidence_question_idx').on(table.questionCode, table.status),
+  })
+);
+
+export const melEnterpriseAchievements = pgTable(
+  'mel_enterprise_achievements',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id')
+      .notNull()
+      .references(() => businesses.id, { onDelete: 'cascade' }),
+    indicatorId: integer('indicator_id')
+      .notNull()
+      .references(() => melIndicatorDefinitions.id, { onDelete: 'restrict' }),
+    firstSubmissionId: integer('first_submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'restrict' }),
+    evidenceId: integer('evidence_id').references(() => melMonitoringEvidence.id, { onDelete: 'set null' }),
+    status: melAchievementStatusEnum('status').default('pending').notNull(),
+    approvedPeriodId: integer('approved_period_id').references(() => melReportingPeriods.id, {
+      onDelete: 'set null',
+    }),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at'),
+    reopenedAt: timestamp('reopened_at'),
+    reopenedById: text('reopened_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reopenedReason: text('reopened_reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    businessIndicatorUnique: uniqueIndex('mel_enterprise_achievements_business_indicator_unique')
+      .on(table.businessId, table.indicatorId),
+    businessIdx: index('mel_enterprise_achievements_business_idx').on(table.businessId, table.status),
+  })
+);
+
+export const melMonitoringVersions = pgTable(
+  'mel_monitoring_versions',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    status: melMonitoringStatusEnum('status').notNull(),
+    responseSnapshot: jsonb('response_snapshot').$type<Record<string, unknown> | null>(),
+    jobsSnapshot: jsonb('jobs_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    wasteSnapshot: jsonb('waste_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    evidenceSnapshot: jsonb('evidence_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    capturedById: text('captured_by_id').references(() => users.id, { onDelete: 'set null' }),
+    capturedAt: timestamp('captured_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionVersionUnique: uniqueIndex('mel_monitoring_versions_submission_version_unique')
+      .on(table.submissionId, table.version),
+    submissionIdx: index('mel_monitoring_versions_submission_idx').on(table.submissionId),
+  })
+);
+
+export const melReviewDecisions = pgTable(
+  'mel_review_decisions',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    stage: melReviewStageEnum('stage').notNull(),
+    action: melReviewActionEnum('action').notNull(),
+    reviewerId: text('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewerRole: varchar('reviewer_role', { length: 50 }).notNull(),
+    fromStatus: melMonitoringStatusEnum('from_status').notNull(),
+    toStatus: melMonitoringStatusEnum('to_status').notNull(),
+    reason: text('reason'),
+    affectedQuestions: jsonb('affected_questions').$type<string[]>().default([]).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionIdx: index('mel_review_decisions_submission_idx').on(table.submissionId, table.createdAt),
+    reviewerIdx: index('mel_review_decisions_reviewer_idx').on(table.reviewerId),
+  })
+);
+
+export const melDqaIssues = pgTable(
+  'mel_dqa_issues',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    submissionVersion: integer('submission_version').notNull(),
+    ruleCode: varchar('rule_code', { length: 100 }).notNull(),
+    category: melDqaCategoryEnum('category').notNull(),
+    severity: varchar('severity', { length: 20 }).$type<'error' | 'warning'>().notNull(),
+    questionCode: varchar('question_code', { length: 100 }),
+    message: text('message').notNull(),
+    observedValue: jsonb('observed_value'),
+    comparisonValue: jsonb('comparison_value'),
+    status: melDqaStatusEnum('status').default('open').notNull(),
+    resolutionReason: text('resolution_reason'),
+    resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ruleVersionUnique: uniqueIndex('mel_dqa_issues_rule_version_unique')
+      .on(table.submissionId, table.submissionVersion, table.ruleCode),
+    submissionIdx: index('mel_dqa_issues_submission_idx').on(table.submissionId, table.status),
+  })
+);
+
+export const melEvidenceReviews = pgTable(
+  'mel_evidence_reviews',
+  {
+    id: serial('id').primaryKey(),
+    evidenceId: integer('evidence_id')
+      .notNull()
+      .references(() => melMonitoringEvidence.id, { onDelete: 'cascade' }),
+    reviewerId: text('reviewer_id').references(() => users.id, { onDelete: 'set null' }),
+    status: melEvidenceReviewStatusEnum('status').default('pending').notNull(),
+    notes: text('notes'),
+    reviewedAt: timestamp('reviewed_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    evidenceReviewerUnique: uniqueIndex('mel_evidence_reviews_evidence_reviewer_unique')
+      .on(table.evidenceId, table.reviewerId),
+    evidenceIdx: index('mel_evidence_reviews_evidence_idx').on(table.evidenceId, table.status),
+  })
+);
+
+export const melLearningActions = pgTable(
+  'mel_learning_actions',
+  {
+    id: serial('id').primaryKey(),
+    businessId: integer('business_id').references(() => businesses.id, { onDelete: 'cascade' }),
+    submissionId: integer('submission_id').references(() => melMonitoringSubmissions.id, {
+      onDelete: 'set null',
+    }),
+    dqaIssueId: integer('dqa_issue_id').references(() => melDqaIssues.id, { onDelete: 'set null' }),
+    finding: text('finding').notNull(),
+    agreedAction: text('agreed_action').notNull(),
+    responsibleUserId: text('responsible_user_id').references(() => users.id, { onDelete: 'set null' }),
+    dueDate: date('due_date'),
+    status: melLearningActionStatusEnum('status').default('open').notNull(),
+    followUpNotes: text('follow_up_notes'),
+    evidenceUrl: text('evidence_url'),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    closedById: text('closed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    closedAt: timestamp('closed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerStatusIdx: index('mel_learning_actions_owner_status_idx').on(table.responsibleUserId, table.status),
+    businessIdx: index('mel_learning_actions_business_idx').on(table.businessId),
+    dueDateIdx: index('mel_learning_actions_due_date_idx').on(table.dueDate, table.status),
+  })
+);
+
+export const melNotificationOutbox = pgTable(
+  'mel_notification_outbox',
+  {
+    id: serial('id').primaryKey(),
+    eventKey: varchar('event_key', { length: 180 }).notNull().unique(),
+    recipientId: text('recipient_id').references(() => users.id, { onDelete: 'cascade' }),
+    eventType: varchar('event_type', { length: 80 }).notNull(),
+    title: varchar('title', { length: 255 }).notNull(),
+    body: text('body').notNull(),
+    href: text('href').notNull(),
+    status: melNotificationStatusEnum('status').default('pending').notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    lastError: text('last_error'),
+    sentAt: timestamp('sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    recipientStatusIdx: index('mel_notification_outbox_recipient_status_idx').on(table.recipientId, table.status),
+    eventTypeIdx: index('mel_notification_outbox_event_type_idx').on(table.eventType),
+  })
+);
+
+/** Phase 4: approved manual programme results and deterministic materialized ITT actuals. */
+export const melProgrammeResults = pgTable(
+  'mel_programme_results',
+  {
+    id: serial('id').primaryKey(),
+    indicatorId: integer('indicator_id')
+      .notNull()
+      .references(() => melIndicatorDefinitions.id, { onDelete: 'restrict' }),
+    reportingPeriodId: integer('reporting_period_id')
+      .notNull()
+      .references(() => melReportingPeriods.id, { onDelete: 'restrict' }),
+    segmentKey: varchar('segment_key', { length: 100 }).default('overall').notNull(),
+    value: decimal('value', { precision: 18, scale: 4 }),
+    valueText: text('value_text'),
+    numerator: decimal('numerator', { precision: 18, scale: 4 }),
+    denominator: decimal('denominator', { precision: 18, scale: 4 }),
+    notes: text('notes'),
+    evidenceUrl: text('evidence_url'),
+    status: melProgrammeResultStatusEnum('status').default('draft').notNull(),
+    enteredById: text('entered_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at'),
+    reopenedAt: timestamp('reopened_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    indicatorPeriodSegmentUnique: uniqueIndex('mel_programme_results_indicator_period_segment_unique')
+      .on(table.indicatorId, table.reportingPeriodId, table.segmentKey),
+    statusPeriodIdx: index('mel_programme_results_status_period_idx').on(table.status, table.reportingPeriodId),
+    indicatorIdx: index('mel_programme_results_indicator_idx').on(table.indicatorId),
+    valuePresent: check(
+      'mel_programme_results_value_present_check',
+      sql`${table.value} IS NOT NULL OR ${table.valueText} IS NOT NULL OR (${table.numerator} IS NOT NULL AND ${table.denominator} IS NOT NULL)`
+    ),
+  })
+);
+
+export const melIndicatorResults = pgTable(
+  'mel_indicator_results',
+  {
+    id: serial('id').primaryKey(),
+    indicatorId: integer('indicator_id')
+      .notNull()
+      .references(() => melIndicatorDefinitions.id, { onDelete: 'cascade' }),
+    reportingPeriodId: integer('reporting_period_id').references(() => melReportingPeriods.id, {
+      onDelete: 'cascade',
+    }),
+    programmeYear: integer('programme_year').notNull(),
+    segmentKey: varchar('segment_key', { length: 100 }).default('overall').notNull(),
+    actual: decimal('actual', { precision: 18, scale: 4 }),
+    numerator: decimal('numerator', { precision: 18, scale: 4 }),
+    denominator: decimal('denominator', { precision: 18, scale: 4 }),
+    target: decimal('target', { precision: 18, scale: 4 }),
+    achievementPercentage: decimal('achievement_percentage', { precision: 12, scale: 4 }),
+    trafficLight: melTrafficLightEnum('traffic_light').default('not_available').notNull(),
+    calculationVersion: integer('calculation_version').default(1).notNull(),
+    indicatorVersion: integer('indicator_version').notNull(),
+    calculationRule: text('calculation_rule').notNull(),
+    sourceCount: integer('source_count').default(0).notNull(),
+    lineage: jsonb('lineage').$type<Record<string, unknown>>().default({}).notNull(),
+    exclusions: jsonb('exclusions').$type<string[]>().default([]).notNull(),
+    calculationHash: varchar('calculation_hash', { length: 64 }).notNull(),
+    calculatedById: text('calculated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    calculatedAt: timestamp('calculated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    indicatorPeriodSegmentUnique: uniqueIndex('mel_indicator_results_indicator_period_segment_unique')
+      .on(table.indicatorId, table.reportingPeriodId, table.programmeYear, table.segmentKey),
+    periodIdx: index('mel_indicator_results_period_idx').on(table.reportingPeriodId, table.trafficLight),
+    indicatorIdx: index('mel_indicator_results_indicator_idx').on(table.indicatorId, table.segmentKey),
+    yearIdx: index('mel_indicator_results_year_idx').on(table.programmeYear),
+  })
+);
+
+/** Phase 5: configurable instruments, imports, rollout controls, and operational proof. */
+export const melInstruments = pgTable('mel_instruments', {
+  id: serial('id').primaryKey(),
+  code: varchar('code', { length: 80 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  type: melInstrumentTypeEnum('type').notNull(),
+  status: melInstrumentStatusEnum('status').default('draft').notNull(),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ statusTypeIdx: index('mel_instruments_status_type_idx').on(table.status, table.type) }));
+
+export const melInstrumentVersions = pgTable('mel_instrument_versions', {
+  id: serial('id').primaryKey(),
+  instrumentId: integer('instrument_id').notNull().references(() => melInstruments.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  status: melInstrumentStatusEnum('status').default('draft').notNull(),
+  effectiveFromPeriodId: integer('effective_from_period_id').references(() => melReportingPeriods.id, { onDelete: 'set null' }),
+  effectiveToPeriodId: integer('effective_to_period_id').references(() => melReportingPeriods.id, { onDelete: 'set null' }),
+  publishedById: text('published_by_id').references(() => users.id, { onDelete: 'set null' }),
+  publishedAt: timestamp('published_at'),
+  retiredAt: timestamp('retired_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ instrumentVersionUnique: uniqueIndex('mel_instrument_versions_instrument_version_unique').on(table.instrumentId, table.version), statusIdx: index('mel_instrument_versions_status_idx').on(table.status) }));
+
+export const melInstrumentSections = pgTable('mel_instrument_sections', {
+  id: serial('id').primaryKey(),
+  versionId: integer('version_id').notNull().references(() => melInstrumentVersions.id, { onDelete: 'cascade' }),
+  code: varchar('code', { length: 80 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ versionCodeUnique: uniqueIndex('mel_instrument_sections_version_code_unique').on(table.versionId, table.code), versionOrderIdx: index('mel_instrument_sections_version_order_idx').on(table.versionId, table.sortOrder) }));
+
+export const melInstrumentQuestions = pgTable('mel_instrument_questions', {
+  id: serial('id').primaryKey(),
+  sectionId: integer('section_id').notNull().references(() => melInstrumentSections.id, { onDelete: 'cascade' }),
+  code: varchar('code', { length: 100 }).notNull(),
+  label: text('label').notNull(),
+  responseType: melQuestionResponseTypeEnum('response_type').notNull(),
+  isRequired: boolean('is_required').default(false).notNull(),
+  helpText: text('help_text'),
+  options: jsonb('options').$type<Array<{ value: string; label: string }>>().default([]).notNull(),
+  visibilityRule: jsonb('visibility_rule').$type<{ questionCode: string; operator: 'equals' | 'not_equals' | 'contains' | 'is_answered'; value?: string | number | boolean } | null>(),
+  validationRules: jsonb('validation_rules').$type<{ min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string }>().default({}).notNull(),
+  indicatorId: integer('indicator_id').references(() => melIndicatorDefinitions.id, { onDelete: 'set null' }),
+  evidenceRequired: boolean('evidence_required').default(false).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ sectionCodeUnique: uniqueIndex('mel_instrument_questions_section_code_unique').on(table.sectionId, table.code), sectionOrderIdx: index('mel_instrument_questions_section_order_idx').on(table.sectionId, table.sortOrder), indicatorIdx: index('mel_instrument_questions_indicator_idx').on(table.indicatorId) }));
+
+export const melIntegrationConnections = pgTable('mel_integration_connections', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 180 }).notNull(),
+  provider: melImportProviderEnum('provider').notNull(),
+  instrumentVersionId: integer('instrument_version_id').notNull().references(() => melInstrumentVersions.id, { onDelete: 'restrict' }),
+  externalFormId: varchar('external_form_id', { length: 255 }),
+  secretHash: varchar('secret_hash', { length: 64 }),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ providerFormUnique: uniqueIndex('mel_integration_connections_provider_form_unique').on(table.provider, table.externalFormId), activeIdx: index('mel_integration_connections_active_idx').on(table.isActive) }));
+
+export const melImportMappings = pgTable('mel_import_mappings', {
+  id: serial('id').primaryKey(),
+  connectionId: integer('connection_id').notNull().references(() => melIntegrationConnections.id, { onDelete: 'cascade' }),
+  version: integer('version').default(1).notNull(),
+  enterpriseIdField: varchar('enterprise_id_field', { length: 150 }).notNull(),
+  reportingPeriodField: varchar('reporting_period_field', { length: 150 }).notNull(),
+  externalSubmissionIdField: varchar('external_submission_id_field', { length: 150 }).notNull(),
+  fieldMap: jsonb('field_map').$type<Record<string, string>>().default({}).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({ connectionVersionUnique: uniqueIndex('mel_import_mappings_connection_version_unique').on(table.connectionId, table.version), activeIdx: index('mel_import_mappings_active_idx').on(table.connectionId, table.isActive) }));
+
+export const melImportBatches = pgTable('mel_import_batches', {
+  id: serial('id').primaryKey(),
+  connectionId: integer('connection_id').references(() => melIntegrationConnections.id, { onDelete: 'set null' }),
+  mappingId: integer('mapping_id').references(() => melImportMappings.id, { onDelete: 'set null' }),
+  sourceName: varchar('source_name', { length: 255 }).notNull(),
+  sourceChecksum: varchar('source_checksum', { length: 64 }),
+  status: melImportStatusEnum('status').default('pending').notNull(),
+  totalRecords: integer('total_records').default(0).notNull(),
+  validRecords: integer('valid_records').default(0).notNull(),
+  quarantinedRecords: integer('quarantined_records').default(0).notNull(),
+  duplicateRecords: integer('duplicate_records').default(0).notNull(),
+  importedById: text('imported_by_id').references(() => users.id, { onDelete: 'set null' }),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({ statusIdx: index('mel_import_batches_status_idx').on(table.status, table.createdAt), checksumIdx: index('mel_import_batches_checksum_idx').on(table.sourceChecksum) }));
+
+export const melImportRecords = pgTable('mel_import_records', {
+  id: serial('id').primaryKey(),
+  batchId: integer('batch_id').notNull().references(() => melImportBatches.id, { onDelete: 'cascade' }),
+  connectionId: integer('connection_id').references(() => melIntegrationConnections.id, { onDelete: 'set null' }),
+  externalSubmissionId: varchar('external_submission_id', { length: 255 }).notNull(),
+  idempotencyKey: varchar('idempotency_key', { length: 320 }).notNull().unique(),
+  status: melImportRecordStatusEnum('status').default('quarantined').notNull(),
+  businessId: integer('business_id').references(() => businesses.id, { onDelete: 'set null' }),
+  reportingPeriodId: integer('reporting_period_id').references(() => melReportingPeriods.id, { onDelete: 'set null' }),
+  rawPayload: jsonb('raw_payload').$type<Record<string, unknown>>().notNull(),
+  normalizedPayload: jsonb('normalized_payload').$type<Record<string, unknown> | null>(),
+  validationErrors: jsonb('validation_errors').$type<string[]>().default([]).notNull(),
+  attempts: integer('attempts').default(0).notNull(),
+  lastError: text('last_error'),
+  // Database migration adds the FK after both circular import/submission tables exist.
+  promotedSubmissionId: integer('promoted_submission_id'),
+  reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ batchStatusIdx: index('mel_import_records_batch_status_idx').on(table.batchId, table.status), businessPeriodIdx: index('mel_import_records_business_period_idx').on(table.businessId, table.reportingPeriodId) }));
+
+export const melInstrumentSubmissions = pgTable('mel_instrument_submissions', {
+  id: serial('id').primaryKey(),
+  instrumentVersionId: integer('instrument_version_id').notNull().references(() => melInstrumentVersions.id, { onDelete: 'restrict' }),
+  businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'restrict' }),
+  reportingPeriodId: integer('reporting_period_id').notNull().references(() => melReportingPeriods.id, { onDelete: 'restrict' }),
+  collectorId: text('collector_id').references(() => users.id, { onDelete: 'set null' }),
+  status: melMonitoringStatusEnum('status').default('draft').notNull(),
+  responseData: jsonb('response_data').$type<Record<string, unknown>>().default({}).notNull(),
+  attachmentMetadata: jsonb('attachment_metadata').$type<Array<{ questionCode: string; fileName: string; fileKey?: string }>>().default([]).notNull(),
+  importRecordId: integer('import_record_id').references(() => melImportRecords.id, { onDelete: 'set null' }).unique(),
+  submittedAt: timestamp('submitted_at'),
+  approvedAt: timestamp('approved_at'),
+  approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  returnReason: text('return_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ versionPeriodStatusIdx: index('mel_instrument_submissions_version_period_status_idx').on(table.instrumentVersionId, table.reportingPeriodId, table.status), businessIdx: index('mel_instrument_submissions_business_idx').on(table.businessId) }));
+
+export const melOperationalEvents = pgTable('mel_operational_events', {
+  id: serial('id').primaryKey(),
+  severity: varchar('severity', { length: 20 }).$type<'info' | 'warning' | 'error' | 'critical'>().notNull(),
+  eventType: varchar('event_type', { length: 100 }).notNull(),
+  correlationId: varchar('correlation_id', { length: 100 }).notNull(),
+  message: text('message').notNull(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({ typeCreatedIdx: index('mel_operational_events_type_created_idx').on(table.eventType, table.createdAt), severityIdx: index('mel_operational_events_severity_idx').on(table.severity, table.resolvedAt) }));
+
+export const melOperationalChecks = pgTable('mel_operational_checks', {
+  id: serial('id').primaryKey(),
+  code: varchar('code', { length: 100 }).notNull().unique(),
+  category: varchar('category', { length: 80 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  owner: varchar('owner', { length: 180 }),
+  status: melOperationalCheckStatusEnum('status').default('not_started').notNull(),
+  evidence: text('evidence'),
+  notes: text('notes'),
+  verifiedById: text('verified_by_id').references(() => users.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ categoryStatusIdx: index('mel_operational_checks_category_status_idx').on(table.category, table.status) }));
+
+export const melRolloutControl = pgTable('mel_rollout_control', {
+  id: integer('id').primaryKey().default(1),
+  stage: melRolloutStageEnum('stage').default('internal_test').notNull(),
+  collectionEnabled: boolean('collection_enabled').default(false).notNull(),
+  importsEnabled: boolean('imports_enabled').default(false).notNull(),
+  reportingEnabled: boolean('reporting_enabled').default(false).notNull(),
+  pilotCountyCodes: jsonb('pilot_county_codes').$type<string[]>().default([]).notNull(),
+  rollbackReason: text('rollback_reason'),
+  updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ singletonCheck: check('mel_rollout_control_singleton_check', sql`${table.id} = 1`) }));
+
+export const melRateLimitBuckets = pgTable('mel_rate_limit_buckets', {
+  key: varchar('key', { length: 255 }).primaryKey(),
+  windowStartedAt: timestamp('window_started_at').notNull(),
+  requestCount: integer('request_count').default(0).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const aiReportQueries = pgTable(
   'ai_report_queries',
   {
@@ -1659,6 +2612,10 @@ export const businessRelations = relations(businesses, ({ one, many }) => ({
   capacityDevelopmentPlans: many(capacityDevelopmentPlans),
   bdsInterventions: many(bdsInterventions),
   businessPerformanceMetrics: many(businessPerformanceMetrics),
+  melAssignments: many(melEnterpriseAssignments),
+  melMonitoringSubmissions: many(melMonitoringSubmissions),
+  melAchievements: many(melEnterpriseAchievements),
+  melLearningActions: many(melLearningActions),
 }));
 
 export const applicationRelations = relations(applications, ({ one, many }) => ({
@@ -2054,6 +3011,323 @@ export const businessPerformanceMetricsRelations = relations(
     }),
   })
 );
+
+export const melProgrammeSettingsRelations = relations(melProgrammeSettings, ({ one }) => ({
+  updatedBy: one(users, {
+    fields: [melProgrammeSettings.updatedById],
+    references: [users.id],
+  }),
+}));
+
+export const melReportingPeriodsRelations = relations(melReportingPeriods, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [melReportingPeriods.createdById],
+    references: [users.id],
+    relationName: 'melReportingPeriodCreatedBy',
+  }),
+  updatedBy: one(users, {
+    fields: [melReportingPeriods.updatedById],
+    references: [users.id],
+    relationName: 'melReportingPeriodUpdatedBy',
+  }),
+  targets: many(melIndicatorTargets),
+  monitoringSubmissions: many(melMonitoringSubmissions),
+  achievements: many(melEnterpriseAchievements),
+}));
+
+export const melIndicatorDefinitionsRelations = relations(
+  melIndicatorDefinitions,
+  ({ one, many }) => ({
+    createdBy: one(users, {
+      fields: [melIndicatorDefinitions.createdById],
+      references: [users.id],
+      relationName: 'melIndicatorCreatedBy',
+    }),
+    updatedBy: one(users, {
+      fields: [melIndicatorDefinitions.updatedById],
+      references: [users.id],
+      relationName: 'melIndicatorUpdatedBy',
+    }),
+    baselines: many(melIndicatorBaselines),
+    targets: many(melIndicatorTargets),
+    achievements: many(melEnterpriseAchievements),
+  })
+);
+
+export const melIndicatorBaselinesRelations = relations(melIndicatorBaselines, ({ one }) => ({
+  indicator: one(melIndicatorDefinitions, {
+    fields: [melIndicatorBaselines.indicatorId],
+    references: [melIndicatorDefinitions.id],
+  }),
+}));
+
+export const melIndicatorTargetsRelations = relations(melIndicatorTargets, ({ one }) => ({
+  indicator: one(melIndicatorDefinitions, {
+    fields: [melIndicatorTargets.indicatorId],
+    references: [melIndicatorDefinitions.id],
+  }),
+  reportingPeriod: one(melReportingPeriods, {
+    fields: [melIndicatorTargets.reportingPeriodId],
+    references: [melReportingPeriods.id],
+  }),
+  approvedBy: one(users, {
+    fields: [melIndicatorTargets.approvedById],
+    references: [users.id],
+  }),
+}));
+
+export const melAuditEventsRelations = relations(melAuditEvents, ({ one }) => ({
+  actor: one(users, {
+    fields: [melAuditEvents.actorId],
+    references: [users.id],
+  }),
+}));
+
+export const melEnterpriseAssignmentsRelations = relations(melEnterpriseAssignments, ({ one }) => ({
+  business: one(businesses, {
+    fields: [melEnterpriseAssignments.businessId],
+    references: [businesses.id],
+  }),
+  collector: one(users, {
+    fields: [melEnterpriseAssignments.collectorId],
+    references: [users.id],
+    relationName: 'melAssignmentCollector',
+  }),
+  assignedBy: one(users, {
+    fields: [melEnterpriseAssignments.assignedById],
+    references: [users.id],
+    relationName: 'melAssignmentCreatedBy',
+  }),
+}));
+
+export const melMonitoringSubmissionsRelations = relations(
+  melMonitoringSubmissions,
+  ({ one, many }) => ({
+    business: one(businesses, {
+      fields: [melMonitoringSubmissions.businessId],
+      references: [businesses.id],
+    }),
+    reportingPeriod: one(melReportingPeriods, {
+      fields: [melMonitoringSubmissions.reportingPeriodId],
+      references: [melReportingPeriods.id],
+    }),
+    collector: one(users, {
+      fields: [melMonitoringSubmissions.collectorId],
+      references: [users.id],
+      relationName: 'melSubmissionCollector',
+    }),
+    assignedRedo: one(users, {
+      fields: [melMonitoringSubmissions.assignedRedoId],
+      references: [users.id],
+      relationName: 'melSubmissionRedo',
+    }),
+    response: one(melMonitoringResponses),
+    jobs: many(melMonitoringJobs),
+    waste: many(melMonitoringWaste),
+    evidence: many(melMonitoringEvidence),
+    achievements: many(melEnterpriseAchievements),
+    versions: many(melMonitoringVersions),
+    reviewDecisions: many(melReviewDecisions),
+    dqaIssues: many(melDqaIssues),
+    learningActions: many(melLearningActions),
+  })
+);
+
+export const melMonitoringResponsesRelations = relations(melMonitoringResponses, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringResponses.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+}));
+
+export const melMonitoringJobsRelations = relations(melMonitoringJobs, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringJobs.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+}));
+
+export const melMonitoringWasteRelations = relations(melMonitoringWaste, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringWaste.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+}));
+
+export const melMonitoringEvidenceRelations = relations(melMonitoringEvidence, ({ one, many }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringEvidence.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+  uploader: one(users, {
+    fields: [melMonitoringEvidence.uploaderId],
+    references: [users.id],
+  }),
+  reviews: many(melEvidenceReviews),
+}));
+
+export const melEnterpriseAchievementsRelations = relations(
+  melEnterpriseAchievements,
+  ({ one }) => ({
+    business: one(businesses, {
+      fields: [melEnterpriseAchievements.businessId],
+      references: [businesses.id],
+    }),
+    indicator: one(melIndicatorDefinitions, {
+      fields: [melEnterpriseAchievements.indicatorId],
+      references: [melIndicatorDefinitions.id],
+    }),
+    firstSubmission: one(melMonitoringSubmissions, {
+      fields: [melEnterpriseAchievements.firstSubmissionId],
+      references: [melMonitoringSubmissions.id],
+    }),
+    evidence: one(melMonitoringEvidence, {
+      fields: [melEnterpriseAchievements.evidenceId],
+      references: [melMonitoringEvidence.id],
+    }),
+  })
+);
+
+export const melMonitoringVersionsRelations = relations(melMonitoringVersions, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringVersions.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+  capturedBy: one(users, {
+    fields: [melMonitoringVersions.capturedById],
+    references: [users.id],
+  }),
+}));
+
+export const melReviewDecisionsRelations = relations(melReviewDecisions, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melReviewDecisions.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+  reviewer: one(users, {
+    fields: [melReviewDecisions.reviewerId],
+    references: [users.id],
+  }),
+}));
+
+export const melDqaIssuesRelations = relations(melDqaIssues, ({ one, many }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melDqaIssues.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+  resolvedBy: one(users, {
+    fields: [melDqaIssues.resolvedById],
+    references: [users.id],
+  }),
+  learningActions: many(melLearningActions),
+}));
+
+export const melEvidenceReviewsRelations = relations(melEvidenceReviews, ({ one }) => ({
+  evidence: one(melMonitoringEvidence, {
+    fields: [melEvidenceReviews.evidenceId],
+    references: [melMonitoringEvidence.id],
+  }),
+  reviewer: one(users, {
+    fields: [melEvidenceReviews.reviewerId],
+    references: [users.id],
+  }),
+}));
+
+export const melLearningActionsRelations = relations(melLearningActions, ({ one }) => ({
+  business: one(businesses, {
+    fields: [melLearningActions.businessId],
+    references: [businesses.id],
+  }),
+  submission: one(melMonitoringSubmissions, {
+    fields: [melLearningActions.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+  dqaIssue: one(melDqaIssues, {
+    fields: [melLearningActions.dqaIssueId],
+    references: [melDqaIssues.id],
+  }),
+  responsibleUser: one(users, {
+    fields: [melLearningActions.responsibleUserId],
+    references: [users.id],
+    relationName: 'melLearningActionOwner',
+  }),
+  createdBy: one(users, {
+    fields: [melLearningActions.createdById],
+    references: [users.id],
+    relationName: 'melLearningActionCreator',
+  }),
+}));
+
+export const melNotificationOutboxRelations = relations(melNotificationOutbox, ({ one }) => ({
+  recipient: one(users, {
+    fields: [melNotificationOutbox.recipientId],
+    references: [users.id],
+  }),
+}));
+
+export const melProgrammeResultsRelations = relations(melProgrammeResults, ({ one }) => ({
+  indicator: one(melIndicatorDefinitions, {
+    fields: [melProgrammeResults.indicatorId],
+    references: [melIndicatorDefinitions.id],
+  }),
+  reportingPeriod: one(melReportingPeriods, {
+    fields: [melProgrammeResults.reportingPeriodId],
+    references: [melReportingPeriods.id],
+  }),
+  enteredBy: one(users, {
+    fields: [melProgrammeResults.enteredById],
+    references: [users.id],
+    relationName: 'melProgrammeResultEnteredBy',
+  }),
+  approvedBy: one(users, {
+    fields: [melProgrammeResults.approvedById],
+    references: [users.id],
+    relationName: 'melProgrammeResultApprovedBy',
+  }),
+}));
+
+export const melIndicatorResultsRelations = relations(melIndicatorResults, ({ one }) => ({
+  indicator: one(melIndicatorDefinitions, {
+    fields: [melIndicatorResults.indicatorId],
+    references: [melIndicatorDefinitions.id],
+  }),
+  reportingPeriod: one(melReportingPeriods, {
+    fields: [melIndicatorResults.reportingPeriodId],
+    references: [melReportingPeriods.id],
+  }),
+  calculatedBy: one(users, {
+    fields: [melIndicatorResults.calculatedById],
+    references: [users.id],
+  }),
+}));
+
+export const melInstrumentsRelations = relations(melInstruments, ({ one, many }) => ({
+  createdBy: one(users, { fields: [melInstruments.createdById], references: [users.id] }),
+  versions: many(melInstrumentVersions),
+}));
+export const melInstrumentVersionsRelations = relations(melInstrumentVersions, ({ one, many }) => ({
+  instrument: one(melInstruments, { fields: [melInstrumentVersions.instrumentId], references: [melInstruments.id] }),
+  sections: many(melInstrumentSections),
+  submissions: many(melInstrumentSubmissions),
+}));
+export const melInstrumentSectionsRelations = relations(melInstrumentSections, ({ one, many }) => ({
+  version: one(melInstrumentVersions, { fields: [melInstrumentSections.versionId], references: [melInstrumentVersions.id] }),
+  questions: many(melInstrumentQuestions),
+}));
+export const melInstrumentQuestionsRelations = relations(melInstrumentQuestions, ({ one }) => ({
+  section: one(melInstrumentSections, { fields: [melInstrumentQuestions.sectionId], references: [melInstrumentSections.id] }),
+  indicator: one(melIndicatorDefinitions, { fields: [melInstrumentQuestions.indicatorId], references: [melIndicatorDefinitions.id] }),
+}));
+export const melIntegrationConnectionsRelations = relations(melIntegrationConnections, ({ one, many }) => ({
+  instrumentVersion: one(melInstrumentVersions, { fields: [melIntegrationConnections.instrumentVersionId], references: [melInstrumentVersions.id] }),
+  mappings: many(melImportMappings), batches: many(melImportBatches), records: many(melImportRecords),
+}));
+export const melImportMappingsRelations = relations(melImportMappings, ({ one }) => ({ connection: one(melIntegrationConnections, { fields: [melImportMappings.connectionId], references: [melIntegrationConnections.id] }) }));
+export const melInstrumentSubmissionsRelations = relations(melInstrumentSubmissions, ({ one }) => ({
+  instrumentVersion: one(melInstrumentVersions, { fields: [melInstrumentSubmissions.instrumentVersionId], references: [melInstrumentVersions.id] }),
+  business: one(businesses, { fields: [melInstrumentSubmissions.businessId], references: [businesses.id] }),
+  reportingPeriod: one(melReportingPeriods, { fields: [melInstrumentSubmissions.reportingPeriodId], references: [melReportingPeriods.id] }),
+}));
 
 export const aiReportQueriesRelations = relations(aiReportQueries, ({ one }) => ({
   admin: one(users, {
@@ -3051,6 +4325,69 @@ export type NewBdsIntervention = typeof bdsInterventions.$inferInsert;
 
 export type BusinessPerformanceMetric = typeof businessPerformanceMetrics.$inferSelect;
 export type NewBusinessPerformanceMetric = typeof businessPerformanceMetrics.$inferInsert;
+
+export type MelProgrammeSettings = typeof melProgrammeSettings.$inferSelect;
+export type NewMelProgrammeSettings = typeof melProgrammeSettings.$inferInsert;
+
+export type MelReportingPeriod = typeof melReportingPeriods.$inferSelect;
+export type NewMelReportingPeriod = typeof melReportingPeriods.$inferInsert;
+
+export type MelIndicatorDefinition = typeof melIndicatorDefinitions.$inferSelect;
+export type NewMelIndicatorDefinition = typeof melIndicatorDefinitions.$inferInsert;
+
+export type MelIndicatorBaseline = typeof melIndicatorBaselines.$inferSelect;
+export type NewMelIndicatorBaseline = typeof melIndicatorBaselines.$inferInsert;
+
+export type MelIndicatorTarget = typeof melIndicatorTargets.$inferSelect;
+export type NewMelIndicatorTarget = typeof melIndicatorTargets.$inferInsert;
+
+export type MelAuditEvent = typeof melAuditEvents.$inferSelect;
+export type NewMelAuditEvent = typeof melAuditEvents.$inferInsert;
+
+export type MelEnterpriseAssignment = typeof melEnterpriseAssignments.$inferSelect;
+export type NewMelEnterpriseAssignment = typeof melEnterpriseAssignments.$inferInsert;
+
+export type MelMonitoringSubmission = typeof melMonitoringSubmissions.$inferSelect;
+export type NewMelMonitoringSubmission = typeof melMonitoringSubmissions.$inferInsert;
+
+export type MelMonitoringResponse = typeof melMonitoringResponses.$inferSelect;
+export type NewMelMonitoringResponse = typeof melMonitoringResponses.$inferInsert;
+
+export type MelMonitoringJob = typeof melMonitoringJobs.$inferSelect;
+export type NewMelMonitoringJob = typeof melMonitoringJobs.$inferInsert;
+
+export type MelMonitoringWaste = typeof melMonitoringWaste.$inferSelect;
+export type NewMelMonitoringWaste = typeof melMonitoringWaste.$inferInsert;
+
+export type MelMonitoringEvidence = typeof melMonitoringEvidence.$inferSelect;
+export type NewMelMonitoringEvidence = typeof melMonitoringEvidence.$inferInsert;
+
+export type MelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferSelect;
+export type NewMelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferInsert;
+
+export type MelMonitoringVersion = typeof melMonitoringVersions.$inferSelect;
+export type NewMelMonitoringVersion = typeof melMonitoringVersions.$inferInsert;
+
+export type MelReviewDecision = typeof melReviewDecisions.$inferSelect;
+export type NewMelReviewDecision = typeof melReviewDecisions.$inferInsert;
+
+export type MelDqaIssue = typeof melDqaIssues.$inferSelect;
+export type NewMelDqaIssue = typeof melDqaIssues.$inferInsert;
+
+export type MelEvidenceReview = typeof melEvidenceReviews.$inferSelect;
+export type NewMelEvidenceReview = typeof melEvidenceReviews.$inferInsert;
+
+export type MelLearningAction = typeof melLearningActions.$inferSelect;
+export type NewMelLearningAction = typeof melLearningActions.$inferInsert;
+
+export type MelNotificationOutboxItem = typeof melNotificationOutbox.$inferSelect;
+export type NewMelNotificationOutboxItem = typeof melNotificationOutbox.$inferInsert;
+
+export type MelProgrammeResult = typeof melProgrammeResults.$inferSelect;
+export type NewMelProgrammeResult = typeof melProgrammeResults.$inferInsert;
+
+export type MelIndicatorResult = typeof melIndicatorResults.$inferSelect;
+export type NewMelIndicatorResult = typeof melIndicatorResults.$inferInsert;
 
 export type AiReportQuery = typeof aiReportQueries.$inferSelect;
 export type NewAiReportQuery = typeof aiReportQueries.$inferInsert;
