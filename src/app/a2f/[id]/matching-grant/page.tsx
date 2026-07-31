@@ -58,6 +58,7 @@ import {
     wizardStorageKey,
     type MgWizardStepId,
 } from "@/lib/matching-grant-wizard-steps";
+import { buildValidationInputFromApplicationPayload } from "@/lib/matching-grant-validation";
 import {
     type EnterpriseIdentification,
     type LeadEntrepreneur,
@@ -199,14 +200,6 @@ function req(label: string) {
     return `${label} *`;
 }
 
-function RequiredFieldsNotice() {
-    return (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-            {MG_NA_GUIDANCE}
-        </div>
-    );
-}
-
 function toInput(data: FormState): MatchingGrantApplicationInput {
     return {
         status: data.status,
@@ -230,11 +223,7 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
             description: data.business.businessDescription,
         },
         financialOverview: { ...data.financial },
-        otherFunding: {
-            ...data.otherFunding,
-            leverageNotes: data.otherFunding.leveragePotential,
-            sources: data.otherFunding.description,
-        },
+        otherFunding: { ...data.otherFunding },
         governanceCompliance: { ...data.governance },
         budgetItems: filterFilledBudgetItems(data.budgetItems).map(row => ({ ...row })) as Array<Record<string, unknown>>,
         implementationMilestones: filterFilledMilestones(data.milestones).map(row => ({ ...row })) as Array<Record<string, unknown>>,
@@ -332,6 +321,24 @@ function fromRecord(record: any, fallback: FormState): FormState {
     };
 }
 
+function RequiredFieldsNotice() {
+    return (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+            {MG_NA_GUIDANCE}
+        </div>
+    );
+}
+
+function prepareFormForSubmit(form: FormState, status: "draft" | "submitted"): FormState {
+    return {
+        ...form,
+        status,
+        documents: form.documents.map((document) =>
+            document.url.trim() ? { ...document, confirmed: true } : document
+        ),
+    };
+}
+
 export function MatchingGrantApplicationWizard({
     a2fId,
     mode = "staff",
@@ -355,7 +362,10 @@ export function MatchingGrantApplicationWizard({
     const [activeStep, setActiveStep] = useState(0);
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [showStepValidation, setShowStepValidation] = useState(false);
+    const [submitBlocked, setSubmitBlocked] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const validationAlertRef = useRef<HTMLDivElement>(null);
+    const reviewSummaryRef = useRef<HTMLDivElement>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -439,14 +449,22 @@ export function MatchingGrantApplicationWizard({
     const grantShare = pct(form.bireGrantAmount, form.totalProjectAmount);
     const enterpriseShare = pct(form.enterpriseContributionAmount, form.totalProjectAmount);
 
+    const submitValidationInput = useMemo(
+        () =>
+            buildValidationInputFromApplicationPayload(
+                toInput(prepareFormForSubmit(form, "submitted"))
+            ),
+        [form]
+    );
+
     const allStepErrors = useMemo(
-        () => getAllStepValidationErrors(form, wizardContext),
-        [form, wizardContext]
+        () => getAllStepValidationErrors(submitValidationInput, wizardContext),
+        [submitValidationInput, wizardContext]
     );
 
     const reviewIssueGroups = useMemo(
-        () => flattenStepErrorsWithLabels(form, wizardContext),
-        [form, wizardContext]
+        () => flattenStepErrorsWithLabels(submitValidationInput, wizardContext),
+        [submitValidationInput, wizardContext]
     );
 
     function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -454,20 +472,29 @@ export function MatchingGrantApplicationWizard({
     }
 
     const currentStepId = MG_WIZARD_STEPS[activeStep]?.id ?? "enterprise";
-    const progressPct = Math.round(((activeStep + 1) / MG_WIZARD_STEPS.length) * 100);
+    const progressPct = useMemo(() => {
+        const completeSteps = MG_WIZARD_STEPS.filter((step) => (allStepErrors[step.id]?.length ?? 0) === 0).length;
+        return Math.round((completeSteps / MG_WIZARD_STEPS.length) * 100);
+    }, [allStepErrors]);
     const reviewSummary = useMemo(
-        () => getWizardReviewSummary(form, wizardContext),
-        [form, wizardContext]
+        () => getWizardReviewSummary(submitValidationInput, wizardContext),
+        [submitValidationInput, wizardContext]
     );
 
     const inlineValidationErrors = useMemo(() => {
         if (!showStepValidation) return [];
-        return getStepValidationErrors(currentStepId, form, wizardContext);
-    }, [showStepValidation, currentStepId, form, wizardContext]);
+        return getStepValidationErrors(currentStepId, submitValidationInput, wizardContext);
+    }, [showStepValidation, currentStepId, submitValidationInput, wizardContext]);
 
     function scrollToValidationAlert() {
         requestAnimationFrame(() => {
             validationAlertRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    }
+
+    function scrollToReviewSummary() {
+        requestAnimationFrame(() => {
+            reviewSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
     }
 
@@ -481,7 +508,7 @@ export function MatchingGrantApplicationWizard({
     }
 
     function validateCurrentStep(): string[] {
-        return getStepValidationErrors(currentStepId, form, wizardContext);
+        return getStepValidationErrors(currentStepId, submitValidationInput, wizardContext);
     }
 
     function handleNext() {
@@ -520,7 +547,7 @@ export function MatchingGrantApplicationWizard({
 
         for (let i = activeStep; i < index; i++) {
             const stepId = MG_WIZARD_STEPS[i]?.id ?? "enterprise";
-            const errors = getStepValidationErrors(stepId, form, wizardContext);
+            const errors = getStepValidationErrors(stepId, submitValidationInput, wizardContext);
             if (errors.length > 0) {
                 if (i !== activeStep) {
                     goToStep(i, { clearErrors: false });
@@ -547,59 +574,75 @@ export function MatchingGrantApplicationWizard({
 
     async function handleSave(status: "draft" | "submitted") {
         if (readOnly) return;
+        setSubmitError(null);
+        const preparedForm = status === "submitted" ? prepareFormForSubmit(form, status) : { ...form, status };
         if (status === "submitted") {
-            const firstIssueIndex = getFirstStepIndexWithErrors(form, wizardContext);
+            const validationInput = buildValidationInputFromApplicationPayload(toInput(preparedForm));
+            const firstIssueIndex = getFirstStepIndexWithErrors(validationInput, wizardContext);
             if (firstIssueIndex != null) {
-                const groups = flattenStepErrorsWithLabels(form, wizardContext);
+                const groups = flattenStepErrorsWithLabels(validationInput, wizardContext);
                 const first = groups[0];
-                goToStep(firstIssueIndex, { clearErrors: false });
+                setSubmitBlocked(true);
                 setShowStepValidation(true);
-                scrollToValidationAlert();
+                scrollToReviewSummary();
                 toast.error(
                     first
                         ? `Fix ${first.errors.length} item(s) on ${first.stepLabel} before submitting.`
                         : "Complete all required steps before submitting."
                 );
-                scrollToValidationAlert();
                 return;
             }
         }
+        setSubmitBlocked(false);
         setSaving(true);
-        const res =
-            mode === "applicant"
-                ? await saveApplicantMatchingGrantApplication(a2fId, toInput({ ...form, status }))
-                : await saveMatchingGrantApplication(a2fId, toInput({ ...form, status }));
-        setSaving(false);
+        try {
+            const res =
+                mode === "applicant"
+                    ? await saveApplicantMatchingGrantApplication(a2fId, toInput(preparedForm))
+                    : await saveMatchingGrantApplication(a2fId, toInput(preparedForm));
+            setSaving(false);
 
-        if (res.success) {
-            setShowStepValidation(false);
-            setForm(prev => ({ ...prev, status }));
-            if (status === "submitted") {
-                setCompletedSteps(MG_WIZARD_STEPS.map((_, i) => i));
+            if (res.success) {
+                setShowStepValidation(false);
+                setSubmitBlocked(false);
+                setSubmitError(null);
+                setForm(prev => ({ ...prev, status: preparedForm.status, documents: preparedForm.documents }));
+                if (status === "submitted") {
+                    setCompletedSteps(MG_WIZARD_STEPS.map((_, i) => i));
+                }
+                if (status === "submitted" && mode === "applicant") {
+                    toast.success("Matching Grant application submitted", {
+                        description: "A confirmation email has been sent. Taking you to your agreements.",
+                    });
+                    router.push("/profile?tab=contracts&mg_submitted=1");
+                    return;
+                }
+                toast.success(res.message ?? "Matching Grant application saved");
+                if (res.data?.validation.warnings.length) {
+                    const label = status === "submitted" ? "guidance note(s)" : "validation note(s)";
+                    toast.info(
+                        `${res.data.validation.warnings.length} ${label} recorded (e.g. grant mix guidance). Submission was successful.`
+                    );
+                }
+            } else {
+                const err = res.error ?? "Failed to save Matching Grant application";
+                setSubmitError(err);
+                toast.error(err);
+                if (
+                    mode === "applicant" &&
+                    err.includes("already been submitted")
+                ) {
+                    router.push("/profile?tab=contracts");
+                }
             }
-            if (status === "submitted" && mode === "applicant") {
-                toast.success("Matching Grant application submitted", {
-                    description: "A confirmation email has been sent. Taking you to your agreements.",
-                });
-                router.push("/profile?tab=contracts&mg_submitted=1");
-                return;
-            }
-            toast.success(res.message ?? "Matching Grant application saved");
-            if (res.data?.validation.warnings.length) {
-                const label = status === "submitted" ? "guidance note(s)" : "validation note(s)";
-                toast.info(
-                    `${res.data.validation.warnings.length} ${label} recorded (e.g. grant mix guidance). Submission was successful.`
-                );
-            }
-        } else {
-            const err = res.error ?? "Failed to save Matching Grant application";
+        } catch (error) {
+            setSaving(false);
+            const err =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to save Matching Grant application";
+            setSubmitError(err);
             toast.error(err);
-            if (
-                mode === "applicant" &&
-                err.includes("already been submitted")
-            ) {
-                router.push("/profile?tab=contracts");
-            }
         }
     }
 
@@ -781,11 +824,19 @@ export function MatchingGrantApplicationWizard({
                     )}
 
                     {currentStepId === "documents" && !canRaiseDocumentIssues && (
-                        <WizardReviewSummary
-                            summary={reviewSummary}
-                            issueGroups={reviewIssueGroups}
-                            onGoToStep={goToStepWithIssues}
-                        />
+                        <div ref={reviewSummaryRef}>
+                            {submitError ? (
+                                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                                    {submitError}
+                                </div>
+                            ) : null}
+                            <WizardReviewSummary
+                                summary={reviewSummary}
+                                issueGroups={reviewIssueGroups}
+                                showIssues={submitBlocked || reviewIssueGroups.length > 0}
+                                onGoToStep={goToStepWithIssues}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
@@ -793,6 +844,7 @@ export function MatchingGrantApplicationWizard({
             <div className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                 <div className="container mx-auto max-w-6xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                     <Button
+                        type="button"
                         variant="outline"
                         onClick={handleBack}
                         disabled={activeStep === 0 || saving}
@@ -803,6 +855,7 @@ export function MatchingGrantApplicationWizard({
                     </Button>
                     {!readOnly && (
                         <Button
+                            type="button"
                             variant="outline"
                             onClick={() => handleSave("draft")}
                             disabled={saving}
@@ -815,6 +868,7 @@ export function MatchingGrantApplicationWizard({
                     <div className="flex items-center gap-2">
                         {activeStep < MG_WIZARD_STEPS.length - 1 ? (
                             <Button
+                                type="button"
                                 onClick={readOnly ? () => goToStep(activeStep + 1) : handleNext}
                                 disabled={saving}
                                 className="gap-2"
@@ -824,6 +878,7 @@ export function MatchingGrantApplicationWizard({
                             </Button>
                         ) : readOnly ? null : (
                             <Button
+                                type="button"
                                 onClick={() => handleSave("submitted")}
                                 disabled={saving}
                                 className="gap-2 bg-emerald-700 hover:bg-emerald-800"
@@ -1344,10 +1399,12 @@ function BusinessImpactSection({
 function WizardReviewSummary({
     summary,
     issueGroups,
+    showIssues = false,
     onGoToStep,
 }: {
     summary: ReturnType<typeof getWizardReviewSummary>;
     issueGroups: ReturnType<typeof flattenStepErrorsWithLabels>;
+    showIssues?: boolean;
     onGoToStep: (index: number) => void;
 }) {
     return (
@@ -1373,7 +1430,7 @@ function WizardReviewSummary({
                     <ReviewRow label="Use-of-funds confirmed" value={summary.useOfFundsAcknowledged ? "Yes" : "No"} />
                 </div>
 
-                {issueGroups.length > 0 && (
+                {showIssues && issueGroups.length > 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50/70 dark:bg-red-950/20 dark:border-red-900/50 p-4 space-y-3">
                         <p className="text-sm font-medium text-red-900 dark:text-red-200">
                             Complete these steps before submitting

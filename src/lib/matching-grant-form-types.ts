@@ -483,14 +483,13 @@ export function serializeFinancialOverview(
 
 export function parseOtherFunding(raw: Record<string, unknown> | null | undefined): MatchingGrantOtherFunding {
     if (!raw) return { ...EMPTY_OTHER_FUNDING };
-    const sources = str(raw.sources);
     return {
         otherGrants: str(raw.otherGrants),
         loans: str(raw.loans),
         investors: str(raw.investors),
         ownSavings: str(raw.ownSavings),
-        leveragePotential: str(raw.leveragePotential),
-        description: str(raw.description) || sources,
+        leveragePotential: str(raw.leveragePotential || raw.leverageNotes),
+        description: str(raw.description || raw.sources),
     };
 }
 
