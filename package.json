@@ -13,7 +13,9 @@
     "test:a2f-screening": "npx tsx src/lib/a2f-pre-screening.manual.test.ts",
     "test:a2f-outcomes": "npx tsx src/lib/a2f-pre-screening-outcome.manual.test.ts",
     "test:mg-validation": "npx tsx src/lib/matching-grant-validation.manual.test.ts",
+    "test:mel-phase1": "npx tsx src/lib/mel/phase1.manual.test.ts",
     "seed:cna-questions": "npx tsx scripts/seed-cna-question-bank.ts",
+    "seed:mel-phase1": "npx tsx scripts/seed-mel-phase1.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

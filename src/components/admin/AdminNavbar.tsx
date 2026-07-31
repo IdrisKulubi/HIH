@@ -94,6 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Management",
     match: (pathname) =>
       pathname.startsWith("/admin/analytics") ||
+      pathname.startsWith("/admin/mel") ||
       pathname.startsWith("/admin/scoring") ||
       pathname.startsWith("/admin/review") ||
       pathname.startsWith("/admin/assignments") ||
@@ -104,6 +105,8 @@ const NAV_GROUPS: NavGroup[] = [
       pathname.startsWith("/admin/support"),
     items: [
       { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
+      { href: "/admin/mel", label: "MEL Configuration", icon: Target },
+      { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
       { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
