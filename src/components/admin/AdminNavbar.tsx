@@ -22,6 +22,10 @@ import {
   ArrowLeft,
   List,
   CaretDown,
+  MapPin,
+  Table,
+  Gear,
+  ArrowsClockwise,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,6 +111,15 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
       { href: "/admin/mel", label: "MEL Configuration", icon: Target },
       { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
+      { href: "/admin/mel/review", label: "MEL Review Queue", icon: CheckCircle },
+      { href: "/admin/mel/evidence", label: "Evidence Repository", icon: FileText },
+      { href: "/admin/mel/learning", label: "Learning Actions", icon: ChatCircle },
+      { href: "/admin/mel/reporting", label: "MEL Reporting", icon: ChartLineUp },
+      { href: "/admin/mel/programme-results", label: "Programme Results", icon: Table },
+      { href: "/admin/mel/gis", label: "Enterprise GIS", icon: MapPin },
+      { href: "/admin/mel/instruments", label: "MEL Instruments", icon: ClipboardText },
+      { href: "/admin/mel/imports", label: "MEL Imports", icon: ArrowsClockwise },
+      { href: "/admin/mel/operations", label: "MEL Operations", icon: Gear },
       { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
@@ -119,6 +132,9 @@ function isLinkActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
   if (href === "/admin/cdp") {
     return pathname === "/admin/cdp" || /^\/admin\/cdp\/\d+/.test(pathname);
+  }
+  if (href === "/admin/mel") {
+    return pathname === "/admin/mel" || pathname.startsWith("/admin/mel/indicators");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

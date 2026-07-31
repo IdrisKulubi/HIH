@@ -25,6 +25,8 @@ import {
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 import { calculateProfitLoss } from "@/lib/mel/monitoring-calculations";
 import { requireMelCollector, type MelMonitoringActor } from "@/lib/mel/monitoring-access";
+import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
+import { requireMelRolloutFeature } from "@/lib/mel/operations";
 import {
   monitoringSubmissionIssues,
   parseMonitoringFormData,
@@ -258,6 +260,7 @@ export async function startMelMonitoringAction(
   formData: FormData
 ): Promise<ActionResponse<{ businessId: number; periodId: number }>> {
   try {
+    await requireMelRolloutFeature("collection");
     const actor = await requireMelCollector();
     const businessId = z.coerce.number().int().positive().parse(formData.get("businessId"));
     const periodId = z.coerce.number().int().positive().parse(formData.get("periodId"));
@@ -334,6 +337,21 @@ export async function getMelMonitoringDetail(
     if (!actor.canAccessAllEnterprises && submission.collectorId !== actor.id) {
       return errorResponse("This report belongs to another collector");
     }
+    const snapshot = submission.profileSnapshot;
+    const stableProfile = {
+      businessName: typeof snapshot.businessName === "string" ? snapshot.businessName : profile.businessName,
+      enterpriseId: typeof snapshot.enterpriseId === "number" ? snapshot.enterpriseId : profile.enterpriseId,
+      applicantName: typeof snapshot.applicantName === "string" ? snapshot.applicantName : profile.applicantName,
+      applicantGender: typeof snapshot.applicantGender === "string" ? snapshot.applicantGender : profile.applicantGender,
+      applicantDob:
+        typeof snapshot.applicantDob === "string" && !Number.isNaN(Date.parse(snapshot.applicantDob))
+          ? new Date(`${snapshot.applicantDob}T00:00:00Z`)
+          : profile.applicantDob,
+      sector: typeof snapshot.sector === "string" ? snapshot.sector : profile.sector,
+      track: typeof snapshot.track === "string" ? snapshot.track : profile.track,
+      county: typeof snapshot.county === "string" ? snapshot.county : profile.county,
+      city: typeof snapshot.city === "string" ? snapshot.city : profile.city,
+    };
 
     const approvedAchievements = await db
       .select({ code: melIndicatorDefinitions.code })
@@ -375,7 +393,7 @@ export async function getMelMonitoringDetail(
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
       period,
-      profile,
+      profile: stableProfile,
       approvedOneTimeCodes: approvedAchievements
         .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
         .filter((code): code is string => Boolean(code)),
@@ -396,6 +414,7 @@ export async function saveMelMonitoringAction(
   formData: FormData
 ): Promise<ActionResponse<{ submitted: boolean }>> {
   try {
+    await requireMelRolloutFeature("collection");
     const actor = await requireMelCollector();
     const submissionId = z.coerce.number().int().positive().parse(formData.get("submissionId"));
     const intent = z.enum(["save", "submit"]).parse(formData.get("intent"));
@@ -408,7 +427,7 @@ export async function saveMelMonitoringAction(
     if (!actor.canAccessAllEnterprises && submission.collectorId !== actor.id) {
       return errorResponse("This report belongs to another collector");
     }
-    if (["submitted", "resubmitted"].includes(submission.status)) {
+    if (!isCollectorEditableStatus(submission.status)) {
       return errorResponse("A submitted report cannot be edited until it is returned");
     }
 
@@ -431,6 +450,10 @@ export async function saveMelMonitoringAction(
     const settings = await db.query.melProgrammeSettings.findFirst({
       where: eq(melProgrammeSettings.id, 1),
     });
+    const oneTimeIndicators = await db
+      .select({ id: melIndicatorDefinitions.id, code: melIndicatorDefinitions.code })
+      .from(melIndicatorDefinitions)
+      .where(inArray(melIndicatorDefinitions.code, Object.keys(ONE_TIME_QUESTION_BY_INDICATOR)));
     const approvedCodes = new Set(
       approvedAchievements
         .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
@@ -449,8 +472,10 @@ export async function saveMelMonitoringAction(
 
     const profitLoss =
       input.revenue === null || input.costs === null ? null : calculateProfitLoss(input.revenue, input.costs);
-    const nextStatus =
-      intent === "submit" ? (submission.status === "returned" ? "resubmitted" : "submitted") : submission.status;
+    const isCorrection = ["returned", "returned_by_redo", "returned_by_mel", "reopened"].includes(
+      submission.status
+    );
+    const nextStatus = intent === "submit" ? "submitted" : submission.status;
 
     await db.transaction(async (tx) => {
       await tx
@@ -460,10 +485,12 @@ export async function saveMelMonitoringAction(
           status: nextStatus,
           submissionVersion: intent === "submit" ? submission.submissionVersion + 1 : submission.submissionVersion,
           resubmissionCount:
-            intent === "submit" && submission.status === "returned"
+            intent === "submit" && isCorrection
               ? submission.resubmissionCount + 1
               : submission.resubmissionCount,
           submittedAt: intent === "submit" ? new Date() : submission.submittedAt,
+          approvedAt: intent === "submit" && submission.status === "reopened" ? null : submission.approvedAt,
+          approvedById: intent === "submit" && submission.status === "reopened" ? null : submission.approvedById,
           lastSavedAt: new Date(),
           updatedAt: new Date(),
         })
@@ -525,6 +552,26 @@ export async function saveMelMonitoringAction(
         after: { status: nextStatus, profitLoss },
         correlationId: randomUUID(),
       });
+      if (intent === "submit") {
+        for (const indicator of oneTimeIndicators) {
+          const questionCode = ONE_TIME_QUESTION_BY_INDICATOR[indicator.code];
+          const field = questionCode.replace(/_([a-z])/g, (_, letter: string) =>
+            letter.toUpperCase()
+          ) as keyof typeof input;
+          if (input[field] !== true || approvedCodes.has(questionCode)) continue;
+          const supportingEvidence = evidence.find((item) => item.questionCode === questionCode);
+          await tx
+            .insert(melEnterpriseAchievements)
+            .values({
+              businessId: submission.businessId,
+              indicatorId: indicator.id,
+              firstSubmissionId: submissionId,
+              evidenceId: supportingEvidence?.id,
+              status: "pending",
+            })
+            .onConflictDoNothing();
+        }
+      }
     });
 
     revalidatePath("/admin/mel/monitoring");
@@ -590,6 +637,7 @@ export async function attachMelMonitoringEvidenceAction(input: {
   fileName: string;
   fileType: string;
   fileSize?: number;
+  replacesEvidenceId?: number;
 }): Promise<ActionResponse<{ id: number }>> {
   try {
     const actor = await requireMelCollector();
@@ -601,18 +649,36 @@ export async function attachMelMonitoringEvidenceAction(input: {
       fileName: z.string().trim().min(1).max(255),
       fileType: z.string().trim().min(1).max(150),
       fileSize: z.number().int().nonnegative().optional(),
+      replacesEvidenceId: z.number().int().positive().optional(),
     }).parse(input);
     const submission = await db.query.melMonitoringSubmissions.findFirst({
       where: eq(melMonitoringSubmissions.id, parsed.submissionId),
     });
     if (!submission) return errorResponse("Monitoring report not found");
     await assertBusinessAccess(actor, submission.businessId);
-    if (["submitted", "resubmitted"].includes(submission.status)) return errorResponse("Submitted evidence is locked");
+    if (!isCollectorEditableStatus(submission.status)) return errorResponse("Submitted evidence is locked");
 
-    const [created] = await db
-      .insert(melMonitoringEvidence)
-      .values({ ...parsed, uploaderId: actor.id })
-      .returning({ id: melMonitoringEvidence.id });
+    const created = await db.transaction(async (tx) => {
+      if (parsed.replacesEvidenceId) {
+        const replaced = await tx.query.melMonitoringEvidence.findFirst({
+          where: and(
+            eq(melMonitoringEvidence.id, parsed.replacesEvidenceId),
+            eq(melMonitoringEvidence.submissionId, parsed.submissionId),
+            eq(melMonitoringEvidence.status, "active")
+          ),
+        });
+        if (!replaced) throw new Error("The evidence being replaced is no longer active");
+        await tx
+          .update(melMonitoringEvidence)
+          .set({ status: "removed", removedAt: new Date() })
+          .where(eq(melMonitoringEvidence.id, replaced.id));
+      }
+      const [inserted] = await tx
+        .insert(melMonitoringEvidence)
+        .values({ ...parsed, uploaderId: actor.id })
+        .returning({ id: melMonitoringEvidence.id });
+      return inserted;
+    });
     if (!created) throw new Error("Failed to attach evidence");
     revalidatePath(`/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`);
     return successResponse(created, "Evidence attached");
@@ -621,20 +687,40 @@ export async function attachMelMonitoringEvidenceAction(input: {
   }
 }
 
-export async function removeMelMonitoringEvidenceAction(evidenceId: number): Promise<ActionResponse<{ removed: true }>> {
+export async function removeMelMonitoringEvidenceAction(input: {
+  evidenceId: number;
+  reason: string;
+}): Promise<ActionResponse<{ removed: true }>> {
   try {
     const actor = await requireMelCollector();
+    const parsed = z.object({
+      evidenceId: z.number().int().positive(),
+      reason: z.string().trim().min(5).max(1000),
+    }).parse(input);
     const evidence = await db.query.melMonitoringEvidence.findFirst({
-      where: eq(melMonitoringEvidence.id, evidenceId),
+      where: eq(melMonitoringEvidence.id, parsed.evidenceId),
       with: { submission: true },
     });
     if (!evidence) return errorResponse("Evidence not found");
     await assertBusinessAccess(actor, evidence.submission.businessId);
-    if (["submitted", "resubmitted"].includes(evidence.submission.status)) return errorResponse("Submitted evidence is locked");
-    await db
-      .update(melMonitoringEvidence)
-      .set({ status: "removed", removedAt: new Date() })
-      .where(eq(melMonitoringEvidence.id, evidenceId));
+    if (!isCollectorEditableStatus(evidence.submission.status)) return errorResponse("Submitted evidence is locked");
+    await db.transaction(async (tx) => {
+      await tx
+        .update(melMonitoringEvidence)
+        .set({ status: "removed", removedAt: new Date() })
+        .where(eq(melMonitoringEvidence.id, parsed.evidenceId));
+      await tx.insert(melAuditEvents).values({
+        actorId: actor.id,
+        actorRole: actor.role,
+        entityType: "mel_monitoring_evidence",
+        entityId: String(parsed.evidenceId),
+        action: "removed",
+        reason: parsed.reason,
+        before: { status: evidence.status, fileKey: evidence.fileKey },
+        after: { status: "removed" },
+        correlationId: randomUUID(),
+      });
+    });
     revalidatePath(`/admin/mel/monitoring/${evidence.submission.businessId}/${evidence.submission.reportingPeriodId}`);
     return successResponse({ removed: true }, "Evidence removed");
   } catch (error) {

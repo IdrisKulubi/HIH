@@ -15,6 +15,8 @@ import {
   eligibilityResults,
   investmentAppraisals,
   kycProfiles,
+  melLearningActions,
+  melMonitoringSubmissions,
 } from "@/db/schema";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
@@ -28,7 +30,8 @@ export type NotificationGroup =
   | "Due diligence"
   | "KYC"
   | "Committee"
-  | "Finance";
+  | "Finance"
+  | "MEL";
 
 export interface TopbarNotification {
   id: string;
@@ -247,6 +250,81 @@ async function getReviewerNotifications(userId: string, role: string): Promise<T
   });
 }
 
+async function getMelWorkflowNotifications(userId: string, role: string): Promise<TopbarNotification[]> {
+  const items: TopbarNotification[] = [];
+  if (role === "redo" || role === "admin") {
+    const count = await countRows(
+      melMonitoringSubmissions,
+      and(
+        inArray(melMonitoringSubmissions.status, ["submitted", "resubmitted", "redo_review"]),
+        eq(melMonitoringSubmissions.collectorRole, "bds_edo")
+      )
+    );
+    items.push(...itemIf(count, {
+      id: "mel-redo-review",
+      title: "Enterprise reports need REDO review",
+      body: `${countLabel(count, "monitoring report")} waiting for REDO review.`,
+      href: "/admin/mel/review",
+      group: "MEL",
+      tone: "warning",
+    }));
+  }
+  if (role === "mel" || role === "admin") {
+    const count = await countRows(
+      melMonitoringSubmissions,
+      or(
+        eq(melMonitoringSubmissions.status, "mel_review"),
+        and(
+          inArray(melMonitoringSubmissions.status, ["submitted", "resubmitted"]),
+          eq(melMonitoringSubmissions.collectorRole, "redo")
+        )
+      )
+    );
+    items.push(...itemIf(count, {
+      id: "mel-final-review",
+      title: "Enterprise reports need MEL review",
+      body: `${countLabel(count, "monitoring report")} waiting for final MEL review.`,
+      href: "/admin/mel/review",
+      group: "MEL",
+      tone: "warning",
+    }));
+  }
+  if (role === "bds_edo" || role === "redo") {
+    const returned = await countRows(
+      melMonitoringSubmissions,
+      and(
+        eq(melMonitoringSubmissions.collectorId, userId),
+        inArray(melMonitoringSubmissions.status, ["returned_by_redo", "returned_by_mel", "reopened"])
+      )
+    );
+    items.push(...itemIf(returned, {
+      id: "mel-returned-reports",
+      title: "Monitoring reports need correction",
+      body: `${countLabel(returned, "report")} returned with review comments.`,
+      href: "/admin/mel/monitoring",
+      group: "MEL",
+      tone: "danger",
+    }));
+  }
+  const overdueActions = await countRows(
+    melLearningActions,
+    and(
+      eq(melLearningActions.responsibleUserId, userId),
+      inArray(melLearningActions.status, ["open", "in_progress"]),
+      sql`${melLearningActions.dueDate} < CURRENT_DATE`
+    )
+  );
+  items.push(...itemIf(overdueActions, {
+    id: "mel-learning-overdue",
+    title: "Learning actions are overdue",
+    body: `${countLabel(overdueActions, "action")} assigned to you is past its due date.`,
+    href: "/admin/mel/learning",
+    group: "MEL",
+    tone: "danger",
+  }));
+  return items;
+}
+
 async function getA2fStaffPipelineNotifications(userId: string, role: string): Promise<TopbarNotification[]> {
   const officerScope =
     role === "a2f_officer"
@@ -459,6 +537,9 @@ export async function getTopbarNotifications(): Promise<
     }
     if (role === "admin" || role === "a2f_committee") {
       providers.push(getCommitteeNotifications());
+    }
+    if (["admin", "bds_edo", "redo", "mel"].includes(role)) {
+      providers.push(getMelWorkflowNotifications(userId, role));
     }
     if (role === "applicant") providers.push(getApplicantNotifications(userId));
 

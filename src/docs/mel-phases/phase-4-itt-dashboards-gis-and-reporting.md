@@ -1,5 +1,25 @@
 # MEL Phase 4: ITT, Dashboards, GIS and Reporting
 
+## Implementation Status
+
+**Status:** Accepted
+
+Implemented on 31 July 2026:
+
+- deterministic indicator engine with safe medians, ratios, target achievement, inverse targets, and explicit missing-baseline handling;
+- trusted-data enforcement that includes only approved monitoring and programme-result records;
+- materialized ITT results with calculation/indicator versions, hashes, timestamps, lineage, and exclusions;
+- executive and ITT dashboards with period, track, county, and sector filters;
+- profitability, revenue, finance, jobs, waste, one-time achievement, and programme-entry calculations;
+- enterprise performance and indicator-lineage drill-down views;
+- reporting-completeness, DQA, evidence, timeliness, and GPS quality dashboard;
+- protected clustered GIS using verified KYC coordinates with reduced precision and a validation queue;
+- audited CSV/Excel exports for ITT, monitoring, jobs, evidence, data quality, programme results, and GIS;
+- programme-level result entry, approval, reopen, and void controls;
+- calculation reconciliation fixtures and a MEL reporting guide.
+
+Phase 4 was accepted before Phase 5 implementation began. Its migration and reconciliation pack remain production rollout prerequisites tracked by the Phase 5 operational gates.
+
 ## 1. Objective
 
 Convert approved operational data into auditable ITT actuals, programme dashboards, GIS views, exports, and management reports.

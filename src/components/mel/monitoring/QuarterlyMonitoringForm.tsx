@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import type { MelMonitoringDetail } from "@/lib/actions/mel-monitoring";
 import { saveMelMonitoringAction } from "@/lib/actions/mel-monitoring";
 import { WASTE_STREAMS } from "@/lib/mel/monitoring-validation";
+import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { MonitoringEvidence } from "./MonitoringEvidence";
 import { ActionMessage } from "@/components/admin/mel/ActionMessage";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ type JobRow = MelMonitoringDetail["jobs"][number];
 
 export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetail }) {
   const [state, action, pending] = useActionState(saveMelMonitoringAction, null);
-  const locked = ["submitted", "resubmitted"].includes(detail.submission.status);
+  const locked = !isCollectorEditableStatus(detail.submission.status);
   const response = detail.response;
   const direct = detail.jobs.find((row) => row.jobType === "direct");
   const indirect = detail.jobs.find((row) => row.jobType === "indirect");

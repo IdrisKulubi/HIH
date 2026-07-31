@@ -1,5 +1,26 @@
 # MEL Phase 2: Quarterly Enterprise Monitoring
 
+## Implementation Status
+
+**Status:** In review
+
+Implemented on 31 July 2026:
+
+- assignment-aware collector workspace for EDO, REDO, and administrator roles;
+- one idempotent submission per enterprise, reporting period, and instrument;
+- truthful current-period and catch-up modes with immutable original period links;
+- snapshotted enterprise, owner, demographic, track, sector, and location details;
+- typed monitoring responses for all Phase 2 sections;
+- server-calculated profit or loss and read-only cumulative job totals;
+- direct and indirect quarterly job records with disaggregation constraints;
+- configured waste-stream records in kilograms;
+- evidence upload, attachment, removal, and submission locking;
+- durable one-time achievement structure ready for Phase 3 approval;
+- complete server validation, draft saving, submission, and audit events;
+- focused calculation and conditional-validation tests.
+
+The migration is generated but must be applied to the intended database before representative reports can be entered. Phase 2 remains **In review** until Foundation and Accelerator test reports satisfy the phase gate.
+
 ## 1. Objective
 
 Deliver the field-data collection workflow for quarterly enterprise monitoring.

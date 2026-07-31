@@ -1,5 +1,24 @@
 # MEL Phase 5: Configurable Tools, Integrations and Rollout
 
+## Implementation Status
+
+**Status:** In review
+
+Implemented on 31 July 2026:
+
+- configurable baseline, quarterly, midline, endline, and special-study instruments;
+- immutable published versions, draft cloning, sections, ordered questions, validation, conditional visibility, indicator mapping, and cycle detection;
+- authenticated Kobo/ODK/file/legacy integration boundary with one-time secrets;
+- versioned field mappings, idempotency, minimized payload retention, quarantine, validation, promotion, and explicit review;
+- dry-run-first historical migration tooling for `business_performance_metrics`;
+- formula-injection-safe MEL exports and database-backed import/export rate limiting;
+- correlation-safe operational events with sensitive metadata redaction;
+- evidence-backed backup, security, reconciliation, accessibility, load, training, pilot, and stabilization gates;
+- staged rollout controls for collection, imports, and reporting, including rollback reasons;
+- instrument/import/security fixtures, operational handbook, security review, and rollout checklist.
+
+Repository implementation is complete. Phase 5 remains **In review** because backup restore, load/accessibility testing, pilot rollout, production rollout, training acceptance, and stabilization are external operational activities. The system blocks stage advancement until their evidence is recorded.
+
 ## 1. Objective
 
 Complete the broader MEL platform with configurable instruments, integrations, historical-data handling, security and operational hardening, and production rollout.

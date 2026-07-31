@@ -127,6 +127,14 @@ export function monitoringSubmissionIssues(
 
   if (input.revenue === null) issues.push("Revenue is required");
   if (input.costs === null) issues.push("Costs are required");
+  if (
+    input.revenue !== null &&
+    input.costs !== null &&
+    input.revenue - input.costs < 0 &&
+    !input.financialChangeExplanation
+  ) {
+    issues.push("Explain the reported loss");
+  }
   if (input.newMarketSegments === null) issues.push("New market segments is required");
   if (input.technologyAdopted && !input.technologyDetails) issues.push("Technology details are required when adoption is Yes");
   if (input.newProductsDeveloped && !input.newProductsDetails) issues.push("Product or service details are required when development is Yes");
@@ -158,10 +166,14 @@ export function monitoringSubmissionIssues(
   if ((input.directJobs.total ?? 0) + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
     issues.push("Evidence is required for jobs created");
   }
+  for (const stream of WASTE_STREAMS) {
+    if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
+  }
   if (Object.values(input.waste).some((value) => (value ?? 0) > 0) && !evidenceQuestionCodes.has("waste")) {
     issues.push("Evidence is required for waste collected and recycled");
   }
   if (!input.mainChallenges) issues.push("Main challenges are required");
+  if (!input.negativeProgrammeImpacts) issues.push("Programme impacts are required; enter None if none were observed");
   if (!input.additionalSupportNeeded) issues.push("Additional support needs are required");
   if (!input.collectorComment) issues.push("Collector comment is required");
 

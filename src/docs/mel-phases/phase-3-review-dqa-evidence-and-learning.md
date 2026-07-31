@@ -1,5 +1,28 @@
 # MEL Phase 3: Review, DQA, Evidence and Learning
 
+## Implementation Status
+
+**Status:** Accepted
+
+Implemented on 31 July 2026:
+
+- explicit REDO, MEL, return, approval, reopen, and void state-machine transitions;
+- EDO-originated and REDO-originated approval paths with self-approval prevention;
+- immutable submitted-version snapshots and full review-decision history;
+- required return reasons and affected-section correction lists;
+- completeness, consistency, plausibility, and timeliness DQA rules;
+- blocking DQA errors and reasoned reviewer acceptance of plausibility exceptions;
+- evidence verification and rejection with protected approved-report evidence;
+- final approval locking and activation of one-time achievements;
+- reopening that removes the report and achievements from trusted status;
+- searchable authorized evidence repository;
+- learning and adaptation action queue with ownership, deadlines, status, and follow-up;
+- idempotent notification outbox plus in-app workflow and overdue notifications;
+- administrator REDO reviewer assignment and auditable reassignment;
+- focused state-machine and DQA tests.
+
+Phase 3 was accepted before Phase 4 implementation began. Its migration remains a deployment prerequisite for the trusted-data and reporting workflows.
+
 ## 1. Objective
 
 Deliver the complete REDO and MEL review lifecycle, data-quality assurance, approved evidence repository, and learning/adaptation workflow.

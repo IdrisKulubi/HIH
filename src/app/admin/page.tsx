@@ -71,6 +71,8 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
       { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartBar },
       { href: "/admin/mel", label: "MEL Configuration", icon: Target },
       { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
+      { href: "/admin/mel/review", label: "MEL Review Queue", icon: CheckCircle },
+      { href: "/admin/mel/reporting", label: "MEL Reporting", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
       { href: "/admin/assignments", label: "Assignments", icon: UserCheck },

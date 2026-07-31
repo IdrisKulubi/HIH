@@ -24,11 +24,11 @@ The source files remain the business references. This plan is the engineering ex
 
 | Phase | Workstream | Status | Start condition |
 |---|---|---|---|
-| 1 | Foundation and reporting periods | In review | Roadmap accepted |
-| 2 | Quarterly enterprise monitoring | Not started | Phase 1 accepted |
-| 3 | Review, DQA, evidence and learning | Not started | Phase 2 accepted |
-| 4 | ITT, dashboards, GIS and reporting | Not started | Phase 3 accepted |
-| 5 | Configurable tools, integrations and rollout | Not started | Phase 4 accepted |
+| 1 | Foundation and reporting periods | Accepted | Roadmap accepted |
+| 2 | Quarterly enterprise monitoring | Accepted | Phase 1 accepted |
+| 3 | Review, DQA, evidence and learning | Accepted | Phase 2 accepted |
+| 4 | ITT, dashboards, GIS and reporting | Accepted | Phase 3 accepted |
+| 5 | Configurable tools, integrations and rollout | In review | Phase 4 accepted |
 
 Update this table at the beginning and completion of every phase. A phase may use only these statuses:
 

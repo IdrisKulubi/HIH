@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { FileText, Loader2, Trash2, UploadCloud } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { FileText, Loader2, RefreshCw, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import type { MelMonitoringEvidence } from "@/db/schema";
 import {
@@ -41,7 +41,9 @@ export function MonitoringEvidence({
   locked: boolean;
 }) {
   const [questionCode, setQuestionCode] = useState<string>(QUESTION_OPTIONS[0][0]);
+  const replacementRef = useRef<{ id: number; questionCode: string } | null>(null);
   const [progress, setProgress] = useState(0);
+  const [removalReasons, setRemovalReasons] = useState<Record<number, string>>({});
   const [pending, startTransition] = useTransition();
 
   const { startUpload, isUploading } = useUploadThing("melEvidenceUploader", {
@@ -52,12 +54,13 @@ export function MonitoringEvidence({
         for (const file of files ?? []) {
           const result = await attachMelMonitoringEvidenceAction({
             submissionId,
-            questionCode,
+            questionCode: replacementRef.current?.questionCode ?? questionCode,
             fileKey: file.serverData?.fileKey ?? file.key,
             fileUrl: file.serverData?.fileUrl ?? file.ufsUrl,
             fileName: file.serverData?.fileName ?? file.name,
             fileType: file.serverData?.fileType ?? file.type ?? "application/octet-stream",
             fileSize: file.serverData?.fileSize ?? file.size,
+            replacesEvidenceId: replacementRef.current?.id,
           });
           if (!result.success) {
             toast.error(result.error ?? "Could not attach evidence");
@@ -65,19 +68,29 @@ export function MonitoringEvidence({
           }
         }
         setProgress(0);
-        toast.success("Evidence attached");
+        const wasReplacement = Boolean(replacementRef.current);
+        replacementRef.current = null;
+        toast.success(wasReplacement ? "Evidence replaced" : "Evidence attached");
       });
     },
     onUploadError: (error) => {
       setProgress(0);
+      replacementRef.current = null;
       toast.error(error.message || "Evidence upload failed");
     },
   });
 
   const remove = (id: number) => {
     startTransition(async () => {
-      const result = await removeMelMonitoringEvidenceAction(id);
-      result.success ? toast.success("Evidence removed") : toast.error(result.error ?? "Could not remove evidence");
+      const result = await removeMelMonitoringEvidenceAction({
+        evidenceId: id,
+        reason: removalReasons[id] ?? "",
+      });
+      if (result.success) {
+        toast.success("Evidence removed");
+      } else {
+        toast.error(result.error ?? "Could not remove evidence");
+      }
     });
   };
 
@@ -125,9 +138,34 @@ export function MonitoringEvidence({
               </a>
               <span className="hidden text-xs text-slate-500 sm:inline">{item.questionCode.replaceAll("_", " ")}</span>
               {!locked ? (
-                <Button type="button" variant="ghost" size="icon" disabled={pending} onClick={() => remove(item.id)} aria-label={`Remove ${item.fileName}`}>
-                  <Trash2 className="size-4 text-red-600" />
-                </Button>
+                <>
+                  <input
+                    value={removalReasons[item.id] ?? ""}
+                    onChange={(event) => setRemovalReasons((current) => ({ ...current, [item.id]: event.target.value }))}
+                    placeholder="Removal reason"
+                    aria-label={`Removal reason for ${item.fileName}`}
+                    className="h-9 w-36 rounded-md border border-input bg-background px-2 text-xs"
+                  />
+                  <label className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md hover:bg-slate-100" aria-label={`Replace ${item.fileName}`}>
+                    <RefreshCw className="size-4 text-slate-600" />
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                      disabled={pending || isUploading}
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        if (!file) return;
+                        replacementRef.current = { id: item.id, questionCode: item.questionCode };
+                        void startUpload([file]);
+                      }}
+                    />
+                  </label>
+                  <Button type="button" variant="ghost" size="icon" disabled={pending || (removalReasons[item.id]?.trim().length ?? 0) < 5} onClick={() => remove(item.id)} aria-label={`Remove ${item.fileName}`}>
+                    <Trash2 className="size-4 text-red-600" />
+                  </Button>
+                </>
               ) : null}
             </li>
           ))}
