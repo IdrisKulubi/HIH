@@ -113,7 +113,7 @@ import { useSession } from "next-auth/react";
 import { isMatchingGrantReadOnlyRole } from "@/lib/a2f-nav";
 
 type FormState = {
-    status: "draft" | "submitted";
+    status: "draft" | "submitted" | "returned_for_correction";
     enterprise: EnterpriseIdentification;
     lead: LeadEntrepreneur;
     otherOwners: OtherOwner[];
@@ -353,7 +353,9 @@ export function MatchingGrantApplicationWizard({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
     const [form, setForm] = useState<FormState>(EMPTY_FORM);
+    const [returnReason, setReturnReason] = useState<string | null>(null);
     const applicantLocked = mode === "applicant" && form.status === "submitted";
+    const returnedForCorrection = form.status === "returned_for_correction";
     const readOnly = mode === "readonly" || applicantLocked;
     const canRaiseDocumentIssues =
         session?.user?.role === "a2f_officer" || session?.user?.role === "admin";
@@ -392,6 +394,10 @@ export function MatchingGrantApplicationWizard({
                 innovationElement: biz?.technologyIntegrationDescription ?? biz?.businessModelInnovation ?? "",
             };
             const baseForm = fromRecord(appRes.success ? appRes.data : null, seeded);
+            const record = appRes.success ? appRes.data : null;
+            setReturnReason(
+                typeof record?.returnReason === "string" ? record.returnReason : null
+            );
             const documents = docSourcesRes.success && docSourcesRes.data
                 ? resolveMgDocumentSources({
                     business: docSourcesRes.data.business,
@@ -671,8 +677,16 @@ export function MatchingGrantApplicationWizard({
                     <h1 className="text-xl font-bold truncate">Matching Grant Application</h1>
                     <p className="text-sm text-muted-foreground truncate">{biz?.name}</p>
                 </div>
-                <Badge className={form.status === "submitted" ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-amber-100 text-amber-700 border-amber-200"}>
-                    {form.status}
+                <Badge
+                    className={
+                        form.status === "submitted"
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                            : form.status === "returned_for_correction"
+                              ? "bg-amber-100 text-amber-800 border-amber-200"
+                              : "bg-slate-100 text-slate-700 border-slate-200"
+                    }
+                >
+                    {form.status === "returned_for_correction" ? "Returned for correction" : form.status}
                 </Badge>
                 {readOnly && (
                     <Badge variant="outline" className="text-xs">
@@ -680,6 +694,22 @@ export function MatchingGrantApplicationWizard({
                     </Badge>
                 )}
             </div>
+
+            {returnedForCorrection && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <p className="font-semibold">This application was returned for correction</p>
+                    <p className="mt-1">
+                        Update the details below and resubmit. Your programme head may reach out to help you
+                        complete the form correctly.
+                    </p>
+                    {returnReason ? (
+                        <p className="mt-2 text-amber-800">
+                            <span className="font-medium">Feedback: </span>
+                            {returnReason}
+                        </p>
+                    ) : null}
+                </div>
+            )}
 
             {applicantLocked && (
                 <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

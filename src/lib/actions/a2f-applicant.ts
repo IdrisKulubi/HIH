@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { getApplicantMatchingGrantReturnGate } from "@/lib/matching-grant-return";
 import {
     checkApplicantCanStartMatchingGrant,
     ensureApplicantMatchingGrantPipeline,
@@ -22,6 +23,14 @@ export async function getApplicantA2fHomePath(): Promise<string> {
     const session = await auth();
     if (!session?.user?.id) return "/login";
     return resolveApplicantA2fHomePath(session.user.id);
+}
+
+export async function getApplicantMatchingGrantReturnGateAction() {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role !== "applicant") {
+        return successResponse({ needsReapplication: false });
+    }
+    return successResponse(await getApplicantMatchingGrantReturnGate(session.user.id));
 }
 
 /** True when the applicant has a submitted Matching Grant application on their pipeline. */

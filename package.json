@@ -13,6 +13,7 @@
     "test:a2f-screening": "npx tsx src/lib/a2f-pre-screening.manual.test.ts",
     "test:a2f-outcomes": "npx tsx src/lib/a2f-pre-screening-outcome.manual.test.ts",
     "test:mg-validation": "npx tsx src/lib/matching-grant-validation.manual.test.ts",
+    "test:mg-return": "npx tsx src/lib/matching-grant-return.manual.test.ts",
     "test:mel-phase1": "npx tsx src/lib/mel/phase1.manual.test.ts",
     "test:mel-phase2": "npx tsx src/lib/mel/phase2.manual.test.ts",
     "test:mel-phase3": "npx tsx src/lib/mel/phase3.manual.test.ts",

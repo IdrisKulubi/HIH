@@ -42,6 +42,7 @@ import { UserSupportTickets } from "@/components/support/UserSupportTickets";
 import { PasswordChangeForm } from "@/components/auth/PasswordChangeForm";
 import { ShieldCheck } from "lucide-react";
 import { ApplicantContractsTab } from "@/components/application/ApplicantContractsTab";
+import { ApplicantMatchingGrantGateShell } from "@/components/a2f/ApplicantMatchingGrantGateShell";
 
 // Helper function to get status color
 function getStatusColor(status: string) {
@@ -138,6 +139,7 @@ export default async function ProfilePage() {
   const completionPercentage = Math.round((completedFields.length / profileFields.length) * 100);
 
   return (
+    <ApplicantMatchingGrantGateShell>
     <div className="min-h-screen bg-slate-50/50 pb-20">
       {/* Modern Gradient Header */}
       <div className="relative h-[280px] bg-brand-blue overflow-hidden">
@@ -633,5 +635,6 @@ export default async function ProfilePage() {
         </Suspense>
       </div>
     </div>
+    </ApplicantMatchingGrantGateShell>
   );
-} 
+}

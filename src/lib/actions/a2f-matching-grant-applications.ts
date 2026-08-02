@@ -39,7 +39,10 @@ import { sendMatchingGrantSubmissionEmail } from "@/lib/email";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
-export type MatchingGrantApplicationStatus = "draft" | "submitted";
+export type MatchingGrantApplicationStatus =
+    | "draft"
+    | "submitted"
+    | "returned_for_correction";
 
 export interface MatchingGrantApplicationInput {
     status?: MatchingGrantApplicationStatus;
@@ -321,11 +324,35 @@ export async function saveMatchingGrantApplication(
             );
         }
 
+        const isResubmit =
+            isApplicant &&
+            existing?.status === "returned_for_correction" &&
+            input.status === "submitted";
+
+        if (isApplicant && existing?.status === "returned_for_correction" && input.status !== "submitted") {
+            // Applicants may only save draft edits while correcting; final submit clears the return.
+            // Allow draft saves with status omitted or explicit draft during correction.
+        }
+
         let id: number;
         if (existing) {
+            const updateValues =
+                isResubmit
+                    ? {
+                          ...values,
+                          status: "submitted" as const,
+                          returnReason: null,
+                          returnedAt: null,
+                          returnedById: null,
+                          returnedToEdoId: null,
+                      }
+                    : existing.status === "returned_for_correction" && isApplicant
+                      ? { ...values, status: "returned_for_correction" as const }
+                      : values;
+
             await db
                 .update(a2fMatchingGrantApplications)
-                .set(values)
+                .set(updateValues)
                 .where(eq(a2fMatchingGrantApplications.id, existing.id));
             id = existing.id;
         } else {
@@ -355,7 +382,11 @@ export async function saveMatchingGrantApplication(
         const isFirstSubmit =
             input.status === "submitted" && existing?.status !== "submitted";
 
-        if (isFirstSubmit && isApplicant && pipeline.application?.business?.applicant) {
+        if (
+            (isFirstSubmit || isResubmit) &&
+            isApplicant &&
+            pipeline.application?.business?.applicant
+        ) {
             const applicant = pipeline.application.business.applicant;
             const enterpriseName = pipeline.application.business.name;
             await sendMatchingGrantSubmissionEmail({

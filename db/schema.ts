@@ -3731,6 +3731,11 @@ export const a2fMatchingGrantApplications = pgTable('a2f_matching_grant_applicat
   track: applicationTrackEnum('track').notNull(),
   status: varchar('status', { length: 32 }).default('draft').notNull(),
   submittedById: text('submitted_by_id').references(() => users.id, { onDelete: 'set null' }),
+  returnedAt: timestamp('returned_at'),
+  returnedById: text('returned_by_id').references(() => users.id, { onDelete: 'set null' }),
+  returnedToEdoId: text('returned_to_edo_id').references(() => users.id, { onDelete: 'set null' }),
+  returnReason: text('return_reason'),
+  returnCount: integer('return_count').default(0).notNull(),
 
   totalProjectAmount: decimal('total_project_amount', { precision: 14, scale: 2 }).default('0').notNull(),
   bireGrantAmount: decimal('bire_grant_amount', { precision: 14, scale: 2 }).default('0').notNull(),
@@ -4082,6 +4087,16 @@ export const a2fMatchingGrantApplicationsRelations = relations(a2fMatchingGrantA
   submittedBy: one(users, {
     fields: [a2fMatchingGrantApplications.submittedById],
     references: [users.id],
+  }),
+  returnedBy: one(users, {
+    fields: [a2fMatchingGrantApplications.returnedById],
+    references: [users.id],
+    relationName: 'mgReturnedBy',
+  }),
+  returnedToEdo: one(users, {
+    fields: [a2fMatchingGrantApplications.returnedToEdoId],
+    references: [users.id],
+    relationName: 'mgReturnedToEdo',
   }),
 }));
 
