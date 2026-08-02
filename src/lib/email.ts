@@ -16,6 +16,10 @@ import {
   MatchingGrantSubmissionEmailProps,
 } from '@/components/emails/matching-grant-submission-email';
 import {
+  MatchingGrantReturnedToEdoEmail,
+  type MatchingGrantReturnedToEdoEmailProps,
+} from '@/components/emails/matching-grant-returned-to-edo-email';
+import {
   A2fScreeningPassEmail,
   type A2fScreeningPassEmailProps,
 } from '@/components/emails/a2f-screening-pass-email';
@@ -130,6 +134,27 @@ export async function sendMatchingGrantSubmissionEmail(
     return { success: true };
   } catch (error) {
     console.error("Failed to send Matching Grant submission email:", error);
+    return { success: false };
+  }
+}
+
+export async function sendMatchingGrantReturnedToEdoEmail(
+  props: MatchingGrantReturnedToEdoEmailProps & { edoEmail: string }
+): Promise<{ success: boolean; skipped?: boolean }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping Matching Grant return notification");
+    return { success: false, skipped: true };
+  }
+
+  try {
+    await sendEmail({
+      to: props.edoEmail,
+      subject: "Matching Grant returned for correction — contact applicant",
+      react: MatchingGrantReturnedToEdoEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send Matching Grant return email:", error);
     return { success: false };
   }
 }

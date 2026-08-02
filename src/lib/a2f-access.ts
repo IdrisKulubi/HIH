@@ -182,6 +182,14 @@ export async function assertMatchingGrantApplicationSubmitted(
         return { ok: true };
     }
 
+    if (application?.status === "returned_for_correction") {
+        return {
+            ok: false,
+            error:
+                "This Matching Grant application was returned for correction. Scoring is paused until the applicant resubmits.",
+        };
+    }
+
     return {
         ok: false,
         error: "This A2F area is locked until the enterprise submits the Matching Grant application form.",
