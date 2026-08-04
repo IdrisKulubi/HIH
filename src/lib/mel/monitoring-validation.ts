@@ -51,6 +51,7 @@ export const melMonitoringDraftSchema = z.object({
   businessPlanImproved: optionalBoolean,
   revenue: optionalMoney,
   costs: optionalMoney,
+  financialChangeExplanation: optionalText,
   directJobs: jobSchema,
   indirectJobs: jobSchema,
   marketResearchCompleted: optionalBoolean,
@@ -105,7 +106,8 @@ export function monitoringSubmissionIssues(
   evidenceQuestionCodes: ReadonlySet<string>,
   approvedOneTimeCodes: ReadonlySet<string>,
   includeRefugee: boolean,
-  wasteEligible: boolean
+  wasteEligible: boolean,
+  financialExplanationRequired = false
 ): string[] {
   const issues: string[] = [];
   if (!input.visitDate) issues.push("Visit date is required");
@@ -135,6 +137,7 @@ export function monitoringSubmissionIssues(
 
   if (input.revenue === null) issues.push("Total revenue for the past 3 months is required");
   if (input.costs === null) issues.push("Total costs for the past 3 months are required");
+  if (financialExplanationRequired && (!input.financialChangeExplanation || input.financialChangeExplanation.length < 10)) issues.push("Explain the material loss or unusually large financial change using at least 10 characters");
   if (input.newMarketSegments === null) issues.push("New market segments is required");
   if (input.technologyAdopted && !input.technologyDetails) issues.push("Technology or innovation details are required when Yes");
   if (input.newProductsDeveloped && !input.newProductsDetails) issues.push("Product or service details are required when Yes");
@@ -218,7 +221,7 @@ export function parseMonitoringFormData(formData: FormData): MelMonitoringDraft 
 
   return melMonitoringDraftSchema.parse({
     visitDate: get("visitDate"), businessPlanImproved: get("businessPlanImproved"),
-    revenue: get("revenue"), costs: get("costs"), directJobs: jobs("direct"), indirectJobs: jobs("indirect"),
+    revenue: get("revenue"), costs: get("costs"), financialChangeExplanation: get("financialChangeExplanation"), directJobs: jobs("direct"), indirectJobs: jobs("indirect"),
     marketResearchCompleted: get("marketResearchCompleted"), marketIntelligenceAccessed: get("marketIntelligenceAccessed"),
     newMarketSegments: get("newMarketSegments"), technologyAdopted: get("technologyAdopted"),
     technologyDetails: get("technologyDetails"), newProductsDeveloped: get("newProductsDeveloped"),

@@ -1416,6 +1416,7 @@ export const melProgrammeSettings = pgTable(
     redThreshold: decimal('red_threshold', { precision: 5, scale: 2 }).default('50').notNull(),
     greenThreshold: decimal('green_threshold', { precision: 5, scale: 2 }).default('80').notNull(),
     financiallyResilientDefinition: text('financially_resilient_definition'),
+    financialVarianceThresholdPercent: decimal('financial_variance_threshold_percent', { precision: 7, scale: 2 }).default('100').notNull(),
     monthlyFinancialBaselines: jsonb('monthly_financial_baselines')
       .$type<{
         foundation: { revenue: number; costs: number; profit: number };
@@ -1437,6 +1438,58 @@ export const melProgrammeSettings = pgTable(
       'mel_programme_settings_threshold_order_check',
       sql`${table.redThreshold} >= 0 AND ${table.greenThreshold} <= 100 AND ${table.redThreshold} < ${table.greenThreshold}`
     ),
+  })
+);
+
+export const melFinancialBaselineBatches = pgTable(
+  'mel_financial_baseline_batches',
+  {
+    id: serial('id').primaryKey(),
+    sourceName: varchar('source_name', { length: 255 }).notNull(),
+    sourceChecksum: varchar('source_checksum', { length: 64 }).notNull(),
+    effectiveDate: date('effective_date').notNull(),
+    status: varchar('status', { length: 30 }).$type<'validating' | 'needs_review' | 'validated' | 'active' | 'superseded'>().default('validating').notNull(),
+    totalRecords: integer('total_records').default(0).notNull(),
+    validRecords: integer('valid_records').default(0).notNull(),
+    quarantinedRecords: integer('quarantined_records').default(0).notNull(),
+    uploadedById: text('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedById: text('activated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedAt: timestamp('activated_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ checksumUnique: uniqueIndex('mel_financial_baseline_batches_checksum_unique').on(table.sourceChecksum) })
+);
+
+export const melEnterpriseFinancialBaselines = pgTable(
+  'mel_enterprise_financial_baselines',
+  {
+    id: serial('id').primaryKey(),
+    batchId: integer('batch_id').notNull().references(() => melFinancialBaselineBatches.id, { onDelete: 'cascade' }),
+    sourceRow: integer('source_row').notNull(),
+    sourceBusinessId: varchar('source_business_id', { length: 120 }).notNull(),
+    sourceBusinessName: text('source_business_name').notNull(),
+    businessId: integer('business_id').references(() => businesses.id, { onDelete: 'restrict' }),
+    effectiveDate: date('effective_date').notNull(),
+    monthlyRevenue: decimal('monthly_revenue', { precision: 18, scale: 2 }),
+    monthlyCosts: decimal('monthly_costs', { precision: 18, scale: 2 }),
+    monthlyProfit: decimal('monthly_profit', { precision: 18, scale: 2 }),
+    annualRevenue: decimal('annual_revenue', { precision: 18, scale: 2 }),
+    annualCosts: decimal('annual_costs', { precision: 18, scale: 2 }),
+    annualProfit: decimal('annual_profit', { precision: 18, scale: 2 }),
+    rawRow: jsonb('raw_row').$type<Record<string, unknown>>().default({}).notNull(),
+    validationErrors: jsonb('validation_errors').$type<string[]>().default([]).notNull(),
+    validationWarnings: jsonb('validation_warnings').$type<string[]>().default([]).notNull(),
+    status: varchar('status', { length: 30 }).$type<'validated' | 'quarantined' | 'active' | 'superseded'>().default('quarantined').notNull(),
+    resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    batchRowUnique: uniqueIndex('mel_enterprise_financial_baselines_batch_row_unique').on(table.batchId, table.sourceRow),
+    batchStatusIdx: index('mel_enterprise_financial_baselines_batch_status_idx').on(table.batchId, table.status),
+    businessDateIdx: index('mel_enterprise_financial_baselines_business_date_idx').on(table.businessId, table.effectiveDate),
+    activeBusinessUnique: uniqueIndex('mel_enterprise_financial_baselines_one_active_business_idx').on(table.businessId).where(sql`${table.status} = 'active'`),
   })
 );
 
@@ -1674,6 +1727,8 @@ export const melMonitoringResponses = pgTable(
     costs: decimal('costs', { precision: 18, scale: 2 }),
     profitLoss: decimal('profit_loss', { precision: 18, scale: 2 }),
     financialChangeExplanation: text('financial_change_explanation'),
+    financialBaselineSnapshot: jsonb('financial_baseline_snapshot').$type<Record<string, unknown> | null>(),
+    financialComparisonSnapshot: jsonb('financial_comparison_snapshot').$type<Record<string, unknown> | null>(),
 
     marketResearchCompleted: boolean('market_research_completed'),
     marketIntelligenceAccessed: boolean('market_intelligence_accessed'),

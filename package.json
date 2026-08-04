@@ -20,6 +20,7 @@
     "test:mel-phase4": "npx tsx src/lib/mel/phase4.manual.test.ts",
     "test:mel-phase5": "npx tsx src/lib/mel/phase5.manual.test.ts",
     "test:mel-review-fixes": "npx tsx src/lib/mel/monitoring-review-fixes.manual.test.ts",
+    "test:mel-financial-baselines": "npx tsx src/lib/mel/financial-baselines.manual.test.ts",
     "migrate:mel-historical": "npx tsx scripts/migrate-mel-historical.ts",
     "check:mel-schema": "npx tsx scripts/check-mel-schema.ts",
     "seed:cna-questions": "npx tsx scripts/seed-cna-question-bank.ts",

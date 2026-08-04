@@ -78,7 +78,7 @@ export function MonitoringWorkspaceTable({
             {filtered.map((row) => (
               <tr key={row.businessId} className="align-top">
                 <td className="px-4 py-4">
-                  <p className="font-semibold text-slate-900">{row.businessName}</p>
+                  <Link href={`/admin/mel/enterprises/${row.businessId}`} className="font-semibold text-brand-blue hover:underline">{row.businessName}</Link>
                   <p className="mt-1 text-xs text-slate-500">
                     Enterprise #{row.businessId} · {row.applicantName}
                   </p>

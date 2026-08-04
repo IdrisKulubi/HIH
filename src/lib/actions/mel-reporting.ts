@@ -8,6 +8,7 @@ import db from "@/db/drizzle";
 import {
   businesses,
   melAuditEvents,
+  melEnterpriseFinancialBaselines,
   melIndicatorDefinitions,
   melIndicatorResults,
   melLearningActions,
@@ -317,7 +318,7 @@ export async function getMelGisData(): Promise<ActionResponse<{ points: MelMapPo
 export async function getMelEnterpriseDashboard(businessId: number) {
   try {
     await requireMelViewer();
-    const business = await db.query.businesses.findFirst({
+    const [business, financialBaseline] = await Promise.all([db.query.businesses.findFirst({
       where: eq(businesses.id, businessId),
       with: {
         applicant: true,
@@ -329,9 +330,9 @@ export async function getMelEnterpriseDashboard(businessId: number) {
         },
         melLearningActions: { orderBy: [asc(melLearningActions.dueDate)] },
       },
-    });
+    }), db.query.melEnterpriseFinancialBaselines.findFirst({ where: and(eq(melEnterpriseFinancialBaselines.businessId, businessId), eq(melEnterpriseFinancialBaselines.status, "active")) })]);
     if (!business) throw new Error("Enterprise was not found.");
-    return successResponse(business);
+    return successResponse({ ...business, financialBaseline: financialBaseline ?? null });
   } catch (error) {
     return failure(error, "Unable to load enterprise MEL dashboard.");
   }

@@ -77,6 +77,7 @@ export default async function MelReviewDetailPage({
               <Metric label="Costs" value={currency(detail.response?.costs)} />
               <Metric label="Profit or loss" value={currency(detail.response?.profitLoss)} />
             </div>
+            {detail.response?.financialComparisonSnapshot ? <FinancialComparisonSnapshot snapshot={detail.response.financialComparisonSnapshot} explanation={detail.response.financialChangeExplanation} /> : null}
             <div className="mt-5 overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2 text-left">Finance type</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
@@ -176,6 +177,7 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["New products developed", response.newProductsDeveloped],
     ["New product details", response.newProductsDetails],
     ["Linked to finance provider", response.linkedToFinanceProvider],
+    ["Material financial change explanation", response.financialChangeExplanation],
     ["Financial plan completed", response.financialPlanCompleted],
     ["Active insurance", response.activeInsurance],
     ["Investor readiness completed", response.investorReadinessCompleted],
@@ -198,6 +200,13 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["Additional support needed", response.additionalSupportNeeded],
     ["Collector comment", response.collectorComment],
   ];
+}
+
+function FinancialComparisonSnapshot({ snapshot, explanation }: { snapshot: Record<string, unknown>; explanation: string | null }) {
+  const current = snapshot.currentMonthly as { revenue?: number; costs?: number; profit?: number } | undefined;
+  const comparators = Array.isArray(snapshot.comparators) ? snapshot.comparators as Array<{ source: string; label: string; values: { revenue: number; costs: number; profit: number } }> : [];
+  const flags = Array.isArray(snapshot.flags) ? snapshot.flags as Array<{ code: string; message: string }> : [];
+  return <div className="mt-4 rounded-md border border-blue-200 bg-blue-50/60 p-4"><h3 className="text-sm font-semibold text-slate-900">Individual baseline comparison (monthly equivalent)</h3><div className="mt-3 grid gap-3 sm:grid-cols-3"><Metric label="Current revenue" value={currency(current?.revenue)} /><Metric label="Current costs" value={currency(current?.costs)} /><Metric label="Current profit/loss" value={currency(current?.profit)} /></div>{comparators.map((item) => <p key={item.source} className="mt-3 text-xs text-slate-700"><span className="font-semibold">{item.label}:</span> revenue {currency(item.values.revenue)}, costs {currency(item.values.costs)}, profit/loss {currency(item.values.profit)}</p>)}{flags.map((flag) => <p key={`${flag.code}-${flag.message}`} className="mt-2 text-xs font-medium text-amber-800">• {flag.message}</p>)}{explanation ? <div className="mt-3 rounded-md bg-white p-3 text-sm"><span className="font-semibold">Collector explanation:</span> {explanation}</div> : null}</div>;
 }
 
 function display(value: unknown) {

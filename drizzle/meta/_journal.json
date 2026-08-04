@@ -281,6 +281,13 @@
       "when": 1785974400000,
       "tag": "0039_mel_monitoring_review_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786060800000,
+      "tag": "0040_mel_enterprise_financial_baselines",
+      "breakpoints": true
     }
   ]
 }

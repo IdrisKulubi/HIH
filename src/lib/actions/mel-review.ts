@@ -413,6 +413,7 @@ async function buildDqaInput(submissionId: number): Promise<{
         }
       : null,
     duplicateEvidenceKeys: new Set(duplicateRows.map((row) => row.fileKey)),
+    financialComparison: response?.financialComparisonSnapshot as DqaInput["financialComparison"],
   };
   return { submission, input, findings: runDqa(input) };
 }

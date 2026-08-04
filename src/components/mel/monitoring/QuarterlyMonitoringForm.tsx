@@ -14,6 +14,7 @@ import {
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
+import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
 import { ActionMessage } from "@/components/admin/mel/ActionMessage";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-type ResponseRow = NonNullable<MelMonitoringDetail["response"]>;
 type JobRow = MelMonitoringDetail["jobs"][number];
 
 export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetail }) {
@@ -63,7 +63,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         </FormSection>
 
         <FormSection number="C" title={MONITORING_SECTIONS.C} help="Enter Kenya shilling totals for the past three months. Profit or loss is calculated automatically.">
-          <ProfitFields response={response} />
+          <ProfitFields detail={detail} />
         </FormSection>
 
         <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals.">
@@ -190,6 +190,27 @@ function BooleanField({ label, name, value }: { label: string; name: string; val
 function TextAreaField({ label, name, value }: { label: string; name: string; value: string | null | undefined }) { return <div className="mt-3 space-y-1.5"><Label htmlFor={name} className="leading-5">{label}</Label><Textarea id={name} name={name} defaultValue={value ?? ""} rows={3} /></div>; }
 function ProfileItem({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs font-medium text-slate-600">{label}</dt><dd className="mt-1 font-medium text-slate-900">{value}</dd></div>; }
 
-function ProfitFields({ response }: { response: ResponseRow | null }) { const [revenue, setRevenue] = useState(response?.revenue ?? ""); const [costs, setCosts] = useState(response?.costs ?? ""); const profit = useMemo(() => revenue === "" || costs === "" ? null : Number(revenue) - Number(costs), [costs, revenue]); return <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="revenue">What is the enterprise TOTAL REVENUE in the past 3 months?</Label><Input id="revenue" name="revenue" type="number" min="0" step="0.01" value={revenue} onChange={(event) => setRevenue(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="costs">What is the enterprise&apos;s TOTAL COSTS in the past 3 months?</Label><Input id="costs" name="costs" type="number" min="0" step="0.01" value={costs} onChange={(event) => setCosts(event.target.value)} /></div><ReadOnlyField label="What is the enterprise’s PROFIT/LOSS (Total Revenue − Total Cost) in the past 3 months?" value={profit === null ? "Enter revenue and costs" : new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES" }).format(profit)} /></div>; }
+function ProfitFields({ detail }: { detail: MelMonitoringDetail }) {
+  const response = detail.response;
+  const [revenue, setRevenue] = useState(response?.revenue ?? "");
+  const [costs, setCosts] = useState(response?.costs ?? "");
+  const profit = useMemo(() => revenue === "" || costs === "" ? null : Number(revenue) - Number(costs), [costs, revenue]);
+  const comparison = useMemo(() => {
+    if (revenue === "" || costs === "") return null;
+    const baseline = detail.financialBaseline;
+    return calculateFinancialComparison({
+      quarterly: { revenue: Number(revenue), costs: Number(costs) },
+      baseline: baseline ? { label: `Baseline at ${baseline.effectiveDate}`, revenue: Number(baseline.monthlyRevenue), costs: Number(baseline.monthlyCosts), profit: Number(baseline.monthlyProfit) } : null,
+      priorApprovedQuarter: detail.priorApprovedFinancials,
+      thresholdPercent: detail.financialVarianceThresholdPercent,
+    });
+  }, [costs, detail.financialBaseline, detail.financialVarianceThresholdPercent, detail.priorApprovedFinancials, revenue]);
+  const money = (value: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(value);
+  return <div className="space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="revenue">What is the enterprise TOTAL REVENUE in the past 3 months?</Label><Input id="revenue" name="revenue" type="number" min="0" step="0.01" value={revenue} onChange={(event) => setRevenue(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="costs">What is the enterprise&apos;s TOTAL COSTS in the past 3 months?</Label><Input id="costs" name="costs" type="number" min="0" step="0.01" value={costs} onChange={(event) => setCosts(event.target.value)} /></div><ReadOnlyField label="What is the enterprise’s PROFIT/LOSS (Total Revenue − Total Cost) in the past 3 months?" value={profit === null ? "Enter revenue and costs" : money(profit)} /></div>
+    {comparison && comparison.comparators.length ? <div className="rounded-md border border-blue-200 bg-blue-50/60 p-4"><p className="text-sm font-semibold text-slate-900">Individual enterprise progress</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500"><th className="pb-2">Measure</th>{comparison.comparators.map((item) => <th key={item.source} className="pb-2">{item.label}</th>)}<th className="pb-2">Current monthly equivalent</th></tr></thead><tbody>{(["revenue", "costs", "profit"] as const).map((measure) => <tr key={measure} className="border-t"><td className="py-2 font-medium capitalize">{measure}</td>{comparison.comparators.map((item) => <td key={item.source} className="py-2 tabular-nums">{money(item.values[measure])}</td>)}<td className="py-2 tabular-nums">{money(comparison.currentMonthly[measure])}</td></tr>)}</tbody></table></div>{comparison.flags.length ? <div className="mt-3 space-y-1">{comparison.flags.map((flag, index) => <p key={`${flag.code}-${flag.source}-${index}`} className="text-xs font-medium text-amber-800">• {flag.message}</p>)}</div> : <p className="mt-3 text-xs text-emerald-700">No material loss or 100% financial change was detected.</p>}</div> : null}
+    {comparison?.explanationRequired ? <div className="rounded-md border border-amber-300 bg-amber-50 p-4"><Label htmlFor="financialChangeExplanation">Please explain the material loss or unusually large change from this enterprise&apos;s baseline or previous approved quarter.</Label><Textarea id="financialChangeExplanation" name="financialChangeExplanation" defaultValue={response?.financialChangeExplanation ?? ""} rows={3} minLength={10} required className="mt-2" /><p className="mt-1 text-xs text-amber-800">Required because one or more financial alert rules were triggered.</p></div> : null}
+  </div>;
+}
 function JobFields({ label, prefix, row, cumulative, includeRefugee }: { label: string; prefix: string; row?: JobRow; cumulative: MelMonitoringDetail["cumulativeJobs"]["direct"]; includeRefugee: boolean }) { const fields = [["Total", "Total", row?.quarterlyTotal], ["Male", "Male", row?.male], ["Female", "Female", row?.female], ["Youth (18–35)", "Youth", row?.youth], ["PLWD", "Plwd", row?.plwd], ...(includeRefugee ? [["Refugee", "Refugee", row?.refugee] as const] : [])] as const; return <div><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="max-w-[75ch] text-sm font-semibold leading-5 text-slate-900">{label}</h3><p className="text-xs text-slate-600">Approved cumulative total: <span className="font-semibold text-slate-900">{cumulative.total}</span></p></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{fields.map(([display, suffix, value]) => <Field key={suffix} name={`${prefix}${suffix}`} label={display} type="number" min="0" step="1" value={value ?? ""} />)}</div></div>; }
 function humanize(value: string) { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }

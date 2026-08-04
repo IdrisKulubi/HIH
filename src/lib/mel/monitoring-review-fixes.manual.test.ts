@@ -12,6 +12,7 @@ const baseDraft = (): MelMonitoringDraft => ({
   businessPlanImproved: false,
   revenue: 600000,
   costs: 300000,
+  financialChangeExplanation: null,
   directJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   marketResearchCompleted: false,

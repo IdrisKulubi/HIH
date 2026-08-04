@@ -1,4 +1,5 @@
 import { calculateProfitLoss, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
+import type { FinancialComparison } from "./financial-baselines";
 
 export type DqaFinding = {
   ruleCode: string;
@@ -34,6 +35,7 @@ export type DqaInput = {
     indirectJobsTotal: number;
   } | null;
   duplicateEvidenceKeys?: ReadonlySet<string>;
+  financialComparison?: FinancialComparison | null;
 };
 
 export function runDqa(input: DqaInput): DqaFinding[] {
@@ -155,6 +157,16 @@ export function runDqa(input: DqaInput): DqaFinding[] {
   }
 
   const prior = input.priorApproved;
+  for (const [index, flag] of (input.financialComparison?.flags ?? []).entries()) {
+    findings.push({
+      ruleCode: `plausibility.financial_baseline.${flag.code}.${flag.source}.${index}`,
+      category: "plausibility",
+      severity: "warning",
+      questionCode: "profitability",
+      message: flag.message,
+      observedValue: input.financialComparison?.currentMonthly,
+    });
+  }
   if (prior && input.revenue !== null && prior.revenue && prior.revenue > 0) {
     const change = Math.abs((input.revenue - prior.revenue) / prior.revenue);
     if (change >= 1) {

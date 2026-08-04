@@ -23,6 +23,9 @@ export type ApprovedMonitoringRecord = {
   revenue: number | null;
   costs: number | null;
   profitLoss: number | null;
+  financialChangeExplanation?: string | null;
+  financialBaselineSnapshot?: Record<string, unknown> | null;
+  financialComparisonSnapshot?: Record<string, unknown> | null;
   newMarketSegments: number | null;
   businessPlanImproved: boolean | null;
   marketResearchCompleted: boolean | null;

@@ -17,6 +17,7 @@ function completeDraft(): MelMonitoringDraft {
     businessPlanImproved: false,
     revenue: 900_000,
     costs: 600_000,
+    financialChangeExplanation: null,
     directJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     marketResearchCompleted: false,
