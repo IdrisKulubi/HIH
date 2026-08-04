@@ -12,19 +12,19 @@ import { MEL_ITT_SEED, validateMelIttSeed } from "../src/lib/mel/itt-seed";
 const reportingPeriods = [
   {
     code: "2026-JUN-AUG",
-    label: "June to August 2026",
+    label: "Quarter 1 - June to August 2026",
     programmeYear: 1,
     sequence: 1,
     startDate: "2026-06-01",
     endDate: "2026-08-31",
     collectionOpenDate: "2026-06-01",
     collectionCloseDate: "2026-09-15",
-    status: "closed" as const,
+    status: "open" as const,
     allowCatchUp: true,
   },
   {
     code: "2026-SEP-NOV",
-    label: "September to November 2026",
+    label: "Quarter 2 - September to November 2026",
     programmeYear: 1,
     sequence: 2,
     startDate: "2026-09-01",
@@ -35,8 +35,8 @@ const reportingPeriods = [
     allowCatchUp: true,
   },
   {
-    code: "2026-27-DEC-FEB",
-    label: "December 2026 to February 2027",
+    code: "2026-DEC-2027-FEB",
+    label: "Quarter 3 - December 2026 to February 2027",
     programmeYear: 1,
     sequence: 3,
     startDate: "2026-12-01",
@@ -48,7 +48,7 @@ const reportingPeriods = [
   },
   {
     code: "2027-MAR-MAY",
-    label: "March to May 2027",
+    label: "Quarter 4 - March to May 2027",
     programmeYear: 1,
     sequence: 4,
     startDate: "2027-03-01",
@@ -67,8 +67,45 @@ async function seed() {
   }
 
   await db.transaction(async (tx) => {
-    await tx.insert(melProgrammeSettings).values({ id: 1 }).onConflictDoNothing();
-    await tx.insert(melReportingPeriods).values(reportingPeriods).onConflictDoNothing();
+    await tx
+      .insert(melProgrammeSettings)
+      .values({
+        id: 1,
+        monthlyFinancialBaselines: {
+          foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+          acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+        },
+      })
+      .onConflictDoUpdate({
+        target: melProgrammeSettings.id,
+        set: {
+          monthlyFinancialBaselines: {
+            foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+            acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+          },
+          updatedAt: new Date(),
+        },
+      });
+    for (const period of reportingPeriods) {
+      const periodDefinition = {
+        code: period.code,
+        label: period.label,
+        programmeYear: period.programmeYear,
+        sequence: period.sequence,
+        startDate: period.startDate,
+        endDate: period.endDate,
+        collectionOpenDate: period.collectionOpenDate,
+        collectionCloseDate: period.collectionCloseDate,
+        allowCatchUp: period.allowCatchUp,
+      };
+      await tx
+        .insert(melReportingPeriods)
+        .values(period)
+        .onConflictDoUpdate({
+          target: [melReportingPeriods.programmeYear, melReportingPeriods.sequence],
+          set: { ...periodDefinition, updatedAt: new Date() },
+        });
+    }
 
     for (const indicator of MEL_ITT_SEED) {
       await tx
@@ -108,7 +145,20 @@ async function seed() {
         notes: baseline.notes ?? null,
       }));
       if (baselineRows.length > 0) {
-        await tx.insert(melIndicatorBaselines).values(baselineRows).onConflictDoNothing();
+        for (const baseline of baselineRows) {
+          await tx
+            .insert(melIndicatorBaselines)
+            .values(baseline)
+            .onConflictDoUpdate({
+              target: [melIndicatorBaselines.indicatorId, melIndicatorBaselines.segmentKey],
+              set: {
+                value: baseline.value,
+                valueText: baseline.valueText,
+                notes: baseline.notes,
+                updatedAt: new Date(),
+              },
+            });
+        }
       }
 
       const targetRows = (indicator.targets ?? []).map((target) => ({

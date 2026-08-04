@@ -12,6 +12,7 @@ import {
   melEvidenceReviews,
   melLearningActions,
   melMonitoringEvidence,
+  melMonitoringFinanceEntries,
   melMonitoringJobs,
   melMonitoringResponses,
   melMonitoringSubmissions,
@@ -69,6 +70,7 @@ export type MelReviewDetail = {
   period: typeof melReportingPeriods.$inferSelect;
   businessName: string;
   response: typeof melMonitoringResponses.$inferSelect | null;
+  financeEntries: Array<typeof melMonitoringFinanceEntries.$inferSelect>;
   jobs: Array<typeof melMonitoringJobs.$inferSelect>;
   waste: Array<typeof melMonitoringWaste.$inferSelect>;
   evidence: Array<
@@ -76,6 +78,15 @@ export type MelReviewDetail = {
       reviews: Array<typeof melEvidenceReviews.$inferSelect>;
     }
   >;
+  evidenceReferences: Array<{
+    id: number;
+    questionCode: string;
+    sourceEvidence: typeof melMonitoringEvidence.$inferSelect & {
+      reviews: Array<typeof melEvidenceReviews.$inferSelect>;
+    };
+    sourceSubmission: typeof melMonitoringSubmissions.$inferSelect;
+    sourcePeriod: typeof melReportingPeriods.$inferSelect;
+  }>;
   dqaIssues: Array<typeof melDqaIssues.$inferSelect>;
   decisions: Array<typeof melReviewDecisions.$inferSelect>;
   versions: Array<typeof melMonitoringVersions.$inferSelect>;
@@ -128,6 +139,7 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           business: true,
           reportingPeriod: true,
           evidence: { with: { reviews: true } },
+          evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
           dqaIssues: true,
         },
         orderBy: [asc(melMonitoringSubmissions.submittedAt)],
@@ -178,10 +190,12 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           dqaErrorCount: submission.dqaIssues.filter(
             (issue) => issue.status === "open" && issue.severity === "error"
           ).length,
-          evidenceCount: submission.evidence.length,
-          verifiedEvidenceCount: submission.evidence.filter((item) =>
-            item.reviews.some((review) => review.status === "verified")
-          ).length,
+          evidenceCount: submission.evidence.length + submission.evidenceReferences.length,
+          verifiedEvidenceCount:
+            submission.evidence.filter((item) => item.reviews.some((review) => review.status === "verified")).length +
+            submission.evidenceReferences.filter((item) =>
+              item.sourceEvidence.reviews.some((review) => review.status === "verified")
+            ).length,
           stage,
           assignedRedoId: submission.assignedRedoId,
         };
@@ -208,9 +222,17 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         business: true,
         reportingPeriod: true,
         response: true,
+        financeEntries: true,
         jobs: true,
         waste: true,
         evidence: { with: { reviews: true } },
+        evidenceReferences: {
+          with: {
+            sourceEvidence: {
+              with: { reviews: true, submission: { with: { reportingPeriod: true } } },
+            },
+          },
+        },
         dqaIssues: { orderBy: [asc(melDqaIssues.category), asc(melDqaIssues.ruleCode)] },
         reviewDecisions: { orderBy: [desc(melReviewDecisions.createdAt)] },
         versions: { orderBy: [desc(melMonitoringVersions.version)] },
@@ -249,9 +271,17 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
           ? submission.profileSnapshot.businessName
           : submission.business.name,
       response: submission.response ?? null,
+      financeEntries: submission.financeEntries,
       jobs: submission.jobs,
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
+      evidenceReferences: submission.evidenceReferences.map((reference) => ({
+        id: reference.id,
+        questionCode: reference.questionCode,
+        sourceEvidence: reference.sourceEvidence,
+        sourceSubmission: reference.sourceEvidence.submission,
+        sourcePeriod: reference.sourceEvidence.submission.reportingPeriod,
+      })),
       dqaIssues: submission.dqaIssues,
       decisions: submission.reviewDecisions,
       versions: submission.versions,
@@ -311,13 +341,16 @@ async function buildDqaInput(submissionId: number): Promise<{
     with: {
       reportingPeriod: true,
       response: true,
+      financeEntries: true,
       jobs: true,
       evidence: true,
+      evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
     },
   });
   if (!submission) throw new Error("Monitoring report not found");
   const prior = await loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate);
   const activeEvidence = submission.evidence.filter((item) => item.status === "active");
+  const referencedEvidence = submission.evidenceReferences.map((reference) => reference.sourceEvidence);
   const duplicateRows =
     activeEvidence.length === 0
       ? []
@@ -360,9 +393,13 @@ async function buildDqaInput(submissionId: number): Promise<{
     directJobs: job("direct"),
     indirectJobs: job("indirect"),
     financeLinked: response?.linkedToFinanceProvider ?? null,
-    financeType: response?.financeType ?? null,
-    financeValue: numberOrNull(response?.financeValue),
-    evidence: activeEvidence.map((item) => ({
+    financeType: submission.financeEntries.length
+      ? submission.financeEntries.map((entry) => entry.financeType).join(",")
+      : response?.financeType ?? null,
+    financeValue: submission.financeEntries.length
+      ? submission.financeEntries.reduce((sum, entry) => sum + (numberOrNull(entry.amount) ?? 0), 0)
+      : numberOrNull(response?.financeValue),
+    evidence: [...activeEvidence, ...referencedEvidence].map((item) => ({
       id: item.id,
       questionCode: item.questionCode,
       fileKey: item.fileKey,
@@ -512,7 +549,14 @@ export async function decideMelReviewAction(
 
     const submission = await db.query.melMonitoringSubmissions.findFirst({
       where: eq(melMonitoringSubmissions.id, submissionId),
-      with: { response: true, jobs: true, waste: true, evidence: { with: { reviews: true } } },
+      with: {
+        response: true,
+        financeEntries: true,
+        jobs: true,
+        waste: true,
+        evidence: { with: { reviews: true } },
+        evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
+      },
     });
     if (!submission) return errorResponse("Monitoring report not found");
     const transition = resolveReviewTransition({
@@ -547,6 +591,11 @@ export async function decideMelReviewAction(
         if (activeEvidence.some((item) => !item.reviews.some((review) => review.status === "verified"))) {
           return errorResponse("Verify all active evidence before final approval");
         }
+        if (submission.evidenceReferences.some((reference) =>
+          !reference.sourceEvidence.reviews.some((review) => review.status === "verified")
+        )) {
+          return errorResponse("Every reused evidence reference must retain verified prior proof");
+        }
       }
     }
 
@@ -558,9 +607,11 @@ export async function decideMelReviewAction(
           version: submission.submissionVersion,
           status: submission.status,
           responseSnapshot: submission.response,
+          financeSnapshot: submission.financeEntries,
           jobsSnapshot: submission.jobs,
           wasteSnapshot: submission.waste,
           evidenceSnapshot: submission.evidence,
+          evidenceReferenceSnapshot: submission.evidenceReferences,
           capturedById: reviewer.id,
         })
         .onConflictDoNothing();

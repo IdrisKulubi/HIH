@@ -291,6 +291,12 @@ export const melMonitoringSourceModeEnum = pgEnum('mel_monitoring_source_mode', 
 ]);
 
 export const melJobTypeEnum = pgEnum('mel_job_type', ['direct', 'indirect']);
+export const melFinanceTypeEnum = pgEnum('mel_finance_type', [
+  'loan',
+  'matching_grant',
+  'repayable_grant',
+  'other',
+]);
 export const melEvidenceStatusEnum = pgEnum('mel_evidence_status', ['active', 'removed']);
 export const melAchievementStatusEnum = pgEnum('mel_achievement_status', [
   'pending',
@@ -1410,6 +1416,16 @@ export const melProgrammeSettings = pgTable(
     redThreshold: decimal('red_threshold', { precision: 5, scale: 2 }).default('50').notNull(),
     greenThreshold: decimal('green_threshold', { precision: 5, scale: 2 }).default('80').notNull(),
     financiallyResilientDefinition: text('financially_resilient_definition'),
+    monthlyFinancialBaselines: jsonb('monthly_financial_baselines')
+      .$type<{
+        foundation: { revenue: number; costs: number; profit: number };
+        acceleration: { revenue: number; costs: number; profit: number };
+      }>()
+      .default({
+        foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+        acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+      })
+      .notNull(),
     includeRefugeeDisaggregation: boolean('include_refugee_disaggregation').default(false).notNull(),
     updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -1683,6 +1699,7 @@ export const melMonitoringResponses = pgTable(
     circularGrowthValue: decimal('circular_growth_value', { precision: 18, scale: 2 }),
 
     strategicPartnerships: boolean('strategic_partnerships'),
+    strategicPartnershipCount: integer('strategic_partnership_count'),
     strategicPartnershipDetails: text('strategic_partnership_details'),
     forumParticipation: boolean('forum_participation'),
     forumDetails: text('forum_details'),
@@ -1705,7 +1722,34 @@ export const melMonitoringResponses = pgTable(
         AND (${table.costs} IS NULL OR ${table.costs} >= 0)
         AND (${table.financeValue} IS NULL OR ${table.financeValue} >= 0)
         AND (${table.circularGrowthValue} IS NULL OR ${table.circularGrowthValue} >= 0)
+        AND (${table.strategicPartnershipCount} IS NULL OR ${table.strategicPartnershipCount} >= 0)
         AND (${table.newMarketSegments} IS NULL OR ${table.newMarketSegments} >= 0)`
+    ),
+  })
+);
+
+export const melMonitoringFinanceEntries = pgTable(
+  'mel_monitoring_finance_entries',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    financeType: melFinanceTypeEnum('finance_type').notNull(),
+    otherDescription: text('other_description'),
+    amount: decimal('amount', { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionTypeUnique: uniqueIndex('mel_monitoring_finance_entries_submission_type_unique')
+      .on(table.submissionId, table.financeType),
+    submissionIdx: index('mel_monitoring_finance_entries_submission_idx').on(table.submissionId),
+    nonNegativeAmount: check('mel_monitoring_finance_entries_amount_check', sql`${table.amount} >= 0`),
+    otherDescriptionRule: check(
+      'mel_monitoring_finance_entries_other_description_check',
+      sql`(${table.financeType} = 'other' AND NULLIF(BTRIM(${table.otherDescription}), '') IS NOT NULL)
+        OR (${table.financeType} <> 'other' AND ${table.otherDescription} IS NULL)`
     ),
   })
 );
@@ -1792,6 +1836,28 @@ export const melMonitoringEvidence = pgTable(
   })
 );
 
+export const melMonitoringEvidenceReferences = pgTable(
+  'mel_monitoring_evidence_references',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    questionCode: varchar('question_code', { length: 100 }).notNull(),
+    sourceEvidenceId: integer('source_evidence_id')
+      .notNull()
+      .references(() => melMonitoringEvidence.id, { onDelete: 'restrict' }),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionQuestionUnique: uniqueIndex('mel_monitoring_evidence_references_submission_question_unique')
+      .on(table.submissionId, table.questionCode),
+    sourceEvidenceIdx: index('mel_monitoring_evidence_references_source_evidence_idx')
+      .on(table.sourceEvidenceId),
+  })
+);
+
 export const melEnterpriseAchievements = pgTable(
   'mel_enterprise_achievements',
   {
@@ -1835,9 +1901,11 @@ export const melMonitoringVersions = pgTable(
     version: integer('version').notNull(),
     status: melMonitoringStatusEnum('status').notNull(),
     responseSnapshot: jsonb('response_snapshot').$type<Record<string, unknown> | null>(),
+    financeSnapshot: jsonb('finance_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     jobsSnapshot: jsonb('jobs_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     wasteSnapshot: jsonb('waste_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     evidenceSnapshot: jsonb('evidence_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    evidenceReferenceSnapshot: jsonb('evidence_reference_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     capturedById: text('captured_by_id').references(() => users.id, { onDelete: 'set null' }),
     capturedAt: timestamp('captured_at').defaultNow().notNull(),
   },
@@ -3122,9 +3190,11 @@ export const melMonitoringSubmissionsRelations = relations(
       relationName: 'melSubmissionRedo',
     }),
     response: one(melMonitoringResponses),
+    financeEntries: many(melMonitoringFinanceEntries),
     jobs: many(melMonitoringJobs),
     waste: many(melMonitoringWaste),
     evidence: many(melMonitoringEvidence),
+    evidenceReferences: many(melMonitoringEvidenceReferences),
     achievements: many(melEnterpriseAchievements),
     versions: many(melMonitoringVersions),
     reviewDecisions: many(melReviewDecisions),
@@ -3136,6 +3206,13 @@ export const melMonitoringSubmissionsRelations = relations(
 export const melMonitoringResponsesRelations = relations(melMonitoringResponses, ({ one }) => ({
   submission: one(melMonitoringSubmissions, {
     fields: [melMonitoringResponses.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+}));
+
+export const melMonitoringFinanceEntriesRelations = relations(melMonitoringFinanceEntries, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringFinanceEntries.submissionId],
     references: [melMonitoringSubmissions.id],
   }),
 }));
@@ -3164,7 +3241,26 @@ export const melMonitoringEvidenceRelations = relations(melMonitoringEvidence, (
     references: [users.id],
   }),
   reviews: many(melEvidenceReviews),
+  references: many(melMonitoringEvidenceReferences),
 }));
+
+export const melMonitoringEvidenceReferencesRelations = relations(
+  melMonitoringEvidenceReferences,
+  ({ one }) => ({
+    submission: one(melMonitoringSubmissions, {
+      fields: [melMonitoringEvidenceReferences.submissionId],
+      references: [melMonitoringSubmissions.id],
+    }),
+    sourceEvidence: one(melMonitoringEvidence, {
+      fields: [melMonitoringEvidenceReferences.sourceEvidenceId],
+      references: [melMonitoringEvidence.id],
+    }),
+    createdBy: one(users, {
+      fields: [melMonitoringEvidenceReferences.createdById],
+      references: [users.id],
+    }),
+  })
+);
 
 export const melEnterpriseAchievementsRelations = relations(
   melEnterpriseAchievements,
@@ -4368,6 +4464,9 @@ export type NewMelMonitoringSubmission = typeof melMonitoringSubmissions.$inferI
 export type MelMonitoringResponse = typeof melMonitoringResponses.$inferSelect;
 export type NewMelMonitoringResponse = typeof melMonitoringResponses.$inferInsert;
 
+export type MelMonitoringFinanceEntry = typeof melMonitoringFinanceEntries.$inferSelect;
+export type NewMelMonitoringFinanceEntry = typeof melMonitoringFinanceEntries.$inferInsert;
+
 export type MelMonitoringJob = typeof melMonitoringJobs.$inferSelect;
 export type NewMelMonitoringJob = typeof melMonitoringJobs.$inferInsert;
 
@@ -4376,6 +4475,9 @@ export type NewMelMonitoringWaste = typeof melMonitoringWaste.$inferInsert;
 
 export type MelMonitoringEvidence = typeof melMonitoringEvidence.$inferSelect;
 export type NewMelMonitoringEvidence = typeof melMonitoringEvidence.$inferInsert;
+
+export type MelMonitoringEvidenceReference = typeof melMonitoringEvidenceReferences.$inferSelect;
+export type NewMelMonitoringEvidenceReference = typeof melMonitoringEvidenceReferences.$inferInsert;
 
 export type MelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferSelect;
 export type NewMelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferInsert;

@@ -103,9 +103,13 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     unresolvedNotes:
       "The ITT also lists an overall KES endline value of 1,200,000. Keep it as a target note until MEL confirms whether it is a secondary target.",
     baselines: [
-      { segmentKey: "overall", value: 793200 },
-      { segmentKey: "track:foundation", value: 600000 },
-      { segmentKey: "track:acceleration", value: 1800000 },
+      {
+        segmentKey: "overall",
+        valueText: "Track-specific baseline required",
+        notes: "Overall comparison is unavailable. View Foundation and Acceleration separately.",
+      },
+      { segmentKey: "track:foundation", value: 50000, notes: "Validated monthly profitability baseline" },
+      { segmentKey: "track:acceleration", value: 150000, notes: "Validated monthly profitability baseline" },
     ],
     targets: [
       { programmeYear: 0, value: 50, notes: "Overall growth target; ITT also notes KES 1,200,000." },

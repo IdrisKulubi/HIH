@@ -46,14 +46,38 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive reporting summary">
         <Metric icon={Factory} label="Enterprises reporting" value={data.summary.reportingEnterprises.toLocaleString()} detail={percentage(data.summary.reportingCompleteness) + " complete"} />
-        <Metric icon={CurrencyCircleDollar} label="Quarterly revenue" value={money(data.summary.revenue)} detail={`${money(data.summary.quarterlyProfit)} profit`} />
+        <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
         <Metric icon={UsersThree} label="Cumulative jobs" value={data.summary.jobs.toLocaleString()} detail={`${data.summary.directJobs} direct, ${data.summary.indirectJobs} indirect`} />
         <Metric icon={ChartLineUp} label="Finance accessed" value={money(data.summary.financeAccessed)} detail={`${data.summary.greenResults} indicators on track`} />
       </section>
 
+      <section className="space-y-3" aria-labelledby="financial-performance-heading">
+        <div>
+          <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
+          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents after calculating the cohort median. Foundation and Acceleration baselines are never combined.</p>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-4 py-3">Track</th><th className="px-4 py-3">Measure</th><th className="px-4 py-3">Monthly median</th><th className="px-4 py-3">Baseline</th><th className="px-4 py-3">Variance</th><th className="px-4 py-3">Variance %</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.financialPerformance.flatMap((track) => (["revenue", "costs", "profit"] as const).map((measure, index) => (
+                <tr key={`${track.track}-${measure}`}>
+                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{index === 0 ? <>{track.track}<span className="ml-2 text-xs font-normal text-slate-500">{track.enterpriseCount} enterprises</span></> : null}</td>
+                  <td className="px-4 py-3 capitalize">{measure}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track[`monthlyMedian${measure[0].toUpperCase()}${measure.slice(1)}` as "monthlyMedianRevenue" | "monthlyMedianCosts" | "monthlyMedianProfit"])}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.baseline[measure])}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.variance[measure])}</td>
+                  <td className="px-4 py-3 tabular-nums">{percentage(track.variancePercentage[measure])}</td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[1.5fr_0.5fr]">
         <Card>
-          <CardHeader><CardTitle className="text-base">Revenue, profit and jobs trend</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Monthly median revenue, profit and jobs trend</CardTitle></CardHeader>
           <CardContent><ReportingTrendChart trends={data.trends} /></CardContent>
         </Card>
         <Card>
@@ -122,7 +146,7 @@ function TrafficBadge({ status }: { status: "green" | "amber" | "red" | "not_ava
 
 function scalar(value: string | string[] | undefined) { return typeof value === "string" && value ? value : null; }
 function positiveNumber(value: string | string[] | undefined) { const parsed = Number(scalar(value)); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
-function money(value: number) { return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); }
+function money(value: number | null) { return value === null ? "Not available" : new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); }
 function percentage(value: number | null) { return value === null ? "Not available" : `${value.toFixed(1)}%`; }
 function measure(value: number | null, unit: string) { if (value === null) return "Not available"; if (unit === "percentage") return `${value.toFixed(1)}%`; if (unit === "kes") return money(value); return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value); }
 function formatDate(value: Date) { return new Intl.DateTimeFormat("en-KE", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" }).format(value); }

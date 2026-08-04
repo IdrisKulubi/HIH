@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import {
   calculateIndicator,
+  median,
   safePercentage,
   type ApprovedMonitoringRecord,
   type IndicatorCalculation,
@@ -75,8 +76,9 @@ export type MelReportingDataset = {
     reportingEnterprises: number;
     eligibleEnterprises: number;
     reportingCompleteness: number | null;
-    revenue: number;
-    quarterlyProfit: number;
+    monthlyMedianRevenue: number | null;
+    monthlyMedianCosts: number | null;
+    monthlyMedianProfit: number | null;
     jobs: number;
     directJobs: number;
     indirectJobs: number;
@@ -85,11 +87,21 @@ export type MelReportingDataset = {
     amberResults: number;
     redResults: number;
   };
+  financialPerformance: Array<{
+    track: "foundation" | "acceleration";
+    enterpriseCount: number;
+    monthlyMedianRevenue: number | null;
+    monthlyMedianCosts: number | null;
+    monthlyMedianProfit: number | null;
+    baseline: { revenue: number; costs: number; profit: number };
+    variance: { revenue: number | null; costs: number | null; profit: number | null };
+    variancePercentage: { revenue: number | null; costs: number | null; profit: number | null };
+  }>;
   trends: Array<{
     periodId: number;
     periodLabel: string;
-    revenue: number;
-    profit: number;
+    revenue: number | null;
+    profit: number | null;
     jobs: number;
     enterprises: number;
   }>;
@@ -168,6 +180,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       ),
       with: {
         response: true,
+        financeEntries: true,
         jobs: true,
         waste: true,
         business: { with: { applicant: true, application: true, kycProfile: true } },
@@ -244,7 +257,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       technologyAdopted: response?.technologyAdopted ?? null,
       newProductsDeveloped: response?.newProductsDeveloped ?? null,
       linkedToFinanceProvider: response?.linkedToFinanceProvider ?? null,
-      financeValue: numeric(response?.financeValue),
+      financeValue: submission.financeEntries.length > 0
+        ? sum(submission.financeEntries, (entry) => numeric(entry.amount) ?? 0)
+        : numeric(response?.financeValue),
+      financeEntries: submission.financeEntries.map((entry) => ({
+        financeType: entry.financeType,
+        otherDescription: entry.otherDescription,
+        amount: numeric(entry.amount) ?? 0,
+      })),
       financialPlanCompleted: response?.financialPlanCompleted ?? null,
       activeInsurance: response?.activeInsurance ?? null,
       investorReadinessCompleted: response?.investorReadinessCompleted ?? null,
@@ -256,7 +276,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       strategicPartnerships: response?.strategicPartnerships ?? null,
       directJobs: toJobs(direct),
       indirectJobs: toJobs(indirect),
-      waste: submission.waste.map((item) => ({ stream: item.wasteStream, kilograms: numeric(item.kilograms) ?? 0 })),
+      waste: submission.business.sector === "waste_management"
+        ? submission.waste.map((item) => ({ stream: item.wasteStream, kilograms: numeric(item.kilograms) ?? 0 }))
+        : [],
     };
   });
 
@@ -311,6 +333,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       baseline,
       target,
       systemActual: systemActuals[definition.code] ?? null,
+      segmentKey: filters.track ? `track:${filters.track}` : "overall",
       thresholds,
     });
     const hash = buildHash({ definition: definition.version, period: selectedPeriod.id, filters: resolvedFilters, calculation });
@@ -338,13 +361,47 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     return {
       periodId: period.id,
       periodLabel: period.label,
-      revenue: sum(periodRecords, (record) => record.revenue ?? 0),
-      profit: sum(periodRecords, (record) => record.profitLoss ?? 0),
+      revenue: monthlyMedian(periodRecords, (record) => record.revenue),
+      profit: monthlyMedian(periodRecords, (record) => record.profitLoss),
       jobs: sum(periodRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       enterprises: new Set(periodRecords.map((record) => record.businessId)).size,
     };
   });
   const latestPeriodRecords = filteredRecords.filter((record) => record.periodId === selectedPeriod.id);
+  const baselines = settings?.monthlyFinancialBaselines ?? {
+    foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+    acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+  };
+  const financialTracks = (filters.track
+    ? [filters.track]
+    : ["foundation", "acceleration"]
+  ).filter((track): track is "foundation" | "acceleration" => track === "foundation" || track === "acceleration");
+  const financialPerformance = financialTracks.map((track) => {
+    const trackRecords = latestPeriodRecords.filter((record) => record.dimensions.track === track);
+    const monthlyMedianRevenue = monthlyMedian(trackRecords, (record) => record.revenue);
+    const monthlyMedianCosts = monthlyMedian(trackRecords, (record) => record.costs);
+    const monthlyMedianProfit = monthlyMedian(trackRecords, (record) => record.profitLoss);
+    const baseline = baselines[track];
+    const variance = {
+      revenue: difference(monthlyMedianRevenue, baseline.revenue),
+      costs: difference(monthlyMedianCosts, baseline.costs),
+      profit: difference(monthlyMedianProfit, baseline.profit),
+    };
+    return {
+      track,
+      enterpriseCount: new Set(trackRecords.map((record) => record.businessId)).size,
+      monthlyMedianRevenue,
+      monthlyMedianCosts,
+      monthlyMedianProfit,
+      baseline,
+      variance,
+      variancePercentage: {
+        revenue: variance.revenue === null ? null : safePercentage(variance.revenue, baseline.revenue),
+        costs: variance.costs === null ? null : safePercentage(variance.costs, baseline.costs),
+        profit: variance.profit === null ? null : safePercentage(variance.profit, baseline.profit),
+      },
+    };
+  });
   const eligibleEnterpriseCount = new Set(scopedAllSubmissions.map((submission) => submission.businessId)).size;
   const expectedReports = eligibleEnterpriseCount * includedPeriods.length;
   const activeEvidence = evidence.filter((item) => item.status === "active" && includedSubmissionIds.has(item.submissionId));
@@ -364,8 +421,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       reportingEnterprises: new Set(latestPeriodRecords.map((record) => record.businessId)).size,
       eligibleEnterprises: eligibleEnterpriseCount,
       reportingCompleteness: eligibleEnterpriseCount ? (new Set(latestPeriodRecords.map((record) => record.businessId)).size / eligibleEnterpriseCount) * 100 : null,
-      revenue: sum(latestPeriodRecords, (record) => record.revenue ?? 0),
-      quarterlyProfit: sum(latestPeriodRecords, (record) => record.profitLoss ?? 0),
+      monthlyMedianRevenue: monthlyMedian(latestPeriodRecords, (record) => record.revenue),
+      monthlyMedianCosts: monthlyMedian(latestPeriodRecords, (record) => record.costs),
+      monthlyMedianProfit: monthlyMedian(latestPeriodRecords, (record) => record.profitLoss),
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
       indirectJobs: sum(filteredRecords, (record) => record.indirectJobs.total),
@@ -374,6 +432,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       amberResults: ittRows.filter((row) => row.calculation.trafficLight === "amber").length,
       redResults: ittRows.filter((row) => row.calculation.trafficLight === "red").length,
     },
+    financialPerformance,
     trends,
     quality: {
       expectedReports,
@@ -448,6 +507,19 @@ async function safeKajabiEvents() {
 
 function sum<T>(values: T[], selector: (value: T) => number): number {
   return values.reduce((total, value) => total + selector(value), 0);
+}
+
+function monthlyMedian<T>(values: T[], selector: (value: T) => number | null): number | null {
+  const quarterlyValues = values.flatMap((value) => {
+    const selected = selector(value);
+    return selected === null ? [] : [selected];
+  });
+  const quarterlyMedian = median(quarterlyValues);
+  return quarterlyMedian === null ? null : quarterlyMedian / 3;
+}
+
+function difference(actual: number | null, baseline: number): number | null {
+  return actual === null ? null : actual - baseline;
 }
 
 function distinctSystem(rows: Array<{ id: number; businessId: number }>, eligible: Set<number>) {

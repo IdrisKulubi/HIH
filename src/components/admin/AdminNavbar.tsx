@@ -95,20 +95,9 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Management",
-    match: (pathname) =>
-      pathname.startsWith("/admin/analytics") ||
-      pathname.startsWith("/admin/mel") ||
-      pathname.startsWith("/admin/scoring") ||
-      pathname.startsWith("/admin/review") ||
-      pathname.startsWith("/admin/assignments") ||
-      pathname.startsWith("/admin/users") ||
-      pathname.startsWith("/admin/feedback") ||
-      pathname.startsWith("/admin/export") ||
-      pathname.startsWith("/admin/enterprise-progress") ||
-      pathname.startsWith("/admin/support"),
+    label: "MEL",
+    match: (pathname) => pathname.startsWith("/admin/mel"),
     items: [
-      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
       { href: "/admin/mel", label: "MEL Configuration", icon: Target },
       { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
       { href: "/admin/mel/review", label: "MEL Review Queue", icon: CheckCircle },
@@ -120,10 +109,29 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/mel/instruments", label: "MEL Instruments", icon: ClipboardText },
       { href: "/admin/mel/imports", label: "MEL Imports", icon: ArrowsClockwise },
       { href: "/admin/mel/operations", label: "MEL Operations", icon: Gear },
+    ],
+  },
+  {
+    label: "Management",
+    match: (pathname) =>
+      pathname.startsWith("/admin/analytics") ||
+      pathname.startsWith("/admin/scoring") ||
+      pathname.startsWith("/admin/review") ||
+      pathname.startsWith("/admin/assignments") ||
+      pathname.startsWith("/admin/users") ||
+      pathname.startsWith("/admin/feedback") ||
+      pathname.startsWith("/admin/export") ||
+      pathname.startsWith("/admin/enterprise-progress") ||
+      pathname.startsWith("/admin/support"),
+    items: [
+      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
       { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
       { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
+      { href: "/admin/users", label: "User Management", icon: Users },
+      { href: "/admin/feedback", label: "Feedback Emails", icon: ChatCircle },
+      { href: "/admin/export", label: "Export Data", icon: FileText },
     ],
   },
 ];

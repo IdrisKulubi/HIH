@@ -79,6 +79,15 @@ export default async function MelReviewDetailPage({
             </div>
             <div className="mt-5 overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2 text-left">Finance type</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
+                <tbody className="divide-y">
+                  {detail.financeEntries.map((entry) => <tr key={entry.id}><td className="px-3 py-2 font-medium capitalize">{entry.financeType.replaceAll("_", " ")}</td><td className="px-3 py-2">{entry.otherDescription ?? "—"}</td><td className="px-3 py-2 text-right tabular-nums">{currency(entry.amount)}</td></tr>)}
+                  <tr className="bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={2}>Finance total</td><td className="px-3 py-2 text-right tabular-nums">{currency(detail.financeEntries.length ? detail.financeEntries.reduce((sum, entry) => sum + Number(entry.amount), 0) : detail.response?.financeValue)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-5 overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2 text-left">Jobs</th><th>Total</th><th>Male</th><th>Female</th><th>Youth</th><th>PLWD</th><th>Refugee</th></tr></thead>
                 <tbody className="divide-y">
                   {([["Direct", direct], ["Indirect", indirect]] as const).map(([label, row]) => (
@@ -95,16 +104,17 @@ export default async function MelReviewDetailPage({
             </dl>
           </ReviewSection>
 
-          <ReviewSection title="Waste collected and recycled">
+          {snapshot.sector === "waste_management" ? <ReviewSection title="Waste collected and recycled">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {detail.waste.map((row) => <Metric key={row.id} label={row.wasteStream.replaceAll("_", " ")} value={`${row.kilograms} kg`} />)}
             </div>
-          </ReviewSection>
+          </ReviewSection> : null}
 
           <DqaReviewPanel submissionId={detail.submission.id} issues={detail.dqaIssues} />
 
           <ReviewSection title="Evidence review">
             <EvidenceReviewList evidence={detail.evidence} />
+            {detail.evidenceReferences.length ? <div className="mt-4 space-y-3"><h3 className="text-sm font-semibold text-slate-900">Reused approved evidence</h3>{detail.evidenceReferences.map((reference) => <div key={reference.id} className="rounded-md border border-emerald-200 bg-emerald-50 p-3"><a href={reference.sourceEvidence.fileUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-blue hover:underline">{reference.sourceEvidence.fileName}</a><p className="mt-1 text-xs text-emerald-900">{reference.questionCode.replaceAll("_", " ")} · approved in {reference.sourcePeriod.label} · source submission #{reference.sourceSubmission.id}</p><p className="mt-1 text-xs text-emerald-800">Verification: {reference.sourceEvidence.reviews.some((review) => review.status === "verified") ? "Verified" : "Verification missing"}</p></div>)}</div> : null}
           </ReviewSection>
 
           <ReviewSection title="Review and version history">
@@ -166,8 +176,6 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["New products developed", response.newProductsDeveloped],
     ["New product details", response.newProductsDetails],
     ["Linked to finance provider", response.linkedToFinanceProvider],
-    ["Finance type", response.financeType],
-    ["Finance value", currency(response.financeValue)],
     ["Financial plan completed", response.financialPlanCompleted],
     ["Active insurance", response.activeInsurance],
     ["Investor readiness completed", response.investorReadinessCompleted],
@@ -175,9 +183,11 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["Eco-certification", response.ecoCertificationActive],
     ["ESG report", response.esgReportCompleted],
     ["Social safeguarding guidelines", response.socialSafeguardingGuidelines],
-    ["Circular growth reported", response.circularGrowthReported],
-    ["Circular growth value", currency(response.circularGrowthValue)],
+    ...(response.circularGrowthReported !== null || response.circularGrowthValue !== null
+      ? [["Historical circular-growth response (legacy)", response.circularGrowthReported], ["Historical circular-growth value (legacy)", currency(response.circularGrowthValue)]] as Array<[string, unknown]>
+      : []),
     ["Strategic partnerships", response.strategicPartnerships],
+    ["Strategic partnership count", response.strategicPartnershipCount],
     ["Partnership details", response.strategicPartnershipDetails],
     ["Forum participation", response.forumParticipation],
     ["Forum details", response.forumDetails],

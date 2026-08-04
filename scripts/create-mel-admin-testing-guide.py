@@ -310,7 +310,7 @@ def add_cover(doc):
     add_key_value_table(doc, [
         ("Primary user", "Programme manager or designated tester with the admin role"),
         ("Coverage", "MEL Phases 1-5, security, usability, reporting, operations, and rollout"),
-        ("Document date", "31 July 2026"),
+        ("Document date", "4 August 2026 - monitoring review remediation edition"),
         ("Recommended environment", "Isolated test or staging environment with representative data"),
         ("System URL", "____________________________________________"),
         ("Test lead", "____________________________________________"),
@@ -358,7 +358,7 @@ def build_document():
     add_heading(doc, "4. Phase 1 - MEL foundation and reporting controls", 1)
     add_body(doc, "Purpose: confirm that the admin can control reporting periods, indicators, targets, inclusion data, and audited changes from MEL Configuration.")
     add_test_table(doc, [
-        ("P1-01", "Open /admin/mel and inspect the reporting-period list.", "Period codes, labels, dates, sequence, and status are clear and correctly ordered.", "Period-list screenshot"),
+        ("P1-01", "Open /admin/mel and inspect Programme Year 1 reporting periods.", "Q1 is 1 June-31 August 2026 and closes for collection on 15 September. Q2 is 1 September-30 November 2026; Q3 is 1 December 2026-28 February 2027; Q4 is 1 March-31 May 2027. The original Q1 draft remains linked.", "Period list and Q1 draft"),
         ("P1-02", "Create or update a test reporting period with valid dates.", "The period saves, displays correctly after refresh, and records an audit event.", "Before/after screenshot"),
         ("P1-03", "Attempt invalid dates or a duplicate period code.", "The system rejects the change with a clear, actionable message.", "Validation screenshot"),
         ("P1-04", "Inspect indicator definitions, disaggregation settings, calculation rules, and targets.", "Definitions match the approved ITT and the interface distinguishes editable configuration from calculated values.", "Indicator sample"),
@@ -371,12 +371,15 @@ def build_document():
     add_body(doc, "Purpose: confirm that an enterprise report can be started, saved safely, validated, supported by evidence, and submitted exactly once for the selected period.")
     add_test_table(doc, [
         ("P2-01", "Open /admin/mel/monitoring; filter/search and select an enterprise plus the open period.", "The correct enterprise context opens and an existing submission is reused instead of duplicated.", "Queue and form screenshot"),
-        ("P2-02", "Complete sections A-I with representative capacity, profitability, jobs, markets, finance, green growth, partnership, and feedback values.", "Fields accept the correct data types; derived totals update consistently; help and labels are understandable.", "Completed draft"),
+        ("P2-02", "Complete sections 0 and A-I. Confirm the profile says Age category and uses 18-35, 36-50, or 51 and above at the period end date.", "All section titles and full questions match the approved monitoring tool, including 'in the past 3 months' where applicable.", "Completed draft"),
         ("P2-03", "Save a partial draft, navigate away, then reopen it.", "All saved values return unchanged and the record remains a draft.", "Draft restoration screenshot"),
-        ("P2-04", "Enter negative counts, inconsistent job totals, missing mandatory values, and an invalid percentage.", "Submission is blocked and each problem is identified near the affected field or in a clear summary.", "Validation evidence"),
-        ("P2-05", "Upload acceptable evidence, then test an unsupported/oversized file.", "Valid evidence is linked to the submission; invalid files are rejected safely.", "Evidence list and error"),
+        ("P2-04", "Answer No and Yes in turn for technology, products, finance linkage, financial plan, insurance, investor readiness, partnerships, forum, and PPP.", "Follow-up details and evidence controls appear only after Yes. Hidden child values are cleared and do not affect review or reporting.", "Skip-logic screenshots"),
+        ("P2-05", "Select Loan, Matching Grant, Repayable Grant, and Other; enter a separate non-negative amount for each and a description for Other.", "Every selected type requires its own amount, Other alone requires descriptive text, and the displayed/stored total equals the sum.", "Finance entry screenshots"),
         ("P2-06", "Submit a valid report and try to create another for the same enterprise and period.", "The status advances to submitted and the duplicate is prevented.", "Status screenshot"),
-        ("P2-07", "Review the form at desktop and narrow/mobile widths using keyboard navigation.", "Content remains readable, focus is visible, controls are usable, and no content is clipped.", "Responsive screenshots"),
+        ("P2-07", "Upload evidence under a Yes question, change the answer to No, and attempt submission before and after removing the file.", "The existing file and removal warning remain visible; submission is blocked until stale evidence is removed. Section J accurately summarizes all attached and reused evidence and has no global supports dropdown.", "Warning and Section J"),
+        ("P2-08", "Use a waste-management enterprise and a non-waste enterprise.", "Waste fields appear and validate only for sector waste_management. Circular saving/growth questions do not appear.", "Sector comparison"),
+        ("P2-09", "For a one-time question, test an approved prior achievement and separately approved prior evidence without an achievement mapping.", "Approved achievements hide the question. 'Already done/submitted' appears only for approved verified prior proof and references the original file without duplication.", "Prior-proof evidence"),
+        ("P2-10", "Review the form at desktop and narrow/mobile widths using keyboard navigation.", "Content remains readable, focus is visible, controls are usable, and no content is clipped.", "Responsive screenshots"),
     ])
     add_callout(doc, "Phase 2 acceptance", "Pass when drafts are reliable, calculations and validation are correct, evidence is protected, duplicates are blocked, and submission status is clear.", PALE_GREEN)
 
@@ -385,7 +388,7 @@ def build_document():
     add_body(doc, "Purpose: prove that only reviewed and approved data becomes trusted, while corrections, evidence decisions, DQA findings, notifications, and learning actions remain traceable.")
     add_test_table(doc, [
         ("P3-01", "Open /admin/mel/review and inspect queue filters, status, age, origin, enterprise, and period.", "The queue is understandable and the test submission is visible to the appropriate reviewer.", "Queue screenshot"),
-        ("P3-02", "Open a submission; compare its answers, calculations, history, and evidence with the original report.", "The review detail is complete and no source data is silently changed.", "Review-detail screenshot"),
+        ("P3-02", "Open a submission; inspect finance, partnerships, history, direct evidence, and reused evidence.", "The reviewer sees each finance type and amount, finance total, strategic-partnership count and names, and the reused file's original submission/period/verification context. Legacy circular values appear only on older records and are labelled historical.", "Review-detail screenshot"),
         ("P3-03", "As REDO/admin, return an EDO-originated report with a correction reason.", "A meaningful reason is required; status changes correctly; the collector receives a notification.", "Status/history evidence"),
         ("P3-04", "Correct and resubmit the returned report, then complete REDO validation and MEL approval using separate users.", "The full status sequence is recorded and self-approval is blocked.", "Audit timeline"),
         ("P3-05", "Record completeness, consistency, plausibility, and timeliness DQA results, including a failed check.", "Scores/findings are saved; failed checks remain visible and actionable.", "DQA screenshot"),
@@ -401,13 +404,15 @@ def build_document():
     add_test_table(doc, [
         ("P4-01", "Open /admin/mel/programme-results; create a programme-level entry, attach its evidence URL where required, and approve it.", "Draft values are excluded from official totals; approved values become eligible for calculation.", "Entry and status evidence"),
         ("P4-02", "Open /admin/mel/reporting; select a period and recalculate.", "Actuals, targets, achievement, traffic lights, calculation version, source count, and timestamp appear.", "Dashboard screenshot"),
-        ("P4-03", "Manually calculate representative Impact, LT, Output, percentage, count, and currency indicators.", "System actuals match the signed manual reconciliation under identical filters.", "Reconciliation worksheet"),
+        ("P4-03", "For each track, manually calculate the median quarterly enterprise revenue, costs, and profit/loss, then divide each median by 3.", "The dashboard monthly medians match. Foundation baselines are revenue 200,000, costs 124,221, profit 50,000; Acceleration baselines are revenue 692,600, costs 490,500, profit 150,000. Variance and variance percentage reconcile.", "Track reconciliation"),
         ("P4-04", "Open an indicator source-count/lineage link.", "The manager can trace the result to approved source records and see exclusions/missing-data notes.", "Lineage screenshot"),
         ("P4-05", "Apply track, county, sector, youth, gender, disability, refugee, and enterprise filters where data exists.", "Every dashboard element and export uses the same filter context without mixing populations.", "Filtered results"),
         ("P4-06", "Open /admin/mel/reporting/data-quality.", "Missing, stale, invalid, or unreconciled data is clearly distinguished from zero performance.", "Data-quality screenshot"),
         ("P4-07", "Open /admin/mel/gis and inspect verified, invalid, clustered, and rounded coordinates.", "Only protected/verified locations are mapped; precise coordinates are not exposed to unauthorized users.", "GIS screenshot"),
         ("P4-08", "Export identical filters to CSV and Excel.", "Dashboard, CSV, and Excel totals agree; metadata identifies period, filters, timestamp, and trusted-data rule.", "Export files"),
-        ("P4-09", "Return, reopen, or void an approved source; recalculate.", "The source leaves official totals until it is approved again, with no change to unrelated results.", "Before/after totals"),
+        ("P4-09", "View LT1 without a track filter, then with Foundation and Acceleration filters. Inspect LT3 circular growth.", "LT1 overall is unavailable with guidance to select a track; each track uses its own profitability baseline. LT3 is unavailable with 'evaluation source pending' rather than zero.", "ITT screenshots"),
+        ("P4-10", "Reconcile finance and waste indicators against approved source records.", "Finance sums normalized finance-entry amounts. Waste totals and source counts include only waste-management enterprises.", "Source reconciliation"),
+        ("P4-11", "Return, reopen, or void an approved source; recalculate.", "The source leaves official totals until it is approved again, with no change to unrelated results.", "Before/after totals"),
     ])
     add_callout(doc, "Phase 4 acceptance", "Pass only after representative ITT values reconcile exactly, trusted-data rules hold, filters/exports agree, GIS privacy is preserved, and lineage is understandable.", PALE_GREEN)
 
@@ -442,6 +447,16 @@ def build_document():
         ("P5-16", "Move a stage backwards without a reason, then retry with a meaningful rollback reason.", "The first attempt is blocked; the second succeeds and records the reason.", "Rollback evidence"),
     ])
     add_callout(doc, "Phase 5 acceptance", "Pass when published instruments are immutable, imports are authenticated/idempotent/quarantined, promoted data follows review, secrets remain protected, and rollout gates cannot be bypassed.", PALE_GREEN)
+
+    add_heading(doc, "8.4 Controlled remediation rollout", 2)
+    add_test_table(doc, [
+        ("R01", "Confirm a restorable database backup exists and record its reference before migration 0039.", "Backup ownership, timestamp, retention, and restore procedure are documented.", "Backup reference"),
+        ("R02", "Temporarily disable Collection in MEL Operations.", "Collectors cannot start or save monitoring reports during the migration window.", "Disabled-state screenshot"),
+        ("R03", "Apply migration 0039_mel_monitoring_review_fixes.sql and run the MEL schema check.", "Finance entries, evidence references, monthly baselines, partnership count, and snapshot columns exist; no migration error occurs.", "Migration log"),
+        ("R04", "Verify Q1's record ID and linked draft, all four period definitions, baseline JSON, and legacy finance backfill.", "The Q1 ID/draft are preserved, periods and baselines match this guide, and no existing finance value is lost.", "Verification query"),
+        ("R05", "Deploy the application and complete P2-01, P2-04, P2-05, P2-07, P3-02, P4-03, and P4-09 as an admin smoke test.", "Critical collection, review, evidence, finance, and reporting journeys pass.", "Smoke-test record"),
+        ("R06", "Re-enable Collection only after smoke-test approval and retest every row from the manager review.", "Collection resumes with an auditable decision and no unresolved critical/high defect.", "Approval and operations log"),
+    ])
 
     add_page_break(doc)
     add_heading(doc, "9. Cross-cutting usability and security review", 1)

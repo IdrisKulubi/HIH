@@ -10,6 +10,7 @@ import {
   Bank,
   Calculator,
   ChartBar,
+  ChartLineUp,
   ChatCircle,
   CheckCircle,
   ClipboardText,
@@ -19,8 +20,10 @@ import {
   FileText,
   Gear,
   ListChecks,
+  MapPin,
   ShieldCheck,
   SquaresFour,
+  Table,
   Target,
   UserCheck,
   Users,
@@ -68,16 +71,25 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
     ],
   },
   {
-    title: "Management",
+    title: "MEL",
     links: [
-      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartBar },
       { href: "/admin/mel", label: "MEL Configuration", icon: Target },
       { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
       { href: "/admin/mel/review", label: "MEL Review Queue", icon: CheckCircle },
-      { href: "/admin/mel/reporting", label: "MEL Reporting", icon: ChartBar },
+      { href: "/admin/mel/evidence", label: "Evidence Repository", icon: FileText },
+      { href: "/admin/mel/learning", label: "Learning Actions", icon: ChatCircle },
+      { href: "/admin/mel/reporting", label: "MEL Reporting", icon: ChartLineUp },
+      { href: "/admin/mel/programme-results", label: "Programme Results", icon: Table },
+      { href: "/admin/mel/gis", label: "Enterprise GIS", icon: MapPin },
       { href: "/admin/mel/instruments", label: "MEL Instruments", icon: ClipboardText },
       { href: "/admin/mel/imports", label: "MEL Imports", icon: ArrowsClockwise },
       { href: "/admin/mel/operations", label: "MEL Operations", icon: Gear },
+    ],
+  },
+  {
+    title: "Management",
+    links: [
+      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
       { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
@@ -196,7 +208,7 @@ export default async function AdminDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {QUICK_LINK_GROUPS.map((group) => (
           <Card key={group.title}>
             <CardHeader className="pb-2">

@@ -14,6 +14,8 @@ import {
   melEnterpriseAssignments,
   melIndicatorDefinitions,
   melMonitoringEvidence,
+  melMonitoringEvidenceReferences,
+  melMonitoringFinanceEntries,
   melMonitoringJobs,
   melMonitoringResponses,
   melMonitoringSubmissions,
@@ -29,20 +31,17 @@ import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { requireMelRolloutFeature } from "@/lib/mel/operations";
 import {
   monitoringSubmissionIssues,
+  normalizeMonitoringDraft,
   parseMonitoringFormData,
   WASTE_STREAMS,
 } from "@/lib/mel/monitoring-validation";
+import {
+  MONITORING_QUESTIONS,
+  ONE_TIME_QUESTION_BY_INDICATOR,
+  type MonitoringQuestionCode,
+} from "@/lib/mel/monitoring-question-catalog";
 
 const INSTRUMENT_CODE = "quarterly_enterprise_monitoring";
-const ONE_TIME_QUESTION_BY_INDICATOR: Record<string, string> = {
-  "OP1.2-IMPROVED-BUSINESS-PLANS": "business_plan_improved",
-  "OP2.1-FINANCIAL-PLANS": "financial_plan_completed",
-  "OP2.1-INVESTOR-READINESS": "investor_readiness_completed",
-  "OP3.1-LIFE-CYCLE-ASSESSMENTS": "life_cycle_assessment_completed",
-  "OP3.1-ESG-REPORTS": "esg_report_completed",
-  "OP3.2-SOCIAL-SAFEGUARDS": "social_safeguarding_guidelines",
-};
-
 export type MelMonitoringWorkspaceRow = {
   businessId: number;
   businessName: string;
@@ -72,9 +71,26 @@ export type MelMonitoringDetail = {
   actor: MelMonitoringActor;
   submission: typeof melMonitoringSubmissions.$inferSelect;
   response: typeof melMonitoringResponses.$inferSelect | null;
+  financeEntries: Array<typeof melMonitoringFinanceEntries.$inferSelect>;
   jobs: Array<typeof melMonitoringJobs.$inferSelect>;
   waste: Array<typeof melMonitoringWaste.$inferSelect>;
   evidence: Array<typeof melMonitoringEvidence.$inferSelect>;
+  evidenceReferences: Array<{
+    id: number;
+    questionCode: string;
+    sourceEvidence: typeof melMonitoringEvidence.$inferSelect;
+    sourceSubmission: typeof melMonitoringSubmissions.$inferSelect;
+    sourcePeriod: typeof melReportingPeriods.$inferSelect;
+  }>;
+  reusableEvidence: Array<{
+    questionCode: string;
+    evidenceId: number;
+    fileName: string;
+    fileUrl: string;
+    sourceSubmissionId: number;
+    sourcePeriodLabel: string;
+    approvedAt: Date | null;
+  }>;
   period: typeof melReportingPeriods.$inferSelect;
   profile: {
     businessName: string;
@@ -329,7 +345,20 @@ export async function getMelMonitoringDetail(
           eq(melMonitoringSubmissions.reportingPeriodId, periodId),
           eq(melMonitoringSubmissions.instrumentCode, INSTRUMENT_CODE)
         ),
-        with: { response: true, jobs: true, waste: true, evidence: true },
+        with: {
+          response: true,
+          financeEntries: true,
+          jobs: true,
+          waste: true,
+          evidence: true,
+          evidenceReferences: {
+            with: {
+              sourceEvidence: {
+                with: { submission: { with: { reportingPeriod: true } } },
+              },
+            },
+          },
+        },
       }),
       db.query.melReportingPeriods.findFirst({ where: eq(melReportingPeriods.id, periodId) }),
       loadProfile(businessId),
@@ -387,18 +416,66 @@ export async function getMelMonitoringDetail(
       .groupBy(melMonitoringJobs.jobType);
     const emptyJobs = { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 };
 
+    const priorApprovedSubmissions = await db.query.melMonitoringSubmissions.findMany({
+      where: and(
+        eq(melMonitoringSubmissions.businessId, businessId),
+        eq(melMonitoringSubmissions.status, "approved")
+      ),
+      with: { reportingPeriod: true },
+    });
+    const eligiblePriorSubmissions = priorApprovedSubmissions.filter(
+      (item) => item.id !== submission.id && item.reportingPeriod.endDate < period.endDate
+    );
+    const priorEvidence = eligiblePriorSubmissions.length
+      ? await db.query.melMonitoringEvidence.findMany({
+          where: and(
+            inArray(melMonitoringEvidence.submissionId, eligiblePriorSubmissions.map((item) => item.id)),
+            eq(melMonitoringEvidence.status, "active")
+          ),
+          with: { reviews: true },
+        })
+      : [];
+    const priorSubmissionById = new Map(eligiblePriorSubmissions.map((item) => [item.id, item]));
+    const reusableEvidence = priorEvidence
+      .filter(
+        (item) =>
+          item.reviews.some((review) => review.status === "verified") &&
+          MONITORING_QUESTIONS[item.questionCode as MonitoringQuestionCode]?.oneTime
+      )
+      .map((item) => {
+        const source = priorSubmissionById.get(item.submissionId)!;
+        return {
+          questionCode: item.questionCode,
+          evidenceId: item.id,
+          fileName: item.fileName,
+          fileUrl: item.fileUrl,
+          sourceSubmissionId: source.id,
+          sourcePeriodLabel: source.reportingPeriod.label,
+          approvedAt: source.approvedAt,
+        };
+      });
+
     return successResponse({
       actor,
       submission,
       response: submission.response ?? null,
+      financeEntries: submission.financeEntries,
       jobs: submission.jobs,
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
+      evidenceReferences: submission.evidenceReferences.map((reference) => ({
+        id: reference.id,
+        questionCode: reference.questionCode,
+        sourceEvidence: reference.sourceEvidence,
+        sourceSubmission: reference.sourceEvidence.submission,
+        sourcePeriod: reference.sourceEvidence.submission.reportingPeriod,
+      })),
+      reusableEvidence,
       period,
       profile: stableProfile,
       approvedOneTimeCodes: approvedAchievements
         .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
-        .filter((code): code is string => Boolean(code)),
+        .filter((code): code is MonitoringQuestionCode => Boolean(code)),
       cumulativeJobs: {
         direct: cumulativeRows.find((row) => row.jobType === "direct") ?? emptyJobs,
         indirect: cumulativeRows.find((row) => row.jobType === "indirect") ?? emptyJobs,
@@ -420,7 +497,7 @@ export async function saveMelMonitoringAction(
     const actor = await requireMelCollector();
     const submissionId = z.coerce.number().int().positive().parse(formData.get("submissionId"));
     const intent = z.enum(["save", "submit"]).parse(formData.get("intent"));
-    const input = parseMonitoringFormData(formData);
+    let input = parseMonitoringFormData(formData);
     const submission = await db.query.melMonitoringSubmissions.findFirst({
       where: eq(melMonitoringSubmissions.id, submissionId),
     });
@@ -431,6 +508,42 @@ export async function saveMelMonitoringAction(
     }
     if (!isCollectorEditableStatus(submission.status)) {
       return errorResponse("A submitted report cannot be edited until it is returned");
+    }
+
+    const period = await db.query.melReportingPeriods.findFirst({
+      where: eq(melReportingPeriods.id, submission.reportingPeriodId),
+    });
+    if (!period) return errorResponse("Reporting period not found");
+    const snapshotSector = submission.profileSnapshot.sector;
+    const sector = typeof snapshotSector === "string" ? snapshotSector : (await loadProfile(submission.businessId)).sector;
+    const wasteEligible = sector === "waste_management";
+    input = normalizeMonitoringDraft(input, wasteEligible);
+
+    const requestedReferences = Object.entries(input.reusedEvidenceIds);
+    const requestedEvidenceIds = requestedReferences.map(([, evidenceId]) => evidenceId);
+    const reusableSourceEvidence = requestedEvidenceIds.length
+      ? await db.query.melMonitoringEvidence.findMany({
+          where: inArray(melMonitoringEvidence.id, requestedEvidenceIds),
+          with: {
+            reviews: true,
+            submission: { with: { reportingPeriod: true } },
+          },
+        })
+      : [];
+    for (const [questionCode, evidenceId] of requestedReferences) {
+      const source = reusableSourceEvidence.find((item) => item.id === evidenceId);
+      const question = MONITORING_QUESTIONS[questionCode as MonitoringQuestionCode];
+      if (
+        !source || !question?.oneTime || source.questionCode !== questionCode || source.status !== "active" ||
+        source.submission.businessId !== submission.businessId || source.submission.status !== "approved" ||
+        source.submission.reportingPeriod.endDate >= period.endDate ||
+        !source.reviews.some((review) => review.status === "verified")
+      ) {
+        return errorResponse(`Approved prior evidence is required for ${questionCode.replaceAll("_", " ")}`);
+      }
+      if (question.field) {
+        (input as unknown as Record<string, unknown>)[question.field] = true;
+      }
     }
 
     const evidence = await db.query.melMonitoringEvidence.findMany({
@@ -459,15 +572,16 @@ export async function saveMelMonitoringAction(
     const approvedCodes = new Set(
       approvedAchievements
         .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
-        .filter((code): code is string => Boolean(code))
+        .filter((code): code is MonitoringQuestionCode => Boolean(code))
     );
 
     if (intent === "submit") {
       const issues = monitoringSubmissionIssues(
         input,
-        new Set(evidence.map((item) => item.questionCode)),
+        new Set([...evidence.map((item) => item.questionCode), ...requestedReferences.map(([code]) => code)]),
         approvedCodes,
-        settings?.includeRefugeeDisaggregation ?? false
+        settings?.includeRefugeeDisaggregation ?? false,
+        wasteEligible
       );
       if (issues.length > 0) return errorResponse(issues.join(" • "));
     }
@@ -509,6 +623,30 @@ export async function saveMelMonitoringAction(
           set: { ...responseValues(input, profitLoss), updatedAt: new Date() },
         });
 
+      await tx.delete(melMonitoringFinanceEntries).where(eq(melMonitoringFinanceEntries.submissionId, submissionId));
+      if (input.financeEntries.length > 0) {
+        await tx.insert(melMonitoringFinanceEntries).values(
+          input.financeEntries.map((entry) => ({
+            submissionId,
+            financeType: entry.financeType,
+            otherDescription: entry.financeType === "other" ? entry.otherDescription : null,
+            amount: String(entry.amount ?? 0),
+          }))
+        );
+      }
+
+      await tx.delete(melMonitoringEvidenceReferences).where(eq(melMonitoringEvidenceReferences.submissionId, submissionId));
+      if (requestedReferences.length > 0) {
+        await tx.insert(melMonitoringEvidenceReferences).values(
+          requestedReferences.map(([questionCode, sourceEvidenceId]) => ({
+            submissionId,
+            questionCode,
+            sourceEvidenceId,
+            createdById: actor.id,
+          }))
+        );
+      }
+
       for (const [jobType, row] of [["direct", input.directJobs], ["indirect", input.indirectJobs]] as const) {
         await tx
           .insert(melMonitoringJobs)
@@ -535,14 +673,18 @@ export async function saveMelMonitoringAction(
             },
           });
       }
-      for (const stream of WASTE_STREAMS) {
-        await tx
-          .insert(melMonitoringWaste)
-          .values({ submissionId, wasteStream: stream, kilograms: String(input.waste[stream] ?? 0) })
-          .onConflictDoUpdate({
-            target: [melMonitoringWaste.submissionId, melMonitoringWaste.wasteStream],
-            set: { kilograms: String(input.waste[stream] ?? 0), updatedAt: new Date() },
-          });
+      if (wasteEligible) {
+        for (const stream of WASTE_STREAMS) {
+          await tx
+            .insert(melMonitoringWaste)
+            .values({ submissionId, wasteStream: stream, kilograms: String(input.waste[stream] ?? 0) })
+            .onConflictDoUpdate({
+              target: [melMonitoringWaste.submissionId, melMonitoringWaste.wasteStream],
+              set: { kilograms: String(input.waste[stream] ?? 0), updatedAt: new Date() },
+            });
+        }
+      } else {
+        await tx.delete(melMonitoringWaste).where(eq(melMonitoringWaste.submissionId, submissionId));
       }
       await tx.insert(melAuditEvents).values({
         actorId: actor.id,
@@ -562,13 +704,16 @@ export async function saveMelMonitoringAction(
           ) as keyof typeof input;
           if (input[field] !== true || approvedCodes.has(questionCode)) continue;
           const supportingEvidence = evidence.find((item) => item.questionCode === questionCode);
+          const referencedEvidence = reusableSourceEvidence.find(
+            (item) => item.id === input.reusedEvidenceIds[questionCode]
+          );
           await tx
             .insert(melEnterpriseAchievements)
             .values({
               businessId: submission.businessId,
               indicatorId: indicator.id,
               firstSubmissionId: submissionId,
-              evidenceId: supportingEvidence?.id,
+              evidenceId: supportingEvidence?.id ?? referencedEvidence?.id,
               status: "pending",
             })
             .onConflictDoNothing();
@@ -597,7 +742,6 @@ function responseValues(
     revenue: input.revenue === null ? null : String(input.revenue),
     costs: input.costs === null ? null : String(input.costs),
     profitLoss: profitLoss === null ? null : String(profitLoss),
-    financialChangeExplanation: input.financialChangeExplanation,
     marketResearchCompleted: input.marketResearchCompleted,
     marketIntelligenceAccessed: input.marketIntelligenceAccessed,
     newMarketSegments: input.newMarketSegments,
@@ -606,9 +750,11 @@ function responseValues(
     newProductsDeveloped: input.newProductsDeveloped,
     newProductsDetails: input.newProductsDetails,
     linkedToFinanceProvider: input.linkedToFinanceProvider,
-    financeType: input.financeType,
-    financeTypeOther: input.financeTypeOther,
-    financeValue: input.financeValue === null ? null : String(input.financeValue),
+    financeType: null,
+    financeTypeOther: null,
+    financeValue: input.linkedToFinanceProvider
+      ? String(input.financeEntries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0))
+      : null,
     financialPlanCompleted: input.financialPlanCompleted,
     activeInsurance: input.activeInsurance,
     investorReadinessCompleted: input.investorReadinessCompleted,
@@ -616,12 +762,10 @@ function responseValues(
     ecoCertificationActive: input.ecoCertificationActive,
     esgReportCompleted: input.esgReportCompleted,
     socialSafeguardingGuidelines: input.socialSafeguardingGuidelines,
-    circularGrowthReported: input.circularGrowthReported,
-    circularGrowthValue: input.circularGrowthValue === null ? null : String(input.circularGrowthValue),
     strategicPartnerships: input.strategicPartnerships,
+    strategicPartnershipCount: input.strategicPartnershipCount,
     strategicPartnershipDetails: input.strategicPartnershipDetails,
     forumParticipation: input.forumParticipation,
-    forumDetails: input.forumDetails,
     publicPrivatePartnership: input.publicPrivatePartnership,
     publicPrivatePartnershipDetails: input.publicPrivatePartnershipDetails,
     mainChallenges: input.mainChallenges,

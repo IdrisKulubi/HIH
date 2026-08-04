@@ -17,7 +17,6 @@ function completeDraft(): MelMonitoringDraft {
     businessPlanImproved: false,
     revenue: 900_000,
     costs: 600_000,
-    financialChangeExplanation: null,
     directJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     marketResearchCompleted: false,
@@ -28,9 +27,7 @@ function completeDraft(): MelMonitoringDraft {
     newProductsDeveloped: false,
     newProductsDetails: null,
     linkedToFinanceProvider: false,
-    financeType: null,
-    financeTypeOther: null,
-    financeValue: null,
+    financeEntries: [],
     financialPlanCompleted: false,
     activeInsurance: false,
     investorReadinessCompleted: false,
@@ -38,19 +35,18 @@ function completeDraft(): MelMonitoringDraft {
     ecoCertificationActive: false,
     esgReportCompleted: false,
     socialSafeguardingGuidelines: false,
-    circularGrowthReported: false,
-    circularGrowthValue: null,
     waste: { organic: 0, plastic: 0, paper: 0, glass: 0, e_waste: 0, other: 0 },
     strategicPartnerships: false,
+    strategicPartnershipCount: null,
     strategicPartnershipDetails: null,
     forumParticipation: false,
-    forumDetails: null,
     publicPrivatePartnership: false,
     publicPrivatePartnershipDetails: null,
     mainChallenges: "Access to working capital",
     negativeProgrammeImpacts: "None observed",
     additionalSupportNeeded: "Financial planning support",
     collectorComment: "Enterprise continues to trade.",
+    reusedEvidenceIds: {},
   };
 }
 
@@ -95,7 +91,7 @@ function testJobValidation() {
 function testSubmissionValidation() {
   const valid = completeDraft();
   assert.deepEqual(
-    monitoringSubmissionIssues(valid, new Set(["jobs"]), new Set(), false),
+    monitoringSubmissionIssues(valid, new Set(["jobs"]), new Set(), false, false),
     []
   );
 
@@ -104,20 +100,19 @@ function testSubmissionValidation() {
     technology,
     new Set(["jobs"]),
     new Set(),
+    false,
     false
   );
-  assert.ok(technologyIssues.some((issue) => issue.includes("Technology details")));
+  assert.ok(technologyIssues.some((issue) => issue.includes("Technology or innovation details")));
   assert.ok(technologyIssues.some((issue) => issue.includes("Evidence is required for technology")));
 
   const finance = {
     ...valid,
     linkedToFinanceProvider: true,
-    financeType: "other",
-    financeTypeOther: null,
-    financeValue: null,
+    financeEntries: [{ financeType: "other" as const, otherDescription: null, amount: null }],
   };
-  const financeIssues = monitoringSubmissionIssues(finance, new Set(["jobs"]), new Set(), false);
-  assert.ok(financeIssues.some((issue) => issue.includes("Finance type and value")));
+  const financeIssues = monitoringSubmissionIssues(finance, new Set(["jobs"]), new Set(), false, false);
+  assert.ok(financeIssues.some((issue) => issue.includes("Enter the amount")));
   assert.ok(financeIssues.some((issue) => issue.includes("other finance type")));
 
   const approvedSkip = { ...valid, businessPlanImproved: null };
@@ -126,6 +121,7 @@ function testSubmissionValidation() {
       approvedSkip,
       new Set(["jobs"]),
       new Set(["business_plan_improved"]),
+      false,
       false
     ),
     []
@@ -137,10 +133,12 @@ function testSubmissionValidation() {
     "Negative money values must fail at the schema boundary"
   );
 
-  const unexplainedLoss = { ...valid, revenue: 100, costs: 200, financialChangeExplanation: null };
-  assert.ok(
-    monitoringSubmissionIssues(unexplainedLoss, new Set(["jobs"]), new Set(), false)
-      .some((issue) => issue.includes("reported loss"))
+  const loss = { ...valid, revenue: 100, costs: 200 };
+  assert.equal(
+    monitoringSubmissionIssues(loss, new Set(["jobs"]), new Set(), false, false)
+      .some((issue) => issue.includes("reported loss")),
+    false,
+    "A loss no longer requires a material-change explanation"
   );
 }
 

@@ -27,6 +27,7 @@ function record(id: number, businessId: number, overrides: Partial<ApprovedMonit
     newProductsDeveloped: false,
     linkedToFinanceProvider: false,
     financeValue: 0,
+    financeEntries: [],
     financialPlanCompleted: false,
     activeInsurance: false,
     investorReadinessCompleted: false,
@@ -64,10 +65,13 @@ function tests() {
   assert.equal(overachievement.trafficLight, "green");
   assert.equal(achievementStatus(3, 5, base.thresholds, true).trafficLight, "green");
 
-  const profitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), records: [record(1, 1, { profitLoss: 300 }), record(2, 2, { profitLoss: 600 })], baseline: 100, target: 50 });
+  const profitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), segmentKey: "track:foundation", records: [record(1, 1, { profitLoss: 300 }), record(2, 2, { profitLoss: 600 })], baseline: 100, target: 50 });
   assert.equal(profitability.numerator, 150);
   assert.equal(profitability.actual, 50);
-  const zeroBaseline = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), records: [record(1, 1)], baseline: 0 });
+  const overallProfitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), records: [record(1, 1)], baseline: null });
+  assert.equal(overallProfitability.actual, null);
+  assert.match(overallProfitability.exclusions[0], /Select Foundation or Acceleration/);
+  const zeroBaseline = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), segmentKey: "track:foundation", records: [record(1, 1)], baseline: 0 });
   assert.equal(zeroBaseline.actual, null);
   assert.match(zeroBaseline.exclusions[0], /zero or missing/);
 
@@ -79,8 +83,14 @@ function tests() {
   const deduplicated = calculateIndicator({ ...base, definition: definition("OP3.1-LIFE-CYCLE-ASSESSMENTS", "distinct_count"), records: [record(1, 1, { periodId: 1, lifeCycleAssessmentCompleted: true }), record(2, 1, { periodId: 2, lifeCycleAssessmentCompleted: true })] });
   assert.equal(deduplicated.actual, 1);
 
-  const waste = calculateIndicator({ ...base, definition: definition("OP3.3-WASTE-RECYCLED"), segmentKey: "waste_stream:plastic", records: [record(1, 1, { waste: [{ stream: "plastic", kilograms: 12.5 }, { stream: "paper", kilograms: 5 }] }), record(2, 2, { waste: [{ stream: "plastic", kilograms: 7.5 }] })] });
+  const wasteDimensions = { track: "foundation", ownerGender: "female", ownerYouth: true, ownerPlwd: null, county: "nairobi", sector: "waste_management" };
+  const waste = calculateIndicator({ ...base, definition: definition("OP3.3-WASTE-RECYCLED"), segmentKey: "waste_stream:plastic", records: [record(1, 1, { dimensions: wasteDimensions, waste: [{ stream: "plastic", kilograms: 12.5 }, { stream: "paper", kilograms: 5 }] }), record(2, 2, { dimensions: wasteDimensions, waste: [{ stream: "plastic", kilograms: 7.5 }] }), record(3, 3, { waste: [{ stream: "plastic", kilograms: 99 }] })] });
   assert.equal(waste.actual, 20);
+  assert.equal(waste.sourceCount, 2);
+
+  const circular = calculateIndicator({ ...base, definition: definition("LT3-CIRCULAR-GROWTH", "ratio"), records: [record(1, 1, { circularGrowthReported: true })] });
+  assert.equal(circular.actual, null);
+  assert.match(circular.exclusions[0], /evaluation source is pending/i);
 
   const foundation = calculateIndicator({ ...base, definition: definition("IM-JOBS-CREATED"), segmentKey: "track:foundation", records: [record(1, 1), record(2, 2, { dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" } })] });
   assert.equal(foundation.actual, 5);

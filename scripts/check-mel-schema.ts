@@ -45,7 +45,7 @@ const MEL_PHASES: PhaseCatalog[] = [
   {
     phase: 2,
     label: "Quarterly enterprise monitoring",
-    migration: "0034_mel_phase2_monitoring.sql",
+    migration: "0034_mel_phase2_monitoring.sql + 0039_mel_monitoring_review_fixes.sql",
     tables: [
       "mel_enterprise_assignments",
       "mel_monitoring_submissions",
@@ -53,12 +53,15 @@ const MEL_PHASES: PhaseCatalog[] = [
       "mel_monitoring_jobs",
       "mel_monitoring_waste",
       "mel_monitoring_evidence",
+      "mel_monitoring_finance_entries",
+      "mel_monitoring_evidence_references",
       "mel_enterprise_achievements",
     ],
     enums: [
       "mel_monitoring_status",
       "mel_monitoring_source_mode",
       "mel_job_type",
+      "mel_finance_type",
       "mel_evidence_status",
       "mel_achievement_status",
     ],

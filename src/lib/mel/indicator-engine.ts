@@ -31,6 +31,7 @@ export type ApprovedMonitoringRecord = {
   newProductsDeveloped: boolean | null;
   linkedToFinanceProvider: boolean | null;
   financeValue: number | null;
+  financeEntries: Array<{ financeType: string; otherDescription: string | null; amount: number }>;
   financialPlanCompleted: boolean | null;
   activeInsurance: boolean | null;
   investorReadinessCompleted: boolean | null;
@@ -256,7 +257,16 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   }
 
   if (code === "LT1-PROFITABILITY-INCREASE") {
-    const cohortMedian = median(latest.map((record) => (record.profitLoss ?? 0) / 3));
+    if (segmentKey === "overall") {
+      return result(
+        input,
+        { actual: null, numerator: null, denominator: null, calculationRule: "Track-specific monthly median profitability comparison" },
+        [],
+        [],
+        ["Overall comparison is unavailable. Select Foundation or Acceleration to view the validated track-specific baseline."]
+      );
+    }
+    const cohortMedian = median(latest.flatMap((record) => record.profitLoss === null ? [] : [record.profitLoss / 3]));
     const growth = cohortMedian === null || !input.baseline
       ? null
       : safePercentage(cohortMedian - input.baseline, input.baseline);
@@ -269,6 +279,16 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
       latest,
       [],
       exclusions
+    );
+  }
+
+  if (code === "LT3-CIRCULAR-GROWTH") {
+    return result(
+      input,
+      { actual: null, numerator: null, denominator: null, calculationRule: "Evaluation source pending" },
+      [],
+      [],
+      ["Circular-growth monitoring is unavailable because the evaluation source is pending."]
     );
   }
 
@@ -297,14 +317,15 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   }
 
   if (code === "OP3.3-WASTE-RECYCLED") {
+    const wasteRecords = records.filter((record) => record.dimensions.sector === "waste_management");
     const requestedStream = segmentKey.startsWith("waste_stream:") ? segmentKey.slice(13) : null;
-    const actual = records.reduce(
+    const actual = wasteRecords.reduce(
       (total, record) => total + record.waste
         .filter((item) => !requestedStream || item.stream === requestedStream)
         .reduce((sum, item) => sum + item.kilograms, 0),
       0
     );
-    return result(input, { actual: round(actual), numerator: null, denominator: null, calculationRule: requestedStream ? `Sum of approved ${requestedStream} waste kilograms` : "Sum of approved waste kilograms" }, records);
+    return result(input, { actual: round(actual), numerator: null, denominator: null, calculationRule: requestedStream ? `Sum of approved ${requestedStream} waste kilograms from waste-management enterprises` : "Sum of approved waste kilograms from waste-management enterprises" }, wasteRecords);
   }
 
   const ratioField = RATIO_FIELDS[code];
