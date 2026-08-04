@@ -12,7 +12,7 @@ import {
   melFinancialBaselineBatches,
 } from "@/db/schema";
 import { requireMelManager, requireMelViewer } from "@/lib/mel/access";
-import { KNOWN_BASELINE_ID_CORRECTIONS, normalizeEnterpriseName } from "@/lib/mel/financial-baselines";
+import { enterpriseNamesAreEquivalent, KNOWN_BASELINE_ID_CORRECTIONS, normalizeEnterpriseName } from "@/lib/mel/financial-baselines";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -117,7 +117,7 @@ export async function uploadMelFinancialBaselineAction(
       if (monthlyRevenue !== null && annualRevenue !== null && Math.abs(annualRevenue - monthlyRevenue * 12) > 0.01) errors.push("Annual revenue does not equal monthly revenue × 12.");
       if (monthlyCosts !== null && annualCosts !== null && Math.abs(annualCosts - monthlyCosts * 12) > 0.01) errors.push("Annual costs do not equal monthly costs × 12.");
       if (annualRevenue !== null && annualCosts !== null && annualProfit !== null && Math.abs(annualProfit - (annualRevenue - annualCosts)) > 0.01) errors.push("Annual profit/loss does not equal annual revenue minus annual costs.");
-      if (matched && normalizeEnterpriseName(matched.name) !== nameKey) warnings.push(`Workbook name differs from system name: ${matched.name}.`);
+      if (matched && !enterpriseNamesAreEquivalent(matched.name, name)) warnings.push(`Workbook name differs from system name: ${matched.name}.`);
       if (correctedId) warnings.push(`Business ID normalized to ${correctedId} using the verified enterprise-name correction.`);
       return {
         sourceRow: offset + 2,

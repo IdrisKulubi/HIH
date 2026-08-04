@@ -12,6 +12,7 @@ import {
   melEvidenceReviews,
   melLearningActions,
   melMonitoringEvidence,
+  melMonitoringEvidenceReferences,
   melMonitoringFinanceEntries,
   melMonitoringJobs,
   melMonitoringResponses,
@@ -226,13 +227,6 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         jobs: true,
         waste: true,
         evidence: { with: { reviews: true } },
-        evidenceReferences: {
-          with: {
-            sourceEvidence: {
-              with: { reviews: true, submission: { with: { reportingPeriod: true } } },
-            },
-          },
-        },
         dqaIssues: { orderBy: [asc(melDqaIssues.category), asc(melDqaIssues.ruleCode)] },
         reviewDecisions: { orderBy: [desc(melReviewDecisions.createdAt)] },
         versions: { orderBy: [desc(melMonitoringVersions.version)] },
@@ -250,6 +244,36 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
     if (submission.collectorId === reviewer.id && !reviewer.canAdminister) {
       return errorResponse("You cannot review your own report");
     }
+
+    // Flat load — deep nested evidenceReferences→sourceEvidence→submission→period
+    // hits a PostgreSQL LATERAL alias bug in Drizzle's relational query builder.
+    const evidenceReferenceRows = await db.query.melMonitoringEvidenceReferences.findMany({
+      where: eq(melMonitoringEvidenceReferences.submissionId, submission.id),
+      with: { sourceEvidence: { with: { reviews: true } } },
+    });
+    const sourceSubmissionIds = [
+      ...new Set(evidenceReferenceRows.map((row) => row.sourceEvidence.submissionId)),
+    ];
+    const sourceSubmissions = sourceSubmissionIds.length
+      ? await db.query.melMonitoringSubmissions.findMany({
+          where: inArray(melMonitoringSubmissions.id, sourceSubmissionIds),
+          with: { reportingPeriod: true },
+        })
+      : [];
+    const sourceSubmissionById = new Map(sourceSubmissions.map((item) => [item.id, item]));
+    const evidenceReferences = evidenceReferenceRows.flatMap((reference) => {
+      const sourceSubmission = sourceSubmissionById.get(reference.sourceEvidence.submissionId);
+      if (!sourceSubmission) return [];
+      return [
+        {
+          id: reference.id,
+          questionCode: reference.questionCode,
+          sourceEvidence: reference.sourceEvidence,
+          sourceSubmission,
+          sourcePeriod: sourceSubmission.reportingPeriod,
+        },
+      ];
+    });
 
     const [prior, redoReviewers] = await Promise.all([
       loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate),
@@ -275,13 +299,7 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       jobs: submission.jobs,
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
-      evidenceReferences: submission.evidenceReferences.map((reference) => ({
-        id: reference.id,
-        questionCode: reference.questionCode,
-        sourceEvidence: reference.sourceEvidence,
-        sourceSubmission: reference.sourceEvidence.submission,
-        sourcePeriod: reference.sourceEvidence.submission.reportingPeriod,
-      })),
+      evidenceReferences,
       dqaIssues: submission.dqaIssues,
       decisions: submission.reviewDecisions,
       versions: submission.versions,

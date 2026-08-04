@@ -90,6 +90,26 @@ export function normalizeEnterpriseName(value: string): string {
   return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
 }
 
+/** Soften names for display warnings — ignore legal suffixes, parentheticals, and punctuation. */
+export function canonicalizeEnterpriseName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\b(limited|ltd\.?|llc|inc\.?|incorporated|plc|corp\.?|corporation|pty|co\.?)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+export function enterpriseNamesAreEquivalent(left: string, right: string): boolean {
+  const a = canonicalizeEnterpriseName(left);
+  const b = canonicalizeEnterpriseName(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // Treat shorter core as matching when it is fully contained (e.g. ONJA FOODS vs ONJA FOODS LTD).
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length >= 6 && longer.includes(shorter);
+}
+
 export const KNOWN_BASELINE_ID_CORRECTIONS: Readonly<Record<string, number>> = {
   [normalizeEnterpriseName("Petnam life care limited")]: 826,
   [normalizeEnterpriseName("Digital Legion Limited(trading name BurnerMarket)")]: 1087,

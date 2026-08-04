@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { calculateFinancialComparison, KNOWN_BASELINE_ID_CORRECTIONS, normalizeEnterpriseName } from "./financial-baselines";
+import {
+  calculateFinancialComparison,
+  enterpriseNamesAreEquivalent,
+  KNOWN_BASELINE_ID_CORRECTIONS,
+  normalizeEnterpriseName,
+} from "./financial-baselines";
 
 function tests() {
   const stable = calculateFinancialComparison({ quarterly: { revenue: 330, costs: 240 }, baseline: { revenue: 100, costs: 80 }, thresholdPercent: 100 });
@@ -23,6 +28,17 @@ function tests() {
   assert.equal(KNOWN_BASELINE_ID_CORRECTIONS[normalizeEnterpriseName("Petnam life care limited")], 826);
   assert.equal(KNOWN_BASELINE_ID_CORRECTIONS[normalizeEnterpriseName("Digital Legion Limited(trading name BurnerMarket)")], 1087);
   assert.equal(KNOWN_BASELINE_ID_CORRECTIONS[normalizeEnterpriseName("Agri flora organic solutions limited")], 585);
+
+  assert.equal(enterpriseNamesAreEquivalent("ONJA FOODS LTD", "ONJA FOODS"), true);
+  assert.equal(enterpriseNamesAreEquivalent("Godnet AgrInvest limited", "Godnet AgrInvest Limited (GAIL)"), true);
+  assert.equal(enterpriseNamesAreEquivalent("Nyandarua Machinery Ring", "Nyandarua Machinery Ring"), true);
+  assert.equal(
+    enterpriseNamesAreEquivalent(
+      "Kikuyu dairy cooperative society ltd",
+      "KIKUYU DAIRY FARMERS COOPERATIVE SOCIETY LTD"
+    ),
+    false
+  );
 }
 
 tests();
