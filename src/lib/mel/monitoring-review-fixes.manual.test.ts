@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ageCategoryAt } from "./monitoring-question-catalog";
+import {
+  ageCategoryAt,
+  MONITORING_QUESTIONS,
+  ONE_TIME_QUESTION_BY_INDICATOR,
+} from "./monitoring-question-catalog";
 import {
   monitoringSubmissionIssues,
   normalizeMonitoringDraft,
@@ -106,7 +110,43 @@ function testMigrationContract() {
   assert.match(sql, /INSERT INTO "mel_monitoring_finance_entries"/);
 }
 
+function testOneTimeAndRepeatableQuestionPolicy() {
+  for (const code of [
+    "business_plan_improved",
+    "market_research_completed",
+    "social_safeguarding_guidelines",
+  ] as const) {
+    assert.equal(MONITORING_QUESTIONS[code].oneTime, true);
+    assert.ok(MONITORING_QUESTIONS[code].indicatorCode);
+  }
+
+  assert.equal(
+    ONE_TIME_QUESTION_BY_INDICATOR["OP2.2-MARKET-RESEARCH"],
+    "market_research_completed"
+  );
+  assert.equal(MONITORING_QUESTIONS.jobs.oneTime, false);
+  assert.equal(MONITORING_QUESTIONS.new_products_developed.oneTime, false);
+}
+
+function testQuarterlyFormIsRemountedForEachReport() {
+  const page = readFileSync(
+    "src/app/admin/mel/monitoring/[businessId]/[periodId]/page.tsx",
+    "utf8"
+  );
+  assert.match(page, /key=\{`\$\{detail\.submission\.id\}:\$\{detail\.period\.id\}`\}/);
+}
+
+function testAchievementBackfillMigration() {
+  const sql = readFileSync("drizzle/0041_mel_one_time_achievement_backfill.sql", "utf8");
+  assert.match(sql, /OP2\.2-MARKET-RESEARCH/);
+  assert.match(sql, /mel_monitoring_evidence_references/);
+  assert.match(sql, /ON CONFLICT \("business_id", "indicator_id"\) DO NOTHING/);
+}
+
 testAgeCategories();
 testNormalizationAndBranches();
 testMigrationContract();
+testOneTimeAndRepeatableQuestionPolicy();
+testQuarterlyFormIsRemountedForEachReport();
+testAchievementBackfillMigration();
 console.log("MEL monitoring review remediation tests passed.");

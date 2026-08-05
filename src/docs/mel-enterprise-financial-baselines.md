@@ -13,6 +13,7 @@
 
 - Open an enterprise from the Monitoring workspace; the enterprise name also links to its progressive dashboard.
 - Enter three-month revenue and costs in Section C.
+- Upload supporting evidence in Section C, such as financial statements, sales records, ledgers, receipts, or another document supporting the reported figures and explanation.
 - Confirm the form converts the values to monthly equivalents and shows the opening baseline.
 - Confirm an explanation becomes required for a loss, profit sign reversal, or revenue/cost change of at least 100% against the baseline or previous approved quarter.
 - Submit and confirm REDO/MEL review shows the stored comparison and collector explanation.

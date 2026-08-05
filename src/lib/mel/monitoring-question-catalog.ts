@@ -31,6 +31,14 @@ export const MONITORING_QUESTIONS = {
     oneTime: true,
     indicatorCode: "OP1.2-IMPROVED-BUSINESS-PLANS",
   },
+  profitability: {
+    section: "C",
+    field: null,
+    label: "Supporting evidence for quarterly revenue, costs, profit/loss, or the material-change explanation",
+    evidenceRequired: false,
+    oneTime: false,
+    indicatorCode: "LT1-PROFITABILITY-INCREASE",
+  },
   jobs: {
     section: "D",
     field: null,
@@ -45,7 +53,7 @@ export const MONITORING_QUESTIONS = {
     label: "Has the enterprise conducted a market research survey in the last 3 months?",
     evidenceRequired: true,
     oneTime: true,
-    indicatorCode: null,
+    indicatorCode: "OP2.2-MARKET-RESEARCH",
   },
   technology_adopted: {
     section: "E",
@@ -53,7 +61,7 @@ export const MONITORING_QUESTIONS = {
     label: "Has the enterprise adopted any new technology or innovation (e.g., equipment, digital tools, production methods) in the past 3 months?",
     evidenceRequired: true,
     oneTime: true,
-    indicatorCode: null,
+    indicatorCode: "OP1.2-TECHNOLOGY-ADOPTION",
   },
   new_products_developed: {
     section: "E",
@@ -69,7 +77,7 @@ export const MONITORING_QUESTIONS = {
     label: "Has the enterprise been linked to a financial service provider (bank, SACCO, MFI, investor) in the past 3 months?",
     evidenceRequired: true,
     oneTime: true,
-    indicatorCode: null,
+    indicatorCode: "OP2.1-FINANCIAL-LINKAGES",
   },
   financial_plan_completed: {
     section: "F",
@@ -109,7 +117,7 @@ export const MONITORING_QUESTIONS = {
     label: "Has the enterprise acquired a valid Eco-Certification/Compliance certificate in the past 3 months?",
     evidenceRequired: true,
     oneTime: true,
-    indicatorCode: null,
+    indicatorCode: "OP3.1-ECO-CERTIFICATION",
   },
   esg_report_completed: {
     section: "G",

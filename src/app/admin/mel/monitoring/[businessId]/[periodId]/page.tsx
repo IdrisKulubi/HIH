@@ -40,7 +40,10 @@ export default async function QuarterlyMonitoringPage({
           </div>
         </div>
       </div>
-      <QuarterlyMonitoringForm detail={detail} />
+      <QuarterlyMonitoringForm
+        key={`${detail.submission.id}:${detail.period.id}`}
+        detail={detail}
+      />
     </div>
   );
 }
