@@ -28,6 +28,7 @@ import {
   type JobTotals,
   type ProgrammeResultInput,
 } from "./indicator-engine";
+import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 
 export type MelDashboardFilters = {
   periodId?: number | null;
@@ -87,6 +88,7 @@ export type MelReportingDataset = {
     amberResults: number;
     redResults: number;
   };
+  financeBreakdown: FundingTypeBreakdown[];
   financialPerformance: Array<{
     track: "foundation" | "acceleration";
     enterpriseCount: number;
@@ -291,6 +293,8 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     sectors: unique(records.map((record) => record.dimensions.sector)),
   };
   const filteredRecords = records.filter((record) => matchesDashboardFilters(record, filters));
+  const financeBreakdown = buildFundingTypeBreakdown(filteredRecords);
+  const financeAccessed = sum(financeBreakdown, (item) => item.amount);
   const eligibleBusinessIds = new Set(filteredRecords.map((record) => record.businessId));
   const approvedProgrammeResults: ProgrammeResultInput[] = programmeRows.map((entry) => ({
     id: entry.id,
@@ -430,11 +434,12 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
       indirectJobs: sum(filteredRecords, (record) => record.indirectJobs.total),
-      financeAccessed: sum(filteredRecords, (record) => record.financeValue ?? 0),
+      financeAccessed,
       greenResults: ittRows.filter((row) => row.calculation.trafficLight === "green").length,
       amberResults: ittRows.filter((row) => row.calculation.trafficLight === "amber").length,
       redResults: ittRows.filter((row) => row.calculation.trafficLight === "red").length,
     },
+    financeBreakdown,
     financialPerformance,
     trends,
     quality: {

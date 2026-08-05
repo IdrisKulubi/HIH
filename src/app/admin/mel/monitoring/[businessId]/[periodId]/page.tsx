@@ -4,6 +4,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { getMelMonitoringDetail } from "@/lib/actions/mel-monitoring";
 import { QuarterlyMonitoringForm } from "@/components/mel/monitoring/QuarterlyMonitoringForm";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default async function QuarterlyMonitoringPage({
   params,
@@ -32,6 +33,9 @@ export default async function QuarterlyMonitoringPage({
             <p className="mt-1 text-sm text-slate-600">Quarterly enterprise monitoring report</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/admin/mel/enterprises/${businessId}`}>Enterprise overview &amp; export</Link>
+            </Button>
             <Badge variant="outline">{detail.submission.status}</Badge>
             <Badge variant="outline">version {detail.submission.submissionVersion}</Badge>
             {detail.submission.sourceMode === "catch_up" ? (

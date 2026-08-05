@@ -8,6 +8,7 @@ import {
   type ApprovedMonitoringRecord,
   type IndicatorDefinitionInput,
 } from "./indicator-engine";
+import { buildFundingTypeBreakdown } from "./reporting-finance";
 
 const jobs = (total: number, male = total, female = 0, youth = 0, plwd = 0, refugee = 0) => ({ total, male, female, youth, plwd, refugee });
 function record(id: number, businessId: number, overrides: Partial<ApprovedMonitoringRecord> = {}): ApprovedMonitoringRecord {
@@ -95,6 +96,22 @@ function tests() {
   const foundation = calculateIndicator({ ...base, definition: definition("IM-JOBS-CREATED"), segmentKey: "track:foundation", records: [record(1, 1), record(2, 2, { dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" } })] });
   assert.equal(foundation.actual, 5);
   assert.equal(foundation.sourceCount, 1);
+
+  const financeBreakdown = buildFundingTypeBreakdown([
+    record(1, 1, { financeValue: 30000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 20000 }, { financeType: "matching_grant", otherDescription: null, amount: 10000 }] }),
+    record(2, 2, { financeValue: 5000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 5000 }] }),
+    record(3, 1, { financeValue: 2000, financeEntries: [] }),
+  ]);
+  assert.deepEqual(
+    financeBreakdown.map(({ type, amount, enterpriseCount }) => ({ type, amount, enterpriseCount })),
+    [
+      { type: "loan", amount: 25000, enterpriseCount: 2 },
+      { type: "matching_grant", amount: 10000, enterpriseCount: 1 },
+      { type: "repayable_grant", amount: 0, enterpriseCount: 0 },
+      { type: "other", amount: 2000, enterpriseCount: 1 },
+    ]
+  );
+  assert.equal(Math.round(financeBreakdown.reduce((total, item) => total + item.percentage, 0)), 100);
 }
 
 tests();

@@ -48,7 +48,50 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         <Metric icon={Factory} label="Enterprises reporting" value={data.summary.reportingEnterprises.toLocaleString()} detail={percentage(data.summary.reportingCompleteness) + " complete"} />
         <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
         <Metric icon={UsersThree} label="Cumulative jobs" value={data.summary.jobs.toLocaleString()} detail={`${data.summary.directJobs} direct, ${data.summary.indirectJobs} indirect`} />
-        <Metric icon={ChartLineUp} label="Finance accessed" value={money(data.summary.financeAccessed)} detail={`${data.summary.greenResults} indicators on track`} />
+        <Metric icon={ChartLineUp} label="Finance accessed" value={money(data.summary.financeAccessed)} detail={`${data.financeBreakdown.filter((item) => item.amount > 0).length} funding types recorded`} />
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="funding-breakdown-heading">
+        <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="funding-breakdown-heading" className="text-base font-semibold text-slate-900">Finance accessed by funding type</h2>
+            <p className="mt-0.5 text-sm text-slate-600">Cumulative approved funding through {data.selectedPeriod.label}. Dashboard filters apply.</p>
+          </div>
+          <p className="text-sm text-slate-700">Total <span className="ml-1 font-semibold tabular-nums text-slate-900">{money(data.summary.financeAccessed)}</span></p>
+        </div>
+        {data.summary.financeAccessed > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="text-xs text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Funding type</th>
+                  <th className="px-4 py-3 text-right font-medium">Enterprises</th>
+                  <th className="px-4 py-3 text-right font-medium">Cumulative amount</th>
+                  <th className="px-4 py-3 font-medium">Share of funding</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.financeBreakdown.map((item) => (
+                  <tr key={item.type} className={item.amount === 0 ? "text-slate-500" : "text-slate-800"}>
+                    <td className="px-4 py-3 font-medium text-slate-900">{item.label}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{item.enterpriseCount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">{money(item.amount)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                          <div className="h-full rounded-full bg-brand-blue" style={{ width: `${Math.min(100, item.percentage)}%` }} />
+                        </div>
+                        <span className="min-w-12 tabular-nums">{percentage(item.percentage)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="px-4 py-6 text-sm text-slate-600">No approved finance has been recorded for the selected filters.</p>
+        )}
       </section>
 
       <section className="space-y-3" aria-labelledby="financial-performance-heading">

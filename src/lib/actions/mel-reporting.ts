@@ -317,7 +317,7 @@ export async function getMelGisData(): Promise<ActionResponse<{ points: MelMapPo
 
 export async function getMelEnterpriseDashboard(businessId: number) {
   try {
-    await requireMelViewer();
+    const actor = await requireMelViewer();
     const [business, financialBaseline] = await Promise.all([db.query.businesses.findFirst({
       where: eq(businesses.id, businessId),
       with: {
@@ -332,7 +332,7 @@ export async function getMelEnterpriseDashboard(businessId: number) {
       },
     }), db.query.melEnterpriseFinancialBaselines.findFirst({ where: and(eq(melEnterpriseFinancialBaselines.businessId, businessId), eq(melEnterpriseFinancialBaselines.status, "active")) })]);
     if (!business) throw new Error("Enterprise was not found.");
-    return successResponse({ ...business, financialBaseline: financialBaseline ?? null });
+    return successResponse({ ...business, financialBaseline: financialBaseline ?? null, canManage: actor.canManage });
   } catch (error) {
     return failure(error, "Unable to load enterprise MEL dashboard.");
   }
