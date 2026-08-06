@@ -1,13 +1,9 @@
-import { eq } from "drizzle-orm";
-import db, { pool } from "../db/drizzle";
-import {
-  melIndicatorBaselines,
-  melIndicatorDefinitions,
-  melIndicatorTargets,
-  melProgrammeSettings,
-  melReportingPeriods,
-} from "../db/schema";
+import { cwd } from "node:process";
+import { loadEnvConfig } from "@next/env";
+import { eq, sql } from "drizzle-orm";
 import { MEL_ITT_SEED, validateMelIttSeed } from "../src/lib/mel/itt-seed";
+
+loadEnvConfig(cwd());
 
 const reportingPeriods = [
   {
@@ -61,130 +57,161 @@ const reportingPeriods = [
 ];
 
 async function seed() {
-  const issues = validateMelIttSeed();
-  if (issues.length > 0) {
-    throw new Error(`Invalid MEL ITT seed:\n${issues.join("\n")}`);
+  if (!process.env.POSTGRES_URL) {
+    throw new Error("POSTGRES_URL is not set. Add it to .env.local (or .env) and retry.");
   }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(melProgrammeSettings)
-      .values({
-        id: 1,
-        monthlyFinancialBaselines: {
-          foundation: { revenue: 200000, costs: 124221, profit: 50000 },
-          acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
-        },
-      })
-      .onConflictDoUpdate({
-        target: melProgrammeSettings.id,
-        set: {
+  const [
+    { default: db, pool },
+    {
+      melIndicatorBaselines,
+      melIndicatorDefinitions,
+      melIndicatorTargets,
+      melProgrammeSettings,
+      melReportingPeriods,
+    },
+  ] = await Promise.all([import("../db/drizzle"), import("../db/schema")]);
+
+  try {
+    const issues = validateMelIttSeed();
+    if (issues.length > 0) {
+      throw new Error(`Invalid MEL ITT seed:\n${issues.join("\n")}`);
+    }
+
+    await db.transaction(async (tx) => {
+      // Phase 1 migration may have created tables without every unique index.
+      await tx.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS "mel_reporting_periods_programme_sequence_unique"
+          ON "mel_reporting_periods" ("programme_year", "sequence")
+      `);
+      await tx.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS "mel_indicator_baselines_indicator_segment_unique"
+          ON "mel_indicator_baselines" ("indicator_id", "segment_key")
+      `);
+
+      await tx
+        .insert(melProgrammeSettings)
+        .values({
+          id: 1,
           monthlyFinancialBaselines: {
             foundation: { revenue: 200000, costs: 124221, profit: 50000 },
             acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
           },
-          updatedAt: new Date(),
-        },
-      });
-    for (const period of reportingPeriods) {
-      const periodDefinition = {
-        code: period.code,
-        label: period.label,
-        programmeYear: period.programmeYear,
-        sequence: period.sequence,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        collectionOpenDate: period.collectionOpenDate,
-        collectionCloseDate: period.collectionCloseDate,
-        allowCatchUp: period.allowCatchUp,
-      };
-      await tx
-        .insert(melReportingPeriods)
-        .values(period)
-        .onConflictDoUpdate({
-          target: [melReportingPeriods.programmeYear, melReportingPeriods.sequence],
-          set: { ...periodDefinition, updatedAt: new Date() },
-        });
-    }
-
-    for (const indicator of MEL_ITT_SEED) {
-      await tx
-        .insert(melIndicatorDefinitions)
-        .values({
-          code: indicator.code,
-          resultCode: indicator.resultCode,
-          resultLevel: indicator.resultLevel,
-          resultStatement: indicator.resultStatement,
-          name: indicator.name,
-          definition: indicator.definition ?? null,
-          unit: indicator.unit,
-          sourceType: indicator.sourceType,
-          frequency: indicator.frequency,
-          aggregation: indicator.aggregation,
-          numeratorDefinition: indicator.numeratorDefinition ?? null,
-          denominatorDefinition: indicator.denominatorDefinition ?? null,
-          disaggregationDimensions: indicator.disaggregationDimensions,
-          evidenceRequired: indicator.evidenceRequired,
-          isOneTime: indicator.isOneTime,
-          sortOrder: indicator.sortOrder,
-          unresolvedNotes: indicator.unresolvedNotes ?? null,
         })
-        .onConflictDoNothing();
+        .onConflictDoUpdate({
+          target: melProgrammeSettings.id,
+          set: {
+            monthlyFinancialBaselines: {
+              foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+              acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+            },
+            updatedAt: new Date(),
+          },
+        });
+      for (const period of reportingPeriods) {
+        const periodDefinition = {
+          code: period.code,
+          label: period.label,
+          programmeYear: period.programmeYear,
+          sequence: period.sequence,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          collectionOpenDate: period.collectionOpenDate,
+          collectionCloseDate: period.collectionCloseDate,
+          allowCatchUp: period.allowCatchUp,
+        };
+        await tx
+          .insert(melReportingPeriods)
+          .values(period)
+          .onConflictDoUpdate({
+            // Prefer `code` — it is a table UNIQUE constraint and is present even when
+            // the programme_year/sequence unique index was never applied.
+            target: melReportingPeriods.code,
+            set: {
+              ...periodDefinition,
+              status: period.status,
+              updatedAt: new Date(),
+            },
+          });
+      }
 
-      const stored = await tx.query.melIndicatorDefinitions.findFirst({
-        where: eq(melIndicatorDefinitions.code, indicator.code),
-        columns: { id: true },
-      });
-      if (!stored) throw new Error(`Failed to store MEL indicator ${indicator.code}`);
+      for (const indicator of MEL_ITT_SEED) {
+        await tx
+          .insert(melIndicatorDefinitions)
+          .values({
+            code: indicator.code,
+            resultCode: indicator.resultCode,
+            resultLevel: indicator.resultLevel,
+            resultStatement: indicator.resultStatement,
+            name: indicator.name,
+            definition: indicator.definition ?? null,
+            unit: indicator.unit,
+            sourceType: indicator.sourceType,
+            frequency: indicator.frequency,
+            aggregation: indicator.aggregation,
+            numeratorDefinition: indicator.numeratorDefinition ?? null,
+            denominatorDefinition: indicator.denominatorDefinition ?? null,
+            disaggregationDimensions: indicator.disaggregationDimensions,
+            evidenceRequired: indicator.evidenceRequired,
+            isOneTime: indicator.isOneTime,
+            sortOrder: indicator.sortOrder,
+            unresolvedNotes: indicator.unresolvedNotes ?? null,
+          })
+          .onConflictDoNothing();
 
-      const baselineRows = (indicator.baselines ?? []).map((baseline) => ({
-        indicatorId: stored.id,
-        segmentKey: baseline.segmentKey,
-        value: baseline.value === undefined ? null : String(baseline.value),
-        valueText: baseline.valueText ?? null,
-        notes: baseline.notes ?? null,
-      }));
-      if (baselineRows.length > 0) {
-        for (const baseline of baselineRows) {
-          await tx
-            .insert(melIndicatorBaselines)
-            .values(baseline)
-            .onConflictDoUpdate({
-              target: [melIndicatorBaselines.indicatorId, melIndicatorBaselines.segmentKey],
-              set: {
-                value: baseline.value,
-                valueText: baseline.valueText,
-                notes: baseline.notes,
-                updatedAt: new Date(),
-              },
-            });
+        const stored = await tx.query.melIndicatorDefinitions.findFirst({
+          where: eq(melIndicatorDefinitions.code, indicator.code),
+          columns: { id: true },
+        });
+        if (!stored) throw new Error(`Failed to store MEL indicator ${indicator.code}`);
+
+        const baselineRows = (indicator.baselines ?? []).map((baseline) => ({
+          indicatorId: stored.id,
+          segmentKey: baseline.segmentKey,
+          value: baseline.value === undefined ? null : String(baseline.value),
+          valueText: baseline.valueText ?? null,
+          notes: baseline.notes ?? null,
+        }));
+        if (baselineRows.length > 0) {
+          for (const baseline of baselineRows) {
+            await tx
+              .insert(melIndicatorBaselines)
+              .values(baseline)
+              .onConflictDoUpdate({
+                target: [melIndicatorBaselines.indicatorId, melIndicatorBaselines.segmentKey],
+                set: {
+                  value: baseline.value,
+                  valueText: baseline.valueText,
+                  notes: baseline.notes,
+                  updatedAt: new Date(),
+                },
+              });
+          }
+        }
+
+        const targetRows = (indicator.targets ?? []).map((target) => ({
+          indicatorId: stored.id,
+          programmeYear: target.programmeYear,
+          reportingPeriodId: null,
+          segmentKey: target.segmentKey ?? "overall",
+          value: target.value === undefined ? null : String(target.value),
+          valueText: target.valueText ?? null,
+          notes: target.notes ?? null,
+        }));
+        if (targetRows.length > 0) {
+          await tx.insert(melIndicatorTargets).values(targetRows).onConflictDoNothing();
         }
       }
+    });
 
-      const targetRows = (indicator.targets ?? []).map((target) => ({
-        indicatorId: stored.id,
-        programmeYear: target.programmeYear,
-        reportingPeriodId: null,
-        segmentKey: target.segmentKey ?? "overall",
-        value: target.value === undefined ? null : String(target.value),
-        valueText: target.valueText ?? null,
-        notes: target.notes ?? null,
-      }));
-      if (targetRows.length > 0) {
-        await tx.insert(melIndicatorTargets).values(targetRows).onConflictDoNothing();
-      }
-    }
-  });
-
-  const count = await db.select({ id: melIndicatorDefinitions.id }).from(melIndicatorDefinitions);
-  console.log(`MEL Phase 1 seed complete: ${count.length} indicator definitions available.`);
+    const count = await db.select({ id: melIndicatorDefinitions.id }).from(melIndicatorDefinitions);
+    console.log(`MEL Phase 1 seed complete: ${count.length} indicator definitions available.`);
+  } finally {
+    await pool.end().catch(() => undefined);
+  }
 }
 
-seed()
-  .catch((error) => {
-    console.error("MEL Phase 1 seed failed", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await pool.end();
-  });
+seed().catch((error) => {
+  console.error("MEL Phase 1 seed failed", error);
+  process.exitCode = 1;
+});

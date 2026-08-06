@@ -3,11 +3,12 @@ import type { MelReportingDataset } from "@/lib/mel/reporting-data";
 
 export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) {
   return (
-    <form className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 lg:grid-cols-5">
+    <form className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <FilterSelect name="periodId" label="Reporting period" value={String(dataset.selectedPeriod.id)} options={dataset.periods.map((period) => ({ value: String(period.id), label: period.label }))} />
       <FilterSelect name="track" label="Track" value={dataset.filters.track ?? ""} options={dataset.filterOptions.tracks.map(option)} />
       <FilterSelect name="county" label="County" value={dataset.filters.county ?? ""} options={dataset.filterOptions.counties.map(option)} />
       <FilterSelect name="sector" label="Sector" value={dataset.filters.sector ?? ""} options={dataset.filterOptions.sectors.map(option)} />
+      <FilterSelect name="ownerGender" label="Owner gender" value={dataset.filters.ownerGender ?? ""} options={dataset.filterOptions.ownerGenders.map(option)} />
       <div className="flex items-end gap-2">
         <Button type="submit" className="flex-1">Apply filters</Button>
         <Button type="button" variant="outline" asChild><a href="/admin/mel/reporting">Reset</a></Button>

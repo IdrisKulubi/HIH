@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       track: url.searchParams.get("track") || null,
       county: url.searchParams.get("county") || null,
       sector: url.searchParams.get("sector") || null,
+      ownerGender: url.searchParams.get("ownerGender") || null,
     };
     const dataset = type === "gis" ? null : await buildMelReportingDataset(filters);
     const rows = sanitizeExportRows(await exportRows(type, dataset)) as Array<Record<string, string | number | boolean | null>>;
@@ -97,6 +98,6 @@ async function exportRows(type: ExportType, dataset: Awaited<ReturnType<typeof b
 
 function jobColumns(job: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number }) { return { Total: job.total, Male: job.male, Female: job.female, Youth: job.youth, PLWD: job.plwd, Refugee: job.refugee }; }
 function positiveNumber(value: string | null) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
-function filterSummary(filters: MelDashboardFilters) { return [`period=${filters.periodId ?? "latest"}`, `track=${filters.track ?? "all"}`, `county=${filters.county ?? "all"}`, `sector=${filters.sector ?? "all"}`].join("; "); }
+function filterSummary(filters: MelDashboardFilters) { return [`period=${filters.periodId ?? "latest"}`, `track=${filters.track ?? "all"}`, `county=${filters.county ?? "all"}`, `sector=${filters.sector ?? "all"}`, `ownerGender=${filters.ownerGender ?? "all"}`].join("; "); }
 function sheetName(type: ExportType) { return ({ itt: "ITT", monitoring: "Monitoring records", jobs: "Jobs", evidence: "Evidence index", quality: "Data quality", programme: "Programme results", gis: "Protected GIS" })[type]; }
 function downloadHeaders(fileName: string, contentType: string) { return { "Content-Type": contentType, "Content-Disposition": `attachment; filename="${fileName}"`, "Cache-Control": "no-store" }; }

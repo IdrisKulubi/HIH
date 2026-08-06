@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMelReportingDashboard } from "@/lib/actions/mel-reporting";
 import { ReportingFilters } from "@/components/mel/reporting/ReportingFilters";
-import { ReportingTrendChart } from "@/components/mel/reporting/ReportingTrendChart";
 import { RecalculateButton } from "@/components/mel/reporting/RecalculateButton";
+import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRefresh";
+import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -17,6 +18,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
     track: scalar(params.track),
     county: scalar(params.county),
     sector: scalar(params.sector),
+    ownerGender: scalar(params.ownerGender),
   };
   const result = await getMelReportingDashboard(filters);
   if (!result.success || !result.data) return <LoadError message={result.error ?? "Unable to load reporting dashboard."} />;
@@ -25,14 +27,16 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
   if (data.filters.track) exportQuery.set("track", data.filters.track);
   if (data.filters.county) exportQuery.set("county", data.filters.county);
   if (data.filters.sector) exportQuery.set("sector", data.filters.sector);
+  if (data.filters.ownerGender) exportQuery.set("ownerGender", data.filters.ownerGender);
 
   return (
     <div className="container mx-auto space-y-7 px-4 py-8">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">MEL reporting · Phase 4</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">MEL reporting · Live indicator dashboard</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Programme results and ITT</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">Only approved, currently valid records contribute. Every result links back to its calculation and source records.</p>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">All active ITT indicators are visualized from approved, currently valid records. Every result links back to its calculation and source records.</p>
+          <div className="mt-2"><DashboardAutoRefresh /></div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild><Link href="/admin/mel/reporting/data-quality">Data quality</Link></Button>
@@ -97,31 +101,38 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
           <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents after calculating the cohort median. Foundation and Acceleration baselines are never combined.</p>
+          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents after calculating the cohort median. Only profitability is compared with a baseline.</p>
         </div>
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-4 py-3">Track</th><th className="px-4 py-3">Measure</th><th className="px-4 py-3">Monthly median</th><th className="px-4 py-3">Baseline</th><th className="px-4 py-3">Variance</th><th className="px-4 py-3">Variance %</th></tr></thead>
+          <table className="w-full min-w-[820px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-4 py-3">Track</th><th className="px-4 py-3">Enterprises</th><th className="px-4 py-3">Monthly revenue</th><th className="px-4 py-3">Monthly costs</th><th className="px-4 py-3">Monthly profit</th><th className="px-4 py-3">Profit baseline</th><th className="px-4 py-3">Profit variance</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
-              {data.financialPerformance.flatMap((track) => (["revenue", "costs", "profit"] as const).map((measure, index) => (
-                <tr key={`${track.track}-${measure}`}>
-                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{index === 0 ? <>{track.track}<span className="ml-2 text-xs font-normal text-slate-500">{track.enterpriseCount} enterprises</span></> : null}</td>
-                  <td className="px-4 py-3 capitalize">{measure}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track[`monthlyMedian${measure[0].toUpperCase()}${measure.slice(1)}` as "monthlyMedianRevenue" | "monthlyMedianCosts" | "monthlyMedianProfit"])}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.baseline[measure])}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.variance[measure])}</td>
-                  <td className="px-4 py-3 tabular-nums">{percentage(track.variancePercentage[measure])}</td>
+              {data.financialPerformance.map((track) => (
+                <tr key={track.track}>
+                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track}</td>
+                  <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianRevenue)}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianCosts)}</td>
+                  <td className="px-4 py-3 font-medium tabular-nums text-slate-900">{money(track.monthlyMedianProfit)}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.baseline.profit)}</td>
+                  <td className="px-4 py-3 tabular-nums">{money(track.variance.profit)} <span className="text-xs text-slate-500">({percentage(track.variancePercentage.profit)})</span></td>
                 </tr>
-              )))}
+              ))}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.5fr_0.5fr]">
+      <IndicatorExplorer indicators={data.indicatorVisualizations} profitabilityTrend={data.profitabilityTrend} selectedTrack={data.filters.track ?? null} />
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_0.5fr]">
         <Card>
-          <CardHeader><CardTitle className="text-base">Monthly median revenue, profit and jobs trend</CardTitle></CardHeader>
-          <CardContent><ReportingTrendChart trends={data.trends} /></CardContent>
+          <CardHeader><CardTitle className="text-base">How to read this dashboard</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm text-slate-600">
+            <p>Each point is the official cumulative result available through that quarter, using the same formula as the ITT table below.</p>
+            <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
+            <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle className="text-base">ITT status</CardTitle></CardHeader>

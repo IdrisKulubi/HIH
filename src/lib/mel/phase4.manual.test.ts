@@ -9,6 +9,8 @@ import {
   type IndicatorDefinitionInput,
 } from "./indicator-engine";
 import { buildFundingTypeBreakdown } from "./reporting-finance";
+import { MEL_ITT_SEED } from "./itt-seed";
+import { indicatorGroup, MEL_INDICATOR_GROUPS } from "./reporting-visualizations";
 
 const jobs = (total: number, male = total, female = 0, youth = 0, plwd = 0, refugee = 0) => ({ total, male, female, youth, plwd, refugee });
 function record(id: number, businessId: number, overrides: Partial<ApprovedMonitoringRecord> = {}): ApprovedMonitoringRecord {
@@ -49,6 +51,12 @@ const definition = (code: string, aggregation: IndicatorDefinitionInput["aggrega
 const base = { programmeResults: [], segmentKey: "overall", baseline: null, target: 10, thresholds: { red: 50, green: 80 } };
 
 function tests() {
+  assert.equal(MEL_ITT_SEED.length, 33, "The explorer must automatically expose every active ITT definition.");
+  assert.deepEqual(
+    [...new Set(MEL_ITT_SEED.map((indicator) => indicatorGroup(indicator.code)))].sort(),
+    [...MEL_INDICATOR_GROUPS].sort(),
+    "All six indicator explorer groups must be represented."
+  );
   assert.equal(isTrustedMonitoringStatus("approved"), true);
   for (const status of ["draft", "returned_by_mel", "reopened", "voided"]) assert.equal(isTrustedMonitoringStatus(status), false);
 
@@ -96,6 +104,13 @@ function tests() {
   const foundation = calculateIndicator({ ...base, definition: definition("IM-JOBS-CREATED"), segmentKey: "track:foundation", records: [record(1, 1), record(2, 2, { dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" } })] });
   assert.equal(foundation.actual, 5);
   assert.equal(foundation.sourceCount, 1);
+
+  const femaleOwners = calculateIndicator({ ...base, definition: definition("IM-JOBS-CREATED"), segmentKey: "owner_gender:female", records: [record(1, 1), record(2, 2, { dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" } })] });
+  assert.equal(femaleOwners.actual, 5);
+  assert.equal(femaleOwners.sourceCount, 1);
+
+  const cumulativeJobs = calculateIndicator({ ...base, definition: definition("IM-JOBS-CREATED"), records: [record(1, 1, { periodId: 1 }), record(2, 1, { periodId: 2 })] });
+  assert.equal(cumulativeJobs.actual, 10, "Official as-of trends retain cumulative quarterly job activity.");
 
   const financeBreakdown = buildFundingTypeBreakdown([
     record(1, 1, { financeValue: 30000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 20000 }, { financeType: "matching_grant", otherDescription: null, amount: 10000 }] }),
