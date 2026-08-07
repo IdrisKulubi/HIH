@@ -51,7 +51,7 @@ const definition = (code: string, aggregation: IndicatorDefinitionInput["aggrega
 const base = { programmeResults: [], segmentKey: "overall", baseline: null, target: 10, thresholds: { red: 50, green: 80 } };
 
 function tests() {
-  assert.equal(MEL_ITT_SEED.length, 33, "The explorer must automatically expose every active ITT definition.");
+  assert.equal(MEL_ITT_SEED.length, 32, "The explorer must automatically expose every active ITT definition.");
   assert.deepEqual(
     [...new Set(MEL_ITT_SEED.map((indicator) => indicatorGroup(indicator.code)))].sort(),
     [...MEL_INDICATOR_GROUPS].sort(),

@@ -202,10 +202,18 @@ async function seed() {
           await tx.insert(melIndicatorTargets).values(targetRows).onConflictDoNothing();
         }
       }
+
+      await tx
+        .update(melIndicatorDefinitions)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(melIndicatorDefinitions.code, "OP1.1-JOBS-CREATED"));
     });
 
-    const count = await db.select({ id: melIndicatorDefinitions.id }).from(melIndicatorDefinitions);
-    console.log(`MEL Phase 1 seed complete: ${count.length} indicator definitions available.`);
+    const count = await db
+      .select({ id: melIndicatorDefinitions.id })
+      .from(melIndicatorDefinitions)
+      .where(eq(melIndicatorDefinitions.isActive, true));
+    console.log(`MEL Phase 1 seed complete: ${count.length} active indicator definitions available.`);
   } finally {
     await pool.end().catch(() => undefined);
   }

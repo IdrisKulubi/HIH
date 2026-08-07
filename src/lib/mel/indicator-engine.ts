@@ -242,7 +242,7 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
     );
   }
 
-  if (code === "IM-JOBS-CREATED" || code === "OP1.1-JOBS-CREATED") {
+  if (code === "IM-JOBS-CREATED") {
     const jobDimension = segmentKey.includes(":") ? segmentKey.split(":", 2) : null;
     const valueFor = (job: JobTotals) => {
       if (!jobDimension || jobDimension[0] === "job_type") return job.total;
