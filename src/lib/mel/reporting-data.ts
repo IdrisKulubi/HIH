@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import db from "@/db/drizzle";
 import {
+  applicants,
   applications,
+  businesses,
   capacityDevelopmentPlans,
   cnaAssessments,
   melDqaIssues,
@@ -11,6 +13,7 @@ import {
   melIndicatorDefinitions,
   melIndicatorResults,
   melIndicatorTargets,
+  melEnterpriseAchievements,
   melMonitoringEvidence,
   melMonitoringSubmissions,
   melProgrammeResults,
@@ -24,10 +27,13 @@ import {
   median,
   safePercentage,
   type ApprovedMonitoringRecord,
+  type ApprovedEnterpriseAchievementInput,
+  type EnterpriseRatioDenominator,
   type IndicatorCalculation,
   type JobTotals,
   type ProgrammeResultInput,
 } from "./indicator-engine";
+import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
@@ -63,6 +69,8 @@ export type MelIttRow = {
   sourceType: string;
   baseline: number | null;
   target: number | null;
+  /** Optional Direct/Indirect (or similar) target split for display. */
+  targetBreakdown: Array<{ label: string; value: number }>;
   indicatorVersion: number;
   calculatedAt: Date | null;
   calculation: IndicatorCalculation;
@@ -77,6 +85,11 @@ export type MelIndicatorSeriesValues = {
 export type MelIndicatorTrendPoint = MelIndicatorSeriesValues & {
   periodId: number;
   periodLabel: string;
+  ratios: {
+    overall: { numerator: number | null; denominator: number | null };
+    foundation: { numerator: number | null; denominator: number | null } | null;
+    acceleration: { numerator: number | null; denominator: number | null } | null;
+  };
 };
 export type MelIndicatorVisualization = {
   indicatorId: number;
@@ -110,6 +123,17 @@ type MelSystemActual = {
   denominator?: number | null;
   rule?: string;
 };
+
+type SupportedEnterprise = {
+  businessId: number;
+  track: string | null;
+  ownerGender: string | null;
+  county: string | null;
+  sector: string | null;
+  selectedAt: Date;
+};
+
+type PeriodAchievement = ApprovedEnterpriseAchievementInput & { periodId: number };
 
 export type MelReportingDataset = {
   filters: Required<Pick<MelDashboardFilters, "periodId">> & Omit<MelDashboardFilters, "periodId">;
@@ -217,8 +241,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       || (period.programmeYear === selectedPeriod.programmeYear && period.sequence <= selectedPeriod.sequence)
   );
   const includedPeriodIds = includedPeriods.map((period) => period.id);
+  const periodOrder = new Map(includedPeriods.map((period, index) => [period.id, index]));
 
-  const [settings, definitions, submissions, programmeRows, materialized, allSubmissions, systemApplications, systemCna, systemCdp, trainingMappings, trainingEvents] = await Promise.all([
+  const [settings, definitions, submissions, programmeRows, materialized, allSubmissions, systemApplications, systemCna, systemCdp, trainingMappings, trainingEvents, supportedRows, achievementRows] = await Promise.all([
     db.query.melProgrammeSettings.findFirst({ where: eq(melProgrammeSettings.id, 1) }),
     db.query.melIndicatorDefinitions.findMany({
       where: eq(melIndicatorDefinitions.isActive, true),
@@ -257,7 +282,40 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     db.select({ id: capacityDevelopmentPlans.id, businessId: capacityDevelopmentPlans.businessId, occurredAt: capacityDevelopmentPlans.cdpApprovedAt, createdAt: capacityDevelopmentPlans.createdAt }).from(capacityDevelopmentPlans).where(eq(capacityDevelopmentPlans.status, "active")),
     safeKajabiMappings(),
     safeKajabiEvents(),
+    db.select({
+      businessId: businesses.id,
+      track: applications.track,
+      ownerGender: applicants.gender,
+      county: businesses.county,
+      sector: businesses.sector,
+      selectedAt: applications.selectedAt,
+      updatedAt: applications.updatedAt,
+      createdAt: applications.createdAt,
+    })
+      .from(applications)
+      .innerJoin(businesses, eq(businesses.id, applications.businessId))
+      .innerJoin(applicants, eq(applicants.id, businesses.applicantId))
+      .where(inArray(applications.status, ["approved", "finalist"])),
+    db.query.melEnterpriseAchievements.findMany({
+      where: eq(melEnterpriseAchievements.status, "approved"),
+      with: { indicator: true, firstSubmission: true },
+    }),
   ]);
+
+  const supportedEnterprises: SupportedEnterprise[] = supportedRows.map((row) => ({
+    businessId: row.businessId,
+    track: row.track,
+    ownerGender: row.ownerGender,
+    county: row.county,
+    sector: row.sector,
+    selectedAt: row.selectedAt ?? row.updatedAt ?? row.createdAt,
+  }));
+  const approvedAchievements: PeriodAchievement[] = achievementRows.map((achievement) => ({
+    id: achievement.id,
+    businessId: achievement.businessId,
+    indicatorCode: achievement.indicator.code,
+    periodId: achievement.approvedPeriodId ?? achievement.firstSubmission.reportingPeriodId,
+  }));
 
   const scopedAllSubmissions = allSubmissions.filter((submission) => {
     if (filters.track && submission.business.application?.track !== filters.track) return false;
@@ -360,6 +418,51 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     red: numeric(settings?.redThreshold) ?? 50,
     green: numeric(settings?.greenThreshold) ?? 80,
   };
+  const mobilizationTargets = definitions.find((definition) => definition.code === "OP1.1-ENTERPRISES-MOBILISED")?.targets ?? [];
+  const denominatorFor = (
+    definition: (typeof definitions)[number],
+    period: typeof selectedPeriod,
+    segmentKey: string,
+    scopeFilters: MelDashboardFilters
+  ): EnterpriseRatioDenominator | null => {
+    if (
+      definition.aggregation !== "ratio"
+      || definition.unit !== "percentage"
+      || definition.sourceType !== "quarterly_enterprise_form"
+    ) return null;
+    const periodEnd = new Date(`${period.endDate}T23:59:59.999+03:00`);
+    const segmentTrack = segmentKey.startsWith("track:") ? segmentKey.slice("track:".length) : null;
+    const eligible = supportedEnterprises.filter((enterprise) =>
+      enterprise.selectedAt <= periodEnd
+      && matchesSupportedFilters(enterprise, scopeFilters)
+      && (!segmentTrack || enterprise.track === segmentTrack)
+    );
+    const isOverall = segmentKey === "overall"
+      && !scopeFilters.track
+      && !scopeFilters.county
+      && !scopeFilters.sector
+      && !scopeFilters.ownerGender;
+    const eligibleBusinessIds = [...new Set(eligible.map((enterprise) => enterprise.businessId))];
+    return {
+      value: isOverall ? cumulativePlannedCohort(mobilizationTargets, period.programmeYear) : eligibleBusinessIds.length,
+      basis: isOverall ? "planned_programme_cohort" : "actual_segment_cohort",
+      eligibleBusinessIds,
+    };
+  };
+  const achievementsFor = (
+    definitionCode: string,
+    period: typeof selectedPeriod,
+    denominator: EnterpriseRatioDenominator | null
+  ): ApprovedEnterpriseAchievementInput[] => {
+    if (!denominator) return [];
+    const currentOrder = periodOrder.get(period.id) ?? -1;
+    const eligible = new Set(denominator.eligibleBusinessIds);
+    return approvedAchievements.filter((achievement) =>
+      achievement.indicatorCode === definitionCode
+      && eligible.has(achievement.businessId)
+      && (periodOrder.get(achievement.periodId) ?? Number.POSITIVE_INFINITY) <= currentOrder
+    );
+  };
   const materializedSegmentKey = dashboardResultSegmentKey(filters);
   const targetSegmentKey = materializedSegmentKey.includes("|") || materializedSegmentKey.startsWith("filters:")
     ? "overall"
@@ -390,19 +493,32 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     const definitionTargetKey = definition.sourceType === "programme_mel_entry" ? "overall" : targetSegmentKey;
     const baseline = selectBaseline(definition.baselines, definitionTargetKey);
     const target = selectTarget(definition.targets, selectedPeriod.id, selectedPeriod.programmeYear, definitionTargetKey);
+    const targetBreakdown = buildTargetBreakdown(
+      definition.code,
+      definition.targets,
+      selectedPeriod.id,
+      selectedPeriod.programmeYear
+    );
+    const segmentKey = definition.sourceType === "programme_mel_entry" ? "overall" : filters.track ? `track:${filters.track}` : "overall";
+    const enterpriseDenominator = denominatorFor(definition, selectedPeriod, segmentKey, resolvedFilters);
     const calculation = calculateIndicator({
       definition: {
         code: definition.code,
         aggregation: definition.aggregation,
         lowerIsBetter: definition.lowerIsBetter,
         version: definition.version,
+        unit: definition.unit,
+        sourceType: definition.sourceType,
+        isOneTime: definition.isOneTime,
       },
       records: filteredRecords,
       programmeResults: approvedProgrammeResults,
       baseline,
       target,
       systemActual: systemActuals[definition.code] ?? null,
-      segmentKey: definition.sourceType === "programme_mel_entry" ? "overall" : filters.track ? `track:${filters.track}` : "overall",
+      approvedAchievements: achievementsFor(definition.code, selectedPeriod, enterpriseDenominator),
+      enterpriseDenominator,
+      segmentKey,
       thresholds,
     });
     const hash = buildHash({ definition: definition.version, period: selectedPeriod.id, filters: resolvedFilters, calculation });
@@ -418,6 +534,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       sourceType: definition.sourceType,
       baseline,
       target,
+      targetBreakdown,
       indicatorVersion: definition.version,
       calculatedAt: saved?.calculationHash === hash ? saved.calculatedAt : null,
       calculation,
@@ -472,7 +589,6 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     };
   });
 
-  const periodOrder = new Map(includedPeriods.map((period, index) => [period.id, index]));
   const baseVisualizationFilters = { ...resolvedFilters, track: null };
   const demographicFilterNote = filters.ownerGender || filters.county || filters.sector
     ? "Programme-wide result: enterprise demographic and location filters do not apply."
@@ -486,18 +602,24 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   ) => {
     const eligible = new Set(periodRecords.map((record) => record.businessId));
     const targetKey = segmentKey.startsWith("track:") ? segmentKey : "overall";
+    const enterpriseDenominator = denominatorFor(definition, period, segmentKey, baseVisualizationFilters);
     return calculateIndicator({
       definition: {
         code: definition.code,
         aggregation: definition.aggregation,
         lowerIsBetter: definition.lowerIsBetter,
         version: definition.version,
+        unit: definition.unit,
+        sourceType: definition.sourceType,
+        isOneTime: definition.isOneTime,
       },
       records: periodRecords,
       programmeResults: programmeResultsAtPeriod,
       baseline: selectBaseline(definition.baselines, targetKey),
       target: selectTarget(definition.targets, period.id, period.programmeYear, targetKey),
       systemActual: systemActualsAt(period, eligible)[definition.code] ?? null,
+      approvedAchievements: achievementsFor(definition.code, period, enterpriseDenominator),
+      enterpriseDenominator,
       segmentKey,
       thresholds,
     });
@@ -596,6 +718,11 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         overall: point.overall.actual,
         foundation: point.foundation?.actual ?? null,
         acceleration: point.acceleration?.actual ?? null,
+        ratios: {
+          overall: { numerator: point.overall.numerator, denominator: point.overall.denominator },
+          foundation: point.foundation ? { numerator: point.foundation.numerator, denominator: point.foundation.denominator } : null,
+          acceleration: point.acceleration ? { numerator: point.acceleration.numerator, denominator: point.acceleration.denominator } : null,
+        },
       })),
     };
   });
@@ -662,6 +789,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
 
 function unique(values: Array<string | null>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))].sort();
+}
+
+function matchesSupportedFilters(enterprise: SupportedEnterprise, filters: MelDashboardFilters): boolean {
+  if (filters.track && enterprise.track !== filters.track) return false;
+  if (filters.county && enterprise.county !== filters.county) return false;
+  if (filters.sector && enterprise.sector !== filters.sector) return false;
+  if (filters.ownerGender && enterprise.ownerGender !== filters.ownerGender) return false;
+  return true;
 }
 
 function isMissingRelation(error: unknown, tableName: string) {
@@ -800,4 +935,33 @@ function selectTarget(
     ?? targets.find((item) => item.programmeYear === programmeYear && item.reportingPeriodId === null && item.segmentKey === key)
     ?? targets.find((item) => item.programmeYear === 0 && item.reportingPeriodId === null && item.segmentKey === key);
   return numeric(find(segmentKey)?.value ?? find("overall")?.value);
+}
+
+function selectTargetExact(
+  targets: Array<typeof melIndicatorTargets.$inferSelect>,
+  periodId: number,
+  programmeYear: number,
+  segmentKey: string
+): number | null {
+  const match = targets.find((item) => item.reportingPeriodId === periodId && item.segmentKey === segmentKey)
+    ?? targets.find((item) => item.programmeYear === programmeYear && item.reportingPeriodId === null && item.segmentKey === segmentKey)
+    ?? targets.find((item) => item.programmeYear === 0 && item.reportingPeriodId === null && item.segmentKey === segmentKey);
+  return numeric(match?.value);
+}
+
+function buildTargetBreakdown(
+  code: string,
+  targets: Array<typeof melIndicatorTargets.$inferSelect>,
+  periodId: number,
+  programmeYear: number
+): Array<{ label: string; value: number }> {
+  if (code !== "IM-JOBS-CREATED") return [];
+  const total = selectTargetExact(targets, periodId, programmeYear, "overall");
+  const direct = selectTargetExact(targets, periodId, programmeYear, "job_type:direct");
+  const indirect = selectTargetExact(targets, periodId, programmeYear, "job_type:indirect");
+  const rows: Array<{ label: string; value: number }> = [];
+  if (total !== null) rows.push({ label: "Total", value: total });
+  if (direct !== null) rows.push({ label: "Direct", value: direct });
+  if (indirect !== null) rows.push({ label: "Indirect", value: indirect });
+  return rows.length > 1 ? rows : [];
 }

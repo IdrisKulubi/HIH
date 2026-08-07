@@ -167,8 +167,30 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                   <tr key={row.indicatorId} className="align-top hover:bg-slate-50/70">
                     <td className="px-4 py-3"><p className="font-semibold text-slate-900">{row.code}</p><p className="mt-0.5 max-w-xl text-slate-600">{row.name}</p><p className="mt-1 text-xs text-slate-400">{row.resultCode} · {row.resultLevel.replaceAll("_", " ")}</p></td>
                     <td className="px-4 py-3 tabular-nums">{measure(row.baseline, row.unit)}</td>
-                    <td className="px-4 py-3 tabular-nums">{measure(row.target, row.unit)}</td>
-                    <td className="px-4 py-3 font-semibold tabular-nums text-slate-900">{measure(row.calculation.actual, row.unit)}</td>
+                    <td className="px-4 py-3 tabular-nums">
+                      {row.targetBreakdown.length ? (
+                        <div className="space-y-0.5">
+                          {row.targetBreakdown.map((item) => (
+                            <p key={item.label} className={item.label === "Total" ? "font-semibold text-slate-900" : "text-slate-600"}>
+                              {item.label}={measure(item.value, row.unit)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        measure(row.target, row.unit)
+                      )}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums">
+                      <p className="font-semibold text-slate-900">{measure(row.calculation.actual, row.unit)}</p>
+                      {row.unit === "percentage" && row.calculation.numerator !== null && row.calculation.denominator !== null ? (
+                        <p className="mt-1 text-xs font-normal text-slate-500">
+                          {formatNumber(row.calculation.numerator)} / {formatNumber(row.calculation.denominator)} enterprises
+                        </p>
+                      ) : null}
+                      {row.calculation.exclusions.some((note) => note.startsWith("Data-quality warning:")) ? (
+                        <p className="mt-1 text-xs font-medium text-amber-700">Data-quality warning</p>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 tabular-nums">{percentage(row.calculation.achievementPercentage)}</td>
                     <td className="px-4 py-3"><TrafficBadge status={row.calculation.trafficLight} /></td>
                     <td className="px-4 py-3"><Link href={`/admin/mel/reporting/indicators/${row.indicatorId}?periodId=${data.selectedPeriod.id}`} className="inline-flex items-center gap-1 font-medium text-brand-blue hover:underline">{row.calculation.sourceCount} sources <ArrowSquareOut className="size-3.5" /></Link><p className="mt-1 text-xs text-slate-500">{row.calculatedAt ? `Saved ${formatDate(row.calculatedAt)}` : "Preview, recalculation needed"}</p></td>
@@ -203,5 +225,6 @@ function positiveNumber(value: string | string[] | undefined) { const parsed = N
 function money(value: number | null) { return value === null ? "Not available" : new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); }
 function percentage(value: number | null) { return value === null ? "Not available" : `${value.toFixed(1)}%`; }
 function measure(value: number | null, unit: string) { if (value === null) return "Not available"; if (unit === "percentage") return `${value.toFixed(1)}%`; if (unit === "kes") return money(value); return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value); }
+function formatNumber(value: number) { return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value); }
 function formatDate(value: Date) { return new Intl.DateTimeFormat("en-KE", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Nairobi" }).format(value); }
 function LoadError({ message }: { message: string }) { return <div className="container mx-auto px-4 py-12"><div className="rounded-lg border border-red-200 bg-red-50 p-5"><h1 className="font-semibold text-red-900">Reporting dashboard could not be loaded</h1><p className="mt-1 text-sm text-red-700">{message}</p></div></div>; }

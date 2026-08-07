@@ -3,6 +3,7 @@ import {
   achievementStatus,
   calculateIndicator,
   isTrustedMonitoringStatus,
+  MEL_CALCULATION_VERSION,
   median,
   safePercentage,
   type ApprovedMonitoringRecord,
@@ -11,6 +12,7 @@ import {
 import { buildFundingTypeBreakdown } from "./reporting-finance";
 import { MEL_ITT_SEED } from "./itt-seed";
 import { indicatorGroup, MEL_INDICATOR_GROUPS } from "./reporting-visualizations";
+import { cumulativePlannedCohort } from "./cohort-denominator";
 
 const jobs = (total: number, male = total, female = 0, youth = 0, plwd = 0, refugee = 0) => ({ total, male, female, youth, plwd, refugee });
 function record(id: number, businessId: number, overrides: Partial<ApprovedMonitoringRecord> = {}): ApprovedMonitoringRecord {
@@ -47,10 +49,24 @@ function record(id: number, businessId: number, overrides: Partial<ApprovedMonit
   };
 }
 
-const definition = (code: string, aggregation: IndicatorDefinitionInput["aggregation"] = "sum"): IndicatorDefinitionInput => ({ code, aggregation, lowerIsBetter: false, version: 1 });
+const definition = (
+  code: string,
+  aggregation: IndicatorDefinitionInput["aggregation"] = "sum",
+  options: Partial<IndicatorDefinitionInput> = {}
+): IndicatorDefinitionInput => ({
+  code,
+  aggregation,
+  lowerIsBetter: false,
+  version: 1,
+  unit: aggregation === "ratio" ? "percentage" : "count",
+  sourceType: "quarterly_enterprise_form",
+  isOneTime: false,
+  ...options,
+});
 const base = { programmeResults: [], segmentKey: "overall", baseline: null, target: 10, thresholds: { red: 50, green: 80 } };
 
 function tests() {
+  assert.equal(MEL_CALCULATION_VERSION, 2);
   assert.equal(MEL_ITT_SEED.length, 32, "The explorer must automatically expose every active ITT definition.");
   assert.deepEqual(
     [...new Set(MEL_ITT_SEED.map((indicator) => indicatorGroup(indicator.code)))].sort(),
@@ -84,10 +100,71 @@ function tests() {
   assert.equal(zeroBaseline.actual, null);
   assert.match(zeroBaseline.exclusions[0], /zero or missing/);
 
-  const ratio = calculateIndicator({ ...base, definition: definition("OP1.2-IMPROVED-BUSINESS-PLANS", "ratio"), records: [record(1, 1, { businessPlanImproved: true }), record(2, 2)] });
+  const ratio = calculateIndicator({ ...base, definition: definition("OP1.2-IMPROVED-BUSINESS-PLANS", "ratio"), records: [record(1, 1, { businessPlanImproved: true }), record(2, 2)], enterpriseDenominator: { value: 250, basis: "planned_programme_cohort", eligibleBusinessIds: [1, 2] } });
   assert.equal(ratio.numerator, 1);
-  assert.equal(ratio.denominator, 2);
-  assert.equal(ratio.actual, 50);
+  assert.equal(ratio.denominator, 250);
+  assert.equal(ratio.actual, 0.4);
+
+  const thirtyEsgRecords = Array.from({ length: 30 }, (_, index) => record(index + 10, index + 10, { esgReportCompleted: true }));
+  const thirtyEsg = calculateIndicator({
+    ...base,
+    target: 80,
+    definition: definition("OP3.1-ESG-REPORTS", "ratio"),
+    records: thirtyEsgRecords,
+    enterpriseDenominator: { value: 250, basis: "planned_programme_cohort", eligibleBusinessIds: thirtyEsgRecords.map((item) => item.businessId) },
+  });
+  assert.equal(thirtyEsg.actual, 12);
+  assert.equal(thirtyEsg.achievementPercentage, 15);
+
+  const persistentAchievement = calculateIndicator({
+    ...base,
+    definition: definition("OP3.1-ESG-REPORTS", "ratio", { isOneTime: true }),
+    records: [record(50, 1, { periodId: 1, esgReportCompleted: true }), record(51, 1, { periodId: 2, esgReportCompleted: null })],
+    approvedAchievements: [{ id: 70, businessId: 1, indicatorCode: "OP3.1-ESG-REPORTS" }],
+    enterpriseDenominator: { value: 250, basis: "planned_programme_cohort", eligibleBusinessIds: [1] },
+  });
+  assert.equal(persistentAchievement.numerator, 1);
+  assert.equal(persistentAchievement.actual, 0.4);
+  assert.deepEqual(persistentAchievement.sourceAchievementIds, [70]);
+
+  const repeatableLatestNo = calculateIndicator({
+    ...base,
+    definition: definition("OP1.2-NEW-PRODUCTS", "ratio"),
+    records: [record(60, 1, { periodId: 1, newProductsDeveloped: true }), record(61, 1, { periodId: 2, newProductsDeveloped: false })],
+    enterpriseDenominator: { value: 250, basis: "planned_programme_cohort", eligibleBusinessIds: [1] },
+  });
+  assert.equal(repeatableLatestNo.numerator, 0);
+  assert.equal(repeatableLatestNo.actual, 0);
+
+  const missingCohort = calculateIndicator({
+    ...base,
+    definition: definition("OP3.1-ESG-REPORTS", "ratio"),
+    records: [record(70, 1, { esgReportCompleted: true })],
+    enterpriseDenominator: { value: null, basis: "planned_programme_cohort", eligibleBusinessIds: [1] },
+  });
+  assert.equal(missingCohort.actual, null);
+  assert.match(missingCohort.exclusions[0], /denominator is missing or zero/i);
+
+  const overCohort = calculateIndicator({
+    ...base,
+    definition: definition("OP3.1-ESG-REPORTS", "ratio", { isOneTime: true }),
+    records: [],
+    approvedAchievements: [1, 2, 3].map((businessId) => ({ id: businessId, businessId, indicatorCode: "OP3.1-ESG-REPORTS" })),
+    enterpriseDenominator: { value: 2, basis: "actual_segment_cohort", eligibleBusinessIds: [1, 2, 3] },
+  });
+  assert.equal(overCohort.actual, 150);
+  assert.match(overCohort.exclusions[0], /exceeds/i);
+
+  const cohortTargets = [
+    { programmeYear: 0, reportingPeriodId: null, segmentKey: "overall", value: 400 },
+    { programmeYear: 1, reportingPeriodId: null, segmentKey: "overall", value: 250 },
+    { programmeYear: 2, reportingPeriodId: null, segmentKey: "overall", value: 150 },
+    { programmeYear: 3, reportingPeriodId: null, segmentKey: "overall", value: 0 },
+  ];
+  assert.equal(cumulativePlannedCohort(cohortTargets, 1), 250);
+  assert.equal(cumulativePlannedCohort(cohortTargets, 2), 400);
+  assert.equal(cumulativePlannedCohort(cohortTargets, 3), 400);
+  assert.equal(cumulativePlannedCohort([], 1), null);
 
   const deduplicated = calculateIndicator({ ...base, definition: definition("OP3.1-LIFE-CYCLE-ASSESSMENTS", "distinct_count"), records: [record(1, 1, { periodId: 1, lifeCycleAssessmentCompleted: true }), record(2, 1, { periodId: 2, lifeCycleAssessmentCompleted: true })] });
   assert.equal(deduplicated.actual, 1);

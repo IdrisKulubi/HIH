@@ -1,4 +1,4 @@
-export const MEL_CALCULATION_VERSION = 1;
+export const MEL_CALCULATION_VERSION = 2;
 
 export function isTrustedMonitoringStatus(status: string): boolean {
   return status === "approved";
@@ -72,6 +72,21 @@ export type IndicatorDefinitionInput = {
   aggregation: "sum" | "median" | "count" | "distinct_count" | "ratio" | "latest_value";
   lowerIsBetter: boolean;
   version: number;
+  unit?: string;
+  sourceType?: string;
+  isOneTime?: boolean;
+};
+
+export type ApprovedEnterpriseAchievementInput = {
+  id: number;
+  businessId: number;
+  indicatorCode: string;
+};
+
+export type EnterpriseRatioDenominator = {
+  value: number | null;
+  basis: "planned_programme_cohort" | "actual_segment_cohort";
+  eligibleBusinessIds: number[];
 };
 
 export type IndicatorCalculationInput = {
@@ -82,6 +97,8 @@ export type IndicatorCalculationInput = {
   baseline?: number | null;
   target?: number | null;
   systemActual?: { actual: number | null; sourceIds: number[]; numerator?: number | null; denominator?: number | null; rule?: string } | null;
+  approvedAchievements?: ApprovedEnterpriseAchievementInput[];
+  enterpriseDenominator?: EnterpriseRatioDenominator | null;
   thresholds: { red: number; green: number };
 };
 
@@ -96,8 +113,10 @@ export type IndicatorCalculation = {
   sourceSubmissionIds: number[];
   sourceProgrammeResultIds: number[];
   sourceSystemIds: number[];
+  sourceAchievementIds: number[];
   sourceCount: number;
   exclusions: string[];
+  denominatorBasis: EnterpriseRatioDenominator["basis"] | null;
 };
 
 type BooleanField = keyof Pick<
@@ -210,7 +229,9 @@ function result(
   records: ApprovedMonitoringRecord[],
   programmeResultIds: number[] = [],
   exclusions: string[] = [],
-  systemIds: number[] = []
+  systemIds: number[] = [],
+  achievementIds: number[] = [],
+  denominatorBasis: EnterpriseRatioDenominator["basis"] | null = null
 ): IndicatorCalculation {
   const status = achievementStatus(values.actual, input.target ?? null, input.thresholds, input.definition.lowerIsBetter);
   return {
@@ -220,15 +241,63 @@ function result(
     sourceSubmissionIds: records.map((record) => record.submissionId),
     sourceProgrammeResultIds: programmeResultIds,
     sourceSystemIds: systemIds,
-    sourceCount: records.length + programmeResultIds.length + systemIds.length,
+    sourceAchievementIds: achievementIds,
+    sourceCount: records.length + programmeResultIds.length + systemIds.length + achievementIds.length,
     exclusions,
+    denominatorBasis,
   };
+}
+
+function usesEnterpriseCohortDenominator(input: IndicatorCalculationInput): boolean {
+  return input.definition.aggregation === "ratio"
+    && input.definition.unit === "percentage"
+    && input.definition.sourceType === "quarterly_enterprise_form";
+}
+
+function enterpriseRatio(
+  input: IndicatorCalculationInput,
+  numerator: number,
+  sourceRecords: ApprovedMonitoringRecord[],
+  achievementIds: number[],
+  rule: string
+): IndicatorCalculation {
+  const configured = input.enterpriseDenominator;
+  if (!configured || configured.value === null || configured.value <= 0) {
+    return result(
+      input,
+      { actual: null, numerator, denominator: configured?.value ?? null, calculationRule: `${rule}; cohort denominator unavailable` },
+      sourceRecords,
+      [],
+      ["Percentage actual is unavailable because the full enterprise cohort denominator is missing or zero."],
+      [],
+      achievementIds,
+      configured?.basis ?? null
+    );
+  }
+  const exclusions = numerator > configured.value
+    ? [`Data-quality warning: numerator ${numerator} exceeds the ${configured.basis.replaceAll("_", " ")} denominator ${configured.value}.`]
+    : [];
+  return result(
+    input,
+    { actual: safePercentage(numerator, configured.value), numerator, denominator: configured.value, calculationRule: `${rule} / ${configured.basis.replaceAll("_", " ")}` },
+    sourceRecords,
+    [],
+    exclusions,
+    [],
+    achievementIds,
+    configured.basis
+  );
 }
 
 export function calculateIndicator(input: IndicatorCalculationInput): IndicatorCalculation {
   const segmentKey = input.segmentKey ?? "overall";
   const records = input.records.filter((record) => matchesSegment(record, segmentKey));
   const latest = distinctLatest(records);
+  const eligibleBusinessIds = new Set(input.enterpriseDenominator?.eligibleBusinessIds ?? []);
+  const enterpriseRecords = usesEnterpriseCohortDenominator(input)
+    ? records.filter((record) => eligibleBusinessIds.has(record.businessId))
+    : records;
+  const latestEnterpriseRecords = distinctLatest(enterpriseRecords);
   const code = input.definition.code;
 
   if (input.systemActual) {
@@ -296,8 +365,11 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   }
 
   if (code === "LT2-NEW-MARKETS") {
-    const numerator = latest.filter((record) => (record.newMarketSegments ?? 0) > 0).length;
-    return result(input, { actual: safePercentage(numerator, latest.length), numerator, denominator: latest.length, calculationRule: "Distinct enterprises with one or more new market segments / reporting enterprises" }, latest);
+    const numeratorRecords = latestEnterpriseRecords.filter((record) => (record.newMarketSegments ?? 0) > 0);
+    if (usesEnterpriseCohortDenominator(input)) {
+      return enterpriseRatio(input, numeratorRecords.length, latestEnterpriseRecords, [], "Distinct supported enterprises with one or more new market segments");
+    }
+    return result(input, { actual: safePercentage(numeratorRecords.length, latest.length), numerator: numeratorRecords.length, denominator: latest.length, calculationRule: "Distinct enterprises with one or more new market segments / reporting enterprises" }, latest);
   }
 
   if (code === "LT2-FINANCIAL-RESILIENCE") {
@@ -305,8 +377,11 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   }
 
   if (code === "OP2.2-NEW-MARKET-SEGMENTS") {
-    const numerator = latest.filter((record) => (record.newMarketSegments ?? 0) > 3).length;
-    return result(input, { actual: safePercentage(numerator, latest.length), numerator, denominator: latest.length, calculationRule: "Distinct enterprises serving more than three new market segments / reporting enterprises" }, latest);
+    const numeratorRecords = latestEnterpriseRecords.filter((record) => (record.newMarketSegments ?? 0) > 3);
+    if (usesEnterpriseCohortDenominator(input)) {
+      return enterpriseRatio(input, numeratorRecords.length, latestEnterpriseRecords, [], "Distinct supported enterprises serving more than three new market segments");
+    }
+    return result(input, { actual: safePercentage(numeratorRecords.length, latest.length), numerator: numeratorRecords.length, denominator: latest.length, calculationRule: "Distinct enterprises serving more than three new market segments / reporting enterprises" }, latest);
   }
 
   if (code === "OP2.1-FINANCE-VALUE") {
@@ -333,6 +408,29 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
 
   const ratioField = RATIO_FIELDS[code];
   if (ratioField) {
+    if (usesEnterpriseCohortDenominator(input)) {
+      if (input.definition.isOneTime) {
+        const achievements = (input.approvedAchievements ?? []).filter((achievement) =>
+          achievement.indicatorCode === code && eligibleBusinessIds.has(achievement.businessId)
+        );
+        const achievementByBusiness = new Map(achievements.map((achievement) => [achievement.businessId, achievement]));
+        const legacyTrueByBusiness = new Map<number, ApprovedMonitoringRecord>();
+        for (const record of enterpriseRecords) {
+          if (record[ratioField] !== true || achievementByBusiness.has(record.businessId)) continue;
+          if (!legacyTrueByBusiness.has(record.businessId)) legacyTrueByBusiness.set(record.businessId, record);
+        }
+        const numerator = new Set([...achievementByBusiness.keys(), ...legacyTrueByBusiness.keys()]).size;
+        return enterpriseRatio(
+          input,
+          numerator,
+          [...legacyTrueByBusiness.values()],
+          [...achievementByBusiness.values()].map((achievement) => achievement.id),
+          `Distinct supported enterprises with an approved ${ratioField} achievement`
+        );
+      }
+      const numerator = latestEnterpriseRecords.filter((record) => record[ratioField] === true).length;
+      return enterpriseRatio(input, numerator, latestEnterpriseRecords, [], `Distinct supported enterprises whose latest approved ${ratioField} response is Yes`);
+    }
     const numerator = latest.filter((record) => record[ratioField] === true).length;
     return result(input, { actual: safePercentage(numerator, latest.length), numerator, denominator: latest.length, calculationRule: `Distinct enterprises where ${ratioField} is true / reporting enterprises` }, latest);
   }

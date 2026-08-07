@@ -163,7 +163,31 @@ function ProfitabilityChart({ data, selectedTrack }: { data: MelProfitabilityTre
 }
 
 function TrendTable({ indicator, series }: { indicator: MelIndicatorVisualization; series: ReadonlyArray<{ key: "overall" | "foundation" | "acceleration"; label: string }> }) {
-  return <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[520px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2.5">Quarter</th>{series.map((item) => <th key={item.key} className="px-3 py-2.5 text-right">{item.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{indicator.trend.map((point) => <tr key={point.periodId}><td className="px-3 py-2.5 font-medium text-slate-800">{point.periodLabel}</td>{series.map((item) => <td key={item.key} className="px-3 py-2.5 text-right tabular-nums">{formatMeasure(point[item.key], indicator.unit)}</td>)}</tr>)}</tbody></table></div>;
+  return (
+    <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
+      <table className="w-full min-w-[520px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2.5">Quarter</th>{series.map((item) => <th key={item.key} className="px-3 py-2.5 text-right">{item.label}</th>)}</tr></thead>
+        <tbody className="divide-y divide-slate-100">
+          {indicator.trend.map((point) => (
+            <tr key={point.periodId}>
+              <td className="px-3 py-2.5 font-medium text-slate-800">{point.periodLabel}</td>
+              {series.map((item) => {
+                const ratio = point.ratios[item.key];
+                return (
+                  <td key={item.key} className="px-3 py-2.5 text-right tabular-nums">
+                    <p>{formatMeasure(point[item.key], indicator.unit)}</p>
+                    {indicator.unit === "percentage" && ratio?.numerator != null && ratio.denominator != null ? (
+                      <p className="mt-0.5 text-xs text-slate-500">{formatCount(ratio.numerator)} / {formatCount(ratio.denominator)} enterprises</p>
+                    ) : null}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function CurrentValue({ indicator, selectedTrack }: { indicator: MelIndicatorVisualization; selectedTrack: string | null }) {
@@ -174,6 +198,7 @@ function sourceCount(indicator: MelIndicatorVisualization, selectedTrack: string
 function StatusDot({ status }: { status: MelIndicatorVisualization["trafficLight"] }) { const colors = { green: "bg-emerald-500", amber: "bg-amber-500", red: "bg-red-500", not_available: "bg-slate-300" }; return <span className={`mt-1 size-2.5 shrink-0 rounded-full ${colors[status]}`} title={status.replaceAll("_", " ")} />; }
 function EmptyChart({ message = "No approved result is available for this indicator and filter selection." }: { message?: string }) { return <div className="mt-6 flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 text-center text-sm text-slate-600">{message}</div>; }
 function formatMeasure(value: number | null, unit: string) { if (value === null || value === undefined) return "Not available"; if (unit === "percentage") return `${value.toFixed(1)}%`; if (unit === "kes") return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); if (unit === "kilograms") return `${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 1 }).format(value)} kg`; return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value); }
+function formatCount(value: number) { return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value); }
 function compact(value: number, unit: string) { const formatted = new Intl.NumberFormat("en-KE", { notation: "compact", maximumFractionDigits: 1 }).format(value); return unit === "percentage" ? `${formatted}%` : unit === "kes" ? `KSh ${formatted}` : formatted; }
 function unitLabel(unit: string) { return unit === "kes" ? "Kenyan shillings" : unit.replaceAll("_", " "); }
 function title(value: string) { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
