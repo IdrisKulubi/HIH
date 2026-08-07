@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   achievementStatus,
   calculateIndicator,
@@ -66,6 +67,10 @@ const definition = (
 const base = { programmeResults: [], segmentKey: "overall", baseline: null, target: 10, thresholds: { red: 50, green: 80 } };
 
 function tests() {
+  const resultIndexMigration = readFileSync("drizzle/0043_repair_mel_indicator_result_indexes.sql", "utf8");
+  assert.match(resultIndexMigration, /CREATE UNIQUE INDEX IF NOT EXISTS "mel_indicator_results_indicator_period_segment_unique"/);
+  assert.match(resultIndexMigration, /"indicator_id", "reporting_period_id", "programme_year", "segment_key"/);
+
   assert.equal(MEL_CALCULATION_VERSION, 2);
   assert.equal(MEL_ITT_SEED.length, 32, "The explorer must automatically expose every active ITT definition.");
   assert.deepEqual(

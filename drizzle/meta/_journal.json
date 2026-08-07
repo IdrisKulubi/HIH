@@ -302,6 +302,13 @@
       "when": 1786233600000,
       "tag": "0042_retire_op11_jobs_created",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786320000000,
+      "tag": "0043_repair_mel_indicator_result_indexes",
+      "breakpoints": true
     }
   ]
 }
