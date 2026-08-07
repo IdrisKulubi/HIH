@@ -177,7 +177,7 @@ function TrendTable({ indicator, series }: { indicator: MelIndicatorVisualizatio
                   <td key={item.key} className="px-3 py-2.5 text-right tabular-nums">
                     <p>{formatMeasure(point[item.key], indicator.unit)}</p>
                     {indicator.unit === "percentage" && ratio?.numerator != null && ratio.denominator != null ? (
-                      <p className="mt-0.5 text-xs text-slate-500">{formatCount(ratio.numerator)} / {formatCount(ratio.denominator)} enterprises</p>
+                      <p className="mt-0.5 text-xs tabular-nums text-slate-500">{formatCount(ratio.numerator)}/{formatCount(ratio.denominator)}</p>
                     ) : null}
                   </td>
                 );

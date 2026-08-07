@@ -160,6 +160,28 @@ function tests() {
   assert.equal(overCohort.actual, 150);
   assert.match(overCohort.exclusions[0], /exceeds/i);
 
+  const integrationRatio = calculateIndicator({
+    ...base,
+    definition: definition("OP2.1-INVESTOR-READINESS", "ratio", { sourceType: "integration", isOneTime: true }),
+    records: [record(80, 1, { investorReadinessCompleted: true })],
+    approvedAchievements: [{ id: 80, businessId: 1, indicatorCode: "OP2.1-INVESTOR-READINESS" }],
+    enterpriseDenominator: { value: 400, basis: "planned_programme_cohort", eligibleBusinessIds: [1] },
+  });
+  assert.equal(integrationRatio.numerator, 1);
+  assert.equal(integrationRatio.denominator, 400);
+  assert.equal(integrationRatio.actual, 0.25);
+
+  const trainingSystem = calculateIndicator({
+    ...base,
+    definition: definition("OP1.2-TRAINING-COMPLETION", "ratio", { sourceType: "integration", isOneTime: true }),
+    records: [],
+    systemActual: { actual: 100, numerator: 1, denominator: 1, sourceIds: [99], rule: "Distinct enterprises with a completion event" },
+    enterpriseDenominator: { value: 400, basis: "planned_programme_cohort", eligibleBusinessIds: [1] },
+  });
+  assert.equal(trainingSystem.numerator, 1);
+  assert.equal(trainingSystem.denominator, 400);
+  assert.equal(trainingSystem.actual, 0.25);
+
   const cohortTargets = [
     { programmeYear: 0, reportingPeriodId: null, segmentKey: "overall", value: 400 },
     { programmeYear: 1, reportingPeriodId: null, segmentKey: "overall", value: 250 },

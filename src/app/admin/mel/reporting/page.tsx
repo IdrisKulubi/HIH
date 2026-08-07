@@ -36,6 +36,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">MEL reporting · Live indicator dashboard</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Programme results and ITT</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">All active ITT indicators are visualized from approved, currently valid records. Every result links back to its calculation and source records.</p>
+          <p className="mt-2 text-xs text-slate-500">Programme years: Y1 15 Oct 2025–15 Oct 2026 · Y2 15 Oct 2026–15 Oct 2027 · Y3 15 Oct 2027–15 Oct 2028. OP1.1 mobilization target is 400 (Y1 250 + Y2 150).</p>
           <div className="mt-2"><DashboardAutoRefresh /></div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -183,8 +184,13 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                     <td className="px-4 py-3 tabular-nums">
                       <p className="font-semibold text-slate-900">{measure(row.calculation.actual, row.unit)}</p>
                       {row.unit === "percentage" && row.calculation.numerator !== null && row.calculation.denominator !== null ? (
-                        <p className="mt-1 text-xs font-normal text-slate-500">
-                          {formatNumber(row.calculation.numerator)} / {formatNumber(row.calculation.denominator)} enterprises
+                        <p className="mt-1 text-xs font-normal tabular-nums text-slate-500">
+                          {formatNumber(row.calculation.numerator)}/{formatNumber(row.calculation.denominator)}
+                        </p>
+                      ) : null}
+                      {row.unit === "count" && row.calculation.actual !== null && row.targetBreakdown[0]?.label === "Total" ? (
+                        <p className="mt-1 text-xs font-normal tabular-nums text-slate-500">
+                          {formatNumber(row.calculation.actual)}/{formatNumber(row.targetBreakdown[0].value)}
                         </p>
                       ) : null}
                       {row.calculation.exclusions.some((note) => note.startsWith("Data-quality warning:")) ? (

@@ -3,6 +3,11 @@ import { canManageMel, canViewMel } from "./roles";
 import { melIndicatorInputSchema, melProgrammeSettingsInputSchema } from "./configuration";
 import { MEL_ITT_SEED, validateMelIttSeed } from "./itt-seed";
 import {
+  MEL_OP11_MOBILISATION_TARGETS,
+  MEL_PROGRAMME_REPORTING_PERIODS,
+  MEL_PROGRAMME_YEARS,
+} from "./programme-calendar";
+import {
   buildReportingPeriodCode,
   canTransitionMelPeriod,
   dateRangesOverlap,
@@ -11,13 +16,19 @@ import {
 
 function testReportingPeriods() {
   assert.equal(
-    buildReportingPeriodCode({ startDate: "2026-06-01", endDate: "2026-08-31" }),
-    "2026-JUN-AUG"
+    buildReportingPeriodCode({ startDate: "2025-10-15", endDate: "2026-01-14" }),
+    "2025-26-OCT-JAN"
   );
   assert.equal(
     buildReportingPeriodCode({ startDate: "2026-12-01", endDate: "2027-02-28" }),
     "2026-27-DEC-FEB"
   );
+  assert.equal(MEL_PROGRAMME_YEARS[0].startDate, "2025-10-15");
+  assert.equal(MEL_PROGRAMME_YEARS[2].endDate, "2028-10-14");
+  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.length, 12);
+  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.filter((period) => period.status === "open").length, 1);
+  assert.equal(MEL_OP11_MOBILISATION_TARGETS.overall, 400);
+  assert.equal(MEL_OP11_MOBILISATION_TARGETS.year1 + MEL_OP11_MOBILISATION_TARGETS.year2, 400);
   assert.equal(
     dateRangesOverlap(
       { startDate: "2026-06-01", endDate: "2026-08-31" },

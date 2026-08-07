@@ -34,6 +34,7 @@ import {
   type ProgrammeResultInput,
 } from "./indicator-engine";
 import { cumulativePlannedCohort } from "./cohort-denominator";
+import { isOp11CountIndicator } from "./programme-calendar";
 import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
@@ -405,7 +406,16 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const filteredRecords = records.filter((record) => matchesDashboardFilters(record, filters));
   const financeBreakdown = buildFundingTypeBreakdown(filteredRecords);
   const financeAccessed = sum(financeBreakdown, (item) => item.amount);
-  const eligibleBusinessIds = new Set(filteredRecords.map((record) => record.businessId));
+  const periodEnd = new Date(`${selectedPeriod.endDate}T23:59:59.999+03:00`);
+  // OP1.1 system counts must use the supported enterprise cohort, not only MEL reporters.
+  const systemEligibleIds = new Set(
+    supportedEnterprises
+      .filter((enterprise) =>
+        enterprise.selectedAt <= periodEnd
+        && matchesSupportedFilters(enterprise, resolvedFilters)
+      )
+      .map((enterprise) => enterprise.businessId)
+  );
   const approvedProgrammeResults: ProgrammeResultInput[] = programmeRows.map((entry) => ({
     id: entry.id,
     indicatorCode: entry.indicator.code,
@@ -428,7 +438,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     if (
       definition.aggregation !== "ratio"
       || definition.unit !== "percentage"
-      || definition.sourceType !== "quarterly_enterprise_form"
+      || (definition.sourceType !== "quarterly_enterprise_form" && definition.sourceType !== "integration")
     ) return null;
     const periodEnd = new Date(`${period.endDate}T23:59:59.999+03:00`);
     const segmentTrack = segmentKey.startsWith("track:") ? segmentKey.slice("track:".length) : null;
@@ -487,7 +497,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       ),
     };
   };
-  const systemActuals = systemActualsAt(selectedPeriod, eligibleBusinessIds);
+  const systemActuals = systemActualsAt(selectedPeriod, systemEligibleIds);
 
   const ittRows: MelIttRow[] = definitions.map((definition) => {
     const definitionTargetKey = definition.sourceType === "programme_mel_entry" ? "overall" : targetSegmentKey;
@@ -600,7 +610,16 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     segmentKey: string,
     programmeResultsAtPeriod: ProgrammeResultInput[]
   ) => {
-    const eligible = new Set(periodRecords.map((record) => record.businessId));
+    const periodCutoff = new Date(`${period.endDate}T23:59:59.999+03:00`);
+    const systemEligible = new Set(
+      supportedEnterprises
+        .filter((enterprise) =>
+          enterprise.selectedAt <= periodCutoff
+          && matchesSupportedFilters(enterprise, baseVisualizationFilters)
+          && (!segmentKey.startsWith("track:") || enterprise.track === segmentKey.slice("track:".length))
+        )
+        .map((enterprise) => enterprise.businessId)
+    );
     const targetKey = segmentKey.startsWith("track:") ? segmentKey : "overall";
     const enterpriseDenominator = denominatorFor(definition, period, segmentKey, baseVisualizationFilters);
     return calculateIndicator({
@@ -617,7 +636,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       programmeResults: programmeResultsAtPeriod,
       baseline: selectBaseline(definition.baselines, targetKey),
       target: selectTarget(definition.targets, period.id, period.programmeYear, targetKey),
-      systemActual: systemActualsAt(period, eligible)[definition.code] ?? null,
+      systemActual: systemActualsAt(period, systemEligible)[definition.code] ?? null,
       approvedAchievements: achievementsFor(definition.code, period, enterpriseDenominator),
       enterpriseDenominator,
       segmentKey,
@@ -955,13 +974,33 @@ function buildTargetBreakdown(
   periodId: number,
   programmeYear: number
 ): Array<{ label: string; value: number }> {
-  if (code !== "IM-JOBS-CREATED") return [];
-  const total = selectTargetExact(targets, periodId, programmeYear, "overall");
-  const direct = selectTargetExact(targets, periodId, programmeYear, "job_type:direct");
-  const indirect = selectTargetExact(targets, periodId, programmeYear, "job_type:indirect");
-  const rows: Array<{ label: string; value: number }> = [];
-  if (total !== null) rows.push({ label: "Total", value: total });
-  if (direct !== null) rows.push({ label: "Direct", value: direct });
-  if (indirect !== null) rows.push({ label: "Indirect", value: indirect });
-  return rows.length > 1 ? rows : [];
+  if (code === "IM-JOBS-CREATED") {
+    const total = selectTargetExact(targets, periodId, programmeYear, "overall");
+    const direct = selectTargetExact(targets, periodId, programmeYear, "job_type:direct");
+    const indirect = selectTargetExact(targets, periodId, programmeYear, "job_type:indirect");
+    const rows: Array<{ label: string; value: number }> = [];
+    if (total !== null) rows.push({ label: "Total", value: total });
+    if (direct !== null) rows.push({ label: "Direct", value: direct });
+    if (indirect !== null) rows.push({ label: "Indirect", value: indirect });
+    return rows.length > 1 ? rows : [];
+  }
+
+  if (isOp11CountIndicator(code)) {
+    const overall = targets.find((item) => item.programmeYear === 0 && item.reportingPeriodId === null && item.segmentKey === "overall");
+    const year1 = targets.find((item) => item.programmeYear === 1 && item.reportingPeriodId === null && item.segmentKey === "overall");
+    const year2 = targets.find((item) => item.programmeYear === 2 && item.reportingPeriodId === null && item.segmentKey === "overall");
+    const year3 = targets.find((item) => item.programmeYear === 3 && item.reportingPeriodId === null && item.segmentKey === "overall");
+    const rows: Array<{ label: string; value: number }> = [];
+    const overallValue = numeric(overall?.value);
+    const y1 = numeric(year1?.value);
+    const y2 = numeric(year2?.value);
+    const y3 = numeric(year3?.value);
+    if (overallValue !== null) rows.push({ label: "Total", value: overallValue });
+    if (y1 !== null) rows.push({ label: "Y1", value: y1 });
+    if (y2 !== null) rows.push({ label: "Y2", value: y2 });
+    if (y3 !== null && y3 > 0) rows.push({ label: "Y3", value: y3 });
+    return rows.length > 1 ? rows : [];
+  }
+
+  return [];
 }

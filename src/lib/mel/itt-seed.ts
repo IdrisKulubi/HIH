@@ -1,3 +1,5 @@
+import { MEL_OP11_MOBILISATION_TARGETS } from "./programme-calendar";
+
 export type MelSeedBaseline = {
   segmentKey: string;
   value?: number;
@@ -246,10 +248,10 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 100,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
   },
   {
@@ -268,10 +270,10 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 110,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
   },
   {
@@ -290,10 +292,10 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 120,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
   },
   {

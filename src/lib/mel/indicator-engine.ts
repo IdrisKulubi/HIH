@@ -249,9 +249,9 @@ function result(
 }
 
 function usesEnterpriseCohortDenominator(input: IndicatorCalculationInput): boolean {
-  return input.definition.aggregation === "ratio"
-    && input.definition.unit === "percentage"
-    && input.definition.sourceType === "quarterly_enterprise_form";
+  if (input.definition.aggregation !== "ratio" || input.definition.unit !== "percentage") return false;
+  const sourceType = input.definition.sourceType ?? "quarterly_enterprise_form";
+  return sourceType === "quarterly_enterprise_form" || sourceType === "integration";
 }
 
 function enterpriseRatio(
@@ -301,6 +301,34 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   const code = input.definition.code;
 
   if (input.systemActual) {
+    const numerator = input.systemActual.numerator ?? null;
+    const configured = input.enterpriseDenominator;
+    if (
+      usesEnterpriseCohortDenominator(input)
+      && numerator !== null
+      && configured
+      && configured.value !== null
+      && configured.value > 0
+    ) {
+      const exclusions = numerator > configured.value
+        ? [`Data-quality warning: numerator ${numerator} exceeds the ${configured.basis.replaceAll("_", " ")} denominator ${configured.value}.`]
+        : [];
+      return result(
+        input,
+        {
+          actual: safePercentage(numerator, configured.value),
+          numerator,
+          denominator: configured.value,
+          calculationRule: `${input.systemActual.rule ?? "Distinct valid system records"} / ${configured.basis.replaceAll("_", " ")}`,
+        },
+        [],
+        [],
+        exclusions,
+        input.systemActual.sourceIds,
+        [],
+        configured.basis
+      );
+    }
     return result(
       input,
       { actual: input.systemActual.actual, numerator: input.systemActual.numerator ?? null, denominator: input.systemActual.denominator ?? null, calculationRule: input.systemActual.rule ?? "Distinct valid system records" },

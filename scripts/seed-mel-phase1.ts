@@ -1,60 +1,10 @@
 import { cwd } from "node:process";
 import { loadEnvConfig } from "@next/env";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { MEL_ITT_SEED, validateMelIttSeed } from "../src/lib/mel/itt-seed";
+import { MEL_PROGRAMME_REPORTING_PERIODS } from "../src/lib/mel/programme-calendar";
 
 loadEnvConfig(cwd());
-
-const reportingPeriods = [
-  {
-    code: "2026-JUN-AUG",
-    label: "Quarter 1 - June to August 2026",
-    programmeYear: 1,
-    sequence: 1,
-    startDate: "2026-06-01",
-    endDate: "2026-08-31",
-    collectionOpenDate: "2026-06-01",
-    collectionCloseDate: "2026-09-15",
-    status: "open" as const,
-    allowCatchUp: true,
-  },
-  {
-    code: "2026-SEP-NOV",
-    label: "Quarter 2 - September to November 2026",
-    programmeYear: 1,
-    sequence: 2,
-    startDate: "2026-09-01",
-    endDate: "2026-11-30",
-    collectionOpenDate: "2026-09-01",
-    collectionCloseDate: "2026-12-15",
-    status: "planned" as const,
-    allowCatchUp: true,
-  },
-  {
-    code: "2026-DEC-2027-FEB",
-    label: "Quarter 3 - December 2026 to February 2027",
-    programmeYear: 1,
-    sequence: 3,
-    startDate: "2026-12-01",
-    endDate: "2027-02-28",
-    collectionOpenDate: "2026-12-01",
-    collectionCloseDate: "2027-03-15",
-    status: "planned" as const,
-    allowCatchUp: true,
-  },
-  {
-    code: "2027-MAR-MAY",
-    label: "Quarter 4 - March to May 2027",
-    programmeYear: 1,
-    sequence: 4,
-    startDate: "2027-03-01",
-    endDate: "2027-05-31",
-    collectionOpenDate: "2027-03-01",
-    collectionCloseDate: "2027-06-15",
-    status: "planned" as const,
-    allowCatchUp: true,
-  },
-];
 
 async function seed() {
   if (!process.env.POSTGRES_URL) {
@@ -79,7 +29,6 @@ async function seed() {
     }
 
     await db.transaction(async (tx) => {
-      // Phase 1 migration may have created tables without every unique index.
       await tx.execute(sql`
         CREATE UNIQUE INDEX IF NOT EXISTS "mel_reporting_periods_programme_sequence_unique"
           ON "mel_reporting_periods" ("programme_year", "sequence")
@@ -108,31 +57,33 @@ async function seed() {
             updatedAt: new Date(),
           },
         });
-      for (const period of reportingPeriods) {
-        const periodDefinition = {
-          code: period.code,
-          label: period.label,
-          programmeYear: period.programmeYear,
-          sequence: period.sequence,
-          startDate: period.startDate,
-          endDate: period.endDate,
-          collectionOpenDate: period.collectionOpenDate,
-          collectionCloseDate: period.collectionCloseDate,
-          allowCatchUp: period.allowCatchUp,
-        };
-        await tx
-          .insert(melReportingPeriods)
-          .values(period)
-          .onConflictDoUpdate({
-            // Prefer `code` — it is a table UNIQUE constraint and is present even when
-            // the programme_year/sequence unique index was never applied.
-            target: melReportingPeriods.code,
-            set: {
-              ...periodDefinition,
+
+      for (const period of MEL_PROGRAMME_REPORTING_PERIODS) {
+        const existing = await tx.query.melReportingPeriods.findFirst({
+          where: and(
+            eq(melReportingPeriods.programmeYear, period.programmeYear),
+            eq(melReportingPeriods.sequence, period.sequence)
+          ),
+          columns: { id: true },
+        });
+        if (existing) {
+          await tx
+            .update(melReportingPeriods)
+            .set({
+              code: period.code,
+              label: period.label,
+              startDate: period.startDate,
+              endDate: period.endDate,
+              collectionOpenDate: period.collectionOpenDate,
+              collectionCloseDate: period.collectionCloseDate,
               status: period.status,
+              allowCatchUp: period.allowCatchUp,
               updatedAt: new Date(),
-            },
-          });
+            })
+            .where(eq(melReportingPeriods.id, existing.id));
+        } else {
+          await tx.insert(melReportingPeriods).values(period);
+        }
       }
 
       for (const indicator of MEL_ITT_SEED) {
@@ -198,8 +149,29 @@ async function seed() {
           valueText: target.valueText ?? null,
           notes: target.notes ?? null,
         }));
-        if (targetRows.length > 0) {
-          await tx.insert(melIndicatorTargets).values(targetRows).onConflictDoNothing();
+        for (const target of targetRows) {
+          const existingTarget = await tx.query.melIndicatorTargets.findFirst({
+            where: and(
+              eq(melIndicatorTargets.indicatorId, target.indicatorId),
+              eq(melIndicatorTargets.programmeYear, target.programmeYear),
+              eq(melIndicatorTargets.segmentKey, target.segmentKey),
+              sql`${melIndicatorTargets.reportingPeriodId} is null`
+            ),
+            columns: { id: true },
+          });
+          if (existingTarget) {
+            await tx
+              .update(melIndicatorTargets)
+              .set({
+                value: target.value,
+                valueText: target.valueText,
+                notes: target.notes,
+                updatedAt: new Date(),
+              })
+              .where(eq(melIndicatorTargets.id, existingTarget.id));
+          } else {
+            await tx.insert(melIndicatorTargets).values(target);
+          }
         }
       }
 
@@ -214,6 +186,7 @@ async function seed() {
       .from(melIndicatorDefinitions)
       .where(eq(melIndicatorDefinitions.isActive, true));
     console.log(`MEL Phase 1 seed complete: ${count.length} active indicator definitions available.`);
+    console.log(`Reporting periods aligned to Oct 15 programme years (${MEL_PROGRAMME_REPORTING_PERIODS.length} quarters).`);
   } finally {
     await pool.end().catch(() => undefined);
   }
