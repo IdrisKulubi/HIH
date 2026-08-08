@@ -15,6 +15,8 @@ import {
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
+import { ApprovedReportBanner, LockedReportBanner } from "./ApprovedReportBanner";
+import { NextQuarterPrioritiesPanel } from "./NextQuarterPrioritiesPanel";
 import { ActionMessage } from "@/components/admin/mel/ActionMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ type JobRow = MelMonitoringDetail["jobs"][number];
 export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetail }) {
   const [state, action, pending] = useActionState(saveMelMonitoringAction, null);
   const locked = !isCollectorEditableStatus(detail.submission.status);
+  const isApproved = detail.submission.status === "approved";
   const response = detail.response;
   const direct = detail.jobs.find((row) => row.jobType === "direct");
   const indirect = detail.jobs.find((row) => row.jobType === "indirect");
@@ -35,6 +38,11 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   return (
     <form action={action} className="space-y-6">
       <input type="hidden" name="submissionId" value={detail.submission.id} />
+
+      {isApproved && detail.approvalSummary ? (
+        <NextQuarterPrioritiesPanel summary={detail.approvalSummary} />
+      ) : null}
+
       <fieldset disabled={locked || pending} className="space-y-6">
         <FormSection number="0" title={MONITORING_SECTIONS["0"]}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -142,7 +150,11 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
             </div>
           </div>
         </div>
-      ) : <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">This report is read-only while it is in review or approved.</div>}
+      ) : isApproved ? (
+        <ApprovedReportBanner periodLabel={detail.period.label} />
+      ) : (
+        <LockedReportBanner />
+      )}
     </form>
   );
 }

@@ -8,6 +8,7 @@ import { ReportingFilters } from "@/components/mel/reporting/ReportingFilters";
 import { RecalculateButton } from "@/components/mel/reporting/RecalculateButton";
 import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRefresh";
 import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer";
+import { FeedbackAccountabilitySection } from "@/components/mel/reporting/FeedbackAccountabilitySection";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -98,6 +99,14 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           <p className="px-4 py-6 text-sm text-slate-600">No approved finance has been recorded for the selected filters.</p>
         )}
       </section>
+
+      <FeedbackAccountabilitySection
+        periodLabel={data.selectedPeriod.label}
+        responseCount={data.feedbackAccountability.responseCount}
+        enterpriseChallenges={data.feedbackAccountability.enterpriseChallenges}
+        supportNeeded={data.feedbackAccountability.supportNeeded}
+        negativeEffects={data.feedbackAccountability.negativeEffects}
+      />
 
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>

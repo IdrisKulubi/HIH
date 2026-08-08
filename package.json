@@ -27,7 +27,8 @@
     "seed:cna-questions": "npx tsx scripts/seed-cna-question-bank.ts",
     "seed:mel-phase1": "npx tsx scripts/seed-mel-phase1.ts",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "email:dev": "email dev --dir src/components/emails --port 3001"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.9.1",
@@ -110,6 +111,8 @@
   },
   "devDependencies": {
     "@next/env": "16.0.7",
+    "@react-email/preview-server": "^5.2.10",
+    "@react-email/ui": "^6.9.2",
     "@tailwindcss/postcss": "^4",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20",
@@ -121,6 +124,7 @@
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "react-email": "^6.9.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

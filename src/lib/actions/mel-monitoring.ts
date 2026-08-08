@@ -28,6 +28,11 @@ import {
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 import { calculateProfitLoss } from "@/lib/mel/monitoring-calculations";
 import { calculateFinancialComparison, type FinancialComparison } from "@/lib/mel/financial-baselines";
+import type { ApprovalPrioritySummary } from "@/lib/mel/approval-priorities";
+import {
+  buildReportApprovalSummary,
+  loadApprovalReviewerNote,
+} from "@/lib/mel/notifications/dispatch-report-approved";
 import { requireMelCollector, type MelMonitoringActor } from "@/lib/mel/monitoring-access";
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { requireMelRolloutFeature } from "@/lib/mel/operations";
@@ -114,6 +119,7 @@ export type MelMonitoringDetail = {
   financialBaseline: typeof melEnterpriseFinancialBaselines.$inferSelect | null;
   priorApprovedFinancials: { label: string; revenue: number; costs: number; profit: number } | null;
   financialVarianceThresholdPercent: number;
+  approvalSummary: ApprovalPrioritySummary | null;
 };
 
 function actionError(error: unknown, fallback: string): ActionResponse<never> {
@@ -485,6 +491,20 @@ export async function getMelMonitoringDetail(
         };
       });
 
+    const approvalSummary =
+      submission.status === "approved"
+        ? await buildReportApprovalSummary({
+            submissionId: submission.id,
+            submissionVersion: submission.submissionVersion,
+            businessId,
+            reportingPeriodId: periodId,
+            collectorId: submission.collectorId,
+            approvedAt: submission.approvedAt ?? new Date(),
+            reviewerNote: await loadApprovalReviewerNote(submission.id),
+            response: (submission.response ?? null) as Record<string, unknown> | null,
+          })
+        : null;
+
     return successResponse({
       actor,
       submission,
@@ -513,6 +533,7 @@ export async function getMelMonitoringDetail(
         profit: Number(priorFinancialSubmission.response.profitLoss),
       } : null,
       financialVarianceThresholdPercent: Number(settings?.financialVarianceThresholdPercent ?? 100),
+      approvalSummary,
     });
   } catch (error) {
     console.error("getMelMonitoringDetail", error);

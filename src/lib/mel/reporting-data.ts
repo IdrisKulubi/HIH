@@ -34,10 +34,12 @@ import {
   type ProgrammeResultInput,
 } from "./indicator-engine";
 import { cumulativePlannedCohort } from "./cohort-denominator";
+import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
 import { isOp11CountIndicator, resolveOp11Actual } from "./programme-calendar";
 import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
+export type { WordCloudTerm } from "./feedback-word-cloud";
 
 export type MelDashboardFilters = {
   periodId?: number | null;
@@ -189,6 +191,12 @@ export type MelReportingDataset = {
     activeEvidence: number;
     verifiedEvidence: number;
     enterprisesWithoutVerifiedGps: number;
+  };
+  feedbackAccountability: {
+    responseCount: number;
+    enterpriseChallenges: WordCloudTerm[];
+    supportNeeded: WordCloudTerm[];
+    negativeEffects: WordCloudTerm[];
   };
 };
 
@@ -774,6 +782,16 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const latestSubmissionsByBusiness = new Map<number, (typeof allSubmissions)[number]>();
   for (const submission of scopedAllSubmissions) latestSubmissionsByBusiness.set(submission.businessId, submission);
 
+  const submissionById = new Map(submissions.map((submission) => [submission.id, submission]));
+  const latestPeriodResponses = latestPeriodRecords
+    .map((record) => submissionById.get(record.submissionId)?.response)
+    .filter((response): response is NonNullable<typeof response> => Boolean(response));
+  const feedbackWordClouds = buildFeedbackWordClouds({
+    mainChallenges: latestPeriodResponses.map((response) => response.mainChallenges ?? ""),
+    additionalSupportNeeded: latestPeriodResponses.map((response) => response.additionalSupportNeeded ?? ""),
+    negativeProgrammeImpacts: latestPeriodResponses.map((response) => response.negativeProgrammeImpacts ?? ""),
+  });
+
   return {
     filters: resolvedFilters,
     selectedPeriod,
@@ -813,6 +831,12 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       enterprisesWithoutVerifiedGps: [...latestSubmissionsByBusiness.values()].filter(
         (submission) => submission.business.kycProfile?.status !== "verified" || !submission.business.kycProfile.gpsCoordinates
       ).length,
+    },
+    feedbackAccountability: {
+      responseCount: latestPeriodRecords.length,
+      enterpriseChallenges: feedbackWordClouds.enterpriseChallenges,
+      supportNeeded: feedbackWordClouds.supportNeeded,
+      negativeEffects: feedbackWordClouds.negativeEffects,
     },
   };
 }

@@ -10,6 +10,7 @@ import {
   melDqaIssues,
   melEnterpriseAchievements,
   melEvidenceReviews,
+  melIndicatorDefinitions,
   melLearningActions,
   melMonitoringEvidence,
   melMonitoringEvidenceReferences,
@@ -33,6 +34,15 @@ import {
   type MelReviewDecision,
   type MelWorkflowStatus,
 } from "@/lib/mel/review-workflow";
+import {
+  buildApprovalPrioritySummaryText,
+  extractApprovalPriorities,
+} from "@/lib/mel/approval-priorities";
+import {
+  ONE_TIME_QUESTION_BY_INDICATOR,
+  type MonitoringQuestionCode,
+} from "@/lib/mel/monitoring-question-catalog";
+import { dispatchMelReportApprovedEmail } from "@/lib/mel/notifications/dispatch-report-approved";
 
 export type MelReviewQueueRow = {
   submissionId: number;
@@ -618,6 +628,9 @@ export async function decideMelReviewAction(
       }
     }
 
+    let approvedNotificationBody =
+      reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`;
+
     await db.transaction(async (tx) => {
       await tx
         .insert(melMonitoringVersions)
@@ -698,6 +711,41 @@ export async function decideMelReviewAction(
         after: { status: transition.nextStatus, affectedQuestions },
         correlationId: randomUUID(),
       });
+      if (transition.nextStatus === "approved" && transition.action === "approved") {
+        const [approvedAchievements, openLearningActions] = await Promise.all([
+          tx
+            .select({ code: melIndicatorDefinitions.code })
+            .from(melEnterpriseAchievements)
+            .innerJoin(
+              melIndicatorDefinitions,
+              eq(melIndicatorDefinitions.id, melEnterpriseAchievements.indicatorId)
+            )
+            .where(
+              and(
+                eq(melEnterpriseAchievements.businessId, submission.businessId),
+                eq(melEnterpriseAchievements.status, "approved")
+              )
+            ),
+          tx.query.melLearningActions.findMany({
+            where: and(
+              eq(melLearningActions.submissionId, submissionId),
+              inArray(melLearningActions.status, ["open", "in_progress"])
+            ),
+            columns: { finding: true, agreedAction: true },
+          }),
+        ]);
+        const skipQuestionCodes = approvedAchievements
+          .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
+          .filter((code): code is MonitoringQuestionCode => Boolean(code));
+        const approvalSummary = extractApprovalPriorities({
+          response: (submission.response ?? null) as Record<string, unknown> | null,
+          skipQuestionCodes,
+          reviewerNote: reasonRaw,
+          learningActions: openLearningActions,
+        });
+        approvedNotificationBody = buildApprovalPrioritySummaryText(approvalSummary);
+      }
+
       await tx
         .insert(melNotificationOutbox)
         .values({
@@ -707,11 +755,27 @@ export async function decideMelReviewAction(
             : null,
           eventType: `report_${transition.action}`,
           title: reviewNotificationTitle(transition.action),
-          body: reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`,
+          body:
+            transition.nextStatus === "approved" && transition.action === "approved"
+              ? approvedNotificationBody
+              : reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`,
           href: `/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`,
         })
         .onConflictDoNothing();
     });
+
+    if (transition.nextStatus === "approved" && transition.action === "approved") {
+      await dispatchMelReportApprovedEmail({
+        submissionId,
+        submissionVersion: submission.submissionVersion,
+        businessId: submission.businessId,
+        reportingPeriodId: submission.reportingPeriodId,
+        collectorId: submission.collectorId,
+        approvedAt: new Date(),
+        reviewerNote: reasonRaw || undefined,
+        response: (submission.response ?? null) as Record<string, unknown> | null,
+      });
+    }
 
     revalidateReviewPaths(submissionId);
     revalidatePath(`/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`);

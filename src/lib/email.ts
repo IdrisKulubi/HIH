@@ -23,6 +23,10 @@ import {
   A2fScreeningPassEmail,
   type A2fScreeningPassEmailProps,
 } from '@/components/emails/a2f-screening-pass-email';
+import {
+  MelReportApprovedEmail,
+  type MelReportApprovedEmailProps,
+} from '@/components/emails/mel-report-approved-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
@@ -156,6 +160,34 @@ export async function sendMatchingGrantReturnedToEdoEmail(
   } catch (error) {
     console.error("Failed to send Matching Grant return email:", error);
     return { success: false };
+  }
+}
+
+export async function sendMelReportApprovedEmail(
+  props: MelReportApprovedEmailProps & { collectorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping MEL report approved notification");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  const priorityCount = props.priorities.length;
+  const subject =
+    priorityCount > 0
+      ? `Report verified — ${priorityCount} priority area(s) for next quarter`
+      : "Monitoring report verified — BIRE Programme";
+
+  try {
+    await sendEmail({
+      to: props.collectorEmail,
+      subject,
+      react: MelReportApprovedEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send MEL report approved email:", error);
+    return { success: false, error: message };
   }
 }
 
