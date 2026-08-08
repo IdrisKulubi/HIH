@@ -1,12 +1,15 @@
 /**
  * Official BIRE MEL programme calendar.
- * Programme years run 15 Oct → 14 Oct (three-year project).
+ *
+ * Programme years (Oct → Oct) drive ITT targets and annual achievement.
+ * Monitoring periods follow BDS operations: Y1 pre-delivery, then Jun–Aug as
+ * the first monitoring quarter.
  */
 export type MelSeedReportingPeriod = {
   code: string;
   label: string;
   programmeYear: 1 | 2 | 3;
-  sequence: 1 | 2 | 3 | 4;
+  sequence: number;
   startDate: string;
   endDate: string;
   collectionOpenDate: string;
@@ -21,6 +24,13 @@ export const MEL_OP11_MOBILISATION_TARGETS = {
   year1: 250,
   year2: 150,
   year3: 0,
+} as const;
+
+/** Official shared-ITT Year 1 actuals (to date). */
+export const MEL_OP11_YEAR1_ACTUALS = {
+  "OP1.1-ENTERPRISES-MOBILISED": 240,
+  "OP1.1-CNA-COMPLETED": 235,
+  "OP1.1-CDP-IMPLEMENTED": 235,
 } as const;
 
 export const MEL_PROGRAMME_YEARS = [
@@ -47,52 +57,154 @@ export const MEL_PROGRAMME_YEARS = [
   },
 ] as const;
 
-function quarter(
-  programmeYear: 1 | 2 | 3,
-  sequence: 1 | 2 | 3 | 4,
-  startDate: string,
-  endDate: string,
-  status: MelSeedReportingPeriod["status"] = "planned"
-): MelSeedReportingPeriod {
-  const yearMeta = MEL_PROGRAMME_YEARS[programmeYear - 1];
-  const close = new Date(`${endDate}T00:00:00Z`);
+function period(input: {
+  code: string;
+  label: string;
+  programmeYear: 1 | 2 | 3;
+  sequence: number;
+  startDate: string;
+  endDate: string;
+  status?: MelSeedReportingPeriod["status"];
+}): MelSeedReportingPeriod {
+  const close = new Date(`${input.endDate}T00:00:00Z`);
   close.setUTCDate(close.getUTCDate() + 14);
-  const collectionCloseDate = close.toISOString().slice(0, 10);
   return {
-    code: `Y${programmeYear}-Q${sequence}`,
-    label: `${yearMeta.label} Q${sequence} (${startDate} to ${endDate})`,
-    programmeYear,
-    sequence,
-    startDate,
-    endDate,
-    collectionOpenDate: startDate,
-    collectionCloseDate,
-    status,
+    code: input.code,
+    label: input.label,
+    programmeYear: input.programmeYear,
+    sequence: input.sequence,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    collectionOpenDate: input.startDate,
+    collectionCloseDate: close.toISOString().slice(0, 10),
+    status: input.status ?? "planned",
     allowCatchUp: true,
   };
 }
 
 /**
- * Twelve quarterly collection windows across the three programme years.
- * Y1 Q4 is open by default for the current MEL roll-out window.
+ * Option A calendar:
+ * - Programme years stay Oct→Oct for ITT targets.
+ * - Y1 monitoring starts June 2026 (BDS start).
+ * - Jan–May 2026 sits in closed pre-delivery (application → CDP planning).
  */
 export const MEL_PROGRAMME_REPORTING_PERIODS: MelSeedReportingPeriod[] = [
-  // Year 1: 15 Oct 2025 – 14 Oct 2026
-  quarter(1, 1, "2025-10-15", "2026-01-14", "closed"),
-  quarter(1, 2, "2026-01-15", "2026-04-14", "closed"),
-  quarter(1, 3, "2026-04-15", "2026-07-14", "closed"),
-  quarter(1, 4, "2026-07-15", "2026-10-14", "open"),
-  // Year 2: 15 Oct 2026 – 14 Oct 2027
-  quarter(2, 1, "2026-10-15", "2027-01-14"),
-  quarter(2, 2, "2027-01-15", "2027-04-14"),
-  quarter(2, 3, "2027-04-15", "2027-07-14"),
-  quarter(2, 4, "2027-07-15", "2027-10-14"),
-  // Year 3: 15 Oct 2027 – 14 Oct 2028
-  quarter(3, 1, "2027-10-15", "2028-01-14"),
-  quarter(3, 2, "2028-01-15", "2028-04-14"),
-  quarter(3, 3, "2028-04-15", "2028-07-14"),
-  quarter(3, 4, "2028-07-15", "2028-10-14"),
+  // Year 1 — project year Oct 2025–Oct 2026
+  period({
+    code: "Y1-PRE",
+    label: "Y1 Pre-delivery (Oct 2025–May 2026) · Application, screening, onboarding, baseline, CNA & CDP planning",
+    programmeYear: 1,
+    sequence: 1,
+    startDate: "2025-10-15",
+    endDate: "2026-05-31",
+    status: "closed",
+  }),
+  period({
+    code: "Y1-MQ1",
+    label: "Y1 Monitoring Q1 (Jun–Aug 2026) · First BDS collection",
+    programmeYear: 1,
+    sequence: 2,
+    startDate: "2026-06-01",
+    endDate: "2026-08-31",
+    status: "open",
+  }),
+  period({
+    code: "Y1-MQ2",
+    label: "Y1 Monitoring Q2 (Sep–14 Oct 2026)",
+    programmeYear: 1,
+    sequence: 3,
+    startDate: "2026-09-01",
+    endDate: "2026-10-14",
+    status: "planned",
+  }),
+
+  // Year 2 — project year Oct 2026–Oct 2027 (monitoring continues)
+  period({
+    code: "Y2-MQ1",
+    label: "Y2 Monitoring Q1 (15 Oct–Nov 2026)",
+    programmeYear: 2,
+    sequence: 1,
+    startDate: "2026-10-15",
+    endDate: "2026-11-30",
+  }),
+  period({
+    code: "Y2-MQ2",
+    label: "Y2 Monitoring Q2 (Dec 2026–Feb 2027)",
+    programmeYear: 2,
+    sequence: 2,
+    startDate: "2026-12-01",
+    endDate: "2027-02-28",
+  }),
+  period({
+    code: "Y2-MQ3",
+    label: "Y2 Monitoring Q3 (Mar–May 2027)",
+    programmeYear: 2,
+    sequence: 3,
+    startDate: "2027-03-01",
+    endDate: "2027-05-31",
+  }),
+  period({
+    code: "Y2-MQ4",
+    label: "Y2 Monitoring Q4 (Jun–Aug 2027)",
+    programmeYear: 2,
+    sequence: 4,
+    startDate: "2027-06-01",
+    endDate: "2027-08-31",
+  }),
+  period({
+    code: "Y2-MQ5",
+    label: "Y2 Monitoring Q5 (Sep–14 Oct 2027)",
+    programmeYear: 2,
+    sequence: 5,
+    startDate: "2027-09-01",
+    endDate: "2027-10-14",
+  }),
+
+  // Year 3 — project year Oct 2027–Oct 2028
+  period({
+    code: "Y3-MQ1",
+    label: "Y3 Monitoring Q1 (15 Oct–Nov 2027)",
+    programmeYear: 3,
+    sequence: 1,
+    startDate: "2027-10-15",
+    endDate: "2027-11-30",
+  }),
+  period({
+    code: "Y3-MQ2",
+    label: "Y3 Monitoring Q2 (Dec 2027–Feb 2028)",
+    programmeYear: 3,
+    sequence: 2,
+    startDate: "2027-12-01",
+    endDate: "2028-02-29",
+  }),
+  period({
+    code: "Y3-MQ3",
+    label: "Y3 Monitoring Q3 (Mar–May 2028)",
+    programmeYear: 3,
+    sequence: 3,
+    startDate: "2028-03-01",
+    endDate: "2028-05-31",
+  }),
+  period({
+    code: "Y3-MQ4",
+    label: "Y3 Monitoring Q4 (Jun–Aug 2028)",
+    programmeYear: 3,
+    sequence: 4,
+    startDate: "2028-06-01",
+    endDate: "2028-08-31",
+  }),
+  period({
+    code: "Y3-MQ5",
+    label: "Y3 Monitoring Q5 (Sep–14 Oct 2028)",
+    programmeYear: 3,
+    sequence: 5,
+    startDate: "2028-09-01",
+    endDate: "2028-10-14",
+  }),
 ];
+
+/** First BDS monitoring window in Year 1 (Jun–Aug 2026). */
+export const MEL_Y1_FIRST_MONITORING_SEQUENCE = 2;
 
 export const OP11_COUNT_INDICATOR_CODES = [
   "OP1.1-ENTERPRISES-MOBILISED",
@@ -102,4 +214,16 @@ export const OP11_COUNT_INDICATOR_CODES = [
 
 export function isOp11CountIndicator(code: string): boolean {
   return (OP11_COUNT_INDICATOR_CODES as readonly string[]).includes(code);
+}
+
+/** Prefer live system counts once they catch up; otherwise use official Y1 ITT actuals. */
+export function resolveOp11Actual(
+  code: string,
+  systemCount: number,
+  programmeYear: number
+): number {
+  if (!isOp11CountIndicator(code) || programmeYear < 1) return systemCount;
+  const official = MEL_OP11_YEAR1_ACTUALS[code as keyof typeof MEL_OP11_YEAR1_ACTUALS];
+  if (official === undefined) return systemCount;
+  return Math.max(systemCount, official);
 }

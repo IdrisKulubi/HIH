@@ -36,7 +36,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">MEL reporting · Live indicator dashboard</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Programme results and ITT</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">All active ITT indicators are visualized from approved, currently valid records. Every result links back to its calculation and source records.</p>
-          <p className="mt-2 text-xs text-slate-500">Programme years: Y1 15 Oct 2025–15 Oct 2026 · Y2 15 Oct 2026–15 Oct 2027 · Y3 15 Oct 2027–15 Oct 2028. OP1.1 mobilization target is 400 (Y1 250 + Y2 150).</p>
+          <p className="mt-2 text-xs text-slate-500">Programme years stay Oct→Oct for ITT targets (Y1 250 / Y2 150 / total 400). BDS monitoring starts Jun 2026: Y1 Pre-delivery (Oct 2025–May 2026), then Monitoring Q1 Jun–Aug 2026. OP1.1 Y1 actuals: mobilized 240/250 (96%), CNA &amp; CDP 235/250 (94%).</p>
           <div className="mt-2"><DashboardAutoRefresh /></div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -188,9 +188,9 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                           {formatNumber(row.calculation.numerator)}/{formatNumber(row.calculation.denominator)}
                         </p>
                       ) : null}
-                      {row.unit === "count" && row.calculation.actual !== null && row.targetBreakdown[0]?.label === "Total" ? (
+                      {row.unit === "count" && row.calculation.actual !== null && row.target !== null ? (
                         <p className="mt-1 text-xs font-normal tabular-nums text-slate-500">
-                          {formatNumber(row.calculation.actual)}/{formatNumber(row.targetBreakdown[0].value)}
+                          {formatNumber(row.calculation.actual)}/{formatNumber(row.target)}
                         </p>
                       ) : null}
                       {row.calculation.exclusions.some((note) => note.startsWith("Data-quality warning:")) ? (

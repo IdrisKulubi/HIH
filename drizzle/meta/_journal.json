@@ -316,6 +316,13 @@
       "when": 1786406400000,
       "tag": "0044_mel_programme_calendar_oct15",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786492800000,
+      "tag": "0045_mel_option_a_monitoring_calendar",
+      "breakpoints": true
     }
   ]
 }

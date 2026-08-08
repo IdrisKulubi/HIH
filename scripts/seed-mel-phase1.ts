@@ -2,7 +2,11 @@ import { cwd } from "node:process";
 import { loadEnvConfig } from "@next/env";
 import { and, eq, sql } from "drizzle-orm";
 import { MEL_ITT_SEED, validateMelIttSeed } from "../src/lib/mel/itt-seed";
-import { MEL_PROGRAMME_REPORTING_PERIODS } from "../src/lib/mel/programme-calendar";
+import {
+  MEL_OP11_YEAR1_ACTUALS,
+  MEL_PROGRAMME_REPORTING_PERIODS,
+  MEL_Y1_FIRST_MONITORING_SEQUENCE,
+} from "../src/lib/mel/programme-calendar";
 
 loadEnvConfig(cwd());
 
@@ -18,6 +22,7 @@ async function seed() {
       melIndicatorDefinitions,
       melIndicatorTargets,
       melProgrammeSettings,
+      melProgrammeResults,
       melReportingPeriods,
     },
   ] = await Promise.all([import("../db/drizzle"), import("../db/schema")]);
@@ -179,6 +184,48 @@ async function seed() {
         .update(melIndicatorDefinitions)
         .set({ isActive: false, updatedAt: new Date() })
         .where(eq(melIndicatorDefinitions.code, "OP1.1-JOBS-CREATED"));
+
+      const y1Anchor = await tx.query.melReportingPeriods.findFirst({
+        where: and(
+          eq(melReportingPeriods.programmeYear, 1),
+          eq(melReportingPeriods.sequence, MEL_Y1_FIRST_MONITORING_SEQUENCE)
+        ),
+        columns: { id: true },
+      });
+      if (y1Anchor) {
+        for (const [code, value] of Object.entries(MEL_OP11_YEAR1_ACTUALS)) {
+          const indicator = await tx.query.melIndicatorDefinitions.findFirst({
+            where: eq(melIndicatorDefinitions.code, code),
+            columns: { id: true },
+          });
+          if (!indicator) continue;
+          await tx
+            .insert(melProgrammeResults)
+            .values({
+              indicatorId: indicator.id,
+              reportingPeriodId: y1Anchor.id,
+              segmentKey: "overall",
+              value: String(value),
+              notes: "Official shared-ITT Year 1 actual",
+              status: "approved",
+              approvedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [
+                melProgrammeResults.indicatorId,
+                melProgrammeResults.reportingPeriodId,
+                melProgrammeResults.segmentKey,
+              ],
+              set: {
+                value: String(value),
+                notes: "Official shared-ITT Year 1 actual",
+                status: "approved",
+                approvedAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
+        }
+      }
     });
 
     const count = await db
@@ -187,6 +234,7 @@ async function seed() {
       .where(eq(melIndicatorDefinitions.isActive, true));
     console.log(`MEL Phase 1 seed complete: ${count.length} active indicator definitions available.`);
     console.log(`Reporting periods aligned to Oct 15 programme years (${MEL_PROGRAMME_REPORTING_PERIODS.length} quarters).`);
+    console.log("OP1.1 Year 1 official actuals: mobilized 240, CNA 235, CDP 235 (vs Y1 target 250).");
   } finally {
     await pool.end().catch(() => undefined);
   }

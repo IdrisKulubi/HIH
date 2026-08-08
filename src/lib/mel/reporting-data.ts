@@ -34,7 +34,7 @@ import {
   type ProgrammeResultInput,
 } from "./indicator-engine";
 import { cumulativePlannedCohort } from "./cohort-denominator";
-import { isOp11CountIndicator } from "./programme-calendar";
+import { isOp11CountIndicator, resolveOp11Actual } from "./programme-calendar";
 import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
@@ -484,10 +484,21 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   }));
   const systemActualsAt = (period: typeof selectedPeriod, eligible: Set<number>): Record<string, MelSystemActual> => {
     const through = new Date(`${period.endDate}T23:59:59.999+03:00`);
+    const wrap = (code: string, counted: MelSystemActual): MelSystemActual => {
+      if (!isOp11CountIndicator(code) || counted.actual === null) return counted;
+      const actual = resolveOp11Actual(code, counted.actual, period.programmeYear);
+      return {
+        ...counted,
+        actual,
+        rule: actual > (counted.actual ?? 0)
+          ? "Official shared-ITT Year 1 actual (system count not yet caught up)"
+          : counted.rule ?? "Distinct valid system records",
+      };
+    };
     return {
-      "OP1.1-ENTERPRISES-MOBILISED": distinctSystem(systemApplications, eligible, through),
-      "OP1.1-CNA-COMPLETED": distinctSystem(systemCna, eligible, through),
-      "OP1.1-CDP-IMPLEMENTED": distinctSystem(systemCdp, eligible, through),
+      "OP1.1-ENTERPRISES-MOBILISED": wrap("OP1.1-ENTERPRISES-MOBILISED", distinctSystem(systemApplications, eligible, through)),
+      "OP1.1-CNA-COMPLETED": wrap("OP1.1-CNA-COMPLETED", distinctSystem(systemCna, eligible, through)),
+      "OP1.1-CDP-IMPLEMENTED": wrap("OP1.1-CDP-IMPLEMENTED", distinctSystem(systemCdp, eligible, through)),
       "OP1.2-TRAINING-COMPLETION": trainingCompletionSystem(
         trainingMappings,
         trainingEvents,
