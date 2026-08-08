@@ -85,6 +85,12 @@ export function IndicatorExplorer({ indicators, profitabilityTrend, selectedTrac
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{selected.unavailableExplanation}</div>
           ) : null}
 
+          {selected.preDeliveryNote ? (
+            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              {selected.preDeliveryNote}
+            </div>
+          ) : null}
+
           {selected.code === "LT1-PROFITABILITY-INCREASE" ? (
             <ProfitabilityChart data={profitabilityTrend} selectedTrack={selectedTrack} />
           ) : (

@@ -41,9 +41,12 @@ function testReportingPeriods() {
   assert.equal(MEL_OP11_MOBILISATION_TARGETS.overall, 400);
   assert.equal(MEL_OP11_MOBILISATION_TARGETS.year1 + MEL_OP11_MOBILISATION_TARGETS.year2, 400);
   assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 1, 1), 240);
+  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 425, 1), 240);
   assert.equal(resolveOp11Actual("OP1.1-CNA-COMPLETED", 1, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-CNA-COMPLETED", 237, 1), 235);
   assert.equal(resolveOp11Actual("OP1.1-CDP-IMPLEMENTED", 10, 1), 235);
-  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 260, 1), 260);
+  assert.equal(resolveOp11Actual("OP1.1-CDP-IMPLEMENTED", 237, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 260, 1), 240);
   assert.equal(safePercentage(240, 250), 96);
   assert.equal(safePercentage(235, 250), 94);
   assert.equal(

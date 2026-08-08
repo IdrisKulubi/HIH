@@ -212,11 +212,21 @@ export const OP11_COUNT_INDICATOR_CODES = [
   "OP1.1-CDP-IMPLEMENTED",
 ] as const;
 
+export const MEL_Y1_PREDELIVERY_PERIOD_CODE = "Y1-PRE";
+
 export function isOp11CountIndicator(code: string): boolean {
   return (OP11_COUNT_INDICATOR_CODES as readonly string[]).includes(code);
 }
 
-/** Prefer live system counts once they catch up; otherwise use official Y1 ITT actuals. */
+export function isY1PreDeliveryPeriod(period: { code: string }): boolean {
+  return period.code === MEL_Y1_PREDELIVERY_PERIOD_CODE;
+}
+
+export function isOp11VisualizationProgrammeWide(code: string, sourceType: string): boolean {
+  return sourceType === "programme_mel_entry" || isOp11CountIndicator(code);
+}
+
+/** Official shared-ITT Year 1 actuals override raw system counts for OP1.1 output indicators. */
 export function resolveOp11Actual(
   code: string,
   systemCount: number,
@@ -225,5 +235,5 @@ export function resolveOp11Actual(
   if (!isOp11CountIndicator(code) || programmeYear < 1) return systemCount;
   const official = MEL_OP11_YEAR1_ACTUALS[code as keyof typeof MEL_OP11_YEAR1_ACTUALS];
   if (official === undefined) return systemCount;
-  return Math.max(systemCount, official);
+  return official;
 }

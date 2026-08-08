@@ -96,7 +96,14 @@ export type IndicatorCalculationInput = {
   segmentKey?: string;
   baseline?: number | null;
   target?: number | null;
-  systemActual?: { actual: number | null; sourceIds: number[]; numerator?: number | null; denominator?: number | null; rule?: string } | null;
+  systemActual?: {
+    actual: number | null;
+    sourceIds: number[];
+    numerator?: number | null;
+    denominator?: number | null;
+    rule?: string;
+    reportedSourceCount?: number;
+  } | null;
   approvedAchievements?: ApprovedEnterpriseAchievementInput[];
   enterpriseDenominator?: EnterpriseRatioDenominator | null;
   thresholds: { red: number; green: number };
@@ -231,9 +238,12 @@ function result(
   exclusions: string[] = [],
   systemIds: number[] = [],
   achievementIds: number[] = [],
-  denominatorBasis: EnterpriseRatioDenominator["basis"] | null = null
+  denominatorBasis: EnterpriseRatioDenominator["basis"] | null = null,
+  sourceCountOverride?: number
 ): IndicatorCalculation {
   const status = achievementStatus(values.actual, input.target ?? null, input.thresholds, input.definition.lowerIsBetter);
+  const defaultSourceCount =
+    records.length + programmeResultIds.length + systemIds.length + achievementIds.length;
   return {
     ...values,
     target: input.target ?? null,
@@ -242,7 +252,7 @@ function result(
     sourceProgrammeResultIds: programmeResultIds,
     sourceSystemIds: systemIds,
     sourceAchievementIds: achievementIds,
-    sourceCount: records.length + programmeResultIds.length + systemIds.length + achievementIds.length,
+    sourceCount: sourceCountOverride ?? defaultSourceCount,
     exclusions,
     denominatorBasis,
   };
@@ -335,7 +345,10 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
       [],
       [],
       [],
-      input.systemActual.sourceIds
+      input.systemActual.sourceIds,
+      [],
+      null,
+      input.systemActual.reportedSourceCount
     );
   }
 

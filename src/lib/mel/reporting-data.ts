@@ -35,7 +35,13 @@ import {
 } from "./indicator-engine";
 import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
-import { isOp11CountIndicator, resolveOp11Actual } from "./programme-calendar";
+import {
+  isOp11CountIndicator,
+  isOp11VisualizationProgrammeWide,
+  isY1PreDeliveryPeriod,
+  MEL_OP11_YEAR1_ACTUALS,
+  resolveOp11Actual,
+} from "./programme-calendar";
 import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
@@ -103,6 +109,7 @@ export type MelIndicatorVisualization = {
   unit: string;
   sourceType: string;
   programmeWide: boolean;
+  preDeliveryNote: string | null;
   current: MelIndicatorSeriesValues;
   sourceCounts: MelIndicatorSeriesValues;
   trafficLight: IndicatorCalculation["trafficLight"];
@@ -125,6 +132,7 @@ type MelSystemActual = {
   numerator?: number | null;
   denominator?: number | null;
   rule?: string;
+  reportedSourceCount?: number;
 };
 
 type SupportedEnterprise = {
@@ -495,12 +503,18 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     const wrap = (code: string, counted: MelSystemActual): MelSystemActual => {
       if (!isOp11CountIndicator(code) || counted.actual === null) return counted;
       const actual = resolveOp11Actual(code, counted.actual, period.programmeYear);
+      const systemActual = counted.actual ?? 0;
+      let rule = counted.rule ?? "Distinct valid system records";
+      if (actual > systemActual) {
+        rule = "Official shared-ITT Year 1 actual (system count not yet caught up)";
+      } else if (actual < systemActual) {
+        rule = "Official shared-ITT Year 1 actual (system overcount excluded from ITT)";
+      }
       return {
         ...counted,
         actual,
-        rule: actual > (counted.actual ?? 0)
-          ? "Official shared-ITT Year 1 actual (system count not yet caught up)"
-          : counted.rule ?? "Distinct valid system records",
+        rule,
+        reportedSourceCount: actual < systemActual ? actual : undefined,
       };
     };
     return {
@@ -670,7 +684,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   }>>();
 
   for (const definition of definitions) {
-    const programmeWide = definition.sourceType === "programme_mel_entry";
+    const programmeWide = isOp11VisualizationProgrammeWide(definition.code, definition.sourceType);
     const points = includedPeriods.map((period) => {
       const currentOrder = periodOrder.get(period.id) ?? -1;
       const recordsAtPeriod = records.filter((record) => {
@@ -712,7 +726,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   }
 
   const indicatorVisualizations: MelIndicatorVisualization[] = definitions.map((definition) => {
-    const programmeWide = definition.sourceType === "programme_mel_entry";
+    const programmeWide = isOp11VisualizationProgrammeWide(definition.code, definition.sourceType);
     const points = visualizationCalculations.get(definition.id) ?? [];
     const latest = points.at(-1);
     const availableTrackCalculation = latest?.foundation?.actual != null
@@ -727,6 +741,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         : availableTrackCalculation
           ? availableTrackCalculation
           : latest?.overall;
+    const officialY1Actual = isOp11CountIndicator(definition.code)
+      ? MEL_OP11_YEAR1_ACTUALS[definition.code as keyof typeof MEL_OP11_YEAR1_ACTUALS]
+      : undefined;
     return {
       indicatorId: definition.id,
       code: definition.code,
@@ -736,6 +753,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       unit: definition.unit,
       sourceType: definition.sourceType,
       programmeWide,
+      preDeliveryNote: officialY1Actual !== undefined
+        ? `Achieved during Y1 pre-delivery (Oct 2025–May 2026): official shared-ITT Year 1 actual is ${officialY1Actual.toLocaleString("en-KE")}. BDS monitoring quarters report the same programme-wide cumulative total until updated.`
+        : null,
       current: {
         overall: latest?.overall.actual ?? null,
         foundation: latest?.foundation?.actual ?? null,
@@ -752,7 +772,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         : programmeWide ? demographicFilterNote : null,
       trend: points.map((point) => ({
         periodId: point.period.id,
-        periodLabel: point.period.label,
+        periodLabel: isOp11CountIndicator(definition.code) && isY1PreDeliveryPeriod(point.period)
+          ? `${point.period.label} · Official Y1 achievement`
+          : point.period.label,
         overall: point.overall.actual,
         foundation: point.foundation?.actual ?? null,
         acceleration: point.acceleration?.actual ?? null,
