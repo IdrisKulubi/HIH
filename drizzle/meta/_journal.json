@@ -323,6 +323,13 @@
       "when": 1786492800000,
       "tag": "0045_mel_option_a_monitoring_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786579200000,
+      "tag": "0046_repair_mel_programme_result_indexes",
+      "breakpoints": true
     }
   ]
 }

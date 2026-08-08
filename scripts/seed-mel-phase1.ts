@@ -42,6 +42,10 @@ async function seed() {
         CREATE UNIQUE INDEX IF NOT EXISTS "mel_indicator_baselines_indicator_segment_unique"
           ON "mel_indicator_baselines" ("indicator_id", "segment_key")
       `);
+      await tx.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS "mel_programme_results_indicator_period_segment_unique"
+          ON "mel_programme_results" ("indicator_id", "reporting_period_id", "segment_key")
+      `);
 
       await tx
         .insert(melProgrammeSettings)
@@ -199,9 +203,27 @@ async function seed() {
             columns: { id: true },
           });
           if (!indicator) continue;
-          await tx
-            .insert(melProgrammeResults)
-            .values({
+          const existingResult = await tx.query.melProgrammeResults.findFirst({
+            where: and(
+              eq(melProgrammeResults.indicatorId, indicator.id),
+              eq(melProgrammeResults.reportingPeriodId, y1Anchor.id),
+              eq(melProgrammeResults.segmentKey, "overall")
+            ),
+            columns: { id: true },
+          });
+          if (existingResult) {
+            await tx
+              .update(melProgrammeResults)
+              .set({
+                value: String(value),
+                notes: "Official shared-ITT Year 1 actual",
+                status: "approved",
+                approvedAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(melProgrammeResults.id, existingResult.id));
+          } else {
+            await tx.insert(melProgrammeResults).values({
               indicatorId: indicator.id,
               reportingPeriodId: y1Anchor.id,
               segmentKey: "overall",
@@ -209,21 +231,8 @@ async function seed() {
               notes: "Official shared-ITT Year 1 actual",
               status: "approved",
               approvedAt: new Date(),
-            })
-            .onConflictDoUpdate({
-              target: [
-                melProgrammeResults.indicatorId,
-                melProgrammeResults.reportingPeriodId,
-                melProgrammeResults.segmentKey,
-              ],
-              set: {
-                value: String(value),
-                notes: "Official shared-ITT Year 1 actual",
-                status: "approved",
-                approvedAt: new Date(),
-                updatedAt: new Date(),
-              },
             });
+          }
         }
       }
     });
