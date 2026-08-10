@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   approveCdpSupportSession,
@@ -120,15 +120,20 @@ export function CdpReportReviewQueue({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [queueRows, setQueueRows] = useState(rows);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [reviewing, setReviewing] = useState<CdpReportReviewRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CdpReportReviewRow | null>(null);
 
+  useEffect(() => {
+    setQueueRows(rows);
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) =>
+    if (!q) return queueRows;
+    return queueRows.filter((row) =>
       [
         row.businessName,
         row.applicantName,
@@ -142,7 +147,11 @@ export function CdpReportReviewQueue({
         .toLowerCase()
         .includes(q)
     );
-  }, [query, rows]);
+  }, [query, queueRows]);
+
+  const removeFromQueue = (sessionId: number) => {
+    setQueueRows((current) => current.filter((row) => row.sessionId !== sessionId));
+  };
 
   const reviewApprove = (row: CdpReportReviewRow) => {
     setActiveSessionId(row.sessionId);
@@ -155,6 +164,7 @@ export function CdpReportReviewQueue({
         return;
       }
 
+      removeFromQueue(row.sessionId);
       toast.success("Report approved");
       if (reviewing?.sessionId === row.sessionId) setReviewing(null);
       router.refresh();
@@ -164,9 +174,10 @@ export function CdpReportReviewQueue({
   const confirmReject = (reason: string) => {
     if (!rejectTarget) return;
 
-    setActiveSessionId(rejectTarget.sessionId);
+    const rejectedSessionId = rejectTarget.sessionId;
+    setActiveSessionId(rejectedSessionId);
     startTransition(async () => {
-      const result = await rejectCdpSupportSession(rejectTarget.sessionId, reason);
+      const result = await rejectCdpSupportSession(rejectedSessionId, reason);
       setActiveSessionId(null);
 
       if (!result.success) {
@@ -174,8 +185,9 @@ export function CdpReportReviewQueue({
         return;
       }
 
+      removeFromQueue(rejectedSessionId);
       toast.success("Report returned for edits");
-      if (reviewing?.sessionId === rejectTarget.sessionId) setReviewing(null);
+      if (reviewing?.sessionId === rejectedSessionId) setReviewing(null);
       setRejectTarget(null);
       router.refresh();
     });
@@ -195,12 +207,12 @@ export function CdpReportReviewQueue({
                 <Badge
                   className={cn(
                     "rounded-full border-0 font-medium",
-                    rows.length > 0
+                    queueRows.length > 0
                       ? "bg-amber-100 text-amber-900 hover:bg-amber-100"
                       : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
                   )}
                 >
-                  {rows.length} pending
+                  {queueRows.length} pending
                 </Badge>
               </div>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
@@ -208,7 +220,7 @@ export function CdpReportReviewQueue({
               </p>
             </div>
 
-            {rows.length > 0 ? (
+            {queueRows.length > 0 ? (
               <div className="relative w-full max-w-sm">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -222,18 +234,18 @@ export function CdpReportReviewQueue({
             ) : null}
           </div>
         </div>
-      ) : rows.length > 0 ? (
+      ) : queueRows.length > 0 ? (
         <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Badge
               className={cn(
                 "w-fit rounded-full border-0 font-medium",
-                rows.length > 0
+                queueRows.length > 0
                   ? "bg-amber-100 text-amber-900 hover:bg-amber-100"
                   : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
               )}
             >
-              {rows.length} pending
+              {queueRows.length} pending
             </Badge>
             <div className="relative w-full max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -249,7 +261,7 @@ export function CdpReportReviewQueue({
         </div>
       ) : null}
 
-      {rows.length === 0 ? (
+      {queueRows.length === 0 ? (
         <div className="px-6 py-12 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
             <Check className="size-5" />

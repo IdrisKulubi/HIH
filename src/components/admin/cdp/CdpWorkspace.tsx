@@ -141,6 +141,35 @@ function sessionApprovalClassName(status: CdpSessionApprovalStatus) {
   return "border-amber-200 bg-amber-50 text-amber-800";
 }
 
+function sessionHasDraftReportContent(session: {
+  durationHours: string | null;
+  keyActionsAgreed: string | null;
+  evidenceNotes: string | null;
+  challengesRaised: string | null;
+  nextSteps: string | null;
+  evidenceUrls: string[] | null;
+  evidenceFiles: unknown;
+}) {
+  return Boolean(
+    session.durationHours ||
+      session.keyActionsAgreed?.trim() ||
+      session.evidenceNotes?.trim() ||
+      session.challengesRaised?.trim() ||
+      session.nextSteps?.trim() ||
+      (session.evidenceUrls ?? []).length > 0 ||
+      (Array.isArray(session.evidenceFiles) && session.evidenceFiles.length > 0)
+  );
+}
+
+function sessionReportProgressLabel(
+  status: CdpSessionApprovalStatus,
+  session: Parameters<typeof sessionHasDraftReportContent>[0]
+) {
+  if (status === "approved") return "Report complete";
+  if (sessionHasDraftReportContent(session)) return "Pending review";
+  return "Awaiting report";
+}
+
 function SessionReturnedCallout({ reason }: { reason: string | null | undefined }) {
   if (!reason?.trim()) return null;
   return (
@@ -2309,7 +2338,7 @@ function CdpSessionsPanel({
   const approvedSessionCount = plan.supportSessions.filter((session) => session.approvalStatus === "approved").length;
   const evidenceSessionCount = plan.supportSessions.filter(sessionHasEvidence).length;
   const reportReadyCount = plan.supportSessions.filter(
-    (session) => Boolean(session.keyActionsAgreed?.trim()) || Boolean(session.evidenceNotes?.trim())
+    (session) => session.approvalStatus !== "approved" && reportStarted(session)
   ).length;
 
   const submitAdd = (formData: FormData) => {
@@ -2597,9 +2626,7 @@ function CdpSessionsPanel({
                         <SessionReturnedCallout reason={s.rejectionReason} />
                       ) : (
                         <p className="text-muted-foreground">
-                          {s.evidenceNotes?.trim() || s.keyActionsAgreed?.trim()
-                            ? "Report started"
-                            : "Awaiting report"}
+                          {sessionReportProgressLabel(s.approvalStatus, s)}
                         </p>
                       )}
                     </div>

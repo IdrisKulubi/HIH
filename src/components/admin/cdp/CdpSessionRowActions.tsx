@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 export function CdpSessionRowActions({
   mode,
@@ -27,11 +27,15 @@ export function CdpSessionRowActions({
   }
 
   const isReturned = approvalStatus === "rejected";
+  const isApproved = approvalStatus === "approved";
   const reportActionLabel = isReturned
     ? "Edit & resubmit"
-    : reportStarted
-      ? "Edit report"
-      : "Complete report";
+    : isApproved
+      ? "View report"
+      : reportStarted
+        ? "Edit report"
+        : "Complete report";
+  const ReportActionIcon = isApproved ? Eye : Pencil;
 
   return (
     <div className="flex flex-wrap justify-end gap-1">
@@ -43,7 +47,7 @@ export function CdpSessionRowActions({
         onClick={onEdit}
         disabled={disabled}
       >
-        <Pencil className="mr-1 h-3.5 w-3.5" />
+        <ReportActionIcon className="mr-1 h-3.5 w-3.5" />
         {mode === "planning" ? "Edit plan" : reportActionLabel}
       </Button>
       {mode === "planning" ? (

@@ -1515,10 +1515,14 @@ export async function updateCdpSupportSession(
         sessionType,
         meetingLink: parsed.data.meetingLink?.trim() || null,
         bootcampWeek: parsed.data.bootcampWeek ?? null,
-        approvalStatus: "pending",
-        approvedById: null,
-        approvedAt: null,
-        rejectionReason: null,
+        ...(existing.approvalStatus !== "approved"
+          ? {
+              approvalStatus: "pending" as const,
+              approvedById: null,
+              approvedAt: null,
+              rejectionReason: null,
+            }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1597,6 +1601,9 @@ export async function updateCdpSessionReport(
     }
     if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
       return errorResponse("Only the session owner or a CDP manager can edit this report.");
+    }
+    if (existing.approvalStatus === "approved") {
+      return errorResponse("Approved session reports cannot be edited.");
     }
 
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);

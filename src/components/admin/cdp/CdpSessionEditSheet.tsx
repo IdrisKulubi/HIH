@@ -194,6 +194,7 @@ export function CdpSessionEditSheet({
 
   const isPlanning = mode === "planning";
   const isReturned = !isPlanning && session?.approvalStatus === "rejected";
+  const isApproved = !isPlanning && session?.approvalStatus === "approved";
   const hasReportContent =
     !isPlanning &&
     Boolean(
@@ -240,17 +241,21 @@ export function CdpSessionEditSheet({
           <SheetTitle>
             {isPlanning
               ? "Edit session plan"
-              : isReturned
-                ? "Edit returned report"
-                : "Complete session report"}{" "}
+              : isApproved
+                ? "View session report"
+                : isReturned
+                  ? "Edit returned report"
+                  : "Complete session report"}{" "}
             {session?.sessionNumber ?? ""}
           </SheetTitle>
           <SheetDescription>
             {isPlanning
               ? "Set what will happen before the advisory session starts."
-              : isReturned
-                ? "Update the report based on the return reason, then resubmit for review."
-                : "Record the completed session outcomes and supporting evidence."}
+              : isApproved
+                ? "This report has been approved and is locked for audit."
+                : isReturned
+                  ? "Update the report based on the return reason, then resubmit for review."
+                  : "Record the completed session outcomes and supporting evidence."}
           </SheetDescription>
         </SheetHeader>
 
@@ -271,6 +276,13 @@ export function CdpSessionEditSheet({
                 <p className="mt-2 text-xs text-rose-800">Update the report and submit again.</p>
               </div>
             ) : null}
+            {isApproved ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                <p className="font-medium">This report is approved</p>
+                <p className="mt-2 text-xs text-emerald-800">Approved reports are locked and cannot be edited.</p>
+              </div>
+            ) : null}
+            <fieldset disabled={isApproved} className="space-y-6 disabled:opacity-80">
             {isPlanning ? (
               <section className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
@@ -449,27 +461,31 @@ export function CdpSessionEditSheet({
               </section>
             )}
 
+            </fieldset>
+
             <SheetFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-4">
               <div className="flex w-full flex-wrap justify-end gap-2">
-                {hasReportContent ? (
+                {hasReportContent && !isApproved ? (
                   <Button
                     type="button"
                     variant="destructive"
                     className="mr-auto"
                     onClick={handleDeleteReport}
-                    disabled={disabled || pending || isUploading || session?.approvalStatus === "approved"}
+                    disabled={disabled || pending || isUploading}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete report
                   </Button>
                 ) : null}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-                  Cancel
+                  {isApproved ? "Close" : "Cancel"}
                 </Button>
-                <Button type="submit" disabled={disabled || pending || isUploading}>
-                  {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
-                </Button>
+                {!isApproved ? (
+                  <Button type="submit" disabled={disabled || pending || isUploading}>
+                    {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
+                  </Button>
+                ) : null}
               </div>
             </SheetFooter>
           </form>
