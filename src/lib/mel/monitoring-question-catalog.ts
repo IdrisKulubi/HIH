@@ -177,6 +177,27 @@ export const ONE_TIME_QUESTION_BY_INDICATOR = Object.fromEntries(
     .map(([code, question]) => [question.indicatorCode, code])
 ) as Record<string, MonitoringQuestionCode>;
 
+/** One-time questions hidden because they were approved or satisfied in a prior quarter. */
+export function hiddenOneTimeQuestionCodes(
+  approvedIndicatorCodes: ReadonlyArray<string>,
+  priorVerifiedEvidenceQuestionCodes: ReadonlyArray<string>
+): MonitoringQuestionCode[] {
+  const codes = new Set<MonitoringQuestionCode>();
+  for (const indicatorCode of approvedIndicatorCodes) {
+    const questionCode = ONE_TIME_QUESTION_BY_INDICATOR[indicatorCode];
+    if (questionCode) codes.add(questionCode);
+  }
+  for (const questionCode of priorVerifiedEvidenceQuestionCodes) {
+    if (
+      questionCode in MONITORING_QUESTIONS &&
+      MONITORING_QUESTIONS[questionCode as MonitoringQuestionCode].oneTime
+    ) {
+      codes.add(questionCode as MonitoringQuestionCode);
+    }
+  }
+  return [...codes];
+}
+
 export function ageCategoryAt(dob: Date | string, reportingPeriodEnd: Date | string): string {
   const birth = new Date(typeof dob === "string" ? `${dob.slice(0, 10)}T00:00:00Z` : dob);
   const end = new Date(typeof reportingPeriodEnd === "string" ? `${reportingPeriodEnd.slice(0, 10)}T00:00:00Z` : reportingPeriodEnd);

@@ -43,6 +43,7 @@ import {
   WASTE_STREAMS,
 } from "@/lib/mel/monitoring-validation";
 import {
+  hiddenOneTimeQuestionCodes,
   MONITORING_QUESTIONS,
   ONE_TIME_QUESTION_BY_INDICATOR,
   type MonitoringQuestionCode,
@@ -517,9 +518,10 @@ export async function getMelMonitoringDetail(
       reusableEvidence,
       period,
       profile: stableProfile,
-      approvedOneTimeCodes: approvedAchievements
-        .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
-        .filter((code): code is MonitoringQuestionCode => Boolean(code)),
+      approvedOneTimeCodes: hiddenOneTimeQuestionCodes(
+        approvedAchievements.map(({ code }) => code),
+        reusableEvidence.map((item) => item.questionCode)
+      ),
       cumulativeJobs: {
         direct: cumulativeRows.find((row) => row.jobType === "direct") ?? emptyJobs,
         indirect: cumulativeRows.find((row) => row.jobType === "indirect") ?? emptyJobs,
@@ -620,19 +622,39 @@ export async function saveMelMonitoringAction(
       db.query.melEnterpriseFinancialBaselines.findFirst({ where: and(eq(melEnterpriseFinancialBaselines.businessId, submission.businessId), eq(melEnterpriseFinancialBaselines.status, "active")) }),
       db.query.melMonitoringSubmissions.findMany({ where: and(eq(melMonitoringSubmissions.businessId, submission.businessId), eq(melMonitoringSubmissions.status, "approved")), with: { reportingPeriod: true, response: true } }),
     ]);
+    const eligiblePriorSubmissions = priorApprovedSubmissions.filter(
+      (item) => item.id !== submission.id && item.reportingPeriod.endDate < period.endDate
+    );
+    const priorEvidence = eligiblePriorSubmissions.length
+      ? await db.query.melMonitoringEvidence.findMany({
+          where: and(
+            inArray(melMonitoringEvidence.submissionId, eligiblePriorSubmissions.map((item) => item.id)),
+            eq(melMonitoringEvidence.status, "active")
+          ),
+          with: { reviews: true },
+        })
+      : [];
+    const priorVerifiedOneTimeQuestionCodes = priorEvidence
+      .filter(
+        (item) =>
+          item.reviews.some((review) => review.status === "verified") &&
+          MONITORING_QUESTIONS[item.questionCode as MonitoringQuestionCode]?.oneTime
+      )
+      .map((item) => item.questionCode);
     const oneTimeIndicators = await db
       .select({ id: melIndicatorDefinitions.id, code: melIndicatorDefinitions.code })
       .from(melIndicatorDefinitions)
       .where(inArray(melIndicatorDefinitions.code, Object.keys(ONE_TIME_QUESTION_BY_INDICATOR)));
     const approvedCodes = new Set(
-      approvedAchievements
-        .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
-        .filter((code): code is MonitoringQuestionCode => Boolean(code))
+      hiddenOneTimeQuestionCodes(
+        approvedAchievements.map(({ code }) => code),
+        priorVerifiedOneTimeQuestionCodes
+      )
     );
 
     const profitLoss = input.revenue === null || input.costs === null ? null : calculateProfitLoss(input.revenue, input.costs);
-    const priorFinancial = priorApprovedSubmissions
-      .filter((item) => item.id !== submission.id && item.reportingPeriod.endDate < period.endDate && item.response?.revenue !== null && item.response?.costs !== null)
+    const priorFinancial = eligiblePriorSubmissions
+      .filter((item) => item.response?.revenue !== null && item.response?.costs !== null)
       .sort((left, right) => right.reportingPeriod.endDate.localeCompare(left.reportingPeriod.endDate))[0];
     const baselineSnapshot = financialBaseline ? {
       id: financialBaseline.id, effectiveDate: financialBaseline.effectiveDate,

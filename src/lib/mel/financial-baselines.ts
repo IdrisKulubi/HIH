@@ -52,7 +52,13 @@ export function calculateFinancialComparison(input: {
   const thresholdPercent = input.thresholdPercent ?? 100;
   const currentMonthly = monthly(input.quarterly, 3);
   const comparators: FinancialComparator[] = [];
-  if (input.baseline) comparators.push({ source: "baseline", label: input.baseline.label ?? "Opening baseline", values: monthly(input.baseline) });
+  if (input.baseline) {
+    comparators.push({
+      source: "baseline",
+      label: input.baseline.label ?? "Enterprise baseline",
+      values: monthly(input.baseline),
+    });
+  }
   if (input.priorApprovedQuarter) comparators.push({ source: "prior_approved", label: input.priorApprovedQuarter.label ?? "Previous approved quarter", values: monthly(input.priorApprovedQuarter, 3) });
 
   const variances: FinancialVariance[] = [];
@@ -60,6 +66,8 @@ export function calculateFinancialComparison(input: {
   if (currentMonthly.profit < 0) flags.push({ code: "negative_profit", source: "current", message: "The enterprise reports a loss for this quarter." });
 
   for (const comparator of comparators) {
+    const reference =
+      comparator.source === "baseline" ? "enterprise's baseline" : comparator.label;
     for (const measure of ["revenue", "costs", "profit"] as const) {
       const currentValue = currentMonthly[measure];
       const comparisonValue = comparator.values[measure];
@@ -67,7 +75,7 @@ export function calculateFinancialComparison(input: {
       variances.push({ measure, source: comparator.source, comparisonValue, currentValue, absoluteVariance: currentValue - comparisonValue, percentageVariance });
     }
     if (Math.sign(currentMonthly.profit) !== 0 && Math.sign(comparator.values.profit) !== 0 && Math.sign(currentMonthly.profit) !== Math.sign(comparator.values.profit)) {
-      flags.push({ code: "profit_sign_reversal", source: comparator.source, message: `Profitability changed direction compared with ${comparator.label}.` });
+      flags.push({ code: "profit_sign_reversal", source: comparator.source, message: `Profitability changed direction compared with ${reference}.` });
     }
     for (const measure of ["revenue", "costs"] as const) {
       const comparison = comparator.values[measure];
@@ -77,7 +85,7 @@ export function calculateFinancialComparison(input: {
         flags.push({
           code: measure === "revenue" ? "large_revenue_change" : "large_cost_change",
           source: comparator.source,
-          message: `${measure === "revenue" ? "Revenue" : "Costs"} changed by ${change === null ? "more than the zero starting value" : `${Math.abs(change).toFixed(1)}%`} compared with ${comparator.label}.`,
+          message: `${measure === "revenue" ? "Revenue" : "Costs"} changed by ${change === null ? "more than the zero starting value" : `${Math.abs(change).toFixed(1)}%`} compared with ${reference}.`,
         });
       }
     }

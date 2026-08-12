@@ -75,7 +75,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
 
         <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals.">
           <div className="space-y-6">
-            <JobFields label="How many new direct jobs have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid a minimum wage of KES 13,000 per month.)" prefix="direct" row={direct} cumulative={detail.cumulativeJobs.direct} includeRefugee={detail.includeRefugee} />
+            <JobFields label="How many new direct jobs have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid a minimum wage of KES 16,114 per month; daily wage = KES 775.)" prefix="direct" row={direct} cumulative={detail.cumulativeJobs.direct} includeRefugee={detail.includeRefugee} />
             <JobFields label="How many new indirect jobs have been created by the enterprise in the past 3 months? (Indirect jobs include suppliers, distributors, retailers, transporters, service providers and other people engaged by the business.)" prefix="indirect" row={indirect} cumulative={detail.cumulativeJobs.indirect} includeRefugee={detail.includeRefugee} />
             <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} />
           </div>
@@ -161,30 +161,24 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
 
 function EvidenceBooleanQuestion({ detail, code, value, locked, child }: { detail: MelMonitoringDetail; code: MonitoringQuestionCode; value: boolean | null | undefined; locked: boolean; child?: (state: { yes: boolean }) => React.ReactNode }) {
   const question = MONITORING_QUESTIONS[code];
-  const approved = detail.approvedOneTimeCodes.includes(code);
-  const currentReference = detail.evidenceReferences.find((item) => item.questionCode === code);
-  const reusable = detail.reusableEvidence.filter((item) => item.questionCode === code);
-  const [selection, setSelection] = useState(currentReference ? `reuse:${currentReference.sourceEvidence.id}` : value === null || value === undefined ? "" : String(value));
-  const yes = selection === "true" || selection.startsWith("reuse:");
+  const hidden = detail.approvedOneTimeCodes.includes(code);
+  const [selection, setSelection] = useState(value === null || value === undefined ? "" : String(value));
+  const yes = selection === "true";
   const no = selection === "false";
   const directEvidence = detail.evidence.filter((item) => item.questionCode === code);
 
-  if (approved) return null;
+  if (hidden) return null;
 
-  const reusedId = selection.startsWith("reuse:") ? selection.slice(6) : "";
   return (
     <div className="rounded-md border border-slate-200 p-4">
       <Label htmlFor={`${code}_selection`} className="leading-5">{question.label}</Label>
       <select id={`${code}_selection`} value={selection} onChange={(event) => setSelection(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm sm:max-w-md">
         <option value="">Select</option><option value="true">Yes</option><option value="false">No</option>
-        {reusable.map((item) => <option key={item.evidenceId} value={`reuse:${item.evidenceId}`}>Already done/submitted — {item.sourcePeriodLabel}</option>)}
       </select>
       <input type="hidden" name={question.field ?? undefined} value={yes ? "true" : no ? "false" : ""} />
-      {reusedId ? <input type="hidden" name={`reusedEvidence_${code}`} value={reusedId} /> : null}
       {child?.({ yes })}
-      {yes && !reusedId ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} /> : null}
+      {yes ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} /> : null}
       {no && directEvidence.length > 0 ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} stale /> : null}
-      {reusedId ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-xs text-emerald-900">Approved prior evidence will be referenced. The original file will not be duplicated.</p> : null}
     </div>
   );
 }
@@ -206,22 +200,48 @@ function ProfitFields({ detail, locked }: { detail: MelMonitoringDetail; locked:
   const [revenue, setRevenue] = useState(response?.revenue ?? "");
   const [costs, setCosts] = useState(response?.costs ?? "");
   const profit = useMemo(() => revenue === "" || costs === "" ? null : Number(revenue) - Number(costs), [costs, revenue]);
-  const comparison = useMemo(() => {
-    if (revenue === "" || costs === "") return null;
+  const quarterly = useMemo(
+    () => (revenue === "" || costs === "" ? null : { revenue: Number(revenue), costs: Number(costs) }),
+    [costs, revenue]
+  );
+  const baselineComparison = useMemo(() => {
+    if (!quarterly || !detail.financialBaseline) return null;
     const baseline = detail.financialBaseline;
     return calculateFinancialComparison({
-      quarterly: { revenue: Number(revenue), costs: Number(costs) },
-      baseline: baseline ? { label: `Baseline at ${baseline.effectiveDate}`, revenue: Number(baseline.monthlyRevenue), costs: Number(baseline.monthlyCosts), profit: Number(baseline.monthlyProfit) } : null,
+      quarterly,
+      baseline: {
+        label: "Enterprise baseline",
+        revenue: Number(baseline.monthlyRevenue),
+        costs: Number(baseline.monthlyCosts),
+        profit: Number(baseline.monthlyProfit),
+      },
+      thresholdPercent: detail.financialVarianceThresholdPercent,
+    });
+  }, [detail.financialBaseline, detail.financialVarianceThresholdPercent, quarterly]);
+  const fullComparison = useMemo(() => {
+    if (!quarterly) return null;
+    const baseline = detail.financialBaseline;
+    return calculateFinancialComparison({
+      quarterly,
+      baseline: baseline
+        ? {
+            label: "Enterprise baseline",
+            revenue: Number(baseline.monthlyRevenue),
+            costs: Number(baseline.monthlyCosts),
+            profit: Number(baseline.monthlyProfit),
+          }
+        : null,
       priorApprovedQuarter: detail.priorApprovedFinancials,
       thresholdPercent: detail.financialVarianceThresholdPercent,
     });
-  }, [costs, detail.financialBaseline, detail.financialVarianceThresholdPercent, detail.priorApprovedFinancials, revenue]);
+  }, [detail.financialBaseline, detail.financialVarianceThresholdPercent, detail.priorApprovedFinancials, quarterly]);
   const money = (value: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(value);
+  const baselineFlags = baselineComparison?.flags.filter((flag) => flag.source === "baseline" || flag.source === "current") ?? [];
   return <div className="space-y-4">
     <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="revenue">What is the enterprise TOTAL REVENUE in the past 3 months?</Label><Input id="revenue" name="revenue" type="number" min="0" step="0.01" value={revenue} onChange={(event) => setRevenue(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="costs">What is the enterprise&apos;s TOTAL COSTS in the past 3 months?</Label><Input id="costs" name="costs" type="number" min="0" step="0.01" value={costs} onChange={(event) => setCosts(event.target.value)} /></div><ReadOnlyField label="What is the enterprise’s PROFIT/LOSS (Total Revenue − Total Cost) in the past 3 months?" value={profit === null ? "Enter revenue and costs" : money(profit)} /></div>
-    {comparison && comparison.comparators.length ? <div className="rounded-md border border-blue-200 bg-blue-50/60 p-4"><p className="text-sm font-semibold text-slate-900">Individual enterprise progress</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500"><th className="pb-2">Measure</th>{comparison.comparators.map((item) => <th key={item.source} className="pb-2">{item.label}</th>)}<th className="pb-2">Current monthly equivalent</th></tr></thead><tbody>{(["revenue", "costs", "profit"] as const).map((measure) => <tr key={measure} className="border-t"><td className="py-2 font-medium capitalize">{measure}</td>{comparison.comparators.map((item) => <td key={item.source} className="py-2 tabular-nums">{money(item.values[measure])}</td>)}<td className="py-2 tabular-nums">{money(comparison.currentMonthly[measure])}</td></tr>)}</tbody></table></div>{comparison.flags.length ? <div className="mt-3 space-y-1">{comparison.flags.map((flag, index) => <p key={`${flag.code}-${flag.source}-${index}`} className="text-xs font-medium text-amber-800">• {flag.message}</p>)}</div> : <p className="mt-3 text-xs text-emerald-700">No material loss or 100% financial change was detected.</p>}</div> : null}
-    {comparison?.explanationRequired ? <div className="rounded-md border border-amber-300 bg-amber-50 p-4"><Label htmlFor="financialChangeExplanation">Please explain the material loss or unusually large change from this enterprise&apos;s baseline or previous approved quarter.</Label><Textarea id="financialChangeExplanation" name="financialChangeExplanation" defaultValue={response?.financialChangeExplanation ?? ""} rows={3} minLength={10} required className="mt-2" /><p className="mt-1 text-xs text-amber-800">Required because one or more financial alert rules were triggered.</p></div> : null}
     <QuestionEvidence submissionId={detail.submission.id} questionCode="profitability" evidence={detail.evidence} locked={locked} />
+    {baselineComparison && baselineComparison.comparators.length ? <div className="rounded-md border border-blue-200 bg-blue-50/60 p-4"><p className="text-sm font-semibold text-slate-900">Individual enterprise progress against baseline</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500"><th className="pb-2">Measure</th>{baselineComparison.comparators.map((item) => <th key={item.source} className="pb-2">{item.label}</th>)}<th className="pb-2">Current monthly equivalent</th></tr></thead><tbody>{(["revenue", "costs", "profit"] as const).map((measure) => <tr key={measure} className="border-t"><td className="py-2 font-medium capitalize">{measure}</td>{baselineComparison.comparators.map((item) => <td key={item.source} className="py-2 tabular-nums">{money(item.values[measure])}</td>)}<td className="py-2 tabular-nums">{money(baselineComparison.currentMonthly[measure])}</td></tr>)}</tbody></table></div>{baselineFlags.length ? <div className="mt-3 space-y-1">{baselineFlags.map((flag, index) => <p key={`${flag.code}-${flag.source}-${index}`} className="text-xs font-medium text-amber-800">• {flag.message}</p>)}</div> : <p className="mt-3 text-xs text-emerald-700">No material loss or 100% financial change was detected against the enterprise baseline.</p>}</div> : null}
+    {fullComparison?.explanationRequired ? <div className="rounded-md border border-amber-300 bg-amber-50 p-4"><Label htmlFor="financialChangeExplanation">Please explain the material loss or unusually large change from this enterprise&apos;s baseline or previous approved quarter.</Label><Textarea id="financialChangeExplanation" name="financialChangeExplanation" defaultValue={response?.financialChangeExplanation ?? ""} rows={3} minLength={10} required className="mt-2" /><p className="mt-1 text-xs text-amber-800">Required because one or more financial alert rules were triggered.</p></div> : null}
   </div>;
 }
 function JobFields({ label, prefix, row, cumulative, includeRefugee }: { label: string; prefix: string; row?: JobRow; cumulative: MelMonitoringDetail["cumulativeJobs"]["direct"]; includeRefugee: boolean }) { const fields = [["Total", "Total", row?.quarterlyTotal], ["Male", "Male", row?.male], ["Female", "Female", row?.female], ["Youth (18–35)", "Youth", row?.youth], ["PLWD", "Plwd", row?.plwd], ...(includeRefugee ? [["Refugee", "Refugee", row?.refugee] as const] : [])] as const; return <div><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="max-w-[75ch] text-sm font-semibold leading-5 text-slate-900">{label}</h3><p className="text-xs text-slate-600">Approved cumulative total: <span className="font-semibold text-slate-900">{cumulative.total}</span></p></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{fields.map(([display, suffix, value]) => <Field key={suffix} name={`${prefix}${suffix}`} label={display} type="number" min="0" step="1" value={value ?? ""} />)}</div></div>; }
