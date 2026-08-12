@@ -91,6 +91,7 @@ function completeInput(): MatchingGrantValidationInput {
         totalProjectAmount: 1_000_000,
         bireGrantAmount: 700_000,
         enterpriseContributionAmount: 300_000,
+        preferredCoInvestmentPct: 30,
         coInvestmentSource: "Own savings",
         coInvestmentJustification: "None",
         fundingNeed: "Scale production",
@@ -195,6 +196,16 @@ assert.ok(planErrors.some((error) => error.includes("Budget row 1")));
 const complete = completeInput();
 assert.equal(getFirstMatchingGrantValidationError(complete, context), null);
 
+const missingPreferredPct = completeInput();
+missingPreferredPct.preferredCoInvestmentPct = 0;
+const grantRequestErrors = getMatchingGrantStepValidationErrors("grant_request", missingPreferredPct, context);
+assert.ok(grantRequestErrors.some((error) => error.includes("Preferred co-investment percentage")));
+
+const invalidPreferredPct = completeInput();
+invalidPreferredPct.preferredCoInvestmentPct = 101;
+const invalidGrantRequestErrors = getMatchingGrantStepValidationErrors("grant_request", invalidPreferredPct, context);
+assert.ok(invalidGrantRequestErrors.some((error) => error.includes("Preferred co-investment percentage")));
+
 const draftOnly = validateMatchingGrantSubmitPayload(
     { status: "draft", projectTitle: "" },
     context
@@ -221,6 +232,7 @@ const payload = buildValidationInputFromApplicationPayload({
     totalProjectAmount: complete.totalProjectAmount,
     bireGrantAmount: complete.bireGrantAmount,
     enterpriseContributionAmount: complete.enterpriseContributionAmount,
+    preferredCoInvestmentPct: complete.preferredCoInvestmentPct,
     coInvestmentSource: complete.coInvestmentSource,
     coInvestmentJustification: complete.coInvestmentJustification,
     fundingNeed: complete.fundingNeed,

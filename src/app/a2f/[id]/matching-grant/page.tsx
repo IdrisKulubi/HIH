@@ -122,6 +122,7 @@ type FormState = {
     totalProjectAmount: number;
     bireGrantAmount: number;
     enterpriseContributionAmount: number;
+    preferredCoInvestmentPct: number;
     coInvestmentSource: string;
     coInvestmentJustification: string;
     projectTitle: string;
@@ -155,6 +156,7 @@ const EMPTY_FORM: FormState = {
     totalProjectAmount: 0,
     bireGrantAmount: 0,
     enterpriseContributionAmount: 0,
+    preferredCoInvestmentPct: 0,
     coInvestmentSource: "",
     coInvestmentJustification: "",
     projectTitle: "",
@@ -206,6 +208,7 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
         totalProjectAmount: data.totalProjectAmount,
         bireGrantAmount: data.bireGrantAmount,
         enterpriseContributionAmount: data.enterpriseContributionAmount,
+        preferredCoInvestmentPct: data.preferredCoInvestmentPct,
         coInvestmentSource: data.coInvestmentSource,
         coInvestmentJustification: data.coInvestmentJustification,
         projectTitle: data.projectTitle,
@@ -296,6 +299,7 @@ function fromRecord(record: any, fallback: FormState): FormState {
         totalProjectAmount: Number(record.totalProjectAmount ?? 0),
         bireGrantAmount: Number(record.bireGrantAmount ?? 0),
         enterpriseContributionAmount: Number(record.enterpriseContributionAmount ?? 0),
+        preferredCoInvestmentPct: Number(record.preferredCoInvestmentPct ?? 0),
         coInvestmentSource: record.coInvestmentSource ?? "",
         coInvestmentJustification: record.coInvestmentJustification ?? "",
         projectTitle: record.projectTitle ?? "",
@@ -1368,7 +1372,19 @@ function GrantRequestSection({
                 <NumberField label={req("Total Project Investment (KES)")} value={form.totalProjectAmount} onChange={v => setField("totalProjectAmount", v)} />
                 <NumberField label={req("BIRE Grant Amount (KES)")} value={form.bireGrantAmount} onChange={v => setField("bireGrantAmount", v)} />
                 <NumberField label={req("Enterprise Contribution (KES)")} value={form.enterpriseContributionAmount} onChange={v => setField("enterpriseContributionAmount", v)} />
+                <div>
+                    <NumberField label={req("Preferred co-investment percentage")} value={form.preferredCoInvestmentPct} onChange={v => setField("preferredCoInvestmentPct", v)} />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Enter the percentage of total project cost you prefer to contribute as enterprise co-investment.
+                    </p>
+                </div>
                 <TextField label={req("Co-Investment Source")} value={form.coInvestmentSource} onChange={v => setField("coInvestmentSource", v)} className="md:col-span-3" />
+                <div className="md:col-span-3 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                    <p className="font-medium">Note</p>
+                    <p className="mt-1">
+                        Stating your preferred co-investment percentage does not guarantee that you will be awarded funding at that percentage. The final co-investment split will be determined based on consideration of various factors, including financial readiness, project viability, and programme guidelines.
+                    </p>
+                </div>
                 <LongField label={req("Why is this funding needed now?")} value={form.fundingNeed} onChange={v => setField("fundingNeed", v)} />
                 <LongField label={req("What would happen without this grant?")} value={form.withoutGrantImpact} onChange={v => setField("withoutGrantImpact", v)} />
                 <LongField label={req("Co-investment notes / justification")} value={form.coInvestmentJustification} onChange={v => setField("coInvestmentJustification", v)} />
@@ -1454,6 +1470,7 @@ function WizardReviewSummary({
                     <ReviewRow label="Total project" value={summary.totalProject > 0 ? `KES ${summary.totalProject.toLocaleString("en-KE")}` : "—"} />
                     <ReviewRow label="BIRE grant requested" value={summary.bireGrant > 0 ? `KES ${summary.bireGrant.toLocaleString("en-KE")}` : "—"} />
                     <ReviewRow label="Enterprise contribution" value={summary.enterpriseContribution > 0 ? `KES ${summary.enterpriseContribution.toLocaleString("en-KE")}` : "—"} />
+                    <ReviewRow label="Preferred co-investment" value={summary.preferredCoInvestmentPct > 0 ? `${summary.preferredCoInvestmentPct}%` : "—"} />
                     <ReviewRow label="Budget line items" value={String(summary.budgetLines)} />
                     <ReviewRow label="Mandatory documents enclosed" value={`${summary.docsConfirmed} / ${summary.docsTotal}`} />
                     <ReviewRow label="Declaration" value={summary.declarationAccepted ? "Accepted" : "Pending"} />

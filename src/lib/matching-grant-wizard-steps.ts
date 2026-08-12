@@ -154,6 +154,7 @@ export function getWizardReviewSummary(
         totalProject: form.totalProjectAmount,
         bireGrant: form.bireGrantAmount,
         enterpriseContribution: form.enterpriseContributionAmount,
+        preferredCoInvestmentPct: form.preferredCoInvestmentPct,
         budgetLines,
         docsConfirmed,
         docsTotal,

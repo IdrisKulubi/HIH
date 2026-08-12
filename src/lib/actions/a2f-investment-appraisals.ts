@@ -192,6 +192,7 @@ export async function getAutoPopulatedAppraisalContent(
             line("Business case", businessOverview.growthOpportunity ?? businessOverview.businessCase),
             line("CAPEX-only confirmation", mg?.capexOnlyConfirmed ? "Confirmed" : "Not yet confirmed"),
             line("Co-investment source", mg?.coInvestmentSource),
+            line("Preferred co-investment percentage", mg?.preferredCoInvestmentPct != null ? `${mg.preferredCoInvestmentPct}%` : null),
             line("Co-investment justification", mg?.coInvestmentJustification)
         );
 
@@ -215,6 +216,7 @@ export async function getAutoPopulatedAppraisalContent(
                 line("BIRE grant requested", money(requestedAmount)),
                 line("Enterprise contribution", money(enterpriseContribution)),
                 line("Co-investment source", mg?.coInvestmentSource),
+                line("Preferred co-investment percentage", mg?.preferredCoInvestmentPct != null ? `${mg.preferredCoInvestmentPct}%` : null),
                 line("Other funding/leverage", otherFunding.description ?? otherFunding.sources),
                 line("DD source notes", ddFinancial.grantUtilizationPlan)
             ),

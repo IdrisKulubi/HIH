@@ -3893,6 +3893,7 @@ export const a2fMatchingGrantApplications = pgTable('a2f_matching_grant_applicat
   enterpriseContributionAmount: decimal('enterprise_contribution_amount', { precision: 14, scale: 2 }).default('0').notNull(),
   coInvestmentSource: text('co_investment_source'),
   coInvestmentJustification: text('co_investment_justification'),
+  preferredCoInvestmentPct: decimal('preferred_co_investment_pct', { precision: 5, scale: 2 }),
   projectTitle: text('project_title'),
   fundingNeed: text('funding_need'),
   withoutGrantImpact: text('without_grant_impact'),
