@@ -7,6 +7,7 @@ import {
   mentors,
   mentorshipMatches,
   mentorshipSessions,
+  userProfiles,
   users,
 } from "@/db/schema";
 import { and, asc, desc, eq } from "drizzle-orm";
@@ -63,6 +64,63 @@ const createMentorSchema = z.object({
   expertiseArea: z.enum(sectorValues),
 });
 
+export type MentorCandidate = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+};
+
+export async function listUsersForMentorOnboarding(): Promise<
+  ActionResponse<MentorCandidate[]>
+> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        firstName: userProfiles.firstName,
+        lastName: userProfiles.lastName,
+        role: userProfiles.role,
+      })
+      .from(users)
+      .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
+      .orderBy(asc(userProfiles.lastName), asc(userProfiles.firstName))
+      .limit(500);
+
+    let taken = new Set<string>();
+    try {
+      const existing = await db
+        .select({ userId: mentors.userId })
+        .from(mentors);
+      taken = new Set(existing.map((r) => r.userId));
+    } catch (e) {
+      if (!isPgUndefinedTableError(e)) throw e;
+    }
+
+    const data: MentorCandidate[] = rows
+      .filter((r) => !taken.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        email: r.email,
+        name: [r.firstName, r.lastName].filter(Boolean).join(" ").trim() || r.name || r.email,
+        role: r.role ?? "applicant",
+      }));
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("listUsersForMentorOnboarding", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to load users");
+  }
+}
+
 export async function createMentor(
   input: z.infer<typeof createMentorSchema>
 ): Promise<ActionResponse<{ id: number }>> {
@@ -94,7 +152,22 @@ export async function createMentor(
       })
       .returning({ id: mentors.id });
 
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, user.id),
+    });
+    if (profile?.role === "applicant") {
+      await db
+        .update(userProfiles)
+        .set({ role: "mentor", updatedAt: new Date() })
+        .where(eq(userProfiles.userId, user.id));
+      await db
+        .update(users)
+        .set({ role: "user", updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
+
     revalidatePath("/admin/mentorship");
+    revalidatePath("/admin/users");
     return successResponse({ id: row.id });
   } catch (e) {
     console.error("createMentor", e);

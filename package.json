@@ -24,6 +24,7 @@
     "test:mel-enterprise-export": "npx tsx src/lib/mel/enterprise-export.manual.test.ts",
     "migrate:mel-historical": "npx tsx scripts/migrate-mel-historical.ts",
     "check:mel-schema": "npx tsx scripts/check-mel-schema.ts",
+    "check:mentorship-schema": "npx tsx scripts/check-mentorship-schema.ts",
     "seed:cna-questions": "npx tsx scripts/seed-cna-question-bank.ts",
     "seed:mel-phase1": "npx tsx scripts/seed-mel-phase1.ts",
     "db:push": "drizzle-kit push",

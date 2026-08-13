@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { listBusinessesWithApplicantForAdmin } from "@/lib/actions/cna";
-import { listMentorsForAdmin } from "@/lib/actions/mentorship";
+import { listMentorsForAdmin, listUsersForMentorOnboarding } from "@/lib/actions/mentorship";
 import { MentorCreateForm } from "@/components/admin/mentorship/MentorCreateForm";
+import { MentorshipBusinessTable } from "@/components/admin/mentorship/MentorshipBusinessTable";
 import {
   Table,
   TableBody,
@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminMentorshipPage() {
-  const [mentorsRes, businessesRes] = await Promise.all([
+  const [mentorsRes, businessesRes, usersRes] = await Promise.all([
     listMentorsForAdmin(),
     listBusinessesWithApplicantForAdmin(),
+    listUsersForMentorOnboarding(),
   ]);
 
   return (
@@ -28,7 +29,10 @@ export default async function AdminMentorshipPage() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-medium">Create mentor</h2>
-        <MentorCreateForm />
+        <MentorCreateForm users={usersRes.success && usersRes.data ? usersRes.data : []} />
+        {!usersRes.success && usersRes.error ? (
+          <p className="text-sm text-destructive">{usersRes.error}</p>
+        ) : null}
       </section>
 
       <section className="space-y-4">
@@ -64,31 +68,7 @@ export default async function AdminMentorshipPage() {
         {!businessesRes.success || !businessesRes.data ? (
           <p className="text-destructive text-sm">{businessesRes.error ?? "Failed to load"}</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Business</TableHead>
-                <TableHead>Applicant</TableHead>
-                <TableHead className="text-right">Matches</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {businessesRes.data.map((b) => (
-                <TableRow key={b.businessId}>
-                  <TableCell className="font-medium">{b.businessName}</TableCell>
-                  <TableCell>{b.applicantName}</TableCell>
-                  <TableCell className="text-right">
-                    <Link
-                      href={`/admin/mentorship/matches/${b.businessId}`}
-                      className="text-sky-700 hover:underline text-sm font-medium"
-                    >
-                      Manage
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <MentorshipBusinessTable rows={businessesRes.data} />
         )}
       </section>
     </div>
