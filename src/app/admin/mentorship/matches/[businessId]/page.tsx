@@ -93,6 +93,8 @@ export default async function AdminMentorshipMatchesPage({
                         sessionNumber={s.sessionNumber}
                         sessionType={s.sessionType}
                         status={s.status}
+                        photographicEvidenceUrl={s.photographicEvidenceUrl}
+                        diagnosticNotes={s.diagnosticNotes}
                       />
                     </div>
                   ))}

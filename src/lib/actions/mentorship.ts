@@ -324,7 +324,7 @@ export async function completeMentorshipSession(input: {
     if (row.sessionType === "physical") {
       if (!notes.length || !photo.length) {
         return errorResponse(
-          "Physical sessions require diagnostic notes and a photographic evidence URL before completion."
+          "Physical sessions require diagnostic notes and evidence (upload or URL)."
         );
       }
     }
