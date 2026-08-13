@@ -51,7 +51,7 @@ export function MentorCreateForm({ users }: { users: MentorCandidate[] }) {
   const [state, formAction, pending] = useActionState(createMentorFromForm, initial);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<(typeof ROLE_FILTERS)[number]["value"]>("all");
+  const [roleFilter, setRoleFilter] = useState<(typeof ROLE_FILTERS)[number]["value"]>("mentor");
   const [selectedEmail, setSelectedEmail] = useState("");
 
   const selected = users.find((u) => u.email === selectedEmail) ?? null;
@@ -120,8 +120,10 @@ export function MentorCreateForm({ users }: { users: MentorCandidate[] }) {
                     {filtered.map((u) => (
                       <CommandItem
                         key={u.id}
-                        value={u.email}
+                        value={`${u.name} ${u.email} ${u.id} ${u.role}`}
+                        disabled={u.alreadyMentor}
                         onSelect={() => {
+                          if (u.alreadyMentor) return;
                           setSelectedEmail(u.email);
                           setOpen(false);
                         }}
@@ -136,7 +138,8 @@ export function MentorCreateForm({ users }: { users: MentorCandidate[] }) {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">{u.name}</p>
                           <p className="truncate text-xs text-muted-foreground">
-                            {u.email} · {roleLabel(u.role)} · {u.id.slice(0, 8)}
+                            {u.email} · {roleLabel(u.role)}
+                            {u.alreadyMentor ? " · already a mentor" : ""}
                           </p>
                         </div>
                       </CommandItem>

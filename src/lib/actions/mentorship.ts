@@ -10,7 +10,7 @@ import {
   userProfiles,
   users,
 } from "@/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
@@ -69,7 +69,50 @@ export type MentorCandidate = {
   email: string;
   name: string;
   role: string;
+  alreadyMentor: boolean;
 };
+
+function toCandidate(
+  r: {
+    id: string;
+    email: string;
+    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    role: string | null;
+  },
+  alreadyMentor: boolean
+): MentorCandidate {
+  return {
+    id: r.id,
+    email: r.email,
+    name: [r.firstName, r.lastName].filter(Boolean).join(" ").trim() || r.name || r.email,
+    role: r.role ?? "applicant",
+    alreadyMentor,
+  };
+}
+
+/** Users with role TA (`mentor`) get a mentors row so they can be assigned. */
+async function syncTaUsersIntoMentorsTable() {
+  const taUsers = await db
+    .select({ userId: userProfiles.userId })
+    .from(userProfiles)
+    .where(eq(userProfiles.role, "mentor"));
+
+  if (taUsers.length === 0) return;
+
+  const existing = await db.select({ userId: mentors.userId }).from(mentors);
+  const taken = new Set(existing.map((r) => r.userId));
+  const toInsert = taUsers.filter((u) => !taken.has(u.userId));
+  if (toInsert.length === 0) return;
+
+  await db.insert(mentors).values(
+    toInsert.map((u) => ({
+      userId: u.userId,
+      expertiseArea: "other" as const,
+    }))
+  );
+}
 
 export async function listUsersForMentorOnboarding(): Promise<
   ActionResponse<MentorCandidate[]>
@@ -80,38 +123,46 @@ export async function listUsersForMentorOnboarding(): Promise<
       return errorResponse("Unauthorized");
     }
 
-    const rows = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        firstName: userProfiles.firstName,
-        lastName: userProfiles.lastName,
-        role: userProfiles.role,
-      })
-      .from(users)
-      .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
-      .orderBy(asc(userProfiles.lastName), asc(userProfiles.firstName))
-      .limit(500);
+    const userSelect = {
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      firstName: userProfiles.firstName,
+      lastName: userProfiles.lastName,
+      role: userProfiles.role,
+    };
+
+    const [taRows, otherRows] = await Promise.all([
+      db
+        .select(userSelect)
+        .from(users)
+        .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
+        .where(eq(userProfiles.role, "mentor"))
+        .orderBy(asc(userProfiles.lastName), asc(userProfiles.firstName)),
+      db
+        .select(userSelect)
+        .from(users)
+        .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
+        .where(ne(userProfiles.role, "mentor"))
+        .orderBy(asc(userProfiles.lastName), asc(userProfiles.firstName))
+        .limit(400),
+    ]);
 
     let taken = new Set<string>();
     try {
-      const existing = await db
-        .select({ userId: mentors.userId })
-        .from(mentors);
+      const existing = await db.select({ userId: mentors.userId }).from(mentors);
       taken = new Set(existing.map((r) => r.userId));
     } catch (e) {
       if (!isPgUndefinedTableError(e)) throw e;
     }
 
-    const data: MentorCandidate[] = rows
-      .filter((r) => !taken.has(r.id))
-      .map((r) => ({
-        id: r.id,
-        email: r.email,
-        name: [r.firstName, r.lastName].filter(Boolean).join(" ").trim() || r.name || r.email,
-        role: r.role ?? "applicant",
-      }));
+    const seen = new Set<string>();
+    const data: MentorCandidate[] = [];
+    for (const r of [...taRows, ...otherRows]) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      data.push(toCandidate(r, taken.has(r.id)));
+    }
 
     return successResponse(data);
   } catch (e) {
@@ -331,6 +382,12 @@ export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRo
     const authSession = await auth();
     if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
       return errorResponse("Unauthorized");
+    }
+
+    try {
+      await syncTaUsersIntoMentorsTable();
+    } catch (e) {
+      if (!isPgUndefinedTableError(e)) throw e;
     }
 
     const rows = await db.query.mentors.findMany({

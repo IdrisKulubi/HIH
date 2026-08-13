@@ -32,6 +32,7 @@ export default async function AdminMentorshipMatchesPage({
       ? mentorsRes.data.map((m) => ({
           id: m.id,
           userEmail: m.userEmail,
+          userName: m.userName,
           expertiseArea: m.expertiseArea,
         }))
       : [];
