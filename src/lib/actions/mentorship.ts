@@ -21,6 +21,33 @@ function isPhase2Admin(role?: string | null) {
   return !!role && ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number]);
 }
 
+function isMentorRole(role?: string | null) {
+  return role === "mentor";
+}
+
+async function mentorOwnsSession(userId: string, sessionId: number): Promise<boolean> {
+  const row = await db.query.mentorshipSessions.findFirst({
+    where: eq(mentorshipSessions.id, sessionId),
+    with: {
+      match: {
+        with: { mentor: true },
+      },
+    },
+  });
+  if (!row?.match?.mentor) return false;
+  return row.match.mentor.userId === userId;
+}
+
+async function canCompleteMentorshipSession(
+  userId: string,
+  role: string | null | undefined,
+  sessionId: number
+): Promise<boolean> {
+  if (isPhase2Admin(role)) return true;
+  if (!isMentorRole(role)) return false;
+  return mentorOwnsSession(userId, sessionId);
+}
+
 /** Postgres undefined_table — usually migrations not applied to this database. */
 function isPgUndefinedTableError(e: unknown): boolean {
   const chain: unknown[] = [e];
@@ -292,7 +319,16 @@ export async function completeMentorshipSession(input: {
 }): Promise<ActionResponse<void>> {
   try {
     const authSession = await auth();
-    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+    if (!authSession?.user?.id) {
+      return errorResponse("Unauthorized");
+    }
+
+    const allowed = await canCompleteMentorshipSession(
+      authSession.user.id,
+      authSession.user.role ?? null,
+      input.sessionId
+    );
+    if (!allowed) {
       return errorResponse("Unauthorized");
     }
 
@@ -347,6 +383,7 @@ export async function completeMentorshipSession(input: {
       revalidatePath(`/admin/mentorship/matches/${match.businessId}`);
     }
     revalidatePath("/admin/mentorship");
+    revalidatePath("/mentor");
     return successResponse(undefined);
   } catch (e) {
     console.error("completeMentorshipSession", e);
@@ -444,6 +481,75 @@ export async function listMentorshipMatchesForBusiness(
     console.error("listMentorshipMatchesForBusiness", e);
     if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
     return errorResponse("Failed to load matches");
+  }
+}
+
+export type MyMentorshipMatchRow = {
+  id: number;
+  status: string;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  sessions: Array<{
+    id: number;
+    sessionNumber: number;
+    sessionType: "physical" | "virtual";
+    status: string;
+    scheduledDate: Date;
+    diagnosticNotes: string | null;
+    photographicEvidenceUrl: string | null;
+  }>;
+};
+
+export async function listMyMentorshipMatches(): Promise<
+  ActionResponse<MyMentorshipMatchRow[]>
+> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isMentorRole(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const mentor = await db.query.mentors.findFirst({
+      where: eq(mentors.userId, authSession.user.id),
+    });
+    if (!mentor) {
+      return successResponse([]);
+    }
+
+    const matches = await db.query.mentorshipMatches.findMany({
+      where: eq(mentorshipMatches.mentorId, mentor.id),
+      orderBy: (m, { desc }) => [desc(m.createdAt)],
+      with: {
+        business: { with: { applicant: true } },
+        sessions: {
+          orderBy: (s, { asc }) => [asc(s.sessionNumber)],
+        },
+      },
+    });
+
+    const data: MyMentorshipMatchRow[] = matches.map((match) => ({
+      id: match.id,
+      status: match.status,
+      businessId: match.businessId,
+      businessName: match.business.name,
+      applicantName: `${match.business.applicant.firstName} ${match.business.applicant.lastName}`.trim(),
+      sessions: match.sessions.map((s) => ({
+        id: s.id,
+        sessionNumber: s.sessionNumber,
+        sessionType: s.sessionType,
+        status: s.status,
+        scheduledDate: s.scheduledDate,
+        diagnosticNotes: s.diagnosticNotes,
+        photographicEvidenceUrl: s.photographicEvidenceUrl,
+      })),
+    }));
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("listMyMentorshipMatches", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to load your mentorship matches");
   }
 }
 

@@ -21,7 +21,7 @@ const authenticatePhase2AdminUpload = async () => {
   if (!session?.user?.id) {
     throw new UploadThingError("Unauthorized");
   }
-  if (!["admin", "oversight"].includes(session.user.role ?? "")) {
+  if (!["admin", "oversight", "mentor"].includes(session.user.role ?? "")) {
     throw new UploadThingError("Admin access required");
   }
   return { userId: session.user.id };
