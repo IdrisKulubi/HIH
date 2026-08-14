@@ -770,33 +770,35 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       unavailableExplanation: relevantCalculation?.actual === null
         ? relevantCalculation.exclusions[0] ?? "No approved result is available through this reporting period."
         : programmeWide ? demographicFilterNote : null,
-      trend: points.map((point) => ({
-        periodId: point.period.id,
-        periodLabel: isOp11CountIndicator(definition.code) && isY1PreDeliveryPeriod(point.period)
-          ? `${point.period.label} · Official Y1 achievement`
-          : point.period.label,
-        overall: point.overall.actual,
-        foundation: point.foundation?.actual ?? null,
-        acceleration: point.acceleration?.actual ?? null,
-        ratios: {
-          overall: { numerator: point.overall.numerator, denominator: point.overall.denominator },
-          foundation: point.foundation ? { numerator: point.foundation.numerator, denominator: point.foundation.denominator } : null,
-          acceleration: point.acceleration ? { numerator: point.acceleration.numerator, denominator: point.acceleration.denominator } : null,
-        },
-      })),
+      trend: points
+        .filter((point) => !isY1PreDeliveryPeriod(point.period))
+        .map((point) => ({
+          periodId: point.period.id,
+          periodLabel: point.period.label,
+          overall: point.overall.actual,
+          foundation: point.foundation?.actual ?? null,
+          acceleration: point.acceleration?.actual ?? null,
+          ratios: {
+            overall: { numerator: point.overall.numerator, denominator: point.overall.denominator },
+            foundation: point.foundation ? { numerator: point.foundation.numerator, denominator: point.foundation.denominator } : null,
+            acceleration: point.acceleration ? { numerator: point.acceleration.numerator, denominator: point.acceleration.denominator } : null,
+          },
+        })),
     };
   });
 
   const profitabilityTrend: MelProfitabilityTrendPoint[] = (visualizationCalculations.get(
     definitions.find((definition) => definition.code === "LT1-PROFITABILITY-INCREASE")?.id ?? -1
-  ) ?? []).map((point) => ({
-    periodId: point.period.id,
-    periodLabel: point.period.label,
-    foundation: point.foundation?.numerator ?? (filters.track === "foundation" ? point.overall.numerator : null),
-    foundationBaseline: numeric(settings?.monthlyFinancialBaselines?.foundation.profit) ?? 50000,
-    acceleration: point.acceleration?.numerator ?? (filters.track === "acceleration" ? point.overall.numerator : null),
-    accelerationBaseline: numeric(settings?.monthlyFinancialBaselines?.acceleration.profit) ?? 150000,
-  }));
+  ) ?? [])
+    .filter((point) => !isY1PreDeliveryPeriod(point.period))
+    .map((point) => ({
+      periodId: point.period.id,
+      periodLabel: point.period.label,
+      foundation: point.foundation?.numerator ?? (filters.track === "foundation" ? point.overall.numerator : null),
+      foundationBaseline: numeric(settings?.monthlyFinancialBaselines?.foundation.profit) ?? 50000,
+      acceleration: point.acceleration?.numerator ?? (filters.track === "acceleration" ? point.overall.numerator : null),
+      accelerationBaseline: numeric(settings?.monthlyFinancialBaselines?.acceleration.profit) ?? 150000,
+    }));
   const eligibleEnterpriseCount = new Set(scopedAllSubmissions.map((submission) => submission.businessId)).size;
   const expectedReports = eligibleEnterpriseCount * includedPeriods.length;
   const activeEvidence = evidence.filter((item) => item.status === "active" && includedSubmissionIds.has(item.submissionId));

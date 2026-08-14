@@ -330,6 +330,13 @@
       "when": 1786579200000,
       "tag": "0046_repair_mel_programme_result_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786665600000,
+      "tag": "0048_update_y1_y2_monitoring_calendar",
+      "breakpoints": true
     }
   ]
 }

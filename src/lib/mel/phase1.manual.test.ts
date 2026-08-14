@@ -27,7 +27,7 @@ function testReportingPeriods() {
   );
   assert.equal(MEL_PROGRAMME_YEARS[0].startDate, "2025-10-15");
   assert.equal(MEL_PROGRAMME_YEARS[2].endDate, "2028-10-14");
-  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.length, 13);
+  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.length, 11);
   assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.filter((period) => period.status === "open").length, 1);
   const y1Mq1 = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-MQ1");
   assert.ok(y1Mq1);
