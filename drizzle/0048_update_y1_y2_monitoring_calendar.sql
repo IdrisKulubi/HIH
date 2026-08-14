@@ -92,7 +92,7 @@ WHERE "code" = 'Y3-MQ3';
 
 UPDATE "mel_reporting_periods"
 SET
-  "label" = 'Y3 Monitoring Q4 (Sept–Nov 2028)',
+  "label" = 'Y3 Monitoring Q4 (Sept–Oct 2028)',
   "start_date" = '2028-09-01',
   "end_date" = '2028-11-30',
   "collection_open_date" = '2028-09-01',

@@ -117,6 +117,9 @@ export const MelReportApprovedEmail = ({
                   </Section>
                 ))
               )}
+              <Text className="text-sm text-slate-700 m-0 mt-4">
+                Please link the entrepreneur to a mentor for specialized support where necessary.
+              </Text>
             </Section>
 
             {reviewerNote ? (
