@@ -1343,7 +1343,7 @@ const sessionCreateSchema = z.object({
   focusCodes: z.array(cdpFocusCodeSchema).default([]),
   agenda: z.string().max(8000).optional().nullable(),
   subtopic: z.string().max(8000).optional().nullable(),
-  supportType: z.string().max(500).optional().nullable(),
+  supportType: z.string().max(8000).optional().nullable(),
   durationHours: z.number().min(0).max(24).optional().nullable(),
   keyActionsAgreed: z.string().max(8000).optional().nullable(),
   challengesRaised: z.string().max(8000).optional().nullable(),
@@ -1372,6 +1372,30 @@ const sessionCreateSchema = z.object({
   initialActionDescriptions: z.array(z.string().max(2000)).max(30).optional().nullable(),
 });
 
+function sessionValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Check the session details and try again.";
+
+  const path = issue.path.join(".");
+  const labels: Record<string, string> = {
+    planId: "CDP plan",
+    focusCode: "Focus area",
+    sessionNumber: "Session number",
+    sessionDate: "Session date",
+    focusCodes: "Additional focus codes",
+    agenda: "Topic",
+    subtopic: "Subtopic",
+    supportType: "BDS objective",
+    durationHours: "Duration",
+    followUpDate: "Follow-up date",
+  };
+  const label = path.startsWith("evidenceFiles")
+    ? "Supporting document"
+    : labels[path] ?? path ?? "Session";
+
+  return `${label}: ${issue.message}`;
+}
+
 export async function createCdpSupportSession(
   input: z.infer<typeof sessionCreateSchema>
 ): Promise<ActionResponse<{ id: number; businessId: number }>> {
@@ -1381,7 +1405,7 @@ export async function createCdpSupportSession(
       return errorResponse("Unauthorized");
     }
     const parsed = sessionCreateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session");
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, parsed.data.focusCode);
     if (focusGate) return errorResponse(focusGate);
 
@@ -1484,7 +1508,7 @@ export async function updateCdpSupportSession(
       return errorResponse("Unauthorized");
     }
     const parsed = sessionUpdateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session");
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, parsed.data.focusCode);
     if (focusGate) return errorResponse(focusGate);
 
@@ -1591,22 +1615,6 @@ const sessionReportUpdateSchema = sessionCreateSchema
     ),
   });
 
-function sessionReportValidationError(error: z.ZodError): string {
-  const issue = error.issues[0];
-  if (!issue) return "Check the session report fields and try again.";
-
-  const path = issue.path.join(".");
-  const label = path.startsWith("evidenceFiles")
-    ? "Supporting document"
-    : path === "durationHours"
-      ? "Duration"
-      : path === "followUpDate"
-        ? "Follow-up date"
-        : path || "Session report";
-
-  return `${label}: ${issue.message}`;
-}
-
 export async function updateCdpSessionReport(
   input: z.infer<typeof sessionReportUpdateSchema>
 ): Promise<ActionResponse<{ businessId: number }>> {
@@ -1617,7 +1625,7 @@ export async function updateCdpSessionReport(
     }
 
     const parsed = sessionReportUpdateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse(sessionReportValidationError(parsed.error));
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
 
     const existing = await db.query.cdpBusinessSupportSessions.findFirst({
       where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),

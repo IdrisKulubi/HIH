@@ -2510,7 +2510,7 @@ function CdpSessionsPanel({
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="supportType">BDS objective</Label>
-            <Textarea id="supportType" name="supportType" rows={3} placeholder="What should the enterprise be able to do after this session?" required />
+            <Textarea id="supportType" name="supportType" rows={3} maxLength={8000} placeholder="What should the enterprise be able to do after this session?" required />
           </div>
           <Button type="submit" disabled={pending}>
             Save session

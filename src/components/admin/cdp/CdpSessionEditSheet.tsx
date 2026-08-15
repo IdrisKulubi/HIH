@@ -337,7 +337,7 @@ export function CdpSessionEditSheet({
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label>BDS objective</Label>
-                  <Textarea name="supportType" rows={3} defaultValue={session.supportType ?? ""} required />
+                  <Textarea name="supportType" rows={3} maxLength={8000} defaultValue={session.supportType ?? ""} required />
                 </div>
               </section>
             ) : (
