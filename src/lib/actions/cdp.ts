@@ -1357,12 +1357,12 @@ const sessionCreateSchema = z.object({
   evidenceFiles: z
     .array(
       z.object({
-        key: z.string().min(1).max(500).optional(),
-        url: z.string().url().max(1000),
+        key: z.string().min(1).max(500).optional().nullable(),
+        url: z.string().trim().url().max(2000),
         name: z.string().min(1).max(500),
-        type: z.string().max(200),
+        type: z.string().max(200).optional().nullable(),
         uploadedById: z.string().max(200).optional().nullable(),
-        uploadedAt: z.string().max(100),
+        uploadedAt: z.string().max(100).optional().nullable(),
       })
     )
     .max(20)
@@ -1399,9 +1399,13 @@ export async function createCdpSupportSession(
       parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
     const sessionType = parsed.data.sessionType ?? "virtual";
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
-    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
-      ...file,
+    const evidenceFiles: CdpEvidenceFile[] = (parsed.data.evidenceFiles ?? []).map((file) => ({
+      key: file.key ?? undefined,
+      url: file.url.trim(),
+      name: file.name.trim(),
+      type: file.type?.trim() || "application/octet-stream",
       uploadedById: file.uploadedById ?? session.user!.id,
+      uploadedAt: file.uploadedAt?.trim() || new Date().toISOString(),
     }));
 
     if (n > 1) {
@@ -1578,7 +1582,30 @@ const sessionReportUpdateSchema = sessionCreateSchema
     evidenceUrls: true,
     evidenceFiles: true,
   })
-  .extend({ sessionId: z.number().int().positive() });
+  .extend({
+    planId: z.coerce.number().int().positive(),
+    sessionId: z.coerce.number().int().positive(),
+    durationHours: z.preprocess(
+      (value) => (value === "" || value == null ? null : value),
+      z.coerce.number().min(0).max(24).nullable()
+    ),
+  });
+
+function sessionReportValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Check the session report fields and try again.";
+
+  const path = issue.path.join(".");
+  const label = path.startsWith("evidenceFiles")
+    ? "Supporting document"
+    : path === "durationHours"
+      ? "Duration"
+      : path === "followUpDate"
+        ? "Follow-up date"
+        : path || "Session report";
+
+  return `${label}: ${issue.message}`;
+}
 
 export async function updateCdpSessionReport(
   input: z.infer<typeof sessionReportUpdateSchema>
@@ -1590,7 +1617,7 @@ export async function updateCdpSessionReport(
     }
 
     const parsed = sessionReportUpdateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session report");
+    if (!parsed.success) return errorResponse(sessionReportValidationError(parsed.error));
 
     const existing = await db.query.cdpBusinessSupportSessions.findFirst({
       where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),
@@ -1625,9 +1652,13 @@ export async function updateCdpSessionReport(
     }
 
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((url) => url.trim()).filter(Boolean);
-    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
-      ...file,
+    const evidenceFiles: CdpEvidenceFile[] = (parsed.data.evidenceFiles ?? []).map((file) => ({
+      key: file.key ?? undefined,
+      url: file.url.trim(),
+      name: file.name.trim(),
+      type: file.type?.trim() || "application/octet-stream",
       uploadedById: file.uploadedById ?? session.user!.id,
+      uploadedAt: file.uploadedAt?.trim() || new Date().toISOString(),
     }));
     const retainedEvidenceUrls = new Set(evidenceFiles.map((file) => file.url));
     const removedEvidenceFiles = ((existing.evidenceFiles ?? []) as CdpEvidenceFile[]).filter(
