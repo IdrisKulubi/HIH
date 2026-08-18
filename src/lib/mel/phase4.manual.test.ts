@@ -10,7 +10,7 @@ import {
   type ApprovedMonitoringRecord,
   type IndicatorDefinitionInput,
 } from "./indicator-engine";
-import { buildFundingTypeBreakdown } from "./reporting-finance";
+import { buildFundingTypeBreakdown, EXTERNAL_FUNDING_TARGET_KES, FUNDING_TYPE_LABELS, sumExternalFinance } from "./reporting-finance";
 import { MEL_ITT_SEED } from "./itt-seed";
 import { indicatorGroup, MEL_INDICATOR_GROUPS } from "./reporting-visualizations";
 import { cumulativePlannedCohort } from "./cohort-denominator";
@@ -231,6 +231,9 @@ function tests() {
     ]
   );
   assert.equal(Math.round(financeBreakdown.reduce((total, item) => total + item.percentage, 0)), 100);
+  assert.equal(FUNDING_TYPE_LABELS.matching_grant, "BIRE matching grant");
+  assert.equal(sumExternalFinance(financeBreakdown), 27000, "External finance excludes BIRE matching grant");
+  assert.equal(EXTERNAL_FUNDING_TARGET_KES, 130_000_000);
 }
 
 tests();

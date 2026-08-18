@@ -1,11 +1,12 @@
-export const FUNDING_TYPE_LABELS = {
-  loan: "Loan",
-  matching_grant: "Matching Grant",
-  repayable_grant: "Repayable Grant",
-  other: "Other",
-} as const;
+import { FINANCE_TYPE_LABELS, FINANCE_TYPES, type MonitoringFinanceType } from "./monitoring-question-catalog";
 
-export type FundingType = keyof typeof FUNDING_TYPE_LABELS;
+export const FUNDING_TYPE_LABELS = FINANCE_TYPE_LABELS;
+export type FundingType = MonitoringFinanceType;
+
+/** Programme target for external funding accessed by MSEs (loan, repayable grant, other). */
+export const EXTERNAL_FUNDING_TARGET_KES = 130_000_000;
+
+export const EXTERNAL_FUNDING_TYPES = ["loan", "repayable_grant", "other"] as const satisfies readonly FundingType[];
 
 export type FundingTypeBreakdown = {
   type: FundingType;
@@ -24,7 +25,7 @@ type FundingRecord = {
   }>;
 };
 
-const FUNDING_TYPES = Object.keys(FUNDING_TYPE_LABELS) as FundingType[];
+const FUNDING_TYPES = [...FINANCE_TYPES];
 
 export function buildFundingTypeBreakdown(records: FundingRecord[]): FundingTypeBreakdown[] {
   const amounts = new Map<FundingType, number>(FUNDING_TYPES.map((type) => [type, 0]));
@@ -58,6 +59,19 @@ export function buildFundingTypeBreakdown(records: FundingRecord[]): FundingType
       percentage: total > 0 ? (amount / total) * 100 : 0,
     };
   });
+}
+
+export function sumExternalFinance(breakdown: FundingTypeBreakdown[]): number {
+  const external = new Set<string>(EXTERNAL_FUNDING_TYPES);
+  return breakdown.reduce((sum, item) => (external.has(item.type) ? sum + item.amount : sum), 0);
+}
+
+export function externalFinanceAchievement(
+  actual: number,
+  target = EXTERNAL_FUNDING_TARGET_KES
+): number | null {
+  if (!Number.isFinite(actual) || !Number.isFinite(target) || target === 0) return null;
+  return (actual / target) * 100;
 }
 
 function isFundingType(value: string): value is FundingType {

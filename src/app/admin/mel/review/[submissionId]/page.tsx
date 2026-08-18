@@ -7,6 +7,7 @@ import { DqaReviewPanel } from "@/components/mel/review/DqaReviewPanel";
 import { EvidenceReviewList } from "@/components/mel/review/EvidenceReviewList";
 import { ReviewDecisionPanel } from "@/components/mel/review/ReviewDecisionPanel";
 import { Badge } from "@/components/ui/badge";
+import { financeTypeLabel } from "@/lib/mel/monitoring-question-catalog";
 
 export default async function MelReviewDetailPage({
   params,
@@ -82,7 +83,7 @@ export default async function MelReviewDetailPage({
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2 text-left">Finance type</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
                 <tbody className="divide-y">
-                  {detail.financeEntries.map((entry) => <tr key={entry.id}><td className="px-3 py-2 font-medium capitalize">{entry.financeType.replaceAll("_", " ")}</td><td className="px-3 py-2">{entry.otherDescription ?? "—"}</td><td className="px-3 py-2 text-right tabular-nums">{currency(entry.amount)}</td></tr>)}
+                  {detail.financeEntries.map((entry) => <tr key={entry.id}><td className="px-3 py-2 font-medium">{financeTypeLabel(entry.financeType)}</td><td className="px-3 py-2">{entry.otherDescription ?? "—"}</td><td className="px-3 py-2 text-right tabular-nums">{currency(entry.amount)}</td></tr>)}
                   <tr className="bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={2}>Finance total</td><td className="px-3 py-2 text-right tabular-nums">{currency(detail.financeEntries.length ? detail.financeEntries.reduce((sum, entry) => sum + Number(entry.amount), 0) : detail.response?.financeValue)}</td></tr>
                 </tbody>
               </table>

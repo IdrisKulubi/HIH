@@ -17,10 +17,16 @@ export type MonitoringFinanceType = (typeof FINANCE_TYPES)[number];
 
 export const FINANCE_TYPE_LABELS: Record<MonitoringFinanceType, string> = {
   loan: "Loan",
-  matching_grant: "Matching Grant",
+  matching_grant: "BIRE matching grant",
   repayable_grant: "Repayable Grant",
   other: "Other",
 };
+
+export function financeTypeLabel(type: string): string {
+  return type in FINANCE_TYPE_LABELS
+    ? FINANCE_TYPE_LABELS[type as MonitoringFinanceType]
+    : type.replaceAll("_", " ");
+}
 
 export const MONITORING_QUESTIONS = {
   business_plan_improved: {

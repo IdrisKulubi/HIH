@@ -3,6 +3,7 @@ import { ChartLineUp, ClockCounterClockwise, Gear, Target } from "@phosphor-icon
 import { getMelAdminOverview, listMelAuditEvents } from "@/lib/actions/mel-admin";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReportingPeriodForm, PeriodStatusForm, ProgrammeSettingsForm } from "@/components/admin/mel/MelOverviewForms";
 
 const statusStyle = {
@@ -119,7 +120,24 @@ export default async function MelAdminPage() {
                         <Badge variant="outline">v{indicator.version}</Badge>
                         <Badge variant="outline">{indicator.baselines.length} baseline{indicator.baselines.length === 1 ? "" : "s"}</Badge>
                         <Badge variant="outline">{indicator.targets.length} target{indicator.targets.length === 1 ? "" : "s"}</Badge>
-                        {indicator.unresolvedNotes ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">needs decision</Badge> : null}
+                        {indicator.unresolvedNotes ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                tabIndex={0}
+                                className="cursor-help border-amber-200 bg-amber-50 text-amber-700"
+                                aria-label={`Needs decision: ${indicator.unresolvedNotes}`}
+                              >
+                                needs decision
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-sm text-left leading-relaxed">
+                              <p className="font-medium">Decision still required</p>
+                              <p className="mt-1 font-normal">{indicator.unresolvedNotes}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

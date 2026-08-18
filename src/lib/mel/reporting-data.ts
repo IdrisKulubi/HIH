@@ -42,7 +42,13 @@ import {
   MEL_OP11_YEAR1_ACTUALS,
   resolveOp11Actual,
 } from "./programme-calendar";
-import { buildFundingTypeBreakdown, type FundingTypeBreakdown } from "./reporting-finance";
+import {
+  buildFundingTypeBreakdown,
+  EXTERNAL_FUNDING_TARGET_KES,
+  externalFinanceAchievement,
+  sumExternalFinance,
+  type FundingTypeBreakdown,
+} from "./reporting-finance";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
 export type { WordCloudTerm } from "./feedback-word-cloud";
@@ -167,6 +173,9 @@ export type MelReportingDataset = {
     directJobs: number;
     indirectJobs: number;
     financeAccessed: number;
+    externalFinanceAccessed: number;
+    externalFinanceTarget: number;
+    externalFinanceAchievement: number | null;
     greenResults: number;
     amberResults: number;
     redResults: number;
@@ -422,6 +431,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const filteredRecords = records.filter((record) => matchesDashboardFilters(record, filters));
   const financeBreakdown = buildFundingTypeBreakdown(filteredRecords);
   const financeAccessed = sum(financeBreakdown, (item) => item.amount);
+  const externalFinanceAccessed = sumExternalFinance(financeBreakdown);
   const periodEnd = new Date(`${selectedPeriod.endDate}T23:59:59.999+03:00`);
   // OP1.1 system counts must use the supported enterprise cohort, not only MEL reporters.
   const systemEligibleIds = new Set(
@@ -837,6 +847,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
       indirectJobs: sum(filteredRecords, (record) => record.indirectJobs.total),
       financeAccessed,
+      externalFinanceAccessed,
+      externalFinanceTarget: EXTERNAL_FUNDING_TARGET_KES,
+      externalFinanceAchievement: externalFinanceAchievement(externalFinanceAccessed),
       greenResults: ittRows.filter((row) => row.calculation.trafficLight === "green").length,
       amberResults: ittRows.filter((row) => row.calculation.trafficLight === "amber").length,
       redResults: ittRows.filter((row) => row.calculation.trafficLight === "red").length,

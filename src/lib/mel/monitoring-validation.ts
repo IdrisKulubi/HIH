@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
 import {
   FINANCE_TYPES,
+  financeTypeLabel,
   MONITORING_QUESTIONS,
   type MonitoringFinanceType,
 } from "./monitoring-question-catalog";
@@ -147,7 +148,7 @@ export function monitoringSubmissionIssues(
     const types = input.financeEntries.map((entry) => entry.financeType);
     if (new Set(types).size !== types.length) issues.push("Each finance type can be selected only once");
     for (const entry of input.financeEntries) {
-      if (entry.amount === null) issues.push(`Enter the amount for ${entry.financeType.replaceAll("_", " ")}`);
+      if (entry.amount === null) issues.push(`Enter the amount for ${financeTypeLabel(entry.financeType)}`);
       if (entry.financeType === "other" && !entry.otherDescription) issues.push("Describe the other finance type");
       if (entry.financeType !== "other" && entry.otherDescription) issues.push("Other finance description is only valid for Other");
     }
