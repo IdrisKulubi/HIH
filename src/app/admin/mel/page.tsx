@@ -51,7 +51,7 @@ export default async function MelAdminPage() {
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Reporting calendar</h2>
-          <p className="text-sm text-slate-600">Periods cannot overlap. Archived periods remain available for audit.</p>
+          <p className="text-sm text-slate-600">The reporting quarter is the period being measured. Collection is when monitoring forms should be submitted: the 1st to the 10th of the following month. Periods cannot overlap. Archived periods remain available for audit.</p>
         </div>
         {periods.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -66,8 +66,8 @@ export default async function MelAdminPage() {
                     <Badge variant="outline" className={statusStyle[period.status]}>{period.status}</Badge>
                   </div>
                   <dl className="mt-4 space-y-2 text-sm">
-                    <DateRow label="Reporting" value={`${formatDate(period.startDate)} – ${formatDate(period.endDate)}`} />
-                    <DateRow label="Collection" value={`${formatDate(period.collectionOpenDate)} – ${formatDate(period.collectionCloseDate)}`} />
+                    <DateRow label="Reporting quarter" value={`${formatDate(period.startDate)} – ${formatDate(period.endDate)}`} />
+                    <DateRow label="Collection window" value={`${formatDate(period.collectionOpenDate)} – ${formatDate(period.collectionCloseDate)}`} />
                   </dl>
                   {canManage ? <PeriodStatusForm period={period} /> : null}
                 </CardContent>

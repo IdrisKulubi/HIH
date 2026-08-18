@@ -36,10 +36,10 @@ export function ReportingPeriodForm() {
             <Input id="sequence" name="sequence" type="number" min={1} defaultValue={1} required />
           </div>
         </div>
-        <DateField id="start-date" name="startDate" label="Period starts" />
-        <DateField id="end-date" name="endDate" label="Period ends" />
-        <DateField id="collection-open" name="collectionOpenDate" label="Collection opens" />
-        <DateField id="collection-close" name="collectionCloseDate" label="Collection closes" />
+        <DateField id="start-date" name="startDate" label="Reporting quarter starts" />
+        <DateField id="end-date" name="endDate" label="Reporting quarter ends" />
+        <DateField id="collection-open" name="collectionOpenDate" label="Collection opens (1st of next month)" />
+        <DateField id="collection-close" name="collectionCloseDate" label="Collection closes (10th of next month)" />
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-700">
         <Checkbox name="allowCatchUp" defaultChecked />

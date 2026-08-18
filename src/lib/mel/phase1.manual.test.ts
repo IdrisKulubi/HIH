@@ -3,6 +3,7 @@ import { canManageMel, canViewMel } from "./roles";
 import { melIndicatorInputSchema, melProgrammeSettingsInputSchema } from "./configuration";
 import { MEL_ITT_SEED, validateMelIttSeed } from "./itt-seed";
 import {
+  collectionWindowAfterReportingEnd,
   MEL_OP11_MOBILISATION_TARGETS,
   MEL_PROGRAMME_REPORTING_PERIODS,
   MEL_PROGRAMME_YEARS,
@@ -33,11 +34,23 @@ function testReportingPeriods() {
   assert.ok(y1Mq1);
   assert.equal(y1Mq1.startDate, "2026-06-01");
   assert.equal(y1Mq1.endDate, "2026-08-31");
+  assert.equal(y1Mq1.collectionOpenDate, "2026-09-01");
+  assert.equal(y1Mq1.collectionCloseDate, "2026-09-10");
   assert.equal(y1Mq1.status, "open");
   assert.equal(y1Mq1.programmeYear, 1);
   const y1Pre = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-PRE");
   assert.ok(y1Pre);
   assert.equal(y1Pre.status, "closed");
+  assert.equal(y1Pre.collectionOpenDate, "2026-06-01");
+  assert.equal(y1Pre.collectionCloseDate, "2026-06-10");
+  const y1Mq2 = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-MQ2");
+  assert.ok(y1Mq2);
+  assert.equal(y1Mq2.collectionOpenDate, "2026-12-01");
+  assert.equal(y1Mq2.collectionCloseDate, "2026-12-10");
+  assert.deepEqual(collectionWindowAfterReportingEnd("2027-02-28"), {
+    collectionOpenDate: "2027-03-01",
+    collectionCloseDate: "2027-03-10",
+  });
   assert.equal(MEL_OP11_MOBILISATION_TARGETS.overall, 400);
   assert.equal(MEL_OP11_MOBILISATION_TARGETS.year1 + MEL_OP11_MOBILISATION_TARGETS.year2, 400);
   assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 1, 1), 240);

@@ -4,6 +4,9 @@
  * Programme years (Oct → Oct) drive ITT targets and annual achievement.
  * Monitoring periods follow BDS operations: Y1 pre-delivery, then Jun–Aug as
  * the first monitoring quarter.
+ *
+ * Collection happens after the reporting quarter closes: 1st to 10th of the
+ * following month.
  */
 export type MelSeedReportingPeriod = {
   code: string;
@@ -57,6 +60,23 @@ export const MEL_PROGRAMME_YEARS = [
   },
 ] as const;
 
+/** Monitoring forms are due by the 10th of the month after the reporting quarter. */
+export const MEL_COLLECTION_DEADLINE_DAY = 10;
+
+export function collectionWindowAfterReportingEnd(endDate: string): {
+  collectionOpenDate: string;
+  collectionCloseDate: string;
+} {
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const collectionMonth = end.getUTCMonth() + 1;
+  const open = new Date(Date.UTC(end.getUTCFullYear(), collectionMonth, 1));
+  const close = new Date(Date.UTC(end.getUTCFullYear(), collectionMonth, MEL_COLLECTION_DEADLINE_DAY));
+  return {
+    collectionOpenDate: open.toISOString().slice(0, 10),
+    collectionCloseDate: close.toISOString().slice(0, 10),
+  };
+}
+
 function period(input: {
   code: string;
   label: string;
@@ -66,8 +86,7 @@ function period(input: {
   endDate: string;
   status?: MelSeedReportingPeriod["status"];
 }): MelSeedReportingPeriod {
-  const close = new Date(`${input.endDate}T00:00:00Z`);
-  close.setUTCDate(close.getUTCDate() + 14);
+  const collection = collectionWindowAfterReportingEnd(input.endDate);
   return {
     code: input.code,
     label: input.label,
@@ -75,8 +94,8 @@ function period(input: {
     sequence: input.sequence,
     startDate: input.startDate,
     endDate: input.endDate,
-    collectionOpenDate: input.startDate,
-    collectionCloseDate: close.toISOString().slice(0, 10),
+    collectionOpenDate: collection.collectionOpenDate,
+    collectionCloseDate: collection.collectionCloseDate,
     status: input.status ?? "planned",
     allowCatchUp: true,
   };
@@ -87,6 +106,7 @@ function period(input: {
  * - Programme years stay Oct→Oct for ITT targets.
  * - Y1 monitoring starts June 2026 (BDS start).
  * - Jan–May 2026 sits in closed pre-delivery (application → CDP planning).
+ * - Collection is 1st–10th of the month after each reporting quarter.
  */
 export const MEL_PROGRAMME_REPORTING_PERIODS: MelSeedReportingPeriod[] = [
   // Year 1 — project year Oct 2025–Oct 2026

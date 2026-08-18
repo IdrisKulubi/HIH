@@ -337,6 +337,13 @@
       "when": 1786665600000,
       "tag": "0048_update_y1_y2_monitoring_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786752000000,
+      "tag": "0049_mel_collection_window_tenth",
+      "breakpoints": true
     }
   ]
 }
