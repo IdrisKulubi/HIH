@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
 import db from "@/db/drizzle";
-import { businesses, melAuditEvents } from "@/db/schema";
+import { melAuditEvents } from "@/db/schema";
 import { requireMelManager } from "@/lib/mel/access";
 import {
   ENTERPRISE_EXPORT_SECTIONS,
@@ -17,6 +16,7 @@ import {
   type EnterpriseExportRow,
   type EnterpriseExportSheet,
 } from "@/lib/mel/enterprise-export";
+import { loadEnterpriseExportDataset } from "@/lib/mel/enterprise-export-data";
 import { enforceMelRateLimit, recordMelOperationalEvent, requireMelRolloutFeature } from "@/lib/mel/operations";
 
 export async function GET(request: Request) {
@@ -35,35 +35,15 @@ export async function GET(request: Request) {
     if (sections.length === 0) return Response.json({ error: "Choose at least one data section." }, { status: 400 });
     const bounds = enterpriseExportDateBounds(from, to);
 
-    const business = await db.query.businesses.findFirst({
-      where: eq(businesses.id, businessId),
-      with: {
-        applicant: true,
-        application: true,
-        kycProfile: true,
-        melMonitoringSubmissions: {
-          with: {
-            reportingPeriod: true,
-            response: true,
-            financeEntries: true,
-            jobs: true,
-            waste: true,
-            evidence: { with: { reviews: true } },
-            evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
-            reviewDecisions: true,
-            dqaIssues: true,
-          },
-        },
-        melLearningActions: true,
-      },
-    });
-    if (!business) return Response.json({ error: "Enterprise was not found." }, { status: 404 });
+    const dataset = await loadEnterpriseExportDataset(businessId);
+    if (!dataset) return Response.json({ error: "Enterprise was not found." }, { status: 404 });
+    const { business } = dataset;
 
-    const submissions = business.melMonitoringSubmissions
+    const submissions = dataset.submissions
       .filter((submission) => isWithinEnterpriseExportRange(submission.lastSavedAt, bounds))
       .sort((left, right) => left.reportingPeriod.startDate.localeCompare(right.reportingPeriod.startDate));
     const submissionIds = new Set(submissions.map((submission) => submission.id));
-    const learningActions = business.melLearningActions.filter((action) =>
+    const learningActions = dataset.learningActions.filter((action) =>
       (action.submissionId !== null && submissionIds.has(action.submissionId))
       || isWithinEnterpriseExportRange(action.updatedAt, bounds)
     );
@@ -153,7 +133,7 @@ export async function GET(request: Request) {
         Negative_Programme_Impacts: response.negativeProgrammeImpacts,
         Additional_Support_Needed: response.additionalSupportNeeded,
         Collector_Comment: response.collectorComment,
-        Completed_Sections: response.completedSections.join("; "),
+        Completed_Sections: (response.completedSections ?? []).join("; "),
         Response_Updated_At: response.updatedAt,
       }];
     }));
@@ -228,7 +208,7 @@ export async function GET(request: Request) {
       Reviewer_ID: decision.reviewerId,
       Reviewer_Role: decision.reviewerRole,
       Reason: decision.reason,
-      Affected_Questions: decision.affectedQuestions.join("; "),
+      Affected_Questions: (decision.affectedQuestions ?? []).join("; "),
       Recorded_At: decision.createdAt,
     }))));
     add("review", "DQA issues", submissions.flatMap((submission) => submission.dqaIssues.map((issue) => ({
@@ -308,7 +288,7 @@ export async function GET(request: Request) {
     } catch (eventError) {
       console.error("MEL enterprise export failure event could not be recorded", eventError);
     }
-    return Response.json({ error: error instanceof Error ? error.message : "Enterprise export failed." }, { status: 500 });
+    return Response.json({ error: "Enterprise export failed. Try fewer sections or a narrower date range." }, { status: 500 });
   }
 }
 
