@@ -51,7 +51,15 @@ export function BdsEdoHub({
             </Link>
           </Button>
         )}
-        {!screeningPriority && summary.a2fDdAwaiting > 0 && (
+        {!screeningPriority && summary.melReturnedToMe > 0 && (
+          <Button asChild className="shrink-0 bg-brand-blue hover:bg-brand-blue/90">
+            <Link href="/admin/mel/monitoring">
+              Correct MEL reports
+              <ArrowRight className="ml-1.5 size-4" />
+            </Link>
+          </Button>
+        )}
+        {!screeningPriority && summary.melReturnedToMe === 0 && summary.a2fDdAwaiting > 0 && (
           <Button asChild className="shrink-0 bg-emerald-700 hover:bg-emerald-800">
             <Link href="/a2f">
               Open A2F due diligence
@@ -154,6 +162,14 @@ export function BdsEdoHub({
             description="Review CNA progress and manage capacity development plans"
             href="/admin/cdp"
           />
+          <HubQueueRow
+            title="Quarterly monitoring"
+            description="Collect quarterly enterprise monitoring reports and correct any returned submissions"
+            href="/admin/mel/monitoring"
+            count={summary.melReturnedToMe}
+            countLabel="returned"
+            primary={summary.melReturnedToMe > 0}
+          />
         </div>
       </section>
 
@@ -168,6 +184,8 @@ export function BdsEdoHub({
                 <li>Pre-screen DD-qualified Foundation and Accelerator applications</li>
                 <li>Complete initial A2F due diligence after enterprises pass screening</li>
                 <li>Resolve KYC and document issues when assigned to you</li>
+                <li>Collect quarterly enterprise monitoring reports for your assigned enterprises</li>
+                <li>Correct monitoring reports returned by REDO or MEL with review comments</li>
               </ul>
             </div>
             <p className="rounded-md border border-teal-200/80 bg-teal-50/50 px-3 py-2 text-teal-900">
