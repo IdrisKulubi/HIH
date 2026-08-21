@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { filterNavGroupsForRole, getStaffShellBrand } from "@/lib/staff/admin-shell-nav";
 
 type NavIcon = React.ComponentType<{ className?: string; weight?: "duotone" | "bold" }>;
 
@@ -190,7 +191,15 @@ function NavDropdown({ group, pathname }: { group: NavGroup; pathname: string })
   );
 }
 
-function MobileNav({ pathname }: { pathname: string }) {
+function MobileNav({
+  pathname,
+  navGroups,
+  mobileNavTitle,
+}: {
+  pathname: string;
+  navGroups: NavGroup[];
+  mobileNavTitle: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -202,10 +211,10 @@ function MobileNav({ pathname }: { pathname: string }) {
       </SheetTrigger>
       <SheetContent side="right" className="w-72 overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-left text-sm font-semibold text-slate-900">Admin navigation</SheetTitle>
+          <SheetTitle className="text-left text-sm font-semibold text-slate-900">{mobileNavTitle}</SheetTitle>
         </SheetHeader>
         <nav className="mt-6 space-y-6">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue mb-2">
                 {group.label}
@@ -251,23 +260,25 @@ function MobileNav({ pathname }: { pathname: string }) {
   );
 }
 
-export function AdminNavbar() {
+export function AdminNavbar({ role = "admin" }: { role?: string }) {
   const pathname = usePathname();
+  const brand = getStaffShellBrand(role);
+  const navGroups = filterNavGroupsForRole(NAV_GROUPS, role);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
       <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-2.5">
-        <Link href="/admin" className="flex items-center gap-3 min-w-0 shrink">
+        <Link href={brand.homeHref} className="flex items-center gap-3 min-w-0 shrink">
           <div className="min-w-0 hidden sm:block">
             <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue leading-none">
               BIRE Programme
             </p>
-            <p className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">Admin</p>
+            <p className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">{brand.title}</p>
           </div>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <NavDropdown key={group.label} group={group} pathname={pathname} />
           ))}
         </nav>
@@ -275,13 +286,13 @@ export function AdminNavbar() {
         <div className="flex items-center gap-2 shrink-0">
           <NotificationBell />
           <Link
-            href="/"
+            href={brand.homeHref}
             className="hidden md:flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-blue transition-colors"
           >
             <ArrowLeft weight="bold" className="size-3.5" />
-            Back to site
+            Back to hub
           </Link>
-          <MobileNav pathname={pathname} />
+          <MobileNav pathname={pathname} navGroups={navGroups} mobileNavTitle={brand.mobileNavTitle} />
         </div>
       </div>
       <div className="h-0.5 w-full bg-brand-blue" aria-hidden />

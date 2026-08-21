@@ -1,6 +1,6 @@
 import db from "@/db/drizzle";
 import { melMonitoringSubmissions } from "@/db/schema";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 
 async function countWhere(where: SQL | undefined) {
   const [row] = await db
@@ -26,6 +26,19 @@ export async function countMelReturnedToCollector(userId: string) {
     and(
       eq(melMonitoringSubmissions.collectorId, userId),
       inArray(melMonitoringSubmissions.status, ["returned_by_redo", "returned_by_mel", "reopened"])
+    )
+  );
+}
+
+/** Reports waiting for final MEL review (REDO-originated or past REDO stage). */
+export async function countMelReviewPendingForMel() {
+  return countWhere(
+    or(
+      eq(melMonitoringSubmissions.status, "mel_review"),
+      and(
+        inArray(melMonitoringSubmissions.status, ["submitted", "resubmitted"]),
+        ne(melMonitoringSubmissions.collectorRole, "bds_edo")
+      )
     )
   );
 }

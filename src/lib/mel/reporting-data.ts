@@ -97,8 +97,14 @@ export type MelIndicatorSeriesValues = {
   foundation: number | null;
   acceleration: number | null;
 };
-export type MelIndicatorTrendPoint = MelIndicatorSeriesValues & {
+export type MelIndicatorTargetValues = {
+  overallTarget: number | null;
+  foundationTarget: number | null;
+  accelerationTarget: number | null;
+};
+export type MelIndicatorTrendPoint = MelIndicatorSeriesValues & MelIndicatorTargetValues & {
   periodId: number;
+  periodCode: string;
   periodLabel: string;
   ratios: {
     overall: { numerator: number | null; denominator: number | null };
@@ -784,10 +790,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         .filter((point) => !isY1PreDeliveryPeriod(point.period))
         .map((point) => ({
           periodId: point.period.id,
+          periodCode: point.period.code,
           periodLabel: point.period.label,
           overall: point.overall.actual,
           foundation: point.foundation?.actual ?? null,
           acceleration: point.acceleration?.actual ?? null,
+          overallTarget: point.overall.target,
+          foundationTarget: point.foundation?.target ?? null,
+          accelerationTarget: point.acceleration?.target ?? null,
           ratios: {
             overall: { numerator: point.overall.numerator, denominator: point.overall.denominator },
             foundation: point.foundation ? { numerator: point.foundation.numerator, denominator: point.foundation.denominator } : null,

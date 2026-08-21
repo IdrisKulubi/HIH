@@ -92,7 +92,14 @@ export function IndicatorExplorer({ indicators, profitabilityTrend, selectedTrac
           ) : null}
 
           {selected.code === "LT1-PROFITABILITY-INCREASE" ? (
-            <ProfitabilityChart data={profitabilityTrend} selectedTrack={selectedTrack} />
+            <>
+              <IndicatorChart indicator={selected} selectedTrack={selectedTrack} />
+              <div className="mt-8 border-t border-slate-200 pt-6">
+                <h4 className="text-sm font-semibold text-slate-800">Supporting view: monthly median profit vs baseline</h4>
+                <p className="mt-1 text-sm text-slate-600">Kenyan shillings from approved monitoring records. The chart above shows the official ITT percentage actual vs target.</p>
+                <ProfitabilityChart data={profitabilityTrend} selectedTrack={selectedTrack} />
+              </div>
+            </>
           ) : (
             <IndicatorChart indicator={selected} selectedTrack={selectedTrack} />
           )}
@@ -106,27 +113,64 @@ function IndicatorChart({ indicator, selectedTrack }: { indicator: MelIndicatorV
   const separateTracks = !selectedTrack && !indicator.programmeWide;
   const hasData = indicator.trend.some((point) => separateTracks
     ? point.foundation !== null || point.acceleration !== null
-    : point.overall !== null);
+      || point.foundationTarget !== null || point.accelerationTarget !== null
+    : point.overall !== null || point.overallTarget !== null);
   if (!hasData) return <EmptyChart />;
-  const series = separateTracks
+  const actualSeries = separateTracks
     ? [{ key: "foundation", label: "Foundation", color: "#0891b2" }, { key: "acceleration", label: "Acceleration", color: "#d97706" }] as const
     : [{ key: "overall", label: selectedTrack ? title(selectedTrack) : "Overall", color: "#0284c7" }] as const;
+  const sharedTrackTarget = separateTracks && tracksShareTarget(indicator.trend);
+  const targetSeries = separateTracks
+    ? sharedTrackTarget
+      ? [{ key: "foundationTarget", label: "Target", color: "#64748b" }] as const
+      : [
+          { key: "foundationTarget", label: "Foundation target", color: "#67e8f9" },
+          { key: "accelerationTarget", label: "Acceleration target", color: "#fcd34d" },
+        ] as const
+    : [{ key: "overallTarget", label: "Target", color: "#64748b" }] as const;
   return (
     <>
-      <p className="sr-only">{accessibleSummary(indicator, series.map((item) => item.key))}</p>
+      <p className="sr-only">{accessibleSummary(indicator, actualSeries.map((item) => item.key))}</p>
       <div className="mt-6 h-80 w-full" role="img" aria-label={`${indicator.name} quarterly trend`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={indicator.trend} margin={{ top: 10, right: 18, left: 4, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="periodLabel" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="periodCode" tick={{ fontSize: 11 }} />
             <YAxis tickFormatter={(value) => compact(Number(value), indicator.unit)} tick={{ fontSize: 11 }} width={72} />
-            <Tooltip formatter={(value) => formatMeasure(Number(value), indicator.unit)} />
+            <Tooltip
+              labelFormatter={(_, payload) => String(payload?.[0]?.payload?.periodLabel ?? "")}
+              formatter={(value) => formatMeasure(Number(value), indicator.unit)}
+            />
             <Legend />
-            {series.map((item) => <Line key={item.key} type="monotone" dataKey={item.key} name={item.label} stroke={item.color} strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />)}
+            {actualSeries.map((item) => (
+              <Line
+                key={item.key}
+                type="monotone"
+                dataKey={item.key}
+                name={item.label}
+                stroke={item.color}
+                strokeWidth={2.5}
+                dot={{ r: 3 }}
+                connectNulls={false}
+              />
+            ))}
+            {targetSeries.map((item) => (
+              <Line
+                key={item.key}
+                type="monotone"
+                dataKey={item.key}
+                name={item.label}
+                stroke={item.color}
+                strokeWidth={1.75}
+                strokeDasharray="6 5"
+                dot={false}
+                connectNulls
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <TrendTable indicator={indicator} series={series} />
+      <TrendTable indicator={indicator} actualSeries={actualSeries} targetSeries={targetSeries} sharedTrackTarget={sharedTrackTarget} />
     </>
   );
 }
@@ -168,21 +212,42 @@ function ProfitabilityChart({ data, selectedTrack }: { data: MelProfitabilityTre
   );
 }
 
-function TrendTable({ indicator, series }: { indicator: MelIndicatorVisualization; series: ReadonlyArray<{ key: "overall" | "foundation" | "acceleration"; label: string }> }) {
+function TrendTable({
+  indicator,
+  actualSeries,
+  targetSeries,
+  sharedTrackTarget,
+}: {
+  indicator: MelIndicatorVisualization;
+  actualSeries: ReadonlyArray<{ key: "overall" | "foundation" | "acceleration"; label: string }>;
+  targetSeries: ReadonlyArray<{ key: "overallTarget" | "foundationTarget" | "accelerationTarget"; label: string }>;
+  sharedTrackTarget: boolean;
+}) {
+  const columns = [
+    ...actualSeries.map((item) => ({ key: item.key, label: item.label, kind: "actual" as const })),
+    ...targetSeries.map((item) => ({ key: item.key, label: item.label, kind: "target" as const })),
+  ];
   return (
     <div className="mt-5 overflow-x-auto rounded-lg border border-slate-200">
       <table className="w-full min-w-[520px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2.5">Quarter</th>{series.map((item) => <th key={item.key} className="px-3 py-2.5 text-right">{item.label}</th>)}</tr></thead>
+        <thead className="bg-slate-50 text-xs text-slate-600">
+          <tr>
+            <th className="px-3 py-2.5">Quarter</th>
+            {columns.map((item) => <th key={item.key} className="px-3 py-2.5 text-right">{item.label}</th>)}
+          </tr>
+        </thead>
         <tbody className="divide-y divide-slate-100">
           {indicator.trend.map((point) => (
             <tr key={point.periodId}>
               <td className="px-3 py-2.5 font-medium text-slate-800">{point.periodLabel}</td>
-              {series.map((item) => {
-                const ratio = point.ratios[item.key];
+              {columns.map((item) => {
+                const value = point[item.key];
+                const ratioKey = item.kind === "actual" ? item.key : null;
+                const ratio = ratioKey ? point.ratios[ratioKey] : null;
                 return (
-                  <td key={item.key} className="px-3 py-2.5 text-right tabular-nums">
-                    <p>{formatMeasure(point[item.key], indicator.unit)}</p>
-                    {indicator.unit === "percentage" && ratio?.numerator != null && ratio.denominator != null ? (
+                  <td key={item.key} className={`px-3 py-2.5 text-right tabular-nums ${item.kind === "target" ? "text-slate-600" : ""}`}>
+                    <p>{formatMeasure(value, indicator.unit)}</p>
+                    {item.kind === "actual" && indicator.unit === "percentage" && ratio?.numerator != null && ratio.denominator != null ? (
                       <p className="mt-0.5 text-xs tabular-nums text-slate-500">{formatCount(ratio.numerator)}/{formatCount(ratio.denominator)}</p>
                     ) : null}
                   </td>
@@ -192,10 +257,18 @@ function TrendTable({ indicator, series }: { indicator: MelIndicatorVisualizatio
           ))}
         </tbody>
       </table>
+      {sharedTrackTarget ? <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Foundation and acceleration share the same target.</p> : null}
     </div>
   );
 }
 
+function tracksShareTarget(trend: MelIndicatorVisualization["trend"]) {
+  const pairs = trend
+    .filter((point) => point.foundationTarget !== null || point.accelerationTarget !== null)
+    .map((point) => [point.foundationTarget, point.accelerationTarget] as const);
+  if (pairs.length === 0) return false;
+  return pairs.every(([foundation, acceleration]) => foundation === acceleration);
+}
 function CurrentValue({ indicator, selectedTrack }: { indicator: MelIndicatorVisualization; selectedTrack: string | null }) {
   if (!selectedTrack && !indicator.programmeWide) return <span className="text-slate-600"><strong className="text-slate-900">F {formatMeasure(indicator.current.foundation, indicator.unit)}</strong> · A {formatMeasure(indicator.current.acceleration, indicator.unit)}</span>;
   return <strong className="text-slate-900">{formatMeasure(indicator.current.overall, indicator.unit)}</strong>;
