@@ -15,6 +15,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
+import { computeMentorshipAnalytics, type MentorshipAnalytics } from "@/lib/mentorship/analytics";
+import { loadMentorshipExportData } from "@/lib/mentorship/export";
 
 const ADMIN_ROLES = ["admin", "oversight"] as const;
 
@@ -803,6 +805,24 @@ export async function listMyMentorshipMatches(): Promise<
     console.error("listMyMentorshipMatches", e);
     if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
     return errorResponse("Failed to load your mentorship matches");
+  }
+}
+
+export type { MentorshipAnalytics };
+
+export async function getMentorshipAnalytics(): Promise<ActionResponse<MentorshipAnalytics>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const data = await loadMentorshipExportData();
+    return successResponse(computeMentorshipAnalytics(data));
+  } catch (e) {
+    console.error("getMentorshipAnalytics", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to load mentorship analytics");
   }
 }
 

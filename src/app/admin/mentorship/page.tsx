@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ChartLine } from "lucide-react";
 import { listBusinessesWithApplicantForAdmin } from "@/lib/actions/cna";
 import {
   countMentorshipSessionsPendingApproval,
@@ -28,11 +30,20 @@ export default async function AdminMentorshipPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Mentorship</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Register mentors, then open a business to create a six-session match (sessions 1 &amp; 6 physical, 2–5 virtual).
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Mentorship</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Register mentors, then open a business to create a six-session match (sessions 1 &amp; 6 physical, 2–5 virtual).
+          </p>
+        </div>
+        <Link
+          href="/admin/mentorship/analytics"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+        >
+          <ChartLine className="size-4" />
+          Analytics
+        </Link>
       </div>
 
       <MentorshipSessionApprovalsEntry pendingCount={pendingCount} />

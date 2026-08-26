@@ -178,11 +178,13 @@ export {
     countMentorshipSessionsPendingApproval,
     approveMentorshipSession,
     returnMentorshipSession,
+    getMentorshipAnalytics,
 } from "./mentorship";
 
 export type {
   MentorListRow,
   MentorshipMatchWithSessions,
   MentorshipSessionReviewRow,
+  MentorshipAnalytics,
 } from "./mentorship";
 

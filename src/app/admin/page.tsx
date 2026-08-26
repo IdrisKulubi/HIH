@@ -69,6 +69,7 @@ const QUICK_LINK_GROUPS: QuickLinkGroup[] = [
       { href: "/admin/cdp/approvals", label: "Report Approvals", icon: CheckCircle },
       { href: "/admin/mentorship", label: "Mentorship", icon: Users },
       { href: "/admin/mentorship/approvals", label: "Session Approvals", icon: CheckCircle },
+      { href: "/admin/mentorship/analytics", label: "Mentorship Analytics", icon: ChartLineUp },
     ],
   },
   {
