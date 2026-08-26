@@ -91,6 +91,10 @@ export function MentorWorkspace({ matches }: { matches: MyMentorshipMatchRow[] }
                       sessionNumber={s.sessionNumber}
                       sessionType={s.sessionType}
                       status={s.status}
+                      scheduledDate={s.scheduledDate}
+                      completedDate={s.completedDate}
+                      durationMinutes={s.durationMinutes}
+                      rejectionReason={s.rejectionReason}
                       photographicEvidenceUrl={s.photographicEvidenceUrl}
                       diagnosticNotes={s.diagnosticNotes}
                     />

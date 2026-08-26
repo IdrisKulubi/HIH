@@ -14,6 +14,7 @@ import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
+import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
 
 const ADMIN_ROLES = ["admin", "oversight"] as const;
 
@@ -46,6 +47,40 @@ async function canCompleteMentorshipSession(
   if (isPhase2Admin(role)) return true;
   if (!isMentorRole(role)) return false;
   return mentorOwnsSession(userId, sessionId);
+}
+
+function parseSessionDateInput(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseDurationMinutes(hoursRaw: unknown, minutesRaw: unknown): number | null {
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (hours < 0 || minutes < 0 || minutes > 59) return null;
+  const total = Math.round(hours * 60 + minutes);
+  if (total <= 0) return null;
+  return total;
+}
+
+async function revalidateMentorshipPaths(businessId?: number) {
+  revalidatePath("/admin/mentorship");
+  revalidatePath("/admin/mentorship/approvals");
+  revalidatePath("/mentor");
+  if (businessId != null) {
+    revalidatePath(`/admin/mentorship/matches/${businessId}`);
+  }
 }
 
 /** Postgres undefined_table — usually migrations not applied to this database. */
@@ -314,6 +349,9 @@ export async function createMentorshipMatch(
 
 export async function completeMentorshipSession(input: {
   sessionId: number;
+  completedDate: string;
+  durationHours: number;
+  durationMinutes: number;
   diagnosticNotes?: string;
   photographicEvidenceUrl?: string;
 }): Promise<ActionResponse<void>> {
@@ -339,6 +377,12 @@ export async function completeMentorshipSession(input: {
     if (row.status === "completed") {
       return errorResponse("Session is already completed.");
     }
+    if (row.status === "pending_approval") {
+      return errorResponse("Session is already awaiting admin approval.");
+    }
+    if (row.status !== "scheduled") {
+      return errorResponse("This session cannot be submitted right now.");
+    }
 
     if (row.sessionNumber > 1) {
       const prev = await db.query.mentorshipSessions.findFirst({
@@ -352,6 +396,16 @@ export async function completeMentorshipSession(input: {
           `Session ${row.sessionNumber - 1} must be completed before session ${row.sessionNumber}.`
         );
       }
+    }
+
+    const completedDate = parseSessionDateInput(input.completedDate);
+    if (!completedDate) {
+      return errorResponse("Enter a valid session date.");
+    }
+
+    const durationMinutes = parseDurationMinutes(input.durationHours, input.durationMinutes);
+    if (durationMinutes == null) {
+      return errorResponse("Enter a valid session duration (hours and minutes, total must be greater than zero).");
     }
 
     const notes = (input.diagnosticNotes ?? "").trim();
@@ -368,10 +422,12 @@ export async function completeMentorshipSession(input: {
     await db
       .update(mentorshipSessions)
       .set({
-        status: "completed",
-        completedDate: new Date(),
+        status: "pending_approval",
+        completedDate,
+        durationMinutes,
         diagnosticNotes: notes.length ? notes : null,
         photographicEvidenceUrl: photo.length ? photo : null,
+        rejectionReason: null,
         updatedAt: new Date(),
       })
       .where(eq(mentorshipSessions.id, input.sessionId));
@@ -379,15 +435,11 @@ export async function completeMentorshipSession(input: {
     const match = await db.query.mentorshipMatches.findFirst({
       where: eq(mentorshipMatches.id, row.matchId),
     });
-    if (match) {
-      revalidatePath(`/admin/mentorship/matches/${match.businessId}`);
-    }
-    revalidatePath("/admin/mentorship");
-    revalidatePath("/mentor");
+    await revalidateMentorshipPaths(match?.businessId);
     return successResponse(undefined);
   } catch (e) {
     console.error("completeMentorshipSession", e);
-    return errorResponse("Failed to complete session");
+    return errorResponse("Failed to submit session");
   }
 }
 
@@ -401,9 +453,173 @@ export async function completeMentorshipSessionFromForm(
   }
   return completeMentorshipSession({
     sessionId,
+    completedDate: String(formData.get("completedDate") ?? ""),
+    durationHours: Number(formData.get("durationHours")),
+    durationMinutes: Number(formData.get("durationMinutes")),
     diagnosticNotes: String(formData.get("diagnosticNotes") ?? ""),
     photographicEvidenceUrl: String(formData.get("photographicEvidenceUrl") ?? ""),
   });
+}
+
+export type MentorshipSessionReviewRow = {
+  sessionId: number;
+  matchId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  mentorName: string;
+  mentorEmail: string;
+  sessionNumber: number;
+  sessionType: "physical" | "virtual";
+  scheduledDate: string;
+  completedDate: string;
+  durationMinutes: number;
+  durationLabel: string;
+  diagnosticNotes: string | null;
+  photographicEvidenceUrl: string | null;
+  submittedAt: string;
+};
+
+export async function listMentorshipSessionsPendingApproval(): Promise<
+  ActionResponse<MentorshipSessionReviewRow[]>
+> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const rows = await db.query.mentorshipSessions.findMany({
+      where: eq(mentorshipSessions.status, "pending_approval"),
+      orderBy: (s, { desc }) => [desc(s.updatedAt)],
+      with: {
+        match: {
+          with: {
+            business: { with: { applicant: true } },
+            mentor: { with: { user: true } },
+          },
+        },
+      },
+    });
+
+    const data: MentorshipSessionReviewRow[] = rows
+      .filter((row) => row.match?.business && row.match.mentor?.user && row.completedDate)
+      .map((row) => ({
+        sessionId: row.id,
+        matchId: row.matchId,
+        businessId: row.match.businessId,
+        businessName: row.match.business.name,
+        applicantName:
+          `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim(),
+        mentorName: row.match.mentor.user.name ?? row.match.mentor.user.email,
+        mentorEmail: row.match.mentor.user.email,
+        sessionNumber: row.sessionNumber,
+        sessionType: row.sessionType,
+        scheduledDate: row.scheduledDate.toISOString(),
+        completedDate: row.completedDate!.toISOString(),
+        durationMinutes: row.durationMinutes ?? 0,
+        durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
+        diagnosticNotes: row.diagnosticNotes,
+        photographicEvidenceUrl: row.photographicEvidenceUrl,
+        submittedAt: row.updatedAt.toISOString(),
+      }));
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("listMentorshipSessionsPendingApproval", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to load pending sessions");
+  }
+}
+
+export async function countMentorshipSessionsPendingApproval(): Promise<
+  ActionResponse<number>
+> {
+  const result = await listMentorshipSessionsPendingApproval();
+  if (!result.success || result.data == null) {
+    return errorResponse(result.error ?? "Failed to count pending sessions");
+  }
+  return successResponse(result.data.length);
+}
+
+export async function approveMentorshipSession(
+  sessionId: number
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const row = await db.query.mentorshipSessions.findFirst({
+      where: eq(mentorshipSessions.id, sessionId),
+      with: { match: true },
+    });
+    if (!row?.match) return errorResponse("Session not found");
+    if (row.status !== "pending_approval") {
+      return errorResponse("Only sessions awaiting approval can be approved.");
+    }
+
+    await db
+      .update(mentorshipSessions)
+      .set({
+        status: "completed",
+        approvedById: authSession.user.id,
+        approvedAt: new Date(),
+        rejectionReason: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(mentorshipSessions.id, sessionId));
+
+    await revalidateMentorshipPaths(row.match.businessId);
+    return successResponse({ businessId: row.match.businessId });
+  } catch (e) {
+    console.error("approveMentorshipSession", e);
+    return errorResponse("Failed to approve session");
+  }
+}
+
+export async function returnMentorshipSession(
+  sessionId: number,
+  reason: string
+): Promise<ActionResponse<{ businessId: number }>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const parsedReason = z.string().trim().min(5).max(2000).safeParse(reason);
+    if (!parsedReason.success) {
+      return errorResponse("Enter a return reason of at least 5 characters.");
+    }
+
+    const row = await db.query.mentorshipSessions.findFirst({
+      where: eq(mentorshipSessions.id, sessionId),
+      with: { match: true },
+    });
+    if (!row?.match) return errorResponse("Session not found");
+    if (row.status !== "pending_approval") {
+      return errorResponse("Only sessions awaiting approval can be returned.");
+    }
+
+    await db
+      .update(mentorshipSessions)
+      .set({
+        status: "scheduled",
+        rejectionReason: parsedReason.data,
+        approvedById: authSession.user.id,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(mentorshipSessions.id, sessionId));
+
+    await revalidateMentorshipPaths(row.match.businessId);
+    return successResponse({ businessId: row.match.businessId });
+  } catch (e) {
+    console.error("returnMentorshipSession", e);
+    return errorResponse("Failed to return session");
+  }
 }
 
 export type MentorListRow = {
@@ -496,8 +712,11 @@ export type MyMentorshipMatchRow = {
     sessionType: "physical" | "virtual";
     status: string;
     scheduledDate: Date;
+    completedDate: Date | null;
+    durationMinutes: number | null;
     diagnosticNotes: string | null;
     photographicEvidenceUrl: string | null;
+    rejectionReason: string | null;
   }>;
 };
 
@@ -540,8 +759,11 @@ export async function listMyMentorshipMatches(): Promise<
         sessionType: s.sessionType,
         status: s.status,
         scheduledDate: s.scheduledDate,
+        completedDate: s.completedDate,
+        durationMinutes: s.durationMinutes,
         diagnosticNotes: s.diagnosticNotes,
         photographicEvidenceUrl: s.photographicEvidenceUrl,
+        rejectionReason: s.rejectionReason,
       })),
     }));
 

@@ -13,9 +13,11 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE "public"."session_status" AS ENUM('scheduled', 'completed', 'missed', 'rescheduled');
+  CREATE TYPE "public"."session_status" AS ENUM('scheduled', 'pending_approval', 'completed', 'missed', 'rescheduled');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+ALTER TYPE "public"."session_status" ADD VALUE IF NOT EXISTS 'pending_approval';
 
 DO $$ BEGIN
   CREATE TYPE "public"."session_type" AS ENUM('physical', 'virtual');
@@ -52,11 +54,20 @@ CREATE TABLE IF NOT EXISTS "mentorship_sessions" (
   "status" "session_status" DEFAULT 'scheduled' NOT NULL,
   "scheduled_date" timestamp NOT NULL,
   "completed_date" timestamp,
+  "duration_minutes" integer,
   "diagnostic_notes" text,
   "photographic_evidence_url" varchar(500),
+  "approved_by_id" text,
+  "approved_at" timestamp,
+  "rejection_reason" text,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL
 );
+
+ALTER TABLE "mentorship_sessions" ADD COLUMN IF NOT EXISTS "duration_minutes" integer;
+ALTER TABLE "mentorship_sessions" ADD COLUMN IF NOT EXISTS "rejection_reason" text;
+ALTER TABLE "mentorship_sessions" ADD COLUMN IF NOT EXISTS "approved_by_id" text;
+ALTER TABLE "mentorship_sessions" ADD COLUMN IF NOT EXISTS "approved_at" timestamp;
 
 CREATE TABLE IF NOT EXISTS "mentorship_action_items" (
   "id" serial PRIMARY KEY NOT NULL,

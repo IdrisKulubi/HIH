@@ -93,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
       { href: "/admin/cdp/approvals", label: "Report Approvals", icon: CheckCircle },
       { href: "/admin/mentorship", label: "Mentorship", icon: Users },
+      { href: "/admin/mentorship/approvals", label: "Session Approvals", icon: CheckCircle },
     ],
   },
   {

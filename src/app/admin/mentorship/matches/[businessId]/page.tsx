@@ -85,17 +85,21 @@ export default async function AdminMentorshipMatchesPage({
                       <div className="text-sm font-medium">
                         #{s.sessionNumber} · {s.sessionType} · {s.status}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Scheduled: {s.scheduledDate ? new Date(s.scheduledDate).toLocaleDateString() : "—"}
-                      </p>
-                      <CompleteSessionForm
-                        sessionId={s.id}
-                        sessionNumber={s.sessionNumber}
-                        sessionType={s.sessionType}
-                        status={s.status}
-                        photographicEvidenceUrl={s.photographicEvidenceUrl}
-                        diagnosticNotes={s.diagnosticNotes}
-                      />
+                    <p className="text-xs text-muted-foreground">
+                      Scheduled: {s.scheduledDate ? new Date(s.scheduledDate).toLocaleDateString() : "—"}
+                    </p>
+                    <CompleteSessionForm
+                      sessionId={s.id}
+                      sessionNumber={s.sessionNumber}
+                      sessionType={s.sessionType}
+                      status={s.status}
+                      scheduledDate={s.scheduledDate}
+                      completedDate={s.completedDate}
+                      durationMinutes={s.durationMinutes}
+                      rejectionReason={s.rejectionReason}
+                      photographicEvidenceUrl={s.photographicEvidenceUrl}
+                      diagnosticNotes={s.diagnosticNotes}
+                    />
                     </div>
                   ))}
                 </div>

@@ -344,6 +344,13 @@
       "when": 1786752000000,
       "tag": "0049_mel_collection_window_tenth",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786838400000,
+      "tag": "0050_mentorship_session_approval",
+      "breakpoints": true
     }
   ]
 }

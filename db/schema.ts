@@ -213,6 +213,7 @@ export const kycChangeRequestStatusEnum = pgEnum('kyc_change_request_status', [
 export const sessionTypeEnum = pgEnum('session_type', ['physical', 'virtual']);
 export const sessionStatusEnum = pgEnum('session_status', [
   'scheduled',
+  'pending_approval',
   'completed',
   'missed',
   'rescheduled'
@@ -851,8 +852,12 @@ export const mentorshipSessions = pgTable(
     status: sessionStatusEnum('status').default('scheduled').notNull(),
     scheduledDate: timestamp('scheduled_date').notNull(),
     completedDate: timestamp('completed_date'),
+    durationMinutes: integer('duration_minutes'),
     diagnosticNotes: text('diagnostic_notes'),
     photographicEvidenceUrl: varchar('photographic_evidence_url', { length: 500 }),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at'),
+    rejectionReason: text('rejection_reason'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

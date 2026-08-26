@@ -174,7 +174,15 @@ export {
     completeMentorshipSessionFromForm,
     listMentorsForAdmin,
     listMentorshipMatchesForBusiness,
+    listMentorshipSessionsPendingApproval,
+    countMentorshipSessionsPendingApproval,
+    approveMentorshipSession,
+    returnMentorshipSession,
 } from "./mentorship";
 
-export type { MentorListRow, MentorshipMatchWithSessions } from "./mentorship";
+export type {
+  MentorListRow,
+  MentorshipMatchWithSessions,
+  MentorshipSessionReviewRow,
+} from "./mentorship";
 
