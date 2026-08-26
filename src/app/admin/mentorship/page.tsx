@@ -56,6 +56,7 @@ export default async function AdminMentorshipPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Sector</TableHead>
+                <TableHead>Enterprises</TableHead>
                 <TableHead>Active</TableHead>
               </TableRow>
             </TableHeader>
@@ -65,6 +66,18 @@ export default async function AdminMentorshipPage() {
                   <TableCell>{m.userEmail}</TableCell>
                   <TableCell>{m.userName ?? "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{m.expertiseArea}</TableCell>
+                  <TableCell>
+                    {m.enterpriseCount === 0 ? (
+                      <span className="text-muted-foreground">None</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">{m.enterpriseCount}</p>
+                        <p className="max-w-xs truncate text-xs text-muted-foreground">
+                          {m.enterpriseNames.join(", ")}
+                        </p>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>{m.isActive ? "Yes" : "No"}</TableCell>
                 </TableRow>
               ))}

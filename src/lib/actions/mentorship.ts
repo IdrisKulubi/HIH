@@ -309,6 +309,17 @@ export async function createMentorshipMatch(
     });
     if (!mentor) return errorResponse("Mentor not found");
 
+    const existingActiveMatch = await db.query.mentorshipMatches.findFirst({
+      where: and(
+        eq(mentorshipMatches.businessId, businessId),
+        eq(mentorshipMatches.mentorId, mentorId),
+        eq(mentorshipMatches.status, "active")
+      ),
+    });
+    if (existingActiveMatch) {
+      return errorResponse("This mentor already has an active match with this business.");
+    }
+
     const base = startDate ?? new Date();
 
     const matchId = await db.transaction(async (tx) => {
@@ -628,6 +639,8 @@ export type MentorListRow = {
   userName: string | null;
   expertiseArea: string;
   isActive: boolean;
+  enterpriseCount: number;
+  enterpriseNames: string[];
 };
 
 export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRow[]>> {
@@ -643,18 +656,36 @@ export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRo
       if (!isPgUndefinedTableError(e)) throw e;
     }
 
-    const rows = await db.query.mentors.findMany({
-      orderBy: (m, { asc }) => [asc(m.id)],
-      with: { user: true },
-    });
+    const [rows, activeMatches] = await Promise.all([
+      db.query.mentors.findMany({
+        orderBy: (m, { asc }) => [asc(m.id)],
+        with: { user: true },
+      }),
+      db.query.mentorshipMatches.findMany({
+        where: eq(mentorshipMatches.status, "active"),
+        with: { business: { columns: { name: true } } },
+      }),
+    ]);
 
-    const data: MentorListRow[] = rows.map((m) => ({
-      id: m.id,
-      userEmail: m.user.email,
-      userName: m.user.name,
-      expertiseArea: m.expertiseArea,
-      isActive: m.isActive ?? true,
-    }));
+    const enterprisesByMentor = new Map<number, string[]>();
+    for (const match of activeMatches) {
+      const names = enterprisesByMentor.get(match.mentorId) ?? [];
+      names.push(match.business.name);
+      enterprisesByMentor.set(match.mentorId, names);
+    }
+
+    const data: MentorListRow[] = rows.map((m) => {
+      const enterpriseNames = enterprisesByMentor.get(m.id) ?? [];
+      return {
+        id: m.id,
+        userEmail: m.user.email,
+        userName: m.user.name,
+        expertiseArea: m.expertiseArea,
+        isActive: m.isActive ?? true,
+        enterpriseCount: enterpriseNames.length,
+        enterpriseNames,
+      };
+    });
 
     return successResponse(data);
   } catch (e) {

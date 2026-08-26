@@ -140,6 +140,10 @@ export function CreateMatchForm({
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      <p className="text-xs text-muted-foreground">
+        The same mentor can be assigned to other businesses from their Manage pages under
+        Businesses.
+      </p>
       <Button type="submit" disabled={pending || mentors.length === 0 || mentorId === ""}>
         {pending ? "Creating…" : "Create match & 6 sessions"}
       </Button>
