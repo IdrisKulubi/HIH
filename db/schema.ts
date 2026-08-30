@@ -184,6 +184,12 @@ export const kycStatusEnum = pgEnum('kyc_status', [
   'rejected'
 ]);
 
+export const kajabiStatusEnum = pgEnum('kajabi_status', [
+  'NOT_STARTED',
+  'REGISTERED',
+  'COMPLETED',
+]);
+
 export const profileLockStatusEnum = pgEnum('profile_lock_status', [
   'unlocked',
   'locked',
@@ -452,6 +458,9 @@ export const users = pgTable(
     isOnline: boolean("is_online").default(false),
     profilePhoto: text("profile_photo"),
     phoneNumber: text("phone_number"),
+    kajabiStatus: kajabiStatusEnum("kajabi_status").default("NOT_STARTED").notNull(),
+    kajabiRegisteredAt: timestamp("kajabi_registered_at"),
+    kajabiCompletedAt: timestamp("kajabi_completed_at"),
   },
   (table) => ({
     emailIdx: index("user_email_idx").on(table.email),

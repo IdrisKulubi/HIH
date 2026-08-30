@@ -191,6 +191,12 @@ export default async function ProfilePage() {
                 <Calendar className="w-3.5 h-3.5" />
                 Joined {format(new Date(userProfile.createdAt), "MMM yyyy")}
               </Badge>
+              <Button asChild variant="outline" size="sm" className="rounded-full">
+                <Link href="/dashboard/learning">
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  Learning
+                </Link>
+              </Button>
             </div>
           </div>
 
