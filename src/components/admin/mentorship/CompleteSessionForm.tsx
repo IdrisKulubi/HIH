@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MentorshipEvidenceField } from "@/components/admin/mentorship/MentorshipEvidenceField";
 import { ExternalLink } from "lucide-react";
-import { getDocumentViewerHref } from "@/lib/document-view-url";
 
 const initial: ActionResponse<void> | null = null;
 
@@ -48,9 +47,9 @@ function SessionSummary({
       {diagnosticNotes ? (
         <p className="line-clamp-3 text-foreground/80">{diagnosticNotes}</p>
       ) : null}
-      {photographicEvidenceUrl ? (
+      {photographicEvidenceUrl?.trim() ? (
         <a
-          href={getDocumentViewerHref(photographicEvidenceUrl, "session-evidence")}
+          href={photographicEvidenceUrl.trim()}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-sky-700 hover:underline"
@@ -111,7 +110,7 @@ export function CompleteSessionForm({
   if (status === "pending_approval") {
     return (
       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-        <p className="text-sm font-medium text-amber-900">Awaiting admin approval</p>
+        <p className="text-sm font-medium text-amber-900">Awaiting REDO approval</p>
         <SessionSummary
           completedDate={completedDate}
           durationMinutes={durationMinutes}

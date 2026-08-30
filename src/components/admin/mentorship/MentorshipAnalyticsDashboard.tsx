@@ -2,6 +2,7 @@
 
 import type { MentorshipAnalytics } from "@/lib/mentorship/analytics";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
+import { MentorshipAnalyticsEntityTables } from "@/components/admin/mentorship/MentorshipAnalyticsEntityTables";
 import {
   Table,
   TableBody,
@@ -162,37 +163,9 @@ export function MentorshipAnalyticsDashboard({ data }: { data: MentorshipAnalyti
         />
       </div>
 
-      <BreakdownTable
-        title="Per mentor"
-        headers={[
-          "Mentor",
-          "Email",
-          "Enterprises",
-          "Completed",
-          "Pending",
-          "Total hours",
-        ]}
-        rows={data.mentorRows.map((row) => [
-          row.mentorName,
-          row.mentorEmail,
-          row.enterprisesAssigned,
-          row.sessionsCompleted,
-          row.pendingSubmissions,
-          row.totalHours,
-        ])}
-      />
-
-      <BreakdownTable
-        title="Per business"
-        headers={["Business", "Mentor", "Match status", "Completed", "Pending", "Total hours"]}
-        rows={data.businessRows.map((row) => [
-          row.businessName,
-          row.mentorName,
-          row.matchStatus,
-          `${row.sessionsCompleted}/6`,
-          row.pendingCount,
-          row.totalHours,
-        ])}
+      <MentorshipAnalyticsEntityTables
+        mentorRows={data.mentorRows}
+        businessRows={data.businessRows}
       />
 
       <BreakdownTable

@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-function isAllowedFileHost(hostname: string): boolean {
-  if (hostname === "utfs.io" || hostname === "ufs.sh") return true;
-  return hostname.endsWith(".utfs.io") || hostname.endsWith(".ufs.sh");
-}
+import { isAllowedDocumentFileHost } from "@/lib/document-view-url";
 
 export async function GET(request: NextRequest) {
   const urlParam = request.nextUrl.searchParams.get("url");
@@ -22,7 +18,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid protocol" }, { status: 400 });
   }
 
-  if (!isAllowedFileHost(target.hostname)) {
+  if (!isAllowedDocumentFileHost(target.hostname)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

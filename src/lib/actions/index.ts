@@ -176,6 +176,7 @@ export {
     listMentorshipMatchesForBusiness,
     listMentorshipSessionsPendingApproval,
     countMentorshipSessionsPendingApproval,
+    listApprovedMentorshipSessions,
     approveMentorshipSession,
     returnMentorshipSession,
     getMentorshipAnalytics,
@@ -185,6 +186,7 @@ export type {
   MentorListRow,
   MentorshipMatchWithSessions,
   MentorshipSessionReviewRow,
+  MentorshipApprovedSessionRow,
   MentorshipAnalytics,
 } from "./mentorship";
 

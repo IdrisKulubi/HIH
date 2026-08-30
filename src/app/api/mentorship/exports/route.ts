@@ -1,11 +1,16 @@
 import { auth } from "@/auth";
 import {
+  applyMentorshipExportDateFilter,
   buildMentorshipCsv,
   buildMentorshipWorkbook,
   loadMentorshipExportData,
   parseMentorshipExportTypes,
 } from "@/lib/mentorship/export";
 import { MENTORSHIP_EXPORT_TYPES } from "@/lib/mentorship/export-config";
+import {
+  mentorshipExportRangeLabel,
+  parseMentorshipExportDateParams,
+} from "@/lib/mentorship/export-date-range";
 
 const ADMIN_ROLES = ["admin", "oversight"] as const;
 
@@ -38,14 +43,29 @@ export async function GET(request: Request) {
     }
 
     const format = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
-    const data = await loadMentorshipExportData();
+    const dateRange = parseMentorshipExportDateParams(url.searchParams);
+    if (!dateRange.ok) {
+      return Response.json({ error: dateRange.error }, { status: 400 });
+    }
+
+    const data = applyMentorshipExportDateFilter(
+      await loadMentorshipExportData(),
+      dateRange.from,
+      dateRange.to
+    );
     const exportedAt = new Date();
+    const periodLabel = mentorshipExportRangeLabel(dateRange.from, dateRange.to);
     const metadata = {
       "Exported at": exportedAt.toISOString(),
       "Exported by": session.user.email ?? session.user.id,
+      Period: periodLabel,
+      "Period from": dateRange.from ?? "All time",
+      "Period to": dateRange.to ?? "Present",
       Sections: types.join(", "),
     };
-    const fileBase = `mentorship-export-${exportedAt.toISOString().slice(0, 10)}`;
+    const fileBase = dateRange.from || dateRange.to
+      ? `mentorship-export-${dateRange.from ?? "start"}-to-${dateRange.to ?? exportedAt.toISOString().slice(0, 10)}`
+      : `mentorship-export-${exportedAt.toISOString().slice(0, 10)}`;
 
     if (format === "xlsx") {
       const buffer = buildMentorshipWorkbook(types, data, metadata);

@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { ChartLine } from "lucide-react";
+import { ChartLine, FileCheck2 } from "lucide-react";
 import { listBusinessesWithApplicantForAdmin } from "@/lib/actions/cna";
 import {
-  countMentorshipSessionsPendingApproval,
   listMentorsForAdmin,
   listUsersForMentorOnboarding,
 } from "@/lib/actions/mentorship";
 import { MentorCreateForm } from "@/components/admin/mentorship/MentorCreateForm";
 import { MentorshipBusinessTable } from "@/components/admin/mentorship/MentorshipBusinessTable";
-import { MentorshipSessionApprovalsEntry } from "@/components/admin/mentorship/MentorshipSessionApprovalsEntry";
 import {
   Table,
   TableBody,
@@ -19,14 +17,11 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminMentorshipPage() {
-  const [mentorsRes, businessesRes, usersRes, pendingRes] = await Promise.all([
+  const [mentorsRes, businessesRes, usersRes] = await Promise.all([
     listMentorsForAdmin(),
     listBusinessesWithApplicantForAdmin(),
     listUsersForMentorOnboarding(),
-    countMentorshipSessionsPendingApproval(),
   ]);
-
-  const pendingCount = pendingRes.success && pendingRes.data != null ? pendingRes.data : 0;
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-10">
@@ -37,16 +32,23 @@ export default async function AdminMentorshipPage() {
             Register mentors, then open a business to create a six-session match (sessions 1 &amp; 6 physical, 2–5 virtual).
           </p>
         </div>
-        <Link
-          href="/admin/mentorship/analytics"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
-        >
-          <ChartLine className="size-4" />
-          Analytics
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/mentorship/approved"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+          >
+            <FileCheck2 className="size-4" />
+            Approved sessions
+          </Link>
+          <Link
+            href="/admin/mentorship/analytics"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+          >
+            <ChartLine className="size-4" />
+            Analytics
+          </Link>
+        </div>
       </div>
-
-      <MentorshipSessionApprovalsEntry pendingCount={pendingCount} />
 
       <section className="space-y-4">
         <h2 className="text-lg font-medium">Create mentor</h2>

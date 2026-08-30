@@ -26,6 +26,50 @@ function turnaroundHours(submittedAt: Date | null, approvedAt: Date | null): num
   return ms / (1000 * 60 * 60);
 }
 
+export type MentorshipAnalyticsSessionRow = {
+  id: number;
+  sessionNumber: number;
+  sessionType: string;
+  status: string;
+  scheduledDate: string | null;
+  completedDate: string | null;
+  durationMinutes: number | null;
+  diagnosticNotes: string | null;
+  evidenceUrl: string | null;
+  rejectionReason: string | null;
+};
+
+export type MentorshipAnalyticsMatchRow = {
+  matchId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  matchStatus: string;
+  startDate: string | null;
+  sessionsCompleted: number;
+  pendingCount: number;
+  totalHours: number;
+  sessions: MentorshipAnalyticsSessionRow[];
+};
+
+export type MentorshipAnalyticsMentorRow = {
+  mentorId: number;
+  mentorName: string;
+  mentorEmail: string;
+  expertiseArea: string;
+  isActive: boolean;
+  enterprisesAssigned: number;
+  sessionsCompleted: number;
+  totalHours: number;
+  pendingSubmissions: number;
+  matches: MentorshipAnalyticsMatchRow[];
+};
+
+export type MentorshipAnalyticsBusinessRow = MentorshipAnalyticsMatchRow & {
+  mentorName: string;
+  mentorEmail: string;
+};
+
 export type MentorshipAnalytics = {
   kpis: {
     activeMentors: number;
@@ -57,24 +101,8 @@ export type MentorshipAnalytics = {
     currentlyReturned: number;
     everReturned: number;
   };
-  mentorRows: Array<{
-    mentorId: number;
-    mentorName: string;
-    mentorEmail: string;
-    enterprisesAssigned: number;
-    sessionsCompleted: number;
-    totalHours: number;
-    pendingSubmissions: number;
-  }>;
-  businessRows: Array<{
-    businessId: number;
-    businessName: string;
-    mentorName: string;
-    matchStatus: string;
-    sessionsCompleted: number;
-    totalHours: number;
-    pendingCount: number;
-  }>;
+  mentorRows: MentorshipAnalyticsMentorRow[];
+  businessRows: MentorshipAnalyticsBusinessRow[];
   approverRows: Array<{
     approverId: string;
     approverName: string;
@@ -130,38 +158,72 @@ export function computeMentorshipAnalytics(data: ExportData): MentorshipAnalytic
     (s) => now - s.updatedAt.getTime() > sevenDaysMs
   ).length;
 
-  const mentorRows = mentors.map((mentor) => {
-    const mentorMatches = matches.filter((m) => m.mentorId === mentor.id);
-    const mentorSessions = mentorMatches.flatMap((m) => m.sessions);
-    const completed = mentorSessions.filter((s) => s.status === "completed");
-    const pending = mentorSessions.filter((s) => s.status === "pending_approval");
+  const toHours = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+
+  const mapSession = (
+    session: ExportData["sessions"][number] | ExportData["matches"][number]["sessions"][number]
+  ): MentorshipAnalyticsSessionRow => ({
+    id: session.id,
+    sessionNumber: session.sessionNumber,
+    sessionType: session.sessionType,
+    status: session.status,
+    scheduledDate: session.scheduledDate?.toISOString() ?? null,
+    completedDate: session.completedDate?.toISOString() ?? null,
+    durationMinutes: session.durationMinutes,
+    diagnosticNotes: session.diagnosticNotes,
+    evidenceUrl: session.photographicEvidenceUrl,
+    rejectionReason: session.rejectionReason,
+  });
+
+  const mapMatch = (match: ExportData["matches"][number]): MentorshipAnalyticsMatchRow => {
+    const completed = match.sessions.filter((s) => s.status === "completed");
+    const pending = match.sessions.filter((s) => s.status === "pending_approval");
     const minutes = completed.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
+    const applicant = match.business.applicant;
+    return {
+      matchId: match.id,
+      businessId: match.businessId,
+      businessName: match.business.name,
+      applicantName: `${applicant.firstName} ${applicant.lastName}`.trim(),
+      matchStatus: match.status,
+      startDate: match.startDate?.toISOString() ?? null,
+      sessionsCompleted: completed.length,
+      pendingCount: pending.length,
+      totalHours: toHours(minutes),
+      sessions: [...match.sessions]
+        .sort((a, b) => a.sessionNumber - b.sessionNumber)
+        .map(mapSession),
+    };
+  };
+
+  const mentorRows = mentors.map((mentor) => {
+    const mentorMatches = matches.filter((m) => m.mentorId === mentor.id).map(mapMatch);
+    const sessionsCompleted = mentorMatches.reduce((sum, m) => sum + m.sessionsCompleted, 0);
+    const pendingSubmissions = mentorMatches.reduce((sum, m) => sum + m.pendingCount, 0);
+    const totalHours = mentorMatches.reduce((sum, m) => sum + m.totalHours, 0);
     const activeEnterpriseIds = new Set(
-      mentorMatches.filter((m) => m.status === "active").map((m) => m.businessId)
+      mentorMatches.filter((m) => m.matchStatus === "active").map((m) => m.businessId)
     );
     return {
       mentorId: mentor.id,
       mentorName: mentor.user.name ?? mentor.user.email,
       mentorEmail: mentor.user.email,
+      expertiseArea: mentor.expertiseArea,
+      isActive: mentor.isActive,
       enterprisesAssigned: activeEnterpriseIds.size,
-      sessionsCompleted: completed.length,
-      totalHours: Math.round((minutes / 60) * 100) / 100,
-      pendingSubmissions: pending.length,
+      sessionsCompleted,
+      totalHours: Math.round(totalHours * 100) / 100,
+      pendingSubmissions,
+      matches: mentorMatches.sort((a, b) => b.sessionsCompleted - a.sessionsCompleted),
     };
   });
 
   const businessRows = matches.map((match) => {
-    const completed = match.sessions.filter((s) => s.status === "completed");
-    const pending = match.sessions.filter((s) => s.status === "pending_approval");
-    const minutes = completed.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
+    const mapped = mapMatch(match);
     return {
-      businessId: match.businessId,
-      businessName: match.business.name,
+      ...mapped,
       mentorName: match.mentor.user.name ?? match.mentor.user.email,
-      matchStatus: match.status,
-      sessionsCompleted: completed.length,
-      totalHours: Math.round((minutes / 60) * 100) / 100,
-      pendingCount: pending.length,
+      mentorEmail: match.mentor.user.email,
     };
   });
 

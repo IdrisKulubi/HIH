@@ -10,7 +10,7 @@ import {
   userProfiles,
   users,
 } from "@/db/schema";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
@@ -22,6 +22,10 @@ const ADMIN_ROLES = ["admin", "oversight"] as const;
 
 function isPhase2Admin(role?: string | null) {
   return !!role && ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number]);
+}
+
+function isMentorshipSessionApprover(role?: string | null) {
+  return role === "redo";
 }
 
 function isMentorRole(role?: string | null) {
@@ -79,6 +83,9 @@ function parseDurationMinutes(hoursRaw: unknown, minutesRaw: unknown): number | 
 async function revalidateMentorshipPaths(businessId?: number) {
   revalidatePath("/admin/mentorship");
   revalidatePath("/admin/mentorship/approvals");
+  revalidatePath("/admin/mentorship/approved");
+  revalidatePath("/admin/mentorship/analytics");
+  revalidatePath("/oversight");
   revalidatePath("/mentor");
   if (businessId != null) {
     revalidatePath(`/admin/mentorship/matches/${businessId}`);
@@ -498,7 +505,7 @@ export async function listMentorshipSessionsPendingApproval(): Promise<
 > {
   try {
     const authSession = await auth();
-    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+    if (!authSession?.user?.id || !isMentorshipSessionApprover(authSession.user.role ?? null)) {
       return errorResponse("Unauthorized");
     }
 
@@ -548,11 +555,27 @@ export async function listMentorshipSessionsPendingApproval(): Promise<
 export async function countMentorshipSessionsPendingApproval(): Promise<
   ActionResponse<number>
 > {
-  const result = await listMentorshipSessionsPendingApproval();
-  if (!result.success || result.data == null) {
-    return errorResponse(result.error ?? "Failed to count pending sessions");
+  try {
+    const authSession = await auth();
+    const role = authSession?.user?.role ?? null;
+    if (
+      !authSession?.user?.id ||
+      (!isMentorshipSessionApprover(role) && !isPhase2Admin(role))
+    ) {
+      return errorResponse("Unauthorized");
+    }
+
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(mentorshipSessions)
+      .where(eq(mentorshipSessions.status, "pending_approval"));
+
+    return successResponse(Number(row?.count ?? 0));
+  } catch (e) {
+    console.error("countMentorshipSessionsPendingApproval", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to count pending sessions");
   }
-  return successResponse(result.data.length);
 }
 
 export async function approveMentorshipSession(
@@ -560,7 +583,7 @@ export async function approveMentorshipSession(
 ): Promise<ActionResponse<{ businessId: number }>> {
   try {
     const authSession = await auth();
-    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+    if (!authSession?.user?.id || !isMentorshipSessionApprover(authSession.user.role ?? null)) {
       return errorResponse("Unauthorized");
     }
 
@@ -598,7 +621,7 @@ export async function returnMentorshipSession(
 ): Promise<ActionResponse<{ businessId: number }>> {
   try {
     const authSession = await auth();
-    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+    if (!authSession?.user?.id || !isMentorshipSessionApprover(authSession.user.role ?? null)) {
       return errorResponse("Unauthorized");
     }
 
@@ -805,6 +828,99 @@ export async function listMyMentorshipMatches(): Promise<
     console.error("listMyMentorshipMatches", e);
     if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
     return errorResponse("Failed to load your mentorship matches");
+  }
+}
+
+export type MentorshipApprovedSessionRow = {
+  sessionId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  mentorName: string;
+  mentorEmail: string;
+  sessionNumber: number;
+  sessionType: "physical" | "virtual";
+  scheduledDate: string;
+  completedDate: string | null;
+  durationMinutes: number;
+  durationLabel: string;
+  diagnosticNotes: string | null;
+  photographicEvidenceUrl: string | null;
+  approvedAt: string;
+  approverId: string | null;
+  approverName: string;
+  approverEmail: string | null;
+};
+
+export async function listApprovedMentorshipSessions(): Promise<
+  ActionResponse<MentorshipApprovedSessionRow[]>
+> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const rows = await db.query.mentorshipSessions.findMany({
+      where: and(
+        eq(mentorshipSessions.status, "completed"),
+        isNotNull(mentorshipSessions.approvedAt)
+      ),
+      orderBy: (s, { desc: orderDesc }) => [orderDesc(s.approvedAt)],
+      with: {
+        match: {
+          with: {
+            business: { with: { applicant: true } },
+            mentor: { with: { user: true } },
+          },
+        },
+      },
+    });
+
+    const approverIds = [
+      ...new Set(rows.map((row) => row.approvedById).filter((id): id is string => Boolean(id))),
+    ];
+    const approverRows =
+      approverIds.length > 0
+        ? await db.query.users.findMany({
+            where: inArray(users.id, approverIds),
+            columns: { id: true, email: true, name: true },
+          })
+        : [];
+    const approverById = new Map(approverRows.map((user) => [user.id, user]));
+
+    const data: MentorshipApprovedSessionRow[] = rows
+      .filter((row) => row.match?.business && row.match.mentor?.user && row.approvedAt)
+      .map((row) => {
+        const approver = row.approvedById ? approverById.get(row.approvedById) : null;
+        return {
+          sessionId: row.id,
+          businessId: row.match.businessId,
+          businessName: row.match.business.name,
+          applicantName:
+            `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim(),
+          mentorName: row.match.mentor.user.name ?? row.match.mentor.user.email,
+          mentorEmail: row.match.mentor.user.email,
+          sessionNumber: row.sessionNumber,
+          sessionType: row.sessionType,
+          scheduledDate: row.scheduledDate.toISOString(),
+          completedDate: row.completedDate?.toISOString() ?? null,
+          durationMinutes: row.durationMinutes ?? 0,
+          durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
+          diagnosticNotes: row.diagnosticNotes,
+          photographicEvidenceUrl: row.photographicEvidenceUrl,
+          approvedAt: row.approvedAt!.toISOString(),
+          approverId: row.approvedById,
+          approverName: approver?.name ?? approver?.email ?? "Unknown approver",
+          approverEmail: approver?.email ?? null,
+        };
+      });
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("listApprovedMentorshipSessions", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to load approved sessions");
   }
 }
 

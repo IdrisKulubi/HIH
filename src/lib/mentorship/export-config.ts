@@ -22,7 +22,7 @@ export const MENTORSHIP_EXPORT_SECTIONS = [
   {
     key: "pending_approvals",
     label: "Pending approvals",
-    description: "Sessions currently awaiting admin review.",
+    description: "Sessions currently awaiting REDO review.",
   },
   {
     key: "approvals_log",

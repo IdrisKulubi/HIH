@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HubQueueRow } from "@/components/staff/HubQueueRow";
 import type { OversightDashboardSummary } from "@/lib/actions/oversight-dashboard";
 import { isA2fDdOnlyStaffRole } from "@/lib/a2f-nav";
+import { MentorshipSessionApprovalsEntry } from "@/components/admin/mentorship/MentorshipSessionApprovalsEntry";
 import {
   ArrowRight,
   Bank,
@@ -37,6 +38,7 @@ export function OversightHub({
   const showMelHub = user.role === "redo" || user.role === "admin";
   const showA2fDdQueue = isA2fDdOnlyStaffRole(user.role) || user.role === "admin";
   const ddOnlyA2f = isA2fDdOnlyStaffRole(user.role);
+  const showMentorshipApprovals = user.role === "redo";
   const isAdmin = user.role === "admin";
   const summaryCardCount = 3 + (showPreScreening ? 1 : 0) + (showMelHub ? 1 : 0);
 
@@ -62,6 +64,14 @@ export function OversightHub({
             <Button asChild>
               <Link href="/oversight/approvals">
                 Review approvals
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          )}
+          {summary.pendingMentorshipSessions > 0 && showMentorshipApprovals && (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/admin/mentorship/approvals">
+                Review mentorship sessions
                 <ArrowRight className="ml-1.5 size-4" />
               </Link>
             </Button>
@@ -238,6 +248,10 @@ export function OversightHub({
         )}
       </div>
 
+      {showMentorshipApprovals ? (
+        <MentorshipSessionApprovalsEntry pendingCount={summary.pendingMentorshipSessions} />
+      ) : null}
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Queues
@@ -259,6 +273,16 @@ export function OversightHub({
             countLabel="pending"
             primary={summary.pendingCdpReports > 0}
           />
+          {showMentorshipApprovals && (
+            <HubQueueRow
+              title="Mentorship session approvals"
+              description="Approve or return logged mentorship sessions from mentors"
+              href="/admin/mentorship/approvals"
+              count={summary.pendingMentorshipSessions}
+              countLabel="pending"
+              primary={summary.pendingMentorshipSessions > 0}
+            />
+          )}
           <HubQueueRow
             title="CDP work queue"
             description="Review CNA progress and manage capacity development plans"
@@ -338,6 +362,9 @@ export function OversightHub({
                 <li>Approve or query assessments within 12 hours</li>
                 <li>Provide clear feedback when querying for revisions</li>
                 <li>Recommend qualifying applications for due diligence</li>
+                {showMentorshipApprovals ? (
+                  <li>Review logged mentorship sessions and approve or return them to the mentor</li>
+                ) : null}
                 {showMelHub ? (
                   <li>Review BDS EDO quarterly monitoring reports before they advance to MEL</li>
                 ) : null}

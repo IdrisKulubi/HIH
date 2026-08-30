@@ -8,9 +8,15 @@ import {
   type MentorshipExportType,
   mentorshipExportSheetName,
 } from "@/lib/mentorship/export-config";
+import {
+  sessionInMentorshipExportRange,
+  ymdInRange,
+} from "@/lib/mentorship/export-date-range";
 
-type LoadedSession = Awaited<ReturnType<typeof loadMentorshipExportData>>["sessions"][number];
-type LoadedMentor = Awaited<ReturnType<typeof loadMentorshipExportData>>["mentors"][number];
+type MentorshipExportData = Awaited<ReturnType<typeof loadMentorshipExportData>>;
+type LoadedSession = MentorshipExportData["sessions"][number];
+type LoadedMentor = MentorshipExportData["mentors"][number];
+type LoadedMatch = MentorshipExportData["matches"][number];
 
 function iso(value: Date | string | null | undefined): string | null {
   if (!value) return null;
@@ -83,6 +89,30 @@ export async function loadMentorshipExportData() {
     sessions: sessionRows,
     approverById,
   };
+}
+
+export function applyMentorshipExportDateFilter(
+  data: MentorshipExportData,
+  from: string | null,
+  to: string | null
+): MentorshipExportData {
+  if (!from && !to) return data;
+
+  const sessions = data.sessions.filter((session) =>
+    sessionInMentorshipExportRange(session, from, to)
+  );
+  const matches = data.matches
+    .map((match) => ({
+      ...match,
+      sessions: match.sessions.filter((session) =>
+        sessionInMentorshipExportRange(session, from, to)
+      ),
+    }))
+    .filter(
+      (match) => ymdInRange(match.startDate, from, to) || match.sessions.length > 0
+    );
+
+  return { ...data, sessions, matches };
 }
 
 function sessionContext(session: LoadedSession, approverById: Map<string, { email: string; name: string | null }>) {

@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useDropzone } from "@uploadthing/react";
 import { useUploadThing } from "@/utils/uploadthing";
-import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -169,7 +168,7 @@ export function MentorshipEvidenceField({
               </Button>
             </div>
             <a
-              href={getDocumentViewerHref(value, displayName)}
+              href={value}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-emerald-700 underline underline-offset-2"

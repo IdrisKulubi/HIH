@@ -20,7 +20,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { getDocumentViewerHref } from "@/lib/document-view-url";
 import {
   Building2,
   CalendarDays,
@@ -322,16 +321,13 @@ export function MentorshipSessionReviewQueue({
 
                 <SessionField label="Diagnostic notes" value={reviewing.diagnosticNotes} />
 
-                {reviewing.photographicEvidenceUrl ? (
+                {reviewing.photographicEvidenceUrl?.trim() ? (
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                       Evidence
                     </p>
                     <a
-                      href={getDocumentViewerHref(
-                        reviewing.photographicEvidenceUrl,
-                        "session-evidence"
-                      )}
+                      href={reviewing.photographicEvidenceUrl.trim()}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition hover:border-emerald-300 hover:bg-emerald-50"
@@ -340,9 +336,7 @@ export function MentorshipSessionReviewQueue({
                       View evidence
                     </a>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No evidence attached.</p>
-                )}
+                ) : null}
               </div>
 
               <SheetFooter className="gap-2 sm:justify-end">

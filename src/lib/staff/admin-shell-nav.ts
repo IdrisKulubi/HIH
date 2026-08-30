@@ -57,6 +57,7 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
     "/a2f",
     "/admin/cdp",
     "/admin/cdp/approvals",
+    "/admin/mentorship/approvals",
     "/admin/mel/monitoring",
     "/admin/mel/review",
     "/admin/mel/evidence",
@@ -80,7 +81,7 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
     "/a2f",
     "/admin/cdp",
     "/admin/cdp/approvals",
-    "/admin/mentorship/approvals",
+    "/admin/mentorship/approved",
     "/admin/mentorship/analytics",
   ],
   mentor: [
@@ -107,7 +108,15 @@ export function filterNavGroupsForRole<T extends { items: { href: string }[] }>(
   role: string
 ): T[] {
   const allowed = ROLE_ALLOWED_HREFS[role];
-  if (!allowed || allowed === "all") return groups;
+  const adminHidden = new Set(["/admin/mentorship/approvals"]);
+  if (!allowed || allowed === "all") {
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !adminHidden.has(item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }
   const allowedSet = new Set(allowed);
   return groups
     .map((group) => ({
