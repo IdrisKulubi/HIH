@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/mentor", label: "Mentorship workspace" },
+  { href: "/mentor/analytics", label: "Your stats" },
   { href: "/mentor/cna", label: "TA CNA reviews" },
 ] as const;
 
