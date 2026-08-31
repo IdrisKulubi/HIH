@@ -1,7 +1,8 @@
 import { loadEnvConfig } from "@next/env";
 import { Pool } from "pg";
 import { readFileSync } from "node:fs";
-import { cwd, join } from "node:process";
+import { join } from "node:path";
+import { cwd } from "node:process";
 
 loadEnvConfig(cwd());
 
