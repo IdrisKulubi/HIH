@@ -83,8 +83,22 @@ export function MonitoringWorkspaceTable({
                     Enterprise #{row.businessId} · {row.applicantName}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-400">{row.email}</p>
-                  {actor.canAccessAllEnterprises ? (
-                    <AssignmentForm businessId={row.businessId} collectors={collectors} />
+                  {row.assignedCollectorIds.length > 0 ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Assigned:{" "}
+                      {row.assignedCollectorIds
+                        .map((id) => collectors.find((collector) => collector.id === id)?.name ?? "collector")
+                        .join(", ")}
+                    </p>
+                  ) : actor.canAssignEnterprises ? (
+                    <p className="mt-1 text-xs text-slate-400">Not yet assigned</p>
+                  ) : null}
+                  {actor.canAssignEnterprises ? (
+                    <AssignmentForm
+                      businessId={row.businessId}
+                      collectors={collectors}
+                      defaultCollectorId={actor.role === "bds_edo" ? actor.id : undefined}
+                    />
                   ) : null}
                 </td>
                 <td className="px-4 py-4 text-slate-600">
@@ -115,10 +129,13 @@ export function MonitoringWorkspaceTable({
                   )}
                 </td>
                 <td className="px-4 py-4">
-                  {availablePeriods.length > 0 ? (
+                  {availablePeriods.length > 0 &&
+                  (actor.canAccessAllEnterprises || row.assignedCollectorIds.includes(actor.id)) ? (
                     <StartMonitoringForm businessId={row.businessId} periods={availablePeriods} />
-                  ) : (
+                  ) : availablePeriods.length === 0 ? (
                     <span className="text-xs text-slate-500">Collection unavailable</span>
+                  ) : (
+                    <span className="text-xs text-slate-500">Assign this enterprise to start collection</span>
                   )}
                 </td>
               </tr>
@@ -130,9 +147,13 @@ export function MonitoringWorkspaceTable({
       {rows.length === 0 ? (
         <div className="px-4 py-12 text-center">
           <ClipboardList className="mx-auto size-8 text-slate-300" />
-          <p className="mt-3 text-sm font-medium text-slate-900">No enterprises assigned</p>
+          <p className="mt-3 text-sm font-medium text-slate-900">
+            {actor.canAssignEnterprises ? "No enterprises to assign" : "No enterprises assigned"}
+          </p>
           <p className="mt-1 text-sm text-slate-500">
-            Ask your REDO to assign an enterprise to your monitoring queue.
+            {actor.canAssignEnterprises
+              ? "Programme enterprises will appear here so you can assign them to a collector."
+              : "Ask an EDO to assign an enterprise to your monitoring queue."}
           </p>
         </div>
       ) : filtered.length === 0 ? (

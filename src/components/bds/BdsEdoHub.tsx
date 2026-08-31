@@ -164,7 +164,7 @@ export function BdsEdoHub({
           />
           <HubQueueRow
             title="Quarterly monitoring"
-            description="Collect quarterly enterprise monitoring reports and correct any returned submissions"
+            description="Assign enterprises to collectors and collect quarterly monitoring reports"
             href="/admin/mel/monitoring"
             count={summary.melReturnedToMe}
             countLabel="returned"
@@ -184,6 +184,7 @@ export function BdsEdoHub({
                 <li>Pre-screen DD-qualified Foundation and Accelerator applications</li>
                 <li>Complete initial A2F due diligence after enterprises pass screening</li>
                 <li>Resolve KYC and document issues when assigned to you</li>
+                <li>Assign enterprises to EDO collectors for quarterly monitoring</li>
                 <li>Collect quarterly enterprise monitoring reports for your assigned enterprises</li>
                 <li>Correct monitoring reports returned by REDO or MEL with review comments</li>
               </ul>

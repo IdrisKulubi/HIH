@@ -7,6 +7,7 @@ export type MelMonitoringActor = {
   id: string;
   role: MelCollectorRole;
   canAccessAllEnterprises: boolean;
+  canAssignEnterprises: boolean;
 };
 
 export function canCollectMel(role: string | null | undefined): role is MelCollectorRole {
@@ -23,5 +24,6 @@ export async function requireMelCollector(): Promise<MelMonitoringActor> {
     id,
     role,
     canAccessAllEnterprises: role === "admin" || role === "redo",
+    canAssignEnterprises: role === "admin" || role === "bds_edo",
   };
 }

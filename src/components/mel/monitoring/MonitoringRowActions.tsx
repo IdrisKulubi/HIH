@@ -52,9 +52,11 @@ export function StartMonitoringForm({
 export function AssignmentForm({
   businessId,
   collectors,
+  defaultCollectorId,
 }: {
   businessId: number;
   collectors: Array<{ id: string; name: string; role: string }>;
+  defaultCollectorId?: string;
 }) {
   const [state, action, pending] = useActionState(assignMelEnterpriseAction, null);
 
@@ -62,7 +64,12 @@ export function AssignmentForm({
     <form action={action} className="mt-3 space-y-2 border-t pt-3">
       <input type="hidden" name="businessId" value={businessId} />
       <div className="flex gap-2">
-        <select name="collectorId" className={`${selectClass} min-w-44 flex-1`} required>
+        <select
+          name="collectorId"
+          className={`${selectClass} min-w-44 flex-1`}
+          defaultValue={defaultCollectorId ?? ""}
+          required
+        >
           <option value="">Assign collector</option>
           {collectors.map((collector) => (
             <option key={collector.id} value={collector.id}>

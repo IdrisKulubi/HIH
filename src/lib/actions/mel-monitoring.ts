@@ -199,24 +199,23 @@ export async function getMelMonitoringWorkspace(): Promise<ActionResponse<MelMon
       db.query.melMonitoringSubmissions.findMany({
         orderBy: [desc(melMonitoringSubmissions.updatedAt)],
       }),
-      actor.canAccessAllEnterprises
-        ? db
-            .select({
-              id: userProfiles.userId,
-              name: sql<string>`${userProfiles.firstName} || ' ' || ${userProfiles.lastName}`,
-              role: userProfiles.role,
-            })
-            .from(userProfiles)
-            .where(inArray(userProfiles.role, ["bds_edo", "redo"]))
-            .orderBy(asc(userProfiles.firstName))
-        : Promise.resolve([]),
+      db
+        .select({
+          id: userProfiles.userId,
+          name: sql<string>`${userProfiles.firstName} || ' ' || ${userProfiles.lastName}`,
+          role: userProfiles.role,
+        })
+        .from(userProfiles)
+        .where(inArray(userProfiles.role, ["bds_edo", "redo"]))
+        .orderBy(asc(userProfiles.firstName)),
     ]);
 
-    const visible = actor.canAccessAllEnterprises
-      ? baseRows
-      : baseRows.filter((row) =>
-          assignments.some((assignment) => assignment.businessId === row.businessId && assignment.collectorId === actor.id)
-        );
+    const visible =
+      actor.canAccessAllEnterprises || actor.canAssignEnterprises
+        ? baseRows
+        : baseRows.filter((row) =>
+            assignments.some((assignment) => assignment.businessId === row.businessId && assignment.collectorId === actor.id)
+          );
 
     return successResponse({
       actor,
@@ -254,7 +253,7 @@ export async function assignMelEnterpriseAction(
 ): Promise<ActionResponse<{ assigned: true }>> {
   try {
     const actor = await requireMelCollector();
-    if (!actor.canAccessAllEnterprises) return errorResponse("Only REDO or admin can assign enterprises");
+    if (!actor.canAssignEnterprises) return errorResponse("Only an EDO or admin can assign enterprises");
     const businessId = z.coerce.number().int().positive().parse(formData.get("businessId"));
     const collectorId = z.string().min(1).parse(formData.get("collectorId"));
 
