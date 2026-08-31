@@ -22,7 +22,7 @@ export default async function MelMonitoringWorkspacePage() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Quarterly enterprise monitoring</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
             {actor.canAssignEnterprises
-              ? "Assign enterprises to EDO collectors, then start a current report, resume a draft, or record a catch-up for enterprises assigned to you."
+              ? "Use Assign enterprise on each row to give the report to an EDO collector. Then start or resume collection for enterprises assigned to you."
               : "Start a current report, resume a draft, or record an honest catch-up against its original period."}
           </p>
         </div>

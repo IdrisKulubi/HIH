@@ -40,33 +40,39 @@ export function BdsEdoHub({
             </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            CNA diagnostics, A2F pre-screening, and pipeline due diligence in one place
+            Assign MEL enterprises, complete CNA diagnostics, and run A2F screening from one place
           </p>
         </div>
-        {screeningPriority && (
-          <Button asChild className="shrink-0 bg-emerald-700 hover:bg-emerald-800">
-            <Link href="/finance-screening">
-              Open pre-screening
-              <ArrowRight className="ml-1.5 size-4" />
-            </Link>
-          </Button>
-        )}
-        {!screeningPriority && summary.melReturnedToMe > 0 && (
-          <Button asChild className="shrink-0 bg-brand-blue hover:bg-brand-blue/90">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild className="bg-brand-blue hover:bg-brand-blue/90">
             <Link href="/admin/mel/monitoring">
-              Correct MEL reports
+              Assign enterprises
               <ArrowRight className="ml-1.5 size-4" />
             </Link>
           </Button>
-        )}
-        {!screeningPriority && summary.melReturnedToMe === 0 && summary.a2fDdAwaiting > 0 && (
-          <Button asChild className="shrink-0 bg-emerald-700 hover:bg-emerald-800">
-            <Link href="/a2f">
-              Open A2F due diligence
-              <ArrowRight className="ml-1.5 size-4" />
-            </Link>
-          </Button>
-        )}
+          {screeningPriority ? (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/finance-screening">
+                Open pre-screening
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          ) : summary.melReturnedToMe > 0 ? (
+            <Button asChild variant="outline">
+              <Link href="/admin/mel/monitoring">
+                Correct MEL reports
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          ) : summary.a2fDdAwaiting > 0 ? (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/a2f">
+                Open A2F due diligence
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -124,6 +130,14 @@ export function BdsEdoHub({
         </h2>
         <div className="space-y-2">
           <HubQueueRow
+            title="Assign enterprises"
+            description="Assign programme enterprises to EDO collectors for quarterly MEL monitoring"
+            href="/admin/mel/monitoring"
+            count={summary.melReturnedToMe}
+            countLabel="returned"
+            primary
+          />
+          <HubQueueRow
             title="CNA diagnostic reviews"
             description="Complete BA / EDO questions for enterprises in the qualified cohort"
             href="#cna-reviews"
@@ -164,7 +178,7 @@ export function BdsEdoHub({
           />
           <HubQueueRow
             title="Quarterly monitoring"
-            description="Assign enterprises to collectors and collect quarterly monitoring reports"
+            description="Collect and correct monitoring reports for enterprises assigned to you"
             href="/admin/mel/monitoring"
             count={summary.melReturnedToMe}
             countLabel="returned"

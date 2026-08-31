@@ -77,8 +77,8 @@ export function AssignmentForm({
             </option>
           ))}
         </select>
-        <Button type="submit" size="sm" variant="outline" disabled={pending}>
-          {pending ? "Assigning…" : "Assign"}
+        <Button type="submit" size="sm" disabled={pending} className="bg-brand-blue hover:bg-brand-blue-dark">
+          {pending ? "Assigning…" : "Assign enterprise"}
         </Button>
       </div>
       <ActionMessage state={state} />
