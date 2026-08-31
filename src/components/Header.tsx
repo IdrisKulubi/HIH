@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard } from "lucide-react";
+import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard, GraduationCap } from "lucide-react";
 import { areApplicationsOpen } from "@/lib/config";
 import { getRoleHomePath } from "@/lib/users/role-home";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -176,6 +176,19 @@ export function Header() {
                 </Link>
               ))}
 
+              {session?.user ? (
+                <Link
+                  href="/dashboard/learning"
+                  className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+                    pathname.startsWith("/dashboard/learning")
+                      ? "bg-blue-50 text-[#005EB8]"
+                      : "text-slate-600 hover:text-[#005EB8] hover:bg-blue-50"
+                  }`}
+                >
+                  Learning
+                </Link>
+              ) : null}
+
 
 
               {/* Authentication Section */}
@@ -242,6 +255,13 @@ export function Header() {
                           </Link>
                         </DropdownMenuItem>
                       )}
+
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/learning" className="flex items-center">
+                          <GraduationCap className="mr-2 h-4 w-4" />
+                          <span>Learning (LMS)</span>
+                        </Link>
+                      </DropdownMenuItem>
 
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600">
@@ -337,6 +357,14 @@ export function Header() {
                         <p className="text-xs text-gray-500 line-clamp-1">{session.user.email}</p>
                       </div>
                     </div>
+                    <Link
+                      href="/dashboard/learning"
+                      onClick={closeMobileMenu}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-[#005EB8] text-white text-sm font-semibold rounded-xl"
+                    >
+                      <GraduationCap className="h-4 w-4" />
+                      Learning (LMS)
+                    </Link>
                   </div>
                 )}
 

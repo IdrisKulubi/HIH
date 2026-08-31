@@ -267,6 +267,22 @@ export default async function ProfilePage() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6 focus-visible:outline-none">
+            <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-6 sm:p-8 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="p-2 bg-blue-600 text-white rounded-lg shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Enterprise Learning (LMS)</h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Open the Kajabi learning portal and track Registered / Completed status.
+                  </p>
+                </div>
+              </div>
+              <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark shrink-0">
+                <Link href="/dashboard/learning">Go to Learning</Link>
+              </Button>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column - Personal Details */}
               <div className="lg:col-span-2 space-y-6">

@@ -118,13 +118,15 @@ pnpm db:migrate
 
 ## Kajabi admin setup
 
-1. In Kajabi admin, create an **Outgoing Webhook**.
-2. **URL:** `https://<your-domain>/api/webhooks/kajabi`
-3. **Events to subscribe:**
-   - `offer.granted` — learner registered / granted access
-   - `course.completed` — learner completed the course
-4. **Payload:** Ensure JSON includes `event_type` and `payload.email` (Kajabi's default outgoing webhook shape).
-5. **Secret (recommended):** Set a shared secret in Kajabi and add the same value to `KAJABI_WEBHOOK_SECRET`. Configure Kajabi to send it in a custom header (e.g. `x-kajabi-secret`).
+Step-by-step Kajabi UI, env vars, and troubleshooting: **[kajabi-webhook-setup.md](./kajabi-webhook-setup.md)**.
+
+Summary:
+
+1. Restored Growth/Pro plan; use the **site** Dashboard (not Account Details).
+2. Offer → More → Webhooks → **Purchase Webhook URL** (outbound only).
+3. URL: `https://<your-public-domain>/api/webhooks/kajabi`
+4. Payload should include `event_type` (`offer.granted` / `course.completed`) and `payload.email`.
+5. Optional: `KAJABI_WEBHOOK_SECRET` + header `x-kajabi-secret`.
 
 ## Local testing
 

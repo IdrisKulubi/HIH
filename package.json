@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 3001",
+    "dev": "next dev --turbopack -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -29,7 +29,7 @@
     "seed:mel-phase1": "npx tsx scripts/seed-mel-phase1.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "email:dev": "email dev --dir src/components/emails --port 3001"
+    "email:dev": "email dev --dir src/components/emails --port 3000"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.9.1",
@@ -112,7 +112,6 @@
   },
   "devDependencies": {
     "@next/env": "16.0.7",
-    "@react-email/preview-server": "^5.2.10",
     "@react-email/ui": "^6.9.2",
     "@tailwindcss/postcss": "^4",
     "@types/file-saver": "^2.0.7",
