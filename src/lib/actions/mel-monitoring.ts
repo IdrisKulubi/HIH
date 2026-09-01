@@ -34,7 +34,7 @@ import {
   loadApprovalReviewerNote,
 } from "@/lib/mel/notifications/dispatch-report-approved";
 import { requireMelCollector, type MelMonitoringActor } from "@/lib/mel/monitoring-access";
-import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
+import { isCollectorEditableStatus, type MelWorkflowStatus } from "@/lib/mel/review-workflow";
 import { requireMelRolloutFeature } from "@/lib/mel/operations";
 import {
   monitoringSubmissionIssues,
@@ -62,8 +62,8 @@ export type MelMonitoringWorkspaceRow = {
   submissions: Array<{
     id: number;
     reportingPeriodId: number;
-    status: string;
-    sourceMode: string;
+    status: MelWorkflowStatus;
+    sourceMode: "current" | "catch_up";
     updatedAt: Date;
   }>;
 };
