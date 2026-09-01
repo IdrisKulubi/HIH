@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { MelMonitoringDetail } from "@/lib/actions/mel-monitoring";
 import { saveMelMonitoringAction } from "@/lib/actions/mel-monitoring";
 import { WASTE_STREAMS } from "@/lib/mel/monitoring-validation";
@@ -26,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 type JobRow = MelMonitoringDetail["jobs"][number];
 
 export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetail }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(saveMelMonitoringAction, null);
   const locked = !isCollectorEditableStatus(detail.submission.status);
   const isApproved = detail.submission.status === "approved";
@@ -35,6 +37,15 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const waste = Object.fromEntries(detail.waste.map((row) => [row.wasteStream, row.kilograms]));
   const financeByType = new Map(detail.financeEntries.map((entry) => [entry.financeType, entry]));
 
+  useEffect(() => {
+    if (!state?.success) return;
+    if (state.data?.submitted) {
+      router.replace("/admin/mel/monitoring");
+      return;
+    }
+    router.refresh();
+  }, [router, state]);
+
   return (
     <form action={action} className="space-y-6">
       <input type="hidden" name="submissionId" value={detail.submission.id} />
@@ -43,7 +54,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         <NextQuarterPrioritiesPanel summary={detail.approvalSummary} />
       ) : null}
 
-      <fieldset disabled={locked || pending} className="space-y-6">
+      <fieldset disabled={locked} className="space-y-6">
         <FormSection number="0" title={MONITORING_SECTIONS["0"]}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Date of Visit" name="visitDate" type="date" value={detail.submission.visitDate ?? ""} />
@@ -73,12 +84,14 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
           <ProfitFields detail={detail} locked={locked} />
         </FormSection>
 
-        <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals.">
-          <div className="space-y-6">
-            <JobFields label="How many new direct jobs have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid a minimum wage of KES 16,114 per month; daily wage = KES 775.)" prefix="direct" row={direct} cumulative={detail.cumulativeJobs.direct} includeRefugee={detail.includeRefugee} />
-            <JobFields label="How many new indirect jobs have been created by the enterprise in the past 3 months? (Indirect jobs include suppliers, distributors, retailers, transporters, service providers and other people engaged by the business.)" prefix="indirect" row={indirect} cumulative={detail.cumulativeJobs.indirect} includeRefugee={detail.includeRefugee} />
-            <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} />
-          </div>
+        <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals. Enter 0 in Total when no new jobs were created this quarter.">
+          <JobsSection
+            detail={detail}
+            direct={direct}
+            indirect={indirect}
+            locked={locked}
+            includeRefugee={detail.includeRefugee}
+          />
         </FormSection>
 
         <FormSection number="E" title={MONITORING_SECTIONS.E}>
@@ -143,9 +156,16 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
       {!locked ? (
         <div className="sticky bottom-0 z-20 -mx-4 border-t bg-background/95 px-4 py-4 shadow-[0_-6px_8px_rgba(15,23,42,0.08)] backdrop-blur-sm">
           <div className="container mx-auto flex flex-wrap items-center justify-between gap-3">
-            <ActionMessage state={state} />
+            <div className="space-y-1">
+              <ActionMessage state={state} />
+              {detail.submission.lastSavedAt ? (
+                <p className="text-xs text-slate-500">
+                  Last saved {formatSavedAt(detail.submission.lastSavedAt)}
+                </p>
+              ) : null}
+            </div>
             <div className="ml-auto flex gap-2">
-              <Button type="submit" name="intent" value="save" variant="outline" disabled={pending}>{pending ? "Saving…" : "Save draft"}</Button>
+              <Button type="submit" name="intent" value="save" variant="outline" formNoValidate disabled={pending}>{pending ? "Saving…" : "Save draft"}</Button>
               <Button type="submit" name="intent" value="submit" disabled={pending} className="bg-brand-blue hover:bg-brand-blue-dark">{pending ? "Validating…" : "Submit for review"}</Button>
             </div>
           </div>
@@ -189,7 +209,43 @@ function FinanceEntries({ initial }: { initial: Map<string, MelMonitoringDetail[
 }
 
 function FormSection({ number, title, help, children }: { number: string; title: string; help?: string; children: React.ReactNode }) { return <section className="overflow-hidden rounded-lg border border-slate-200 bg-background"><div className="flex gap-3 border-b bg-slate-50 px-4 py-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand-blue/10 text-xs font-bold text-brand-blue">{number}</span><div><h2 className="font-semibold text-slate-900">{title}</h2>{help ? <p className="mt-0.5 max-w-[72ch] text-xs text-slate-600">{help}</p> : null}</div></div><div className="p-4 sm:p-5">{children}</div></section>; }
-function Field({ label, name, value, type = "text", min, step }: { label: string; name: string; value?: string | number | null; type?: string; min?: string; step?: string }) { return <div className="space-y-1.5"><Label htmlFor={name} className="leading-5">{label}</Label><Input id={name} name={name} type={type} min={min} step={step} defaultValue={value ?? ""} /></div>; }
+function Field({
+  label,
+  name,
+  value,
+  type = "text",
+  min,
+  step,
+  onChange,
+  readOnly,
+}: {
+  label: string;
+  name: string;
+  value?: string | number | null;
+  type?: string;
+  min?: string;
+  step?: string;
+  onChange?: (value: string) => void;
+  readOnly?: boolean;
+}) {
+  const controlled = onChange !== undefined;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={name} className="leading-5">{label}</Label>
+      <Input
+        id={name}
+        name={name}
+        type={type}
+        min={min}
+        step={step}
+        value={controlled ? String(value ?? "") : undefined}
+        defaultValue={controlled ? undefined : (value ?? "")}
+        onChange={controlled ? (event) => onChange(event.target.value) : undefined}
+        readOnly={readOnly}
+      />
+    </div>
+  );
+}
 function ReadOnlyField({ label, value }: { label: string; value: string }) { return <div className="space-y-1.5"><p className="text-sm font-medium">{label}</p><p className="rounded-md border bg-slate-50 px-3 py-2 text-sm capitalize text-slate-800">{value}</p></div>; }
 function BooleanField({ label, name, value }: { label: string; name: string; value: boolean | null | undefined }) { return <div className="space-y-1.5"><Label htmlFor={name} className="leading-5">{label}</Label><select id={name} name={name} defaultValue={value === null || value === undefined ? "" : String(value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm sm:max-w-md"><option value="">Select</option><option value="true">Yes</option><option value="false">No</option></select></div>; }
 function TextAreaField({ label, name, value }: { label: string; name: string; value: string | null | undefined }) { return <div className="mt-3 space-y-1.5"><Label htmlFor={name} className="leading-5">{label}</Label><Textarea id={name} name={name} defaultValue={value ?? ""} rows={3} /></div>; }
@@ -244,5 +300,129 @@ function ProfitFields({ detail, locked }: { detail: MelMonitoringDetail; locked:
     {fullComparison?.explanationRequired ? <div className="rounded-md border border-amber-300 bg-amber-50 p-4"><Label htmlFor="financialChangeExplanation">Please explain the material loss or unusually large change from this enterprise&apos;s baseline or previous approved quarter.</Label><Textarea id="financialChangeExplanation" name="financialChangeExplanation" defaultValue={response?.financialChangeExplanation ?? ""} rows={3} minLength={10} required className="mt-2" /><p className="mt-1 text-xs text-amber-800">Required because one or more financial alert rules were triggered.</p></div> : null}
   </div>;
 }
-function JobFields({ label, prefix, row, cumulative, includeRefugee }: { label: string; prefix: string; row?: JobRow; cumulative: MelMonitoringDetail["cumulativeJobs"]["direct"]; includeRefugee: boolean }) { const fields = [["Total", "Total", row?.quarterlyTotal], ["Male", "Male", row?.male], ["Female", "Female", row?.female], ["Youth (18–35)", "Youth", row?.youth], ["PLWD", "Plwd", row?.plwd], ...(includeRefugee ? [["Refugee", "Refugee", row?.refugee] as const] : [])] as const; return <div><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="max-w-[75ch] text-sm font-semibold leading-5 text-slate-900">{label}</h3><p className="text-xs text-slate-600">Approved cumulative total: <span className="font-semibold text-slate-900">{cumulative.total}</span></p></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{fields.map(([display, suffix, value]) => <Field key={suffix} name={`${prefix}${suffix}`} label={display} type="number" min="0" step="1" value={value ?? ""} />)}</div></div>; }
+function JobsSection({
+  detail,
+  direct,
+  indirect,
+  locked,
+  includeRefugee,
+}: {
+  detail: MelMonitoringDetail;
+  direct?: JobRow;
+  indirect?: JobRow;
+  locked: boolean;
+  includeRefugee: boolean;
+}) {
+  const [directTotal, setDirectTotal] = useState(String(direct?.quarterlyTotal ?? ""));
+  const [indirectTotal, setIndirectTotal] = useState(String(indirect?.quarterlyTotal ?? ""));
+  const jobsCreated = (Number(directTotal) || 0) + (Number(indirectTotal) || 0) > 0;
+
+  return (
+    <div className="space-y-6">
+      <JobFields
+        label="How many new direct jobs have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid a minimum wage of KES 16,114 per month; daily wage = KES 775.)"
+        prefix="direct"
+        row={direct}
+        cumulative={detail.cumulativeJobs.direct}
+        includeRefugee={includeRefugee}
+        onTotalChange={setDirectTotal}
+      />
+      <JobFields
+        label="How many new indirect jobs have been created by the enterprise in the past 3 months? (Indirect jobs include suppliers, distributors, retailers, transporters, service providers and other people engaged by the business.)"
+        prefix="indirect"
+        row={indirect}
+        cumulative={detail.cumulativeJobs.indirect}
+        includeRefugee={includeRefugee}
+        onTotalChange={setIndirectTotal}
+      />
+      {jobsCreated ? (
+        <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} />
+      ) : (
+        <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          No jobs evidence is required when both direct and indirect totals are 0.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function JobFields({
+  label,
+  prefix,
+  row,
+  cumulative,
+  includeRefugee,
+  onTotalChange,
+}: {
+  label: string;
+  prefix: string;
+  row?: JobRow;
+  cumulative: MelMonitoringDetail["cumulativeJobs"]["direct"];
+  includeRefugee: boolean;
+  onTotalChange: (value: string) => void;
+}) {
+  const [total, setTotal] = useState(String(row?.quarterlyTotal ?? ""));
+  const zeroTotal = total === "0";
+  const dimensions = [
+    ["Male", "Male", row?.male],
+    ["Female", "Female", row?.female],
+    ["Youth (18–35)", "Youth", row?.youth],
+    ["PLWD", "Plwd", row?.plwd],
+    ...(includeRefugee ? [["Refugee", "Refugee", row?.refugee] as const] : []),
+  ] as const;
+
+  const handleTotalChange = (value: string) => {
+    setTotal(value);
+    onTotalChange(value);
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="max-w-[75ch] text-sm font-semibold leading-5 text-slate-900">{label}</h3>
+        <p className="text-xs text-slate-600">
+          Approved cumulative total: <span className="font-semibold text-slate-900">{cumulative.total}</span>
+        </p>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">Enter 0 in Total if no new jobs were created this quarter.</p>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Field
+          name={`${prefix}Total`}
+          label="Total"
+          type="number"
+          min="0"
+          step="1"
+          value={total}
+          onChange={handleTotalChange}
+        />
+        {zeroTotal
+          ? dimensions.map(([, suffix]) => (
+              <input key={suffix} type="hidden" name={`${prefix}${suffix}`} value="0" />
+            ))
+          : dimensions.map(([display, suffix, value]) => (
+              <Field
+                key={suffix}
+                name={`${prefix}${suffix}`}
+                label={display}
+                type="number"
+                min="0"
+                step="1"
+                value={value ?? ""}
+              />
+            ))}
+      </div>
+    </div>
+  );
+}
+
+function formatSavedAt(value: Date) {
+  return new Intl.DateTimeFormat("en-KE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Nairobi",
+  }).format(value);
+}
 function humanize(value: string) { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }

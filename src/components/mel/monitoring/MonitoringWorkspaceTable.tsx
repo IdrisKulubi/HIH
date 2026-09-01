@@ -8,9 +8,43 @@ import type {
   MelMonitoringWorkspace,
   MelMonitoringWorkspaceRow,
 } from "@/lib/actions/mel-monitoring";
+import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { AssignmentForm, StartMonitoringForm } from "@/components/mel/monitoring/MonitoringRowActions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+type StatusFilter = "all" | "draft" | "returned" | "submitted";
+
+const RETURNED_STATUSES = new Set(["returned", "returned_by_redo", "returned_by_mel", "reopened"]);
+const SUBMITTED_STATUSES = new Set([
+  "submitted",
+  "resubmitted",
+  "redo_review",
+  "mel_review",
+  "approved",
+]);
+
+function rowMatchesStatusFilter(row: MelMonitoringWorkspaceRow, filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  const statuses = row.submissions.map((submission) => submission.status);
+  if (filter === "draft") return statuses.some((status) => status === "draft");
+  if (filter === "returned") return statuses.some((status) => RETURNED_STATUSES.has(status));
+  if (filter === "submitted") return statuses.some((status) => SUBMITTED_STATUSES.has(status));
+  return true;
+}
+
+function findResumableSubmission(
+  row: MelMonitoringWorkspaceRow,
+  availablePeriods: MelReportingPeriod[]
+) {
+  const availableIds = new Set(availablePeriods.map((period) => period.id));
+  return row.submissions.find(
+    (submission) =>
+      availableIds.has(submission.reportingPeriodId) &&
+      isCollectorEditableStatus(submission.status)
+  );
+}
 
 export function MonitoringWorkspaceTable({
   actor,
@@ -26,11 +60,13 @@ export function MonitoringWorkspaceTable({
   availablePeriods: MelReportingPeriod[];
 }) {
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
     return rows.filter((row) => {
+      if (!rowMatchesStatusFilter(row, statusFilter)) return false;
+      if (!q) return true;
       const haystack = [
         row.businessName,
         row.applicantName,
@@ -42,22 +78,47 @@ export function MonitoringWorkspaceTable({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [query, rows]);
+  }, [query, rows, statusFilter]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-background">
       <div className="border-b border-slate-200 bg-slate-50 p-4">
-        <div className="relative max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name, email, or enterprise ID"
-            aria-label="Search enterprises"
-            className="bg-background pl-9"
-          />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative max-w-md flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by name, email, or enterprise ID"
+              aria-label="Search enterprises"
+              className="bg-background pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by report status">
+            {([
+              ["all", "All"],
+              ["draft", "Drafts"],
+              ["returned", "Returned"],
+              ["submitted", "Submitted"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === value}
+                onClick={() => setStatusFilter(value)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  statusFilter === value
+                    ? "border-brand-blue bg-brand-blue text-white"
+                    : "border-slate-200 bg-background text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        {query.trim() ? (
+        {query.trim() || statusFilter !== "all" ? (
           <p className="mt-2 text-xs text-slate-500">
             Showing {filtered.length} of {rows.length} enterprises
           </p>
@@ -129,14 +190,40 @@ export function MonitoringWorkspaceTable({
                   )}
                 </td>
                 <td className="px-4 py-4">
-                  {availablePeriods.length > 0 &&
-                  (actor.canAccessAllEnterprises || row.assignedCollectorIds.includes(actor.id)) ? (
-                    <StartMonitoringForm businessId={row.businessId} periods={availablePeriods} />
-                  ) : availablePeriods.length === 0 ? (
-                    <span className="text-xs text-slate-500">Collection unavailable</span>
-                  ) : (
-                    <span className="text-xs text-slate-500">Assign this enterprise to start collection</span>
-                  )}
+                  {(() => {
+                    const resumable = findResumableSubmission(row, availablePeriods);
+                    const canCollect =
+                      availablePeriods.length > 0 &&
+                      (actor.canAccessAllEnterprises || row.assignedCollectorIds.includes(actor.id));
+
+                    if (resumable && canCollect) {
+                      const period = periods.find((item) => item.id === resumable.reportingPeriodId);
+                      return (
+                        <div className="space-y-2">
+                          <Button asChild size="sm" className="bg-brand-blue hover:bg-brand-blue-dark">
+                            <Link href={`/admin/mel/monitoring/${row.businessId}/${resumable.reportingPeriodId}`}>
+                              Resume draft
+                            </Link>
+                          </Button>
+                          <p className="text-xs text-slate-500">
+                            {period?.label ?? "Open period"} · {resumable.status}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    if (canCollect) {
+                      return <StartMonitoringForm businessId={row.businessId} periods={availablePeriods} />;
+                    }
+
+                    if (availablePeriods.length === 0) {
+                      return <span className="text-xs text-slate-500">Collection unavailable</span>;
+                    }
+
+                    return (
+                      <span className="text-xs text-slate-500">Assign this enterprise to start collection</span>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}
@@ -158,7 +245,7 @@ export function MonitoringWorkspaceTable({
         </div>
       ) : filtered.length === 0 ? (
         <p className="px-4 py-12 text-center text-sm text-slate-500">
-          No enterprises match “{query.trim()}”.
+          No enterprises match these filters.
         </p>
       ) : null}
     </div>

@@ -571,7 +571,6 @@ export async function saveMelMonitoringAction(
     const snapshotSector = submission.profileSnapshot.sector;
     const sector = typeof snapshotSector === "string" ? snapshotSector : (await loadProfile(submission.businessId)).sector;
     const wasteEligible = sector === "waste_management";
-    input = normalizeMonitoringDraft(input, wasteEligible);
 
     const requestedReferences = Object.entries(input.reusedEvidenceIds);
     const requestedEvidenceIds = requestedReferences.map(([, evidenceId]) => evidenceId);
@@ -649,6 +648,12 @@ export async function saveMelMonitoringAction(
         approvedAchievements.map(({ code }) => code),
         priorVerifiedOneTimeQuestionCodes
       )
+    );
+
+    input = normalizeMonitoringDraft(
+      input,
+      wasteEligible,
+      settings?.includeRefugeeDisaggregation ?? false
     );
 
     const profitLoss = input.revenue === null || input.costs === null ? null : calculateProfitLoss(input.revenue, input.costs);

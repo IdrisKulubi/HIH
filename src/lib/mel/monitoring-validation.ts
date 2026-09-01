@@ -87,9 +87,49 @@ export const melMonitoringDraftSchema = z.object({
 
 export type MelMonitoringDraft = z.infer<typeof melMonitoringDraftSchema>;
 
-export function normalizeMonitoringDraft(input: MelMonitoringDraft, wasteEligible: boolean): MelMonitoringDraft {
+export type JobRowInput = MelMonitoringDraft["directJobs"];
+
+export function normalizeJobRow(row: JobRowInput, includeRefugee: boolean): JobBreakdown | null {
+  if (row.total === null) return null;
+  if (row.total === 0) {
+    return { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 };
+  }
+  if (row.male === null || row.female === null || row.youth === null || row.plwd === null) {
+    return null;
+  }
+  if (includeRefugee && row.refugee === null) return null;
+  return {
+    total: row.total,
+    male: row.male,
+    female: row.female,
+    youth: row.youth,
+    plwd: row.plwd,
+    refugee: includeRefugee ? (row.refugee ?? 0) : 0,
+  };
+}
+
+function jobRowFromBreakdown(breakdown: JobBreakdown): JobRowInput {
+  return {
+    total: breakdown.total,
+    male: breakdown.male,
+    female: breakdown.female,
+    youth: breakdown.youth,
+    plwd: breakdown.plwd,
+    refugee: breakdown.refugee,
+  };
+}
+
+export function normalizeMonitoringDraft(
+  input: MelMonitoringDraft,
+  wasteEligible: boolean,
+  includeRefugee = false
+): MelMonitoringDraft {
+  const directJobs = normalizeJobRow(input.directJobs, includeRefugee);
+  const indirectJobs = normalizeJobRow(input.indirectJobs, includeRefugee);
   return {
     ...input,
+    directJobs: directJobs ? jobRowFromBreakdown(directJobs) : input.directJobs,
+    indirectJobs: indirectJobs ? jobRowFromBreakdown(indirectJobs) : input.indirectJobs,
     technologyDetails: input.technologyAdopted ? input.technologyDetails : null,
     newProductsDetails: input.newProductsDeveloped ? input.newProductsDetails : null,
     financeEntries: input.linkedToFinanceProvider ? input.financeEntries : [],
@@ -165,13 +205,12 @@ export function monitoringSubmissionIssues(
   }
 
   for (const [label, row] of [["Direct jobs", input.directJobs], ["Indirect jobs", input.indirectJobs]] as const) {
-    if (Object.values(row).some((value) => value === null)) {
+    const normalized = normalizeJobRow(row, includeRefugee);
+    if (!normalized) {
       issues.push(`${label} breakdown is required`);
-    } else {
-      const complete = { ...row } as JobBreakdown;
-      if (!includeRefugee) complete.refugee = 0;
-      issues.push(...jobBreakdownIssues(label, complete));
+      continue;
     }
+    issues.push(...jobBreakdownIssues(label, normalized));
   }
 
   for (const code of EVIDENCE_REQUIRED_WHEN_TRUE) {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ClockCounterClockwise } from "@phosphor-icons/react/dist/ssr";
 import { getMelReviewDetail } from "@/lib/actions/mel-review";
 import type { MelReviewDetail } from "@/lib/actions/mel-review";
@@ -17,7 +17,12 @@ export default async function MelReviewDetailPage({
   const submissionId = Number((await params).submissionId);
   if (!Number.isInteger(submissionId)) notFound();
   const result = await getMelReviewDetail(submissionId);
-  if (!result.success || !result.data) notFound();
+  if (!result.success || !result.data) {
+    if (result.error?.includes("outside your review stage")) {
+      redirect("/admin/mel/review");
+    }
+    notFound();
+  }
   const detail = result.data;
   const snapshot = detail.submission.profileSnapshot;
   const direct = detail.jobs.find((row) => row.jobType === "direct");
