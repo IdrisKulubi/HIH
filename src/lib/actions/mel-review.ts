@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import db from "@/db/drizzle";
@@ -765,7 +766,7 @@ export async function decideMelReviewAction(
     });
 
     if (transition.nextStatus === "approved" && transition.action === "approved") {
-      await dispatchMelReportApprovedEmail({
+      const approvalEmailInput = {
         submissionId,
         submissionVersion: submission.submissionVersion,
         businessId: submission.businessId,
@@ -774,7 +775,8 @@ export async function decideMelReviewAction(
         approvedAt: new Date(),
         reviewerNote: reasonRaw || undefined,
         response: (submission.response ?? null) as Record<string, unknown> | null,
-      });
+      };
+      after(() => dispatchMelReportApprovedEmail(approvalEmailInput));
     }
 
     revalidateReviewPaths(submissionId);

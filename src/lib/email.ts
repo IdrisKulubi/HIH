@@ -179,7 +179,7 @@ export async function sendMelReportApprovedEmail(
 
   try {
     await sendEmail({
-      to: props.collectorEmail,
+      to: props.collectorEmail.trim().toLowerCase(),
       subject,
       react: MelReportApprovedEmail(props),
     });

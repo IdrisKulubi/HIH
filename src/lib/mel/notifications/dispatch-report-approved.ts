@@ -3,11 +3,13 @@ import db from "@/db/drizzle";
 import {
   businesses,
   melEnterpriseAchievements,
+  melEnterpriseAssignments,
   melIndicatorDefinitions,
   melLearningActions,
   melNotificationOutbox,
   melReportingPeriods,
   melReviewDecisions,
+  userProfiles,
   users,
 } from "@/db/schema";
 import { sendMelReportApprovedEmail } from "@/lib/email";
@@ -32,6 +34,12 @@ export type DispatchReportApprovedInput = {
   approvedAt: Date;
   reviewerNote?: string;
   response: Record<string, unknown> | null;
+};
+
+type ApprovalEmailRecipient = {
+  userId: string;
+  email: string;
+  name: string;
 };
 
 export async function buildReportApprovalSummary(
@@ -73,11 +81,8 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
   const eventKey = `mel-review:${input.submissionId}:${input.submissionVersion}:approved`;
 
   try {
-    const [collector, business, period] = await Promise.all([
-      db.query.users.findFirst({
-        where: eq(users.id, input.collectorId),
-        columns: { email: true, name: true },
-      }),
+    const [recipients, business, period] = await Promise.all([
+      resolveReportApprovedRecipients(input.collectorId, input.businessId),
       db.query.businesses.findFirst({
         where: eq(businesses.id, input.businessId),
         columns: { name: true },
@@ -88,8 +93,8 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
       }),
     ]);
 
-    if (!collector?.email) {
-      await markOutboxFailed(eventKey, "Collector email not found");
+    if (recipients.length === 0) {
+      await markOutboxFailed(eventKey, "No EDO or collector email found");
       return;
     }
 
@@ -101,25 +106,35 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
       year: "numeric",
     });
 
-    const result = await sendMelReportApprovedEmail({
-      collectorEmail: collector.email,
-      collectorName: collector.name?.trim() || "Programme staff",
-      businessName: business?.name ?? "Enterprise",
-      periodLabel: period?.label ?? "Reporting period",
-      approvedDate,
-      reportUrl,
-      priorities: summary.priorities,
-      learningActions: summary.learningActions,
-      reviewerNote: summary.reviewerNote,
-    });
+    const errors: string[] = [];
+    let sentCount = 0;
 
-    if (result.skipped) {
-      await markOutboxFailed(eventKey, result.error ?? "Email service not configured");
-      return;
+    for (const recipient of recipients) {
+      const result = await sendMelReportApprovedEmail({
+        collectorEmail: recipient.email,
+        collectorName: recipient.name,
+        businessName: business?.name ?? "Enterprise",
+        periodLabel: period?.label ?? "Reporting period",
+        approvedDate,
+        reportUrl,
+        priorities: summary.priorities,
+        learningActions: summary.learningActions,
+        reviewerNote: summary.reviewerNote,
+      });
+
+      if (result.skipped) {
+        errors.push(`${recipient.email}: ${result.error ?? "Email service not configured"}`);
+        continue;
+      }
+      if (!result.success) {
+        errors.push(`${recipient.email}: ${result.error ?? "Email delivery failed"}`);
+        continue;
+      }
+      sentCount += 1;
     }
 
-    if (!result.success) {
-      await markOutboxFailed(eventKey, result.error ?? "Email delivery failed");
+    if (sentCount === 0) {
+      await markOutboxFailed(eventKey, errors.join("; ") || "Email delivery failed");
       return;
     }
 
@@ -129,7 +144,7 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
         status: "sent",
         sentAt: new Date(),
         attempts: 1,
-        lastError: null,
+        lastError: errors.length > 0 ? errors.join("; ") : null,
         body: buildApprovalPrioritySummaryText(summary),
         updatedAt: new Date(),
       })
@@ -139,6 +154,54 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
     console.error("dispatchMelReportApprovedEmail", error);
     await markOutboxFailed(eventKey, message);
   }
+}
+
+async function resolveReportApprovedRecipients(
+  collectorId: string,
+  businessId: number
+): Promise<ApprovalEmailRecipient[]> {
+  const assignedEdos = await db
+    .select({ collectorId: melEnterpriseAssignments.collectorId })
+    .from(melEnterpriseAssignments)
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
+    .where(
+      and(
+        eq(melEnterpriseAssignments.businessId, businessId),
+        eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo")
+      )
+    );
+
+  const recipientIds = [...new Set([collectorId, ...assignedEdos.map((row) => row.collectorId)])];
+
+  const rows = await db
+    .select({
+      userId: users.id,
+      userEmail: users.email,
+      userName: users.name,
+      firstName: userProfiles.firstName,
+      lastName: userProfiles.lastName,
+      profileEmail: userProfiles.email,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .where(inArray(users.id, recipientIds));
+
+  const seenEmails = new Set<string>();
+  const recipients: ApprovalEmailRecipient[] = [];
+
+  for (const row of rows) {
+    const email = (row.profileEmail ?? row.userEmail ?? "").trim().toLowerCase();
+    if (!email || seenEmails.has(email)) continue;
+    seenEmails.add(email);
+    const name =
+      [row.firstName, row.lastName].filter(Boolean).join(" ").trim() ||
+      row.userName?.trim() ||
+      "Programme staff";
+    recipients.push({ userId: row.userId, email, name });
+  }
+
+  return recipients;
 }
 
 async function markOutboxFailed(eventKey: string, message: string) {
