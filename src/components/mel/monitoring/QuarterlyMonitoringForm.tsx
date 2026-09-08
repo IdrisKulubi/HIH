@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MelMonitoringDetail } from "@/lib/actions/mel-monitoring";
 import { saveMelMonitoringAction } from "@/lib/actions/mel-monitoring";
@@ -25,10 +25,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 type JobRow = MelMonitoringDetail["jobs"][number];
+type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+
+const AUTO_SAVE_DEBOUNCE_MS = 2000;
 
 export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetail }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = useRef(false);
+  const pendingAfterFlightRef = useRef(false);
   const [state, action, pending] = useActionState(saveMelMonitoringAction, null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
   const locked = !isCollectorEditableStatus(detail.submission.status);
   const isApproved = detail.submission.status === "approved";
   const response = detail.response;
@@ -36,6 +45,87 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const indirect = detail.jobs.find((row) => row.jobType === "indirect");
   const waste = Object.fromEntries(detail.waste.map((row) => [row.wasteStream, row.kilograms]));
   const financeByType = new Map(detail.financeEntries.map((entry) => [entry.financeType, entry]));
+
+  const cancelAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+  }, []);
+
+  const performAutoSave = useCallback(async () => {
+    const form = formRef.current;
+    if (!form || locked) return;
+
+    if (saveInFlightRef.current) {
+      pendingAfterFlightRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setAutoSaveStatus("saving");
+
+    const formData = new FormData(form);
+    formData.set("intent", "autosave");
+
+    try {
+      const result = await saveMelMonitoringAction(null, formData);
+      if (result.success) {
+        setAutoSaveStatus("saved");
+        setLastAutoSavedAt(new Date());
+      } else {
+        setAutoSaveStatus("error");
+      }
+    } catch {
+      setAutoSaveStatus("error");
+    } finally {
+      saveInFlightRef.current = false;
+      if (pendingAfterFlightRef.current) {
+        pendingAfterFlightRef.current = false;
+        void performAutoSave();
+      }
+    }
+  }, [locked]);
+
+  const scheduleAutoSave = useCallback(() => {
+    cancelAutoSave();
+    autoSaveTimerRef.current = setTimeout(() => {
+      void performAutoSave();
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  }, [cancelAutoSave, performAutoSave]);
+
+  useEffect(() => {
+    if (locked) return;
+    const form = formRef.current;
+    if (!form) return;
+
+    const handleChange = () => scheduleAutoSave();
+    form.addEventListener("input", handleChange);
+    form.addEventListener("change", handleChange);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        cancelAutoSave();
+        void performAutoSave();
+      }
+    };
+
+    const handlePageHide = () => {
+      cancelAutoSave();
+      void performAutoSave();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      form.removeEventListener("input", handleChange);
+      form.removeEventListener("change", handleChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      cancelAutoSave();
+    };
+  }, [locked, scheduleAutoSave, performAutoSave, cancelAutoSave]);
 
   useEffect(() => {
     if (!state?.success) return;
@@ -46,8 +136,14 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
     router.refresh();
   }, [router, state]);
 
+  const handleManualSave = () => {
+    cancelAutoSave();
+  };
+
+  const displayedLastSavedAt = lastAutoSavedAt ?? (detail.submission.lastSavedAt ? new Date(detail.submission.lastSavedAt) : null);
+
   return (
-    <form action={action} className="space-y-6">
+    <form ref={formRef} action={action} className="space-y-6">
       <input type="hidden" name="submissionId" value={detail.submission.id} />
 
       {isApproved && detail.approvalSummary ? (
@@ -158,15 +254,21 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
           <div className="container mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               <ActionMessage state={state} />
-              {detail.submission.lastSavedAt ? (
+              {autoSaveStatus === "saving" ? (
+                <p className="text-xs text-slate-500">Saving draft…</p>
+              ) : autoSaveStatus === "error" ? (
+                <p className="text-xs text-red-600">Could not save draft</p>
+              ) : autoSaveStatus === "saved" ? (
+                <p className="text-xs text-emerald-700">Draft saved just now</p>
+              ) : displayedLastSavedAt ? (
                 <p className="text-xs text-slate-500">
-                  Last saved {formatSavedAt(detail.submission.lastSavedAt)}
+                  Last saved {formatSavedAt(displayedLastSavedAt)}
                 </p>
               ) : null}
             </div>
             <div className="ml-auto flex gap-2">
-              <Button type="submit" name="intent" value="save" variant="outline" formNoValidate disabled={pending}>{pending ? "Saving…" : "Save draft"}</Button>
-              <Button type="submit" name="intent" value="submit" disabled={pending} className="bg-brand-blue hover:bg-brand-blue-dark">{pending ? "Validating…" : "Submit for review"}</Button>
+              <Button type="submit" name="intent" value="save" variant="outline" formNoValidate disabled={pending} onClick={handleManualSave}>{pending ? "Saving…" : "Save draft"}</Button>
+              <Button type="submit" name="intent" value="submit" disabled={pending} onClick={handleManualSave} className="bg-brand-blue hover:bg-brand-blue-dark">{pending ? "Validating…" : "Submit for review"}</Button>
             </div>
           </div>
         </div>

@@ -543,14 +543,14 @@ export async function getMelMonitoringDetail(
 }
 
 export async function saveMelMonitoringAction(
-  _previous: ActionResponse<{ submitted: boolean }> | null,
+  _previous: ActionResponse<{ submitted: boolean; autosaved?: boolean }> | null,
   formData: FormData
-): Promise<ActionResponse<{ submitted: boolean }>> {
+): Promise<ActionResponse<{ submitted: boolean; autosaved?: boolean }>> {
   try {
     await requireMelRolloutFeature("collection");
     const actor = await requireMelCollector();
     const submissionId = z.coerce.number().int().positive().parse(formData.get("submissionId"));
-    const intent = z.enum(["save", "submit"]).parse(formData.get("intent"));
+    const intent = z.enum(["save", "submit", "autosave"]).parse(formData.get("intent"));
     let input = parseMonitoringFormData(formData);
     const submission = await db.query.melMonitoringSubmissions.findFirst({
       where: eq(melMonitoringSubmissions.id, submissionId),
@@ -782,16 +782,18 @@ export async function saveMelMonitoringAction(
       } else {
         await tx.delete(melMonitoringWaste).where(eq(melMonitoringWaste.submissionId, submissionId));
       }
-      await tx.insert(melAuditEvents).values({
-        actorId: actor.id,
-        actorRole: actor.role,
-        entityType: "mel_monitoring_submission",
-        entityId: String(submissionId),
-        action: intent === "submit" ? "submitted" : "draft_saved",
-        before: { status: submission.status, version: submission.submissionVersion },
-        after: { status: nextStatus, profitLoss },
-        correlationId: randomUUID(),
-      });
+      if (intent !== "autosave") {
+        await tx.insert(melAuditEvents).values({
+          actorId: actor.id,
+          actorRole: actor.role,
+          entityType: "mel_monitoring_submission",
+          entityId: String(submissionId),
+          action: intent === "submit" ? "submitted" : "draft_saved",
+          before: { status: submission.status, version: submission.submissionVersion },
+          after: { status: nextStatus, profitLoss },
+          correlationId: randomUUID(),
+        });
+      }
       if (intent === "submit") {
         for (const indicator of oneTimeIndicators) {
           const questionCode = ONE_TIME_QUESTION_BY_INDICATOR[indicator.code];
@@ -817,11 +819,17 @@ export async function saveMelMonitoringAction(
       }
     });
 
-    revalidatePath("/admin/mel/monitoring");
-    revalidatePath(`/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`);
+    if (intent !== "autosave") {
+      revalidatePath("/admin/mel/monitoring");
+      revalidatePath(`/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`);
+    }
     return successResponse(
-      { submitted: intent === "submit" },
-      intent === "submit" ? "Report submitted for REDO review" : "Draft saved"
+      { submitted: intent === "submit", autosaved: intent === "autosave" },
+      intent === "submit"
+        ? "Report submitted for REDO review"
+        : intent === "autosave"
+          ? "Draft autosaved"
+          : "Draft saved"
     );
   } catch (error) {
     console.error("saveMelMonitoringAction", error);
