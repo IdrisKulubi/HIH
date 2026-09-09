@@ -108,6 +108,13 @@ function testWorkflow() {
 function testDqa() {
   assert.deepEqual(runDqa(validDqaInput()), []);
 
+  const missingDirectNonQuality = { ...validDqaInput(), directNonQualityJobs: null };
+  assert.deepEqual(
+    runDqa(missingDirectNonQuality).filter((issue) => issue.ruleCode === "completeness.direct non-quality_jobs"),
+    [],
+    "Missing direct non-quality jobs should default to zero and not fail completeness"
+  );
+
   const wrongProfit = { ...validDqaInput(), storedProfitLoss: 250_000 };
   assert.ok(runDqa(wrongProfit).some((issue) => issue.ruleCode === "consistency.profit_calculation"));
 

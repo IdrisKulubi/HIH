@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 import { runDqa, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
+import { EMPTY_JOB_BREAKDOWN } from "@/lib/mel/monitoring-calculations";
 import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 import { requireMelReviewer, type MelReviewer } from "@/lib/mel/review-access";
 import {
@@ -395,9 +396,22 @@ async function buildDqaInput(submissionId: number): Promise<{
             )
           );
   const response = submission.response;
-  const job = (type: typeof MEL_JOB_TYPE.directQuality | typeof MEL_JOB_TYPE.directNonQuality | typeof MEL_JOB_TYPE.indirect) => {
+  const job = (
+    type: typeof MEL_JOB_TYPE.directQuality | typeof MEL_JOB_TYPE.directNonQuality | typeof MEL_JOB_TYPE.indirect,
+    options?: { optional?: boolean }
+  ) => {
     const row = findMonitoringJob(submission.jobs, type);
-    if (!row || [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some((value) => value === null)) {
+    if (!row) {
+      return options?.optional ? EMPTY_JOB_BREAKDOWN : null;
+    }
+    if (
+      [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some(
+        (value) => value === null
+      )
+    ) {
+      if (options?.optional && (row.quarterlyTotal === null || row.quarterlyTotal === 0)) {
+        return EMPTY_JOB_BREAKDOWN;
+      }
       return null;
     }
     return {
@@ -421,7 +435,7 @@ async function buildDqaInput(submissionId: number): Promise<{
     costs: numberOrNull(response?.costs),
     storedProfitLoss: numberOrNull(response?.profitLoss),
     directQualityJobs: job(MEL_JOB_TYPE.directQuality),
-    directNonQualityJobs: job(MEL_JOB_TYPE.directNonQuality),
+    directNonQualityJobs: job(MEL_JOB_TYPE.directNonQuality, { optional: true }),
     indirectJobs: job(MEL_JOB_TYPE.indirect),
     financeLinked: response?.linkedToFinanceProvider ?? null,
     financeType: submission.financeEntries.length

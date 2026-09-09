@@ -1,4 +1,4 @@
-import { calculateProfitLoss, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
+import { calculateProfitLoss, EMPTY_JOB_BREAKDOWN, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
 import type { FinancialComparison } from "./financial-baselines";
 
 export type DqaFinding = {
@@ -86,12 +86,13 @@ export function runDqa(input: DqaInput): DqaFinding[] {
     }
   }
 
-  for (const [type, jobs] of [
-    ["direct quality", input.directQualityJobs],
-    ["direct non-quality", input.directNonQualityJobs],
-    ["indirect", input.indirectJobs],
+  for (const [type, jobs, optional] of [
+    ["direct quality", input.directQualityJobs, false],
+    ["direct non-quality", input.directNonQualityJobs, true],
+    ["indirect", input.indirectJobs, false],
   ] as const) {
-    if (!jobs) {
+    const resolved = jobs ?? (optional ? EMPTY_JOB_BREAKDOWN : null);
+    if (!resolved) {
       findings.push({
         ruleCode: `completeness.${type}_jobs`,
         category: "completeness",
@@ -101,14 +102,14 @@ export function runDqa(input: DqaInput): DqaFinding[] {
       });
       continue;
     }
-    for (const [index, message] of jobBreakdownIssues(`${type} jobs`, jobs).entries()) {
+    for (const [index, message] of jobBreakdownIssues(`${type} jobs`, resolved).entries()) {
       findings.push({
         ruleCode: `consistency.${type}_jobs.${index}`,
         category: "consistency",
         severity: "error",
         questionCode: "jobs",
         message,
-        observedValue: jobs,
+        observedValue: resolved,
       });
     }
   }

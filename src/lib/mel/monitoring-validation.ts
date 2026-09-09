@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
+import { jobBreakdownIssues, EMPTY_JOB_BREAKDOWN, type JobBreakdown } from "./monitoring-calculations";
 import {
   FINANCE_TYPES,
   financeTypeLabel,
@@ -126,12 +126,16 @@ export function normalizeMonitoringDraft(
   includeRefugee = false
 ): MelMonitoringDraft {
   const directQualityJobs = normalizeJobRow(input.directQualityJobs, includeRefugee);
-  const directNonQualityJobs = normalizeJobRow(input.directNonQualityJobs, includeRefugee);
+  const directNonQualityJobs =
+    normalizeJobRow(input.directNonQualityJobs, includeRefugee) ??
+    (input.directNonQualityJobs.total === null ? EMPTY_JOB_BREAKDOWN : null);
   const indirectJobs = normalizeJobRow(input.indirectJobs, includeRefugee);
   return {
     ...input,
     directQualityJobs: directQualityJobs ? jobRowFromBreakdown(directQualityJobs) : input.directQualityJobs,
-    directNonQualityJobs: directNonQualityJobs ? jobRowFromBreakdown(directNonQualityJobs) : input.directNonQualityJobs,
+    directNonQualityJobs: directNonQualityJobs
+      ? jobRowFromBreakdown(directNonQualityJobs)
+      : input.directNonQualityJobs,
     indirectJobs: indirectJobs ? jobRowFromBreakdown(indirectJobs) : input.indirectJobs,
     technologyDetails: input.technologyAdopted ? input.technologyDetails : null,
     newProductsDetails: input.newProductsDeveloped ? input.newProductsDetails : null,
@@ -207,11 +211,12 @@ export function monitoringSubmissionIssues(
     issues.push("Public-private partnership details are required when Yes");
   }
 
-  for (const [label, row] of [
-    ["Direct jobs (quality)", input.directQualityJobs],
-    ["Direct jobs (non-quality)", input.directNonQualityJobs],
-    ["Indirect jobs", input.indirectJobs],
+  for (const [label, row, optional] of [
+    ["Direct jobs (quality)", input.directQualityJobs, false],
+    ["Direct jobs (non-quality)", input.directNonQualityJobs, true],
+    ["Indirect jobs", input.indirectJobs, false],
   ] as const) {
+    if (optional && row.total === null) continue;
     const normalized = normalizeJobRow(row, includeRefugee);
     if (!normalized) {
       issues.push(`${label} breakdown is required`);

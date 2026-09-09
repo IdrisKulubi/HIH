@@ -7,6 +7,15 @@ export type JobBreakdown = {
   refugee: number;
 };
 
+export const EMPTY_JOB_BREAKDOWN: JobBreakdown = {
+  total: 0,
+  male: 0,
+  female: 0,
+  youth: 0,
+  plwd: 0,
+  refugee: 0,
+};
+
 export function calculateProfitLoss(revenue: number, costs: number): number {
   return revenue - costs;
 }
