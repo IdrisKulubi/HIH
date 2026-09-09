@@ -1,4 +1,8 @@
 import { loadMentorshipExportData } from "@/lib/mentorship/export";
+import {
+  formatMentorshipEvidenceUrls,
+  mentorshipEvidenceFilesFromLegacyUrl,
+} from "@/lib/mentorship/evidence";
 
 type ExportData = Awaited<ReturnType<typeof loadMentorshipExportData>>;
 
@@ -171,7 +175,12 @@ export function computeMentorshipAnalytics(data: ExportData): MentorshipAnalytic
     completedDate: session.completedDate?.toISOString() ?? null,
     durationMinutes: session.durationMinutes,
     diagnosticNotes: session.diagnosticNotes,
-    evidenceUrl: session.photographicEvidenceUrl,
+    evidenceUrl: formatMentorshipEvidenceUrls(
+      mentorshipEvidenceFilesFromLegacyUrl(
+        session.photographicEvidenceUrl,
+        session.evidenceFiles
+      )
+    ),
     rejectionReason: session.rejectionReason,
   });
 

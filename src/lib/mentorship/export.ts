@@ -2,6 +2,10 @@ import * as XLSX from "xlsx";
 import db from "@/db/drizzle";
 import { users } from "@/db/schema";
 import { inArray } from "drizzle-orm";
+import {
+  formatMentorshipEvidenceUrls,
+  mentorshipEvidenceFilesFromLegacyUrl,
+} from "@/lib/mentorship/evidence";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
 import {
   MENTORSHIP_EXPORT_TYPES,
@@ -149,7 +153,12 @@ export function buildMentorshipSessionsExportRows(
       Duration_Label: formatMentorshipDurationMinutes(session.durationMinutes),
       Duration_Hours: hoursFromMinutes(session.durationMinutes),
       Diagnostic_Notes: session.diagnosticNotes,
-      Evidence_URL: session.photographicEvidenceUrl,
+      Evidence_URL: formatMentorshipEvidenceUrls(
+        mentorshipEvidenceFilesFromLegacyUrl(
+          session.photographicEvidenceUrl,
+          session.evidenceFiles
+        )
+      ),
       Submitted_At: session.status === "pending_approval" || session.status === "completed" ? iso(session.updatedAt) : null,
       Approved_At: iso(session.approvedAt),
       Approver: ctx.approverName,
@@ -260,7 +269,12 @@ export function buildMentorshipPendingExportRows(
         Duration_Label: formatMentorshipDurationMinutes(session.durationMinutes),
         Submitted_At: iso(session.updatedAt),
         Diagnostic_Notes: session.diagnosticNotes,
-        Evidence_URL: session.photographicEvidenceUrl,
+        Evidence_URL: formatMentorshipEvidenceUrls(
+        mentorshipEvidenceFilesFromLegacyUrl(
+          session.photographicEvidenceUrl,
+          session.evidenceFiles
+        )
+      ),
       };
     });
 }

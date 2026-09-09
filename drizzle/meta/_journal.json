@@ -358,6 +358,20 @@
       "when": 1788128000000,
       "tag": "0051_kajabi_user_status",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788214400000,
+      "tag": "0052_mel_direct_jobs_quality_split",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788300800000,
+      "tag": "0053_mentorship_evidence_files",
+      "breakpoints": true
     }
   ]
 }

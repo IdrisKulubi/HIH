@@ -869,6 +869,18 @@ export const mentorshipSessions = pgTable(
     durationMinutes: integer('duration_minutes'),
     diagnosticNotes: text('diagnostic_notes'),
     photographicEvidenceUrl: varchar('photographic_evidence_url', { length: 500 }),
+    evidenceFiles: jsonb('evidence_files')
+      .$type<
+        {
+          key?: string;
+          url: string;
+          name: string;
+          type: string;
+          uploadedById: string | null;
+          uploadedAt: string;
+        }[]
+      >()
+      .default([]),
     approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     approvedAt: timestamp('approved_at'),
     rejectionReason: text('rejection_reason'),

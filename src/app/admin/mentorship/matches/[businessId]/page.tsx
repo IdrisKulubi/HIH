@@ -98,6 +98,7 @@ export default async function AdminMentorshipMatchesPage({
                       durationMinutes={s.durationMinutes}
                       rejectionReason={s.rejectionReason}
                       photographicEvidenceUrl={s.photographicEvidenceUrl}
+                      evidenceFiles={s.evidenceFiles}
                       diagnosticNotes={s.diagnosticNotes}
                     />
                     </div>

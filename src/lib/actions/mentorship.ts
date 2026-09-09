@@ -15,8 +15,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
+import {
+  mentorshipEvidenceFilesFromLegacyUrl,
+  parseMentorshipEvidenceFilesInput,
+  primaryMentorshipEvidenceUrl,
+  type MentorshipEvidenceFile,
+} from "@/lib/mentorship/evidence";
 import { computeMentorshipAnalytics, type MentorshipAnalytics } from "@/lib/mentorship/analytics";
 import { loadMentorshipExportData } from "@/lib/mentorship/export";
+import { sendMentorshipAssignmentEmail } from "@/lib/email";
 
 const ADMIN_ROLES = ["admin", "oversight"] as const;
 
@@ -315,8 +322,9 @@ export async function createMentorshipMatch(
 
     const mentor = await db.query.mentors.findFirst({
       where: eq(mentors.id, mentorId),
+      with: { user: true },
     });
-    if (!mentor) return errorResponse("Mentor not found");
+    if (!mentor?.user) return errorResponse("Mentor not found");
 
     const existingActiveMatch = await db.query.mentorshipMatches.findFirst({
       where: and(
@@ -360,6 +368,15 @@ export async function createMentorshipMatch(
 
     revalidatePath("/admin/mentorship");
     revalidatePath(`/admin/mentorship/matches/${businessId}`);
+
+    void sendMentorshipAssignmentEmail({
+      mentorEmail: mentor.user.email,
+      mentorName: mentor.user.name ?? mentor.user.email,
+      enterpriseName: business.name,
+    }).catch((error) => {
+      console.error("createMentorshipMatch email", error);
+    });
+
     return successResponse({ matchId });
   } catch (e) {
     console.error("createMentorshipMatch", e);
@@ -373,7 +390,7 @@ export async function completeMentorshipSession(input: {
   durationHours: number;
   durationMinutes: number;
   diagnosticNotes?: string;
-  photographicEvidenceUrl?: string;
+  evidenceFiles?: MentorshipEvidenceFile[];
 }): Promise<ActionResponse<void>> {
   try {
     const authSession = await auth();
@@ -429,15 +446,17 @@ export async function completeMentorshipSession(input: {
     }
 
     const notes = (input.diagnosticNotes ?? "").trim();
-    const photo = (input.photographicEvidenceUrl ?? "").trim();
+    const evidenceFiles = input.evidenceFiles ?? [];
 
     if (row.sessionType === "physical") {
-      if (!notes.length || !photo.length) {
+      if (!notes.length || evidenceFiles.length === 0) {
         return errorResponse(
           "Physical sessions require diagnostic notes and evidence (upload or URL)."
         );
       }
     }
+
+    const primaryEvidenceUrl = primaryMentorshipEvidenceUrl(evidenceFiles);
 
     await db
       .update(mentorshipSessions)
@@ -446,7 +465,8 @@ export async function completeMentorshipSession(input: {
         completedDate,
         durationMinutes,
         diagnosticNotes: notes.length ? notes : null,
-        photographicEvidenceUrl: photo.length ? photo : null,
+        photographicEvidenceUrl: primaryEvidenceUrl,
+        evidenceFiles,
         rejectionReason: null,
         updatedAt: new Date(),
       })
@@ -477,7 +497,7 @@ export async function completeMentorshipSessionFromForm(
     durationHours: Number(formData.get("durationHours")),
     durationMinutes: Number(formData.get("durationMinutes")),
     diagnosticNotes: String(formData.get("diagnosticNotes") ?? ""),
-    photographicEvidenceUrl: String(formData.get("photographicEvidenceUrl") ?? ""),
+    evidenceFiles: parseMentorshipEvidenceFilesInput(String(formData.get("evidenceFiles") ?? "")),
   });
 }
 
@@ -497,6 +517,7 @@ export type MentorshipSessionReviewRow = {
   durationLabel: string;
   diagnosticNotes: string | null;
   photographicEvidenceUrl: string | null;
+  evidenceFiles: MentorshipEvidenceFile[];
   submittedAt: string;
 };
 
@@ -541,6 +562,10 @@ export async function listMentorshipSessionsPendingApproval(): Promise<
         durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
         diagnosticNotes: row.diagnosticNotes,
         photographicEvidenceUrl: row.photographicEvidenceUrl,
+        evidenceFiles: mentorshipEvidenceFilesFromLegacyUrl(
+          row.photographicEvidenceUrl,
+          row.evidenceFiles
+        ),
         submittedAt: row.updatedAt.toISOString(),
       }));
 
@@ -772,6 +797,7 @@ export type MyMentorshipMatchRow = {
     durationMinutes: number | null;
     diagnosticNotes: string | null;
     photographicEvidenceUrl: string | null;
+    evidenceFiles: MentorshipEvidenceFile[];
     rejectionReason: string | null;
   }>;
 };
@@ -819,6 +845,10 @@ export async function listMyMentorshipMatches(): Promise<
         durationMinutes: s.durationMinutes,
         diagnosticNotes: s.diagnosticNotes,
         photographicEvidenceUrl: s.photographicEvidenceUrl,
+        evidenceFiles: mentorshipEvidenceFilesFromLegacyUrl(
+          s.photographicEvidenceUrl,
+          s.evidenceFiles
+        ),
         rejectionReason: s.rejectionReason,
       })),
     }));
@@ -846,6 +876,7 @@ export type MentorshipApprovedSessionRow = {
   durationLabel: string;
   diagnosticNotes: string | null;
   photographicEvidenceUrl: string | null;
+  evidenceFiles: MentorshipEvidenceFile[];
   approvedAt: string;
   approverId: string | null;
   approverName: string;
@@ -909,6 +940,10 @@ export async function listApprovedMentorshipSessions(): Promise<
           durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
           diagnosticNotes: row.diagnosticNotes,
           photographicEvidenceUrl: row.photographicEvidenceUrl,
+          evidenceFiles: mentorshipEvidenceFilesFromLegacyUrl(
+            row.photographicEvidenceUrl,
+            row.evidenceFiles
+          ),
           approvedAt: row.approvedAt!.toISOString(),
           approverId: row.approvedById,
           approverName: approver?.name ?? approver?.email ?? "Unknown approver",

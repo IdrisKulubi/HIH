@@ -27,6 +27,10 @@ import {
   MelReportApprovedEmail,
   type MelReportApprovedEmailProps,
 } from '@/components/emails/mel-report-approved-email';
+import {
+  MentorshipAssignmentEmail,
+  type MentorshipAssignmentEmailProps,
+} from '@/components/emails/mentorship-assignment-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
@@ -207,6 +211,28 @@ export async function sendA2fScreeningPassEmail(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Email delivery failed";
     console.error("Failed to send A2F screening invitation:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendMentorshipAssignmentEmail(
+  props: MentorshipAssignmentEmailProps & { mentorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping mentorship assignment notification");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  try {
+    await sendEmail({
+      to: props.mentorEmail.trim().toLowerCase(),
+      subject: `You have been assigned to ${props.enterpriseName} — BIRE Mentorship`,
+      react: MentorshipAssignmentEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send mentorship assignment email:", error);
     return { success: false, error: message };
   }
 }

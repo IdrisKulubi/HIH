@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -230,15 +231,11 @@ export function MentorshipApprovedSessionsOverview({
                 {selected.diagnosticNotes ? (
                   <Detail label="Session notes" value={selected.diagnosticNotes} />
                 ) : null}
-                {selected.photographicEvidenceUrl?.trim() ? (
-                  <a
-                    href={selected.photographicEvidenceUrl.trim()}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex text-sm font-medium text-brand-blue hover:underline"
-                  >
-                    View evidence
-                  </a>
+                {selected.evidenceFiles.length > 0 ? (
+                  <MentorshipEvidenceLinks
+                    files={selected.evidenceFiles}
+                    className="flex-col items-start gap-2 [&_a]:text-sm [&_a]:font-medium [&_a]:text-brand-blue"
+                  />
                 ) : null}
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/admin/mentorship/matches/${selected.businessId}`}>

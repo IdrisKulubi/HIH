@@ -131,8 +131,8 @@ const melEvidenceUploader = f({
   }));
 
 const mentorshipEvidenceUploader = f({
-  pdf: { maxFileSize: "16MB", maxFileCount: 1 },
-  image: { maxFileSize: "8MB", maxFileCount: 1 },
+  pdf: { maxFileSize: "16MB", maxFileCount: 8 },
+  image: { maxFileSize: "8MB", maxFileCount: 8 },
 })
   .middleware(async () => {
     try {

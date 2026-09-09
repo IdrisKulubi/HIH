@@ -8,12 +8,16 @@ import {
   splitDurationMinutes,
   toDateInputValue,
 } from "@/lib/mentorship/session-display";
+import {
+  mentorshipEvidenceFilesFromLegacyUrl,
+  type MentorshipEvidenceFile,
+} from "@/lib/mentorship/evidence";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MentorshipEvidenceField } from "@/components/admin/mentorship/MentorshipEvidenceField";
-import { ExternalLink } from "lucide-react";
+import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
 
 const initial: ActionResponse<void> | null = null;
 
@@ -21,12 +25,12 @@ function SessionSummary({
   completedDate,
   durationMinutes,
   diagnosticNotes,
-  photographicEvidenceUrl,
+  evidenceFiles,
 }: {
   completedDate?: Date | string | null;
   durationMinutes?: number | null;
   diagnosticNotes?: string | null;
-  photographicEvidenceUrl?: string | null;
+  evidenceFiles: MentorshipEvidenceFile[];
 }) {
   return (
     <div className="space-y-2 text-xs text-muted-foreground">
@@ -47,17 +51,7 @@ function SessionSummary({
       {diagnosticNotes ? (
         <p className="line-clamp-3 text-foreground/80">{diagnosticNotes}</p>
       ) : null}
-      {photographicEvidenceUrl?.trim() ? (
-        <a
-          href={photographicEvidenceUrl.trim()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sky-700 hover:underline"
-        >
-          <ExternalLink className="size-3" />
-          View evidence
-        </a>
-      ) : null}
+      <MentorshipEvidenceLinks files={evidenceFiles} />
     </div>
   );
 }
@@ -72,6 +66,7 @@ export function CompleteSessionForm({
   durationMinutes,
   rejectionReason,
   photographicEvidenceUrl,
+  evidenceFiles,
   diagnosticNotes,
 }: {
   sessionId: number;
@@ -83,15 +78,20 @@ export function CompleteSessionForm({
   durationMinutes?: number | null;
   rejectionReason?: string | null;
   photographicEvidenceUrl?: string | null;
+  evidenceFiles?: MentorshipEvidenceFile[] | null;
   diagnosticNotes?: string | null;
 }) {
+  const resolvedEvidenceFiles = mentorshipEvidenceFilesFromLegacyUrl(
+    photographicEvidenceUrl,
+    evidenceFiles
+  );
+
   const [state, formAction, pending] = useActionState(
     completeMentorshipSessionFromForm,
     initial
   );
   const initialDuration = splitDurationMinutes(durationMinutes);
-  const [evidenceUrl, setEvidenceUrl] = useState(photographicEvidenceUrl ?? "");
-  const [evidenceFileName, setEvidenceFileName] = useState<string | undefined>();
+  const [evidence, setEvidence] = useState<MentorshipEvidenceFile[]>(resolvedEvidenceFiles);
 
   if (status === "completed") {
     return (
@@ -101,7 +101,7 @@ export function CompleteSessionForm({
           completedDate={completedDate}
           durationMinutes={durationMinutes}
           diagnosticNotes={diagnosticNotes}
-          photographicEvidenceUrl={photographicEvidenceUrl}
+          evidenceFiles={resolvedEvidenceFiles}
         />
       </div>
     );
@@ -115,7 +115,7 @@ export function CompleteSessionForm({
           completedDate={completedDate}
           durationMinutes={durationMinutes}
           diagnosticNotes={diagnosticNotes}
-          photographicEvidenceUrl={photographicEvidenceUrl}
+          evidenceFiles={resolvedEvidenceFiles}
         />
       </div>
     );
@@ -196,12 +196,8 @@ export function CompleteSessionForm({
       </div>
       <MentorshipEvidenceField
         inputId={`photo-${sessionId}`}
-        value={evidenceUrl}
-        fileName={evidenceFileName}
-        onChange={(url, name) => {
-          setEvidenceUrl(url);
-          setEvidenceFileName(name);
-        }}
+        value={evidence}
+        onChange={setEvidence}
         required={sessionType === "physical"}
         disabled={pending}
       />

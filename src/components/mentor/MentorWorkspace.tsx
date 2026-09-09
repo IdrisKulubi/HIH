@@ -56,6 +56,7 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
               durationMinutes={s.durationMinutes}
               rejectionReason={s.rejectionReason}
               photographicEvidenceUrl={s.photographicEvidenceUrl}
+              evidenceFiles={s.evidenceFiles}
               diagnosticNotes={s.diagnosticNotes}
             />
           </div>

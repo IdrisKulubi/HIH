@@ -20,12 +20,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
 import {
   Building2,
   CalendarDays,
   Check,
   Clock3,
-  ExternalLink,
   Search,
   UserRound,
   X,
@@ -321,20 +321,15 @@ export function MentorshipSessionReviewQueue({
 
                 <SessionField label="Diagnostic notes" value={reviewing.diagnosticNotes} />
 
-                {reviewing.photographicEvidenceUrl?.trim() ? (
+                {reviewing.evidenceFiles.length > 0 ? (
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                       Evidence
                     </p>
-                    <a
-                      href={reviewing.photographicEvidenceUrl.trim()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition hover:border-emerald-300 hover:bg-emerald-50"
-                    >
-                      <ExternalLink className="size-3.5 shrink-0 text-slate-500" />
-                      View evidence
-                    </a>
+                    <MentorshipEvidenceLinks
+                      files={reviewing.evidenceFiles}
+                      className="flex-col items-start gap-2 [&_a]:inline-flex [&_a]:items-center [&_a]:gap-2 [&_a]:rounded-md [&_a]:border [&_a]:border-slate-200 [&_a]:bg-slate-50 [&_a]:px-3 [&_a]:py-2 [&_a]:text-sm [&_a]:text-slate-800 [&_a]:no-underline [&_a]:transition hover:[&_a]:border-emerald-300 hover:[&_a]:bg-emerald-50"
+                    />
                   </div>
                 ) : null}
               </div>
