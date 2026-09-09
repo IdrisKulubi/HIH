@@ -13,6 +13,7 @@ import {
   MONITORING_SECTIONS,
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
+import { findMonitoringJob, MEL_JOB_TYPE } from "@/lib/mel/job-types";
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
@@ -41,8 +42,9 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const locked = !isCollectorEditableStatus(detail.submission.status);
   const isApproved = detail.submission.status === "approved";
   const response = detail.response;
-  const direct = detail.jobs.find((row) => row.jobType === "direct");
-  const indirect = detail.jobs.find((row) => row.jobType === "indirect");
+  const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
+  const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);
+  const indirect = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.indirect);
   const waste = Object.fromEntries(detail.waste.map((row) => [row.wasteStream, row.kilograms]));
   const financeByType = new Map(detail.financeEntries.map((entry) => [entry.financeType, entry]));
 
@@ -183,7 +185,8 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals. Enter 0 in Total when no new jobs were created this quarter.">
           <JobsSection
             detail={detail}
-            direct={direct}
+            directQuality={directQuality}
+            directNonQuality={directNonQuality}
             indirect={indirect}
             locked={locked}
             includeRefugee={detail.includeRefugee}
@@ -404,30 +407,44 @@ function ProfitFields({ detail, locked }: { detail: MelMonitoringDetail; locked:
 }
 function JobsSection({
   detail,
-  direct,
+  directQuality,
+  directNonQuality,
   indirect,
   locked,
   includeRefugee,
 }: {
   detail: MelMonitoringDetail;
-  direct?: JobRow;
+  directQuality?: JobRow;
+  directNonQuality?: JobRow;
   indirect?: JobRow;
   locked: boolean;
   includeRefugee: boolean;
 }) {
-  const [directTotal, setDirectTotal] = useState(String(direct?.quarterlyTotal ?? ""));
+  const [directQualityTotal, setDirectQualityTotal] = useState(String(directQuality?.quarterlyTotal ?? ""));
+  const [directNonQualityTotal, setDirectNonQualityTotal] = useState(String(directNonQuality?.quarterlyTotal ?? ""));
   const [indirectTotal, setIndirectTotal] = useState(String(indirect?.quarterlyTotal ?? ""));
-  const jobsCreated = (Number(directTotal) || 0) + (Number(indirectTotal) || 0) > 0;
+  const jobsCreated =
+    (Number(directQualityTotal) || 0) +
+    (Number(directNonQualityTotal) || 0) +
+    (Number(indirectTotal) || 0) > 0;
 
   return (
     <div className="space-y-6">
       <JobFields
         label="How many new direct jobs have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid a minimum wage of KES 16,114 per month; daily wage = KES 775.)"
-        prefix="direct"
-        row={direct}
-        cumulative={detail.cumulativeJobs.direct}
+        prefix="directQuality"
+        row={directQuality}
+        cumulative={detail.cumulativeJobs.directQuality}
         includeRefugee={includeRefugee}
-        onTotalChange={setDirectTotal}
+        onTotalChange={setDirectQualityTotal}
+      />
+      <JobFields
+        label="How many new direct jobs BELOW KES 16,114 have been created by the enterprise in the past 3 months? (A direct job refers to people employed full-time, part-time or seasonally by the business and paid below KES 16,114 per month.)"
+        prefix="directNonQuality"
+        row={directNonQuality}
+        cumulative={detail.cumulativeJobs.directNonQuality}
+        includeRefugee={includeRefugee}
+        onTotalChange={setDirectNonQualityTotal}
       />
       <JobFields
         label="How many new indirect jobs have been created by the enterprise in the past 3 months? (Indirect jobs include suppliers, distributors, retailers, transporters, service providers and other people engaged by the business.)"
@@ -441,7 +458,7 @@ function JobsSection({
         <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} />
       ) : (
         <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          No jobs evidence is required when both direct and indirect totals are 0.
+          No jobs evidence is required when all direct and indirect totals are 0.
         </p>
       )}
     </div>
@@ -459,7 +476,7 @@ function JobFields({
   label: string;
   prefix: string;
   row?: JobRow;
-  cumulative: MelMonitoringDetail["cumulativeJobs"]["direct"];
+  cumulative: MelMonitoringDetail["cumulativeJobs"]["directQuality"];
   includeRefugee: boolean;
   onTotalChange: (value: string) => void;
 }) {

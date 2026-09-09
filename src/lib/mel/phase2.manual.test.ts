@@ -18,7 +18,8 @@ function completeDraft(): MelMonitoringDraft {
     revenue: 900_000,
     costs: 600_000,
     financialChangeExplanation: null,
-    directJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directQualityJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directNonQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     marketResearchCompleted: false,
     marketIntelligenceAccessed: false,
@@ -147,7 +148,8 @@ function testZeroJobsValidation() {
   const valid = completeDraft();
   const zeroJobs = {
     ...valid,
-    directJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directQualityJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directNonQualityJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
     indirectJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
   };
   assert.deepEqual(
@@ -158,7 +160,8 @@ function testZeroJobsValidation() {
 
   const partialZero = {
     ...valid,
-    directJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directQualityJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directNonQualityJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   assert.deepEqual(
@@ -169,7 +172,8 @@ function testZeroJobsValidation() {
 
   const jobsWithoutEvidence = {
     ...valid,
-    directJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directQualityJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directNonQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   const jobsIssues = monitoringSubmissionIssues(jobsWithoutEvidence, new Set(), new Set(), false, false);
@@ -180,12 +184,13 @@ function testZeroJobsValidation() {
 
   const incompleteJobs = {
     ...valid,
-    directJobs: { total: 2, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directQualityJobs: { total: 2, male: null, female: null, youth: null, plwd: null, refugee: null },
+    directNonQualityJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   assert.ok(
     monitoringSubmissionIssues(incompleteJobs, new Set(["jobs"]), new Set(), false, false).some((issue) =>
-      issue.includes("Direct jobs breakdown is required")
+      issue.includes("Direct jobs (quality) breakdown is required")
     ),
     "Incomplete breakdown is still required when total is greater than 0"
   );

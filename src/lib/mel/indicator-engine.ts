@@ -44,6 +44,8 @@ export type ApprovedMonitoringRecord = {
   socialSafeguardingGuidelines: boolean | null;
   circularGrowthReported: boolean | null;
   strategicPartnerships: boolean | null;
+  directQualityJobs: JobTotals;
+  directNonQualityJobs: JobTotals;
   directJobs: JobTotals;
   indirectJobs: JobTotals;
   waste: Array<{ stream: string; kilograms: number }>;
@@ -363,7 +365,12 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
       return job.total;
     };
     const actual = records.reduce((sum, record) => {
-      if (jobDimension?.[0] === "job_type") return sum + valueFor(jobDimension[1] === "direct" ? record.directJobs : record.indirectJobs);
+      if (jobDimension?.[0] === "job_type") {
+        if (jobDimension[1] === "direct_quality") return sum + valueFor(record.directQualityJobs);
+        if (jobDimension[1] === "direct_non_quality") return sum + valueFor(record.directNonQualityJobs);
+        if (jobDimension[1] === "direct") return sum + valueFor(record.directJobs);
+        return sum + valueFor(record.indirectJobs);
+      }
       return sum + valueFor(record.directJobs) + valueFor(record.indirectJobs);
     }, 0);
     return result(input, { actual, numerator: null, denominator: null, calculationRule: jobDimension ? `Sum of approved jobs for ${segmentKey}` : "Sum of approved direct and indirect quarterly jobs" }, records);

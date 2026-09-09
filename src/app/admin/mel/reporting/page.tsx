@@ -53,7 +53,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive reporting summary">
         <Metric icon={Factory} label="Enterprises reporting" value={data.summary.reportingEnterprises.toLocaleString()} detail={percentage(data.summary.reportingCompleteness) + " complete"} />
         <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
-        <Metric icon={UsersThree} label="Cumulative jobs" value={data.summary.jobs.toLocaleString()} detail={`${data.summary.directJobs} direct, ${data.summary.indirectJobs} indirect`} />
+        <Metric icon={UsersThree} label="Cumulative jobs" value={data.summary.jobs.toLocaleString()} detail={`Direct jobs (Quality=${data.summary.directQualityJobs}, Non-quality=${data.summary.directNonQualityJobs}), ${data.summary.indirectJobs} indirect`} />
         <FinanceAccessedMetric
           actual={data.summary.externalFinanceAccessed}
           target={data.summary.externalFinanceTarget}

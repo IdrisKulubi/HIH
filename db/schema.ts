@@ -297,7 +297,12 @@ export const melMonitoringSourceModeEnum = pgEnum('mel_monitoring_source_mode', 
   'catch_up',
 ]);
 
-export const melJobTypeEnum = pgEnum('mel_job_type', ['direct', 'indirect']);
+export const melJobTypeEnum = pgEnum('mel_job_type', [
+  'direct_quality',
+  'direct_non_quality',
+  'indirect',
+  'direct',
+]);
 export const melFinanceTypeEnum = pgEnum('mel_finance_type', [
   'loan',
   'matching_grant',

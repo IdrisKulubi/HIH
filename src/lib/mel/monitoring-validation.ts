@@ -53,7 +53,8 @@ export const melMonitoringDraftSchema = z.object({
   revenue: optionalMoney,
   costs: optionalMoney,
   financialChangeExplanation: optionalText,
-  directJobs: jobSchema,
+  directQualityJobs: jobSchema,
+  directNonQualityJobs: jobSchema,
   indirectJobs: jobSchema,
   marketResearchCompleted: optionalBoolean,
   marketIntelligenceAccessed: optionalBoolean,
@@ -87,7 +88,7 @@ export const melMonitoringDraftSchema = z.object({
 
 export type MelMonitoringDraft = z.infer<typeof melMonitoringDraftSchema>;
 
-export type JobRowInput = MelMonitoringDraft["directJobs"];
+export type JobRowInput = MelMonitoringDraft["directQualityJobs"];
 
 export function normalizeJobRow(row: JobRowInput, includeRefugee: boolean): JobBreakdown | null {
   if (row.total === null) return null;
@@ -124,11 +125,13 @@ export function normalizeMonitoringDraft(
   wasteEligible: boolean,
   includeRefugee = false
 ): MelMonitoringDraft {
-  const directJobs = normalizeJobRow(input.directJobs, includeRefugee);
+  const directQualityJobs = normalizeJobRow(input.directQualityJobs, includeRefugee);
+  const directNonQualityJobs = normalizeJobRow(input.directNonQualityJobs, includeRefugee);
   const indirectJobs = normalizeJobRow(input.indirectJobs, includeRefugee);
   return {
     ...input,
-    directJobs: directJobs ? jobRowFromBreakdown(directJobs) : input.directJobs,
+    directQualityJobs: directQualityJobs ? jobRowFromBreakdown(directQualityJobs) : input.directQualityJobs,
+    directNonQualityJobs: directNonQualityJobs ? jobRowFromBreakdown(directNonQualityJobs) : input.directNonQualityJobs,
     indirectJobs: indirectJobs ? jobRowFromBreakdown(indirectJobs) : input.indirectJobs,
     technologyDetails: input.technologyAdopted ? input.technologyDetails : null,
     newProductsDetails: input.newProductsDeveloped ? input.newProductsDetails : null,
@@ -204,7 +207,11 @@ export function monitoringSubmissionIssues(
     issues.push("Public-private partnership details are required when Yes");
   }
 
-  for (const [label, row] of [["Direct jobs", input.directJobs], ["Indirect jobs", input.indirectJobs]] as const) {
+  for (const [label, row] of [
+    ["Direct jobs (quality)", input.directQualityJobs],
+    ["Direct jobs (non-quality)", input.directNonQualityJobs],
+    ["Indirect jobs", input.indirectJobs],
+  ] as const) {
     const normalized = normalizeJobRow(row, includeRefugee);
     if (!normalized) {
       issues.push(`${label} breakdown is required`);
@@ -224,7 +231,8 @@ export function monitoringSubmissionIssues(
       issues.push(`Remove the stale evidence for ${code.replaceAll("_", " ")} before submitting No`);
     }
   }
-  if ((input.directJobs.total ?? 0) + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
+  const directJobsTotal = (input.directQualityJobs.total ?? 0) + (input.directNonQualityJobs.total ?? 0);
+  if (directJobsTotal + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
     issues.push("Evidence is required for jobs created");
   }
   if (wasteEligible) {
@@ -261,7 +269,8 @@ export function parseMonitoringFormData(formData: FormData): MelMonitoringDraft 
 
   return melMonitoringDraftSchema.parse({
     visitDate: get("visitDate"), businessPlanImproved: get("businessPlanImproved"),
-    revenue: get("revenue"), costs: get("costs"), financialChangeExplanation: get("financialChangeExplanation"), directJobs: jobs("direct"), indirectJobs: jobs("indirect"),
+    revenue: get("revenue"), costs: get("costs"), financialChangeExplanation: get("financialChangeExplanation"),
+    directQualityJobs: jobs("directQuality"), directNonQualityJobs: jobs("directNonQuality"), indirectJobs: jobs("indirect"),
     marketResearchCompleted: get("marketResearchCompleted"), marketIntelligenceAccessed: get("marketIntelligenceAccessed"),
     newMarketSegments: get("newMarketSegments"), technologyAdopted: get("technologyAdopted"),
     technologyDetails: get("technologyDetails"), newProductsDeveloped: get("newProductsDeveloped"),

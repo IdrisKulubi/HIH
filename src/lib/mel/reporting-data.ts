@@ -33,6 +33,7 @@ import {
   type JobTotals,
   type ProgrammeResultInput,
 } from "./indicator-engine";
+import { findMonitoringJob, mergeJobTotals, MEL_JOB_TYPE } from "./job-types";
 import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
 import {
@@ -177,6 +178,8 @@ export type MelReportingDataset = {
     monthlyMedianProfit: number | null;
     jobs: number;
     directJobs: number;
+    directQualityJobs: number;
+    directNonQualityJobs: number;
     indirectJobs: number;
     financeAccessed: number;
     externalFinanceAccessed: number;
@@ -366,8 +369,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
 
   const records: ApprovedMonitoringRecord[] = submissions.map((submission) => {
     const response = submission.response;
-    const direct = submission.jobs.find((job) => job.jobType === "direct");
-    const indirect = submission.jobs.find((job) => job.jobType === "indirect");
+    const directQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directQuality);
+    const directNonQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directNonQuality);
+    const indirect = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.indirect);
     const toJobs = (job: typeof direct): JobTotals => job ? {
       total: job.quarterlyTotal ?? 0,
       male: job.male ?? 0,
@@ -420,7 +424,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       socialSafeguardingGuidelines: response?.socialSafeguardingGuidelines ?? null,
       circularGrowthReported: response?.circularGrowthReported ?? null,
       strategicPartnerships: response?.strategicPartnerships ?? null,
-      directJobs: toJobs(direct),
+      directQualityJobs: toJobs(directQuality),
+      directNonQualityJobs: toJobs(directNonQuality),
+      directJobs: mergeJobTotals(toJobs(directQuality), toJobs(directNonQuality)),
       indirectJobs: toJobs(indirect),
       waste: submission.business.sector === "waste_management"
         ? submission.waste.map((item) => ({ stream: item.wasteStream, kilograms: numeric(item.kilograms) ?? 0 }))
@@ -855,6 +861,8 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       monthlyMedianProfit: monthlyMedian(latestPeriodRecords, (record) => record.profitLoss),
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
+      directQualityJobs: sum(filteredRecords, (record) => record.directQualityJobs.total),
+      directNonQualityJobs: sum(filteredRecords, (record) => record.directNonQualityJobs.total),
       indirectJobs: sum(filteredRecords, (record) => record.indirectJobs.total),
       financeAccessed,
       externalFinanceAccessed,

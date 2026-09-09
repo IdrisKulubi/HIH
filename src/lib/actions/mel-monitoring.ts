@@ -48,6 +48,7 @@ import {
   ONE_TIME_QUESTION_BY_INDICATOR,
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
+import { MEL_JOB_TYPE } from "@/lib/mel/job-types";
 
 const INSTRUMENT_CODE = "quarterly_enterprise_monitoring";
 export type MelMonitoringWorkspaceRow = {
@@ -113,7 +114,8 @@ export type MelMonitoringDetail = {
   };
   approvedOneTimeCodes: string[];
   cumulativeJobs: {
-    direct: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number };
+    directQuality: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number };
+    directNonQuality: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number };
     indirect: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number };
   };
   includeRefugee: boolean;
@@ -522,8 +524,12 @@ export async function getMelMonitoringDetail(
         reusableEvidence.map((item) => item.questionCode)
       ),
       cumulativeJobs: {
-        direct: cumulativeRows.find((row) => row.jobType === "direct") ?? emptyJobs,
-        indirect: cumulativeRows.find((row) => row.jobType === "indirect") ?? emptyJobs,
+        directQuality:
+          cumulativeRows.find((row) => row.jobType === MEL_JOB_TYPE.directQuality) ??
+          cumulativeRows.find((row) => row.jobType === MEL_JOB_TYPE.legacyDirect) ??
+          emptyJobs,
+        directNonQuality: cumulativeRows.find((row) => row.jobType === MEL_JOB_TYPE.directNonQuality) ?? emptyJobs,
+        indirect: cumulativeRows.find((row) => row.jobType === MEL_JOB_TYPE.indirect) ?? emptyJobs,
       },
       includeRefugee: settings?.includeRefugeeDisaggregation ?? false,
       financialBaseline: financialBaseline ?? null,
@@ -743,7 +749,11 @@ export async function saveMelMonitoringAction(
         );
       }
 
-      for (const [jobType, row] of [["direct", input.directJobs], ["indirect", input.indirectJobs]] as const) {
+      for (const [jobType, row] of [
+        [MEL_JOB_TYPE.directQuality, input.directQualityJobs],
+        [MEL_JOB_TYPE.directNonQuality, input.directNonQualityJobs],
+        [MEL_JOB_TYPE.indirect, input.indirectJobs],
+      ] as const) {
         await tx
           .insert(melMonitoringJobs)
           .values({

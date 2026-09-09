@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 import { runDqa, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
+import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 import { requireMelReviewer, type MelReviewer } from "@/lib/mel/review-access";
 import {
   expectedReviewStage,
@@ -319,8 +320,8 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
             periodLabel: prior.periodLabel,
             revenue: prior.response?.revenue ?? null,
             profitLoss: prior.response?.profitLoss ?? null,
-            directJobs: prior.jobs.find((job) => job.jobType === "direct")?.quarterlyTotal ?? 0,
-            indirectJobs: prior.jobs.find((job) => job.jobType === "indirect")?.quarterlyTotal ?? 0,
+            directJobs: sumDirectJobTotals(prior.jobs),
+            indirectJobs: findMonitoringJob(prior.jobs, MEL_JOB_TYPE.indirect)?.quarterlyTotal ?? 0,
           }
         : null,
       redoReviewers,
@@ -394,8 +395,8 @@ async function buildDqaInput(submissionId: number): Promise<{
             )
           );
   const response = submission.response;
-  const job = (type: "direct" | "indirect") => {
-    const row = submission.jobs.find((item) => item.jobType === type);
+  const job = (type: typeof MEL_JOB_TYPE.directQuality | typeof MEL_JOB_TYPE.directNonQuality | typeof MEL_JOB_TYPE.indirect) => {
+    const row = findMonitoringJob(submission.jobs, type);
     if (!row || [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some((value) => value === null)) {
       return null;
     }
@@ -419,8 +420,9 @@ async function buildDqaInput(submissionId: number): Promise<{
     revenue: numberOrNull(response?.revenue),
     costs: numberOrNull(response?.costs),
     storedProfitLoss: numberOrNull(response?.profitLoss),
-    directJobs: job("direct"),
-    indirectJobs: job("indirect"),
+    directQualityJobs: job(MEL_JOB_TYPE.directQuality),
+    directNonQualityJobs: job(MEL_JOB_TYPE.directNonQuality),
+    indirectJobs: job(MEL_JOB_TYPE.indirect),
     financeLinked: response?.linkedToFinanceProvider ?? null,
     financeType: submission.financeEntries.length
       ? submission.financeEntries.map((entry) => entry.financeType).join(",")
@@ -437,8 +439,8 @@ async function buildDqaInput(submissionId: number): Promise<{
       ? {
           revenue: numberOrNull(prior.response?.revenue),
           profitLoss: numberOrNull(prior.response?.profitLoss),
-          directJobsTotal: prior.jobs.find((row) => row.jobType === "direct")?.quarterlyTotal ?? 0,
-          indirectJobsTotal: prior.jobs.find((row) => row.jobType === "indirect")?.quarterlyTotal ?? 0,
+          directJobsTotal: sumDirectJobTotals(prior.jobs),
+          indirectJobsTotal: findMonitoringJob(prior.jobs, MEL_JOB_TYPE.indirect)?.quarterlyTotal ?? 0,
         }
       : null,
     duplicateEvidenceKeys: new Set(duplicateRows.map((row) => row.fileKey)),

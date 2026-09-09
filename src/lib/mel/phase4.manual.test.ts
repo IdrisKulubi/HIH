@@ -43,6 +43,8 @@ function record(id: number, businessId: number, overrides: Partial<ApprovedMonit
     socialSafeguardingGuidelines: false,
     circularGrowthReported: false,
     strategicPartnerships: false,
+    directQualityJobs: jobs(2, 1, 1, 1),
+    directNonQualityJobs: jobs(0),
     directJobs: jobs(2, 1, 1, 1),
     indirectJobs: jobs(3, 2, 1, 2),
     waste: [],

@@ -25,7 +25,8 @@ function validDqaInput(): DqaInput {
     revenue: 900_000,
     costs: 600_000,
     storedProfitLoss: 300_000,
-    directJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directQualityJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directNonQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
     indirectJobs: { total: 1, male: 1, female: 0, youth: 1, plwd: 0, refugee: 0 },
     financeLinked: false,
     financeType: null,
@@ -112,7 +113,7 @@ function testDqa() {
 
   const invalidJobs = {
     ...validDqaInput(),
-    directJobs: { total: 2, male: 2, female: 1, youth: 3, plwd: 0, refugee: 0 },
+    directQualityJobs: { total: 2, male: 2, female: 1, youth: 3, plwd: 0, refugee: 0 },
   };
   assert.ok(runDqa(invalidJobs).filter((issue) => issue.category === "consistency").length >= 2);
 

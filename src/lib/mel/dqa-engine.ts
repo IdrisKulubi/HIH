@@ -22,7 +22,8 @@ export type DqaInput = {
   revenue: number | null;
   costs: number | null;
   storedProfitLoss: number | null;
-  directJobs: JobBreakdown | null;
+  directQualityJobs: JobBreakdown | null;
+  directNonQualityJobs: JobBreakdown | null;
   indirectJobs: JobBreakdown | null;
   financeLinked: boolean | null;
   financeType: string | null;
@@ -85,7 +86,11 @@ export function runDqa(input: DqaInput): DqaFinding[] {
     }
   }
 
-  for (const [type, jobs] of [["direct", input.directJobs], ["indirect", input.indirectJobs]] as const) {
+  for (const [type, jobs] of [
+    ["direct quality", input.directQualityJobs],
+    ["direct non-quality", input.directNonQualityJobs],
+    ["indirect", input.indirectJobs],
+  ] as const) {
     if (!jobs) {
       findings.push({
         ruleCode: `completeness.${type}_jobs`,
@@ -189,7 +194,10 @@ export function runDqa(input: DqaInput): DqaFinding[] {
       });
     }
   }
-  const totalJobs = (input.directJobs?.total ?? 0) + (input.indirectJobs?.total ?? 0);
+  const totalJobs =
+    (input.directQualityJobs?.total ?? 0) +
+    (input.directNonQualityJobs?.total ?? 0) +
+    (input.indirectJobs?.total ?? 0);
   const priorJobs = (prior?.directJobsTotal ?? 0) + (prior?.indirectJobsTotal ?? 0);
   if (totalJobs >= 100 && totalJobs > Math.max(priorJobs * 2, 100)) {
     findings.push({

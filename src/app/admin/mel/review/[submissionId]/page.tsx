@@ -8,6 +8,7 @@ import { EvidenceReviewList } from "@/components/mel/review/EvidenceReviewList";
 import { ReviewDecisionPanel } from "@/components/mel/review/ReviewDecisionPanel";
 import { Badge } from "@/components/ui/badge";
 import { financeTypeLabel } from "@/lib/mel/monitoring-question-catalog";
+import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 
 export default async function MelReviewDetailPage({
   params,
@@ -25,8 +26,9 @@ export default async function MelReviewDetailPage({
   }
   const detail = result.data;
   const snapshot = detail.submission.profileSnapshot;
-  const direct = detail.jobs.find((row) => row.jobType === "direct");
-  const indirect = detail.jobs.find((row) => row.jobType === "indirect");
+  const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
+  const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);
+  const indirect = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.indirect);
 
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
@@ -71,7 +73,7 @@ export default async function MelReviewDetailPage({
               <div className="grid gap-3 sm:grid-cols-3">
                 <Comparison label="Revenue" prior={currency(detail.priorApproved.revenue)} current={currency(detail.response?.revenue)} />
                 <Comparison label="Profit or loss" prior={currency(detail.priorApproved.profitLoss)} current={currency(detail.response?.profitLoss)} />
-                <Comparison label="Jobs" prior={detail.priorApproved.directJobs + detail.priorApproved.indirectJobs} current={(direct?.quarterlyTotal ?? 0) + (indirect?.quarterlyTotal ?? 0)} />
+                <Comparison label="Jobs" prior={detail.priorApproved.directJobs + detail.priorApproved.indirectJobs} current={sumDirectJobTotals(detail.jobs) + (indirect?.quarterlyTotal ?? 0)} />
               </div>
               <p className="mt-3 text-xs text-slate-500">Compared with {detail.priorApproved.periodLabel}.</p>
             </ReviewSection>
@@ -97,7 +99,11 @@ export default async function MelReviewDetailPage({
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2 text-left">Jobs</th><th>Total</th><th>Male</th><th>Female</th><th>Youth</th><th>PLWD</th><th>Refugee</th></tr></thead>
                 <tbody className="divide-y">
-                  {([["Direct", direct], ["Indirect", indirect]] as const).map(([label, row]) => (
+                  {([
+                    ["Direct (quality)", directQuality],
+                    ["Direct (non-quality)", directNonQuality],
+                    ["Indirect", indirect],
+                  ] as const).map(([label, row]) => (
                     <tr key={label}><td className="px-3 py-2 font-medium">{label}</td><td className="text-center">{row?.quarterlyTotal ?? "—"}</td><td className="text-center">{row?.male ?? "—"}</td><td className="text-center">{row?.female ?? "—"}</td><td className="text-center">{row?.youth ?? "—"}</td><td className="text-center">{row?.plwd ?? "—"}</td><td className="text-center">{row?.refugee ?? "—"}</td></tr>
                   ))}
                 </tbody>
