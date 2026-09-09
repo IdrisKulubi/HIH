@@ -372,7 +372,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     const directQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directQuality);
     const directNonQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directNonQuality);
     const indirect = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.indirect);
-    const toJobs = (job: typeof direct): JobTotals => job ? {
+    const toJobs = (job: typeof directQuality): JobTotals => job ? {
       total: job.quarterlyTotal ?? 0,
       male: job.male ?? 0,
       female: job.female ?? 0,
