@@ -85,6 +85,7 @@ function period(input: {
   startDate: string;
   endDate: string;
   status?: MelSeedReportingPeriod["status"];
+  collectionCloseDate?: string;
 }): MelSeedReportingPeriod {
   const collection = collectionWindowAfterReportingEnd(input.endDate);
   return {
@@ -95,7 +96,7 @@ function period(input: {
     startDate: input.startDate,
     endDate: input.endDate,
     collectionOpenDate: collection.collectionOpenDate,
-    collectionCloseDate: collection.collectionCloseDate,
+    collectionCloseDate: input.collectionCloseDate ?? collection.collectionCloseDate,
     status: input.status ?? "planned",
     allowCatchUp: true,
   };
@@ -126,6 +127,7 @@ export const MEL_PROGRAMME_REPORTING_PERIODS: MelSeedReportingPeriod[] = [
     sequence: 2,
     startDate: "2026-06-01",
     endDate: "2026-08-31",
+    collectionCloseDate: "2026-09-18",
     status: "open",
   }),
   period({
@@ -209,6 +211,17 @@ export const MEL_PROGRAMME_REPORTING_PERIODS: MelSeedReportingPeriod[] = [
 
 /** First BDS monitoring window in Year 1 (Jun–Aug 2026). */
 export const MEL_Y1_FIRST_MONITORING_SEQUENCE = 2;
+
+/**
+ * Temporary grace period: first BDS collection (Y1 Jun–Aug) allows submit without evidence.
+ * Remove the period code from this list when evidence becomes mandatory again.
+ */
+export const MEL_EVIDENCE_OPTIONAL_PERIOD_CODES = ["Y1-MQ1"] as const;
+
+export function isMelEvidenceOptionalPeriod(period: { code: string } | string): boolean {
+  const code = typeof period === "string" ? period : period.code;
+  return (MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code);
+}
 
 export const OP11_COUNT_INDICATOR_CODES = [
   "OP1.1-ENTERPRISES-MOBILISED",

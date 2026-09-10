@@ -19,12 +19,14 @@ export function QuestionEvidence({
   evidence,
   locked,
   stale = false,
+  evidenceOptional = false,
 }: {
   submissionId: number;
   questionCode: MonitoringQuestionCode;
   evidence: MelMonitoringEvidence[];
   locked: boolean;
   stale?: boolean;
+  evidenceOptional?: boolean;
 }) {
   const matching = evidence.filter((item) => item.questionCode === questionCode);
   return (
@@ -33,7 +35,13 @@ export function QuestionEvidence({
         <div>
           <p className="text-sm font-medium text-slate-900">Supporting evidence</p>
           <p className="text-xs text-slate-600">
-            {stale ? "This answer is No, but evidence is still attached. Remove it before submitting." : "Attach the proof for this answer."}
+            {stale
+              ? evidenceOptional
+                ? "This answer is No, but evidence is still attached. You may remove it if no longer relevant."
+                : "This answer is No, but evidence is still attached. Remove it before submitting."
+              : evidenceOptional
+                ? "Attach supporting evidence if available (optional for this collection round)."
+                : "Attach the proof for this answer."}
           </p>
         </div>
         {stale ? <AlertTriangle className="size-5 text-amber-700" aria-hidden="true" /> : null}

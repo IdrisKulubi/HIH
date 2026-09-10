@@ -19,7 +19,7 @@ function validDqaInput(): DqaInput {
     visitDate: "2026-07-15",
     periodStartDate: "2026-06-01",
     periodEndDate: "2026-08-31",
-    collectionCloseDate: "2026-09-10",
+    collectionCloseDate: "2026-09-18",
     sourceMode: "current",
     submittedAt: new Date("2026-09-01T08:00:00Z"),
     revenue: 900_000,

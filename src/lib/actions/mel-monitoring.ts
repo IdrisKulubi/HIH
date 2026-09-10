@@ -685,7 +685,8 @@ export async function saveMelMonitoringAction(
         approvedCodes,
         settings?.includeRefugeeDisaggregation ?? false,
         wasteEligible,
-        financialComparison?.explanationRequired ?? false
+        financialComparison?.explanationRequired ?? false,
+        period.code
       );
       if (issues.length > 0) return errorResponse(issues.join(" • "));
     }

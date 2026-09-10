@@ -35,7 +35,7 @@ function testReportingPeriods() {
   assert.equal(y1Mq1.startDate, "2026-06-01");
   assert.equal(y1Mq1.endDate, "2026-08-31");
   assert.equal(y1Mq1.collectionOpenDate, "2026-09-01");
-  assert.equal(y1Mq1.collectionCloseDate, "2026-09-10");
+  assert.equal(y1Mq1.collectionCloseDate, "2026-09-18");
   assert.equal(y1Mq1.status, "open");
   assert.equal(y1Mq1.programmeYear, 1);
   const y1Pre = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-PRE");

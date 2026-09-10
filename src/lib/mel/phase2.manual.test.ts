@@ -196,9 +196,35 @@ function testZeroJobsValidation() {
   );
 }
 
+function testOptionalEvidenceForY1Mq1() {
+  const valid = completeDraft();
+  const withYesAndJobs = {
+    ...valid,
+    technologyAdopted: true,
+    technologyDetails: "Solar drying equipment",
+    directQualityJobs: { total: 2, male: 1, female: 1, youth: 1, plwd: 0, refugee: 0 },
+    directNonQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+    indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+  };
+
+  assert.deepEqual(
+    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ1"),
+    [],
+    "Y1-MQ1 allows submit without evidence when other fields are complete"
+  );
+
+  assert.ok(
+    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ2").some(
+      (issue) => issue.includes("Evidence is required")
+    ),
+    "Later periods still require evidence"
+  );
+}
+
 testCalculations();
 testJobValidation();
 testSubmissionValidation();
 testZeroJobsValidation();
+testOptionalEvidenceForY1Mq1();
 
 console.log("MEL Phase 2 tests passed.");

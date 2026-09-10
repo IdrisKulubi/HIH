@@ -6,6 +6,7 @@ import {
   MONITORING_QUESTIONS,
   type MonitoringFinanceType,
 } from "./monitoring-question-catalog";
+import { isMelEvidenceOptionalPeriod } from "./programme-calendar";
 
 const optionalBoolean = z.preprocess(
   (value) => (value === "" || value === null || value === undefined ? null : value === "true" || value === true),
@@ -155,9 +156,11 @@ export function monitoringSubmissionIssues(
   approvedOneTimeCodes: ReadonlySet<string>,
   includeRefugee: boolean,
   wasteEligible: boolean,
-  financialExplanationRequired = false
+  financialExplanationRequired = false,
+  reportingPeriodCode?: string
 ): string[] {
   const issues: string[] = [];
+  const evidenceOptional = reportingPeriodCode ? isMelEvidenceOptionalPeriod(reportingPeriodCode) : false;
   if (!input.visitDate) issues.push("Visit date is required");
 
   const requiredBooleanFields: Array<[keyof MelMonitoringDraft, string, string?]> = [
@@ -225,27 +228,33 @@ export function monitoringSubmissionIssues(
     issues.push(...jobBreakdownIssues(label, normalized));
   }
 
-  for (const code of EVIDENCE_REQUIRED_WHEN_TRUE) {
-    const question = MONITORING_QUESTIONS[code as keyof typeof MONITORING_QUESTIONS];
-    if (!question.field || approvedOneTimeCodes.has(code)) continue;
-    const field = question.field as keyof MelMonitoringDraft;
-    if (input[field] === true && !evidenceQuestionCodes.has(code)) {
-      issues.push(`Evidence is required for ${code.replaceAll("_", " ")}`);
+  if (!evidenceOptional) {
+    for (const code of EVIDENCE_REQUIRED_WHEN_TRUE) {
+      const question = MONITORING_QUESTIONS[code as keyof typeof MONITORING_QUESTIONS];
+      if (!question.field || approvedOneTimeCodes.has(code)) continue;
+      const field = question.field as keyof MelMonitoringDraft;
+      if (input[field] === true && !evidenceQuestionCodes.has(code)) {
+        issues.push(`Evidence is required for ${code.replaceAll("_", " ")}`);
+      }
+      if (input[field] === false && evidenceQuestionCodes.has(code)) {
+        issues.push(`Remove the stale evidence for ${code.replaceAll("_", " ")} before submitting No`);
+      }
     }
-    if (input[field] === false && evidenceQuestionCodes.has(code)) {
-      issues.push(`Remove the stale evidence for ${code.replaceAll("_", " ")} before submitting No`);
+    const directJobsTotal = (input.directQualityJobs.total ?? 0) + (input.directNonQualityJobs.total ?? 0);
+    if (directJobsTotal + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
+      issues.push("Evidence is required for jobs created");
     }
-  }
-  const directJobsTotal = (input.directQualityJobs.total ?? 0) + (input.directNonQualityJobs.total ?? 0);
-  if (directJobsTotal + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
-    issues.push("Evidence is required for jobs created");
-  }
-  if (wasteEligible) {
+    if (wasteEligible) {
+      for (const stream of WASTE_STREAMS) {
+        if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
+      }
+      if (Object.values(input.waste).some((value) => (value ?? 0) > 0) && !evidenceQuestionCodes.has("waste")) {
+        issues.push("Evidence is required for waste collected and recycled");
+      }
+    }
+  } else if (wasteEligible) {
     for (const stream of WASTE_STREAMS) {
       if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
-    }
-    if (Object.values(input.waste).some((value) => (value ?? 0) > 0) && !evidenceQuestionCodes.has("waste")) {
-      issues.push("Evidence is required for waste collected and recycled");
     }
   }
   if (!input.mainChallenges) issues.push("Main challenges are required");

@@ -14,6 +14,7 @@ import {
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
 import { findMonitoringJob, MEL_JOB_TYPE } from "@/lib/mel/job-types";
+import { isMelEvidenceOptionalPeriod } from "@/lib/mel/programme-calendar";
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
@@ -41,6 +42,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
   const locked = !isCollectorEditableStatus(detail.submission.status);
   const isApproved = detail.submission.status === "approved";
+  const evidenceOptional = isMelEvidenceOptionalPeriod(detail.period);
   const response = detail.response;
   const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
   const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);
@@ -175,11 +177,11 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         </FormSection>
 
         <FormSection number="B" title={MONITORING_SECTIONS.B}>
-          <EvidenceBooleanQuestion detail={detail} code="business_plan_improved" value={response?.businessPlanImproved} locked={locked} />
+          <EvidenceBooleanQuestion detail={detail} code="business_plan_improved" value={response?.businessPlanImproved} locked={locked} evidenceOptional={evidenceOptional} />
         </FormSection>
 
         <FormSection number="C" title={MONITORING_SECTIONS.C} help="Enter Kenya shilling totals for the past three months. Profit or loss is calculated automatically.">
-          <ProfitFields detail={detail} locked={locked} />
+          <ProfitFields detail={detail} locked={locked} evidenceOptional={evidenceOptional} />
         </FormSection>
 
         <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals. Enter 0 in Total when no new jobs were created this quarter.">
@@ -190,41 +192,42 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
             indirect={indirect}
             locked={locked}
             includeRefugee={detail.includeRefugee}
+            evidenceOptional={evidenceOptional}
           />
         </FormSection>
 
         <FormSection number="E" title={MONITORING_SECTIONS.E}>
           <div className="space-y-5">
-            <EvidenceBooleanQuestion detail={detail} code="market_research_completed" value={response?.marketResearchCompleted} locked={locked} />
+            <EvidenceBooleanQuestion detail={detail} code="market_research_completed" value={response?.marketResearchCompleted} locked={locked} evidenceOptional={evidenceOptional} />
             <BooleanField name="marketIntelligenceAccessed" label="Has the enterprise accessed market intelligence or market information in the past 3 months?" value={response?.marketIntelligenceAccessed} />
             <Field name="newMarketSegments" label="How many new market segments (new customer groups) has the enterprise started serving in the past 3 months?" type="number" min="0" step="1" value={response?.newMarketSegments ?? ""} />
-            <EvidenceBooleanQuestion detail={detail} code="technology_adopted" value={response?.technologyAdopted} locked={locked} child={({ yes }) => yes ? <TextAreaField name="technologyDetails" label="If Yes, specify the technology or innovation" value={response?.technologyDetails} /> : null} />
-            <EvidenceBooleanQuestion detail={detail} code="new_products_developed" value={response?.newProductsDeveloped} locked={locked} child={({ yes }) => yes ? <TextAreaField name="newProductsDetails" label="If Yes, give details of the new product or service" value={response?.newProductsDetails} /> : null} />
+            <EvidenceBooleanQuestion detail={detail} code="technology_adopted" value={response?.technologyAdopted} locked={locked} evidenceOptional={evidenceOptional} child={({ yes }) => yes ? <TextAreaField name="technologyDetails" label="If Yes, specify the technology or innovation" value={response?.technologyDetails} /> : null} />
+            <EvidenceBooleanQuestion detail={detail} code="new_products_developed" value={response?.newProductsDeveloped} locked={locked} evidenceOptional={evidenceOptional} child={({ yes }) => yes ? <TextAreaField name="newProductsDetails" label="If Yes, give details of the new product or service" value={response?.newProductsDetails} /> : null} />
           </div>
         </FormSection>
 
         <FormSection number="F" title={MONITORING_SECTIONS.F}>
           <div className="space-y-5">
-            <EvidenceBooleanQuestion detail={detail} code="linked_to_finance_provider" value={response?.linkedToFinanceProvider} locked={locked} child={({ yes }) => yes ? <FinanceEntries initial={financeByType} /> : null} />
-            <EvidenceBooleanQuestion detail={detail} code="financial_plan_completed" value={response?.financialPlanCompleted} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="active_insurance" value={response?.activeInsurance} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="investor_readiness_completed" value={response?.investorReadinessCompleted} locked={locked} />
+            <EvidenceBooleanQuestion detail={detail} code="linked_to_finance_provider" value={response?.linkedToFinanceProvider} locked={locked} evidenceOptional={evidenceOptional} child={({ yes }) => yes ? <FinanceEntries initial={financeByType} /> : null} />
+            <EvidenceBooleanQuestion detail={detail} code="financial_plan_completed" value={response?.financialPlanCompleted} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="active_insurance" value={response?.activeInsurance} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="investor_readiness_completed" value={response?.investorReadinessCompleted} locked={locked} evidenceOptional={evidenceOptional} />
           </div>
         </FormSection>
 
         <FormSection number="G" title={MONITORING_SECTIONS.G}>
           <div className="space-y-5">
-            <EvidenceBooleanQuestion detail={detail} code="life_cycle_assessment_completed" value={response?.lifeCycleAssessmentCompleted} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="eco_certification_active" value={response?.ecoCertificationActive} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="esg_report_completed" value={response?.esgReportCompleted} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="social_safeguarding_guidelines" value={response?.socialSafeguardingGuidelines} locked={locked} />
+            <EvidenceBooleanQuestion detail={detail} code="life_cycle_assessment_completed" value={response?.lifeCycleAssessmentCompleted} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="eco_certification_active" value={response?.ecoCertificationActive} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="esg_report_completed" value={response?.esgReportCompleted} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="social_safeguarding_guidelines" value={response?.socialSafeguardingGuidelines} locked={locked} evidenceOptional={evidenceOptional} />
             {detail.profile.sector === "waste_management" ? (
               <div className="rounded-md border border-slate-200 p-4">
                 <p className="text-sm font-medium text-slate-900">Waste collected and recycled in the past 3 months (kg)</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   {WASTE_STREAMS.map((stream) => <Field key={stream} name={`waste_${stream}`} label={humanize(stream)} type="number" min="0" step="0.001" value={waste[stream] ?? "0"} />)}
                 </div>
-                <QuestionEvidence submissionId={detail.submission.id} questionCode="waste" evidence={detail.evidence} locked={locked} />
+                <QuestionEvidence submissionId={detail.submission.id} questionCode="waste" evidence={detail.evidence} locked={locked} evidenceOptional={evidenceOptional} />
               </div>
             ) : null}
           </div>
@@ -232,9 +235,9 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
 
         <FormSection number="H" title={MONITORING_SECTIONS.H}>
           <div className="space-y-5">
-            <EvidenceBooleanQuestion detail={detail} code="strategic_partnerships" value={response?.strategicPartnerships} locked={locked} child={({ yes }) => yes ? <div className="grid gap-4 sm:grid-cols-2"><Field name="strategicPartnershipCount" label="If Yes, how many?" type="number" min="1" step="1" value={response?.strategicPartnershipCount ?? ""} /><TextAreaField name="strategicPartnershipDetails" label="If Yes, specify partner name(s)" value={response?.strategicPartnershipDetails} /></div> : null} />
-            <EvidenceBooleanQuestion detail={detail} code="forum_participation" value={response?.forumParticipation} locked={locked} />
-            <EvidenceBooleanQuestion detail={detail} code="public_private_partnership" value={response?.publicPrivatePartnership} locked={locked} child={({ yes }) => yes ? <TextAreaField name="publicPrivatePartnershipDetails" label="If Yes, provide details" value={response?.publicPrivatePartnershipDetails} /> : null} />
+            <EvidenceBooleanQuestion detail={detail} code="strategic_partnerships" value={response?.strategicPartnerships} locked={locked} evidenceOptional={evidenceOptional} child={({ yes }) => yes ? <div className="grid gap-4 sm:grid-cols-2"><Field name="strategicPartnershipCount" label="If Yes, how many?" type="number" min="1" step="1" value={response?.strategicPartnershipCount ?? ""} /><TextAreaField name="strategicPartnershipDetails" label="If Yes, specify partner name(s)" value={response?.strategicPartnershipDetails} /></div> : null} />
+            <EvidenceBooleanQuestion detail={detail} code="forum_participation" value={response?.forumParticipation} locked={locked} evidenceOptional={evidenceOptional} />
+            <EvidenceBooleanQuestion detail={detail} code="public_private_partnership" value={response?.publicPrivatePartnership} locked={locked} evidenceOptional={evidenceOptional} child={({ yes }) => yes ? <TextAreaField name="publicPrivatePartnershipDetails" label="If Yes, provide details" value={response?.publicPrivatePartnershipDetails} /> : null} />
           </div>
         </FormSection>
 
@@ -248,7 +251,15 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         </FormSection>
       </fieldset>
 
-      <FormSection number="J" title={MONITORING_SECTIONS.J} help="Review every attached or reused file. Add new evidence under its triggering question above.">
+      <FormSection
+        number="J"
+        title={MONITORING_SECTIONS.J}
+        help={
+          evidenceOptional
+            ? "Review any attached or reused files. Supporting evidence is optional for this collection round but encouraged where available."
+            : "Review every attached or reused file. Add new evidence under its triggering question above."
+        }
+      >
         <MonitoringEvidenceSummary submissionId={detail.submission.id} evidence={detail.evidence} references={detail.evidenceReferences} locked={locked} />
       </FormSection>
 
@@ -284,7 +295,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   );
 }
 
-function EvidenceBooleanQuestion({ detail, code, value, locked, child }: { detail: MelMonitoringDetail; code: MonitoringQuestionCode; value: boolean | null | undefined; locked: boolean; child?: (state: { yes: boolean }) => React.ReactNode }) {
+function EvidenceBooleanQuestion({ detail, code, value, locked, evidenceOptional = false, child }: { detail: MelMonitoringDetail; code: MonitoringQuestionCode; value: boolean | null | undefined; locked: boolean; evidenceOptional?: boolean; child?: (state: { yes: boolean }) => React.ReactNode }) {
   const question = MONITORING_QUESTIONS[code];
   const hidden = detail.approvedOneTimeCodes.includes(code);
   const [selection, setSelection] = useState(value === null || value === undefined ? "" : String(value));
@@ -302,8 +313,8 @@ function EvidenceBooleanQuestion({ detail, code, value, locked, child }: { detai
       </select>
       <input type="hidden" name={question.field ?? undefined} value={yes ? "true" : no ? "false" : ""} />
       {child?.({ yes })}
-      {yes ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} /> : null}
-      {no && directEvidence.length > 0 ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} stale /> : null}
+      {yes ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} evidenceOptional={evidenceOptional} /> : null}
+      {no && directEvidence.length > 0 ? <QuestionEvidence submissionId={detail.submission.id} questionCode={code} evidence={detail.evidence} locked={locked} stale evidenceOptional={evidenceOptional} /> : null}
     </div>
   );
 }
@@ -356,7 +367,7 @@ function BooleanField({ label, name, value }: { label: string; name: string; val
 function TextAreaField({ label, name, value }: { label: string; name: string; value: string | null | undefined }) { return <div className="mt-3 space-y-1.5"><Label htmlFor={name} className="leading-5">{label}</Label><Textarea id={name} name={name} defaultValue={value ?? ""} rows={3} /></div>; }
 function ProfileItem({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs font-medium text-slate-600">{label}</dt><dd className="mt-1 font-medium text-slate-900">{value}</dd></div>; }
 
-function ProfitFields({ detail, locked }: { detail: MelMonitoringDetail; locked: boolean }) {
+function ProfitFields({ detail, locked, evidenceOptional = false }: { detail: MelMonitoringDetail; locked: boolean; evidenceOptional?: boolean }) {
   const response = detail.response;
   const [revenue, setRevenue] = useState(response?.revenue ?? "");
   const [costs, setCosts] = useState(response?.costs ?? "");
@@ -400,7 +411,7 @@ function ProfitFields({ detail, locked }: { detail: MelMonitoringDetail; locked:
   const baselineFlags = baselineComparison?.flags.filter((flag) => flag.source === "baseline" || flag.source === "current") ?? [];
   return <div className="space-y-4">
     <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="revenue">What is the enterprise TOTAL REVENUE in the past 3 months?</Label><Input id="revenue" name="revenue" type="number" min="0" step="0.01" value={revenue} onChange={(event) => setRevenue(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="costs">What is the enterprise&apos;s TOTAL COSTS in the past 3 months?</Label><Input id="costs" name="costs" type="number" min="0" step="0.01" value={costs} onChange={(event) => setCosts(event.target.value)} /></div><ReadOnlyField label="What is the enterprise’s PROFIT/LOSS (Total Revenue − Total Cost) in the past 3 months?" value={profit === null ? "Enter revenue and costs" : money(profit)} /></div>
-    <QuestionEvidence submissionId={detail.submission.id} questionCode="profitability" evidence={detail.evidence} locked={locked} />
+    <QuestionEvidence submissionId={detail.submission.id} questionCode="profitability" evidence={detail.evidence} locked={locked} evidenceOptional={evidenceOptional} />
     {baselineComparison && baselineComparison.comparators.length ? <div className="rounded-md border border-blue-200 bg-blue-50/60 p-4"><p className="text-sm font-semibold text-slate-900">Individual enterprise progress against baseline</p><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500"><th className="pb-2">Measure</th>{baselineComparison.comparators.map((item) => <th key={item.source} className="pb-2">{item.label}</th>)}<th className="pb-2">Current monthly equivalent</th></tr></thead><tbody>{(["revenue", "costs", "profit"] as const).map((measure) => <tr key={measure} className="border-t"><td className="py-2 font-medium capitalize">{measure}</td>{baselineComparison.comparators.map((item) => <td key={item.source} className="py-2 tabular-nums">{money(item.values[measure])}</td>)}<td className="py-2 tabular-nums">{money(baselineComparison.currentMonthly[measure])}</td></tr>)}</tbody></table></div>{baselineFlags.length ? <div className="mt-3 space-y-1">{baselineFlags.map((flag, index) => <p key={`${flag.code}-${flag.source}-${index}`} className="text-xs font-medium text-amber-800">• {flag.message}</p>)}</div> : <p className="mt-3 text-xs text-emerald-700">No material loss or 100% financial change was detected against the enterprise baseline.</p>}</div> : null}
     {fullComparison?.explanationRequired ? <div className="rounded-md border border-amber-300 bg-amber-50 p-4"><Label htmlFor="financialChangeExplanation">Please explain the material loss or unusually large change from this enterprise&apos;s baseline or previous approved quarter.</Label><Textarea id="financialChangeExplanation" name="financialChangeExplanation" defaultValue={response?.financialChangeExplanation ?? ""} rows={3} minLength={10} required className="mt-2" /><p className="mt-1 text-xs text-amber-800">Required because one or more financial alert rules were triggered.</p></div> : null}
   </div>;
@@ -412,6 +423,7 @@ function JobsSection({
   indirect,
   locked,
   includeRefugee,
+  evidenceOptional = false,
 }: {
   detail: MelMonitoringDetail;
   directQuality?: JobRow;
@@ -419,6 +431,7 @@ function JobsSection({
   indirect?: JobRow;
   locked: boolean;
   includeRefugee: boolean;
+  evidenceOptional?: boolean;
 }) {
   const [directQualityTotal, setDirectQualityTotal] = useState(String(directQuality?.quarterlyTotal ?? ""));
   const [directNonQualityTotal, setDirectNonQualityTotal] = useState(String(directNonQuality?.quarterlyTotal ?? ""));
@@ -455,10 +468,12 @@ function JobsSection({
         onTotalChange={setIndirectTotal}
       />
       {jobsCreated ? (
-        <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} />
+        <QuestionEvidence submissionId={detail.submission.id} questionCode="jobs" evidence={detail.evidence} locked={locked} evidenceOptional={evidenceOptional} />
       ) : (
         <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          No jobs evidence is required when all direct and indirect totals are 0.
+          {evidenceOptional
+            ? "No jobs evidence is needed when all direct and indirect totals are 0."
+            : "No jobs evidence is required when all direct and indirect totals are 0."}
         </p>
       )}
     </div>
