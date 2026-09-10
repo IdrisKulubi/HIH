@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { runDqa, type DqaInput } from "./dqa-engine";
+import { runDqa, visibleDqaIssues, type DqaInput } from "./dqa-engine";
 import {
   expectedReviewStage,
   isCollectorEditableStatus,
@@ -147,6 +147,23 @@ function testDqa() {
     duplicateEvidenceKeys: new Set(["shared-key"]),
   };
   assert.ok(runDqa(reusedEvidence).some((issue) => issue.ruleCode.includes("reused_evidence")));
+
+  const staleNonQuality = {
+    id: 1,
+    status: "open",
+    ruleCode: "completeness.direct non-quality_jobs",
+  };
+  const stillOpen = { id: 2, status: "open", ruleCode: "completeness.financials" };
+  const accepted = { id: 3, status: "accepted", ruleCode: "timeliness.catch_up" };
+  const resolved = { id: 4, status: "resolved", ruleCode: "completeness.visit_date" };
+  assert.deepEqual(
+    visibleDqaIssues(
+      [staleNonQuality, stillOpen, accepted, resolved],
+      new Set(["completeness.financials", "timeliness.catch_up"])
+    ),
+    [stillOpen, accepted],
+    "Stale open DQA findings should not stay visible after the rule no longer fails"
+  );
 }
 
 testWorkflow();

@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 export function DqaReviewPanel({ submissionId, issues }: { submissionId: number; issues: MelDqaIssue[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const open = issues.filter((issue) => issue.status === "open");
+  const visible = issues.filter((issue) => issue.status !== "resolved");
+  const open = visible.filter((issue) => issue.status === "open");
 
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-background">
@@ -41,14 +42,16 @@ export function DqaReviewPanel({ submissionId, issues }: { submissionId: number;
           <Play className="mr-1.5 size-3.5" /> {pending ? "Running…" : "Run DQA"}
         </Button>
       </div>
-      {issues.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-slate-500">Run DQA to evaluate this report.</p>
+      {visible.length === 0 ? (
+        <p className="px-4 py-8 text-center text-sm text-slate-500">
+          {issues.length === 0 ? "Run DQA to evaluate this report." : "No open DQA findings on this report."}
+        </p>
       ) : (
         <ul className="divide-y">
-          {issues.map((issue) => <DqaIssueRow key={issue.id} issue={issue} />)}
+          {visible.map((issue) => <DqaIssueRow key={issue.id} issue={issue} />)}
         </ul>
       )}
-      {issues.length > 0 && open.length === 0 ? (
+      {visible.length > 0 && open.length === 0 ? (
         <div className="flex items-center gap-2 border-t bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <CheckCircle2 className="size-4" /> All recorded DQA findings are resolved or accepted.
         </div>

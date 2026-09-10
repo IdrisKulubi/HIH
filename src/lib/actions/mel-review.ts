@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import db from "@/db/drizzle";
 import {
@@ -27,7 +27,7 @@ import {
   userProfiles,
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
-import { runDqa, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
+import { runDqa, visibleDqaIssues, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
 import { EMPTY_JOB_BREAKDOWN } from "@/lib/mel/monitoring-calculations";
 import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 import { requireMelReviewer, type MelReviewer } from "@/lib/mel/review-access";
@@ -288,7 +288,7 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       ];
     });
 
-    const [prior, redoReviewers] = await Promise.all([
+    const [prior, redoReviewers, liveDqa] = await Promise.all([
       loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate),
       db
         .select({
@@ -298,7 +298,13 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         .from(userProfiles)
         .where(eq(userProfiles.role, "redo"))
         .orderBy(asc(userProfiles.firstName)),
+      buildDqaInput(submissionId),
     ]);
+    await reconcileStoredDqaFindings(
+      submissionId,
+      submission.submissionVersion,
+      liveDqa.findings
+    );
     return successResponse({
       reviewer,
       submission,
@@ -313,7 +319,10 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
       evidenceReferences,
-      dqaIssues: submission.dqaIssues,
+      dqaIssues: visibleDqaIssues(
+        submission.dqaIssues,
+        new Set(liveDqa.findings.map((finding) => finding.ruleCode))
+      ),
       decisions: submission.reviewDecisions,
       versions: submission.versions,
       priorApproved: prior
@@ -404,14 +413,15 @@ async function buildDqaInput(submissionId: number): Promise<{
     if (!row) {
       return options?.optional ? EMPTY_JOB_BREAKDOWN : null;
     }
+    const total = row.quarterlyTotal;
+    if (options?.optional && (total === null || total === 0)) {
+      return EMPTY_JOB_BREAKDOWN;
+    }
     if (
       [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some(
         (value) => value === null
       )
     ) {
-      if (options?.optional && (row.quarterlyTotal === null || row.quarterlyTotal === 0)) {
-        return EMPTY_JOB_BREAKDOWN;
-      }
       return null;
     }
     return {
@@ -463,30 +473,64 @@ async function buildDqaInput(submissionId: number): Promise<{
   return { submission, input, findings: runDqa(input) };
 }
 
-async function persistDqaFindings(submissionId: number, actorId: string) {
-  const { submission, findings } = await buildDqaInput(submissionId);
+async function reconcileStoredDqaFindings(
+  submissionId: number,
+  submissionVersion: number,
+  findings: DqaFinding[]
+) {
+  const now = new Date();
+  const currentCodes = findings.map((finding) => finding.ruleCode);
+  const staleWhere =
+    currentCodes.length === 0
+      ? and(
+          eq(melDqaIssues.submissionId, submissionId),
+          eq(melDqaIssues.submissionVersion, submissionVersion),
+          eq(melDqaIssues.status, "open")
+        )
+      : and(
+          eq(melDqaIssues.submissionId, submissionId),
+          eq(melDqaIssues.submissionVersion, submissionVersion),
+          eq(melDqaIssues.status, "open"),
+          notInArray(melDqaIssues.ruleCode, currentCodes)
+        );
+
   await db.transaction(async (tx) => {
+    await tx
+      .update(melDqaIssues)
+      .set({
+        status: "resolved",
+        resolutionReason: "Cleared automatically because this check no longer fails on the current report.",
+        resolvedAt: now,
+        updatedAt: now,
+      })
+      .where(staleWhere);
+
     for (const finding of findings) {
       await tx
         .insert(melDqaIssues)
         .values({
           submissionId,
-          submissionVersion: submission.submissionVersion,
+          submissionVersion,
           ...finding,
           observedValue: finding.observedValue ?? null,
           comparisonValue: finding.comparisonValue ?? null,
         })
         .onConflictDoNothing();
     }
-    await tx.insert(melAuditEvents).values({
-      actorId,
-      actorRole: "system_dqa",
-      entityType: "mel_monitoring_submission",
-      entityId: String(submissionId),
-      action: "dqa_run",
-      after: { version: submission.submissionVersion, findingCount: findings.length },
-      correlationId: randomUUID(),
-    });
+  });
+}
+
+async function persistDqaFindings(submissionId: number, actorId: string) {
+  const { submission, findings } = await buildDqaInput(submissionId);
+  await reconcileStoredDqaFindings(submissionId, submission.submissionVersion, findings);
+  await db.insert(melAuditEvents).values({
+    actorId,
+    actorRole: "system_dqa",
+    entityType: "mel_monitoring_submission",
+    entityId: String(submissionId),
+    action: "dqa_run",
+    after: { version: submission.submissionVersion, findingCount: findings.length },
+    correlationId: randomUUID(),
   });
   return findings;
 }

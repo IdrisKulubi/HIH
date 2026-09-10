@@ -226,3 +226,13 @@ export function runDqa(input: DqaInput): DqaFinding[] {
 
   return findings;
 }
+
+export function visibleDqaIssues<T extends { status: string; ruleCode: string }>(
+  stored: T[],
+  currentRuleCodes: ReadonlySet<string>
+): T[] {
+  return stored.filter((issue) => {
+    if (issue.status === "resolved") return false;
+    return currentRuleCodes.has(issue.ruleCode);
+  });
+}
