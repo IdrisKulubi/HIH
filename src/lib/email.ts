@@ -223,11 +223,24 @@ export async function sendMentorshipAssignmentEmail(
     return { success: false, skipped: true, error: "Email service not configured" };
   }
 
+  const enterpriseNames = props.enterpriseNames.filter(Boolean);
+  if (enterpriseNames.length === 0) {
+    return { success: false, skipped: true, error: "No enterprises to notify" };
+  }
+
+  const subject =
+    enterpriseNames.length === 1
+      ? `You have been assigned to ${enterpriseNames[0]} — BIRE Mentorship`
+      : `You have been assigned to ${enterpriseNames.length} enterprises — BIRE Mentorship`;
+
   try {
     await sendEmail({
       to: props.mentorEmail.trim().toLowerCase(),
-      subject: `You have been assigned to ${props.enterpriseName} — BIRE Mentorship`,
-      react: MentorshipAssignmentEmail(props),
+      subject,
+      react: MentorshipAssignmentEmail({
+        mentorName: props.mentorName,
+        enterpriseNames,
+      }),
     });
     return { success: true };
   } catch (error) {

@@ -13,17 +13,24 @@ import {
 
 export interface MentorshipAssignmentEmailProps {
   mentorName: string;
-  enterpriseName: string;
+  enterpriseNames: string[];
 }
 
 export const MentorshipAssignmentEmail = ({
   mentorName = "Mentor",
-  enterpriseName = "Enterprise",
+  enterpriseNames = ["Enterprise"],
 }: MentorshipAssignmentEmailProps) => {
+  const names = enterpriseNames.filter(Boolean);
+  const count = names.length;
+  const preview =
+    count === 1
+      ? `You have been assigned to ${names[0]}`
+      : `You have been assigned to ${count} enterprises`;
+
   return (
     <Html>
       <Head />
-      <Preview>You have been assigned to {enterpriseName}</Preview>
+      <Preview>{preview}</Preview>
       <Tailwind
         config={{
           theme: {
@@ -41,19 +48,39 @@ export const MentorshipAssignmentEmail = ({
         <Body className="bg-slate-100 font-sans">
           <Container className="mx-auto my-8 max-w-xl rounded-lg bg-white p-8 shadow-sm">
             <Heading className="text-xl font-bold text-slate-900">
-              New mentorship assignment
+              {count === 1 ? "New mentorship assignment" : "New mentorship assignments"}
             </Heading>
             <Text className="text-slate-600">Hello {mentorName},</Text>
             <Text className="text-slate-600">
-              You have been assigned to support <strong>{enterpriseName}</strong> through the BIRE
-              six-session mentorship programme.
+              {count === 1 ? (
+                <>
+                  You have been assigned to support <strong>{names[0]}</strong> through the BIRE
+                  six-session mentorship programme.
+                </>
+              ) : (
+                <>
+                  You have been assigned to support the following{" "}
+                  <strong>{count} enterprises</strong> through the BIRE six-session mentorship
+                  programme.
+                </>
+              )}
             </Text>
 
             <Section className="rounded-md border border-slate-200 bg-slate-50 p-4">
-              <Text className="text-sm font-semibold text-slate-900">Your assignment</Text>
-              <Text className="text-sm text-slate-700 mt-2">
-                <strong>Enterprise:</strong> {enterpriseName}
+              <Text className="text-sm font-semibold text-slate-900 m-0">
+                {count === 1 ? "Your assignment" : "Your assignments"}
               </Text>
+              {names.map((name) => (
+                <Text key={name} className="text-sm text-slate-700 mt-2 mb-0">
+                  {count === 1 ? (
+                    <>
+                      <strong>Enterprise:</strong> {name}
+                    </>
+                  ) : (
+                    <>• {name}</>
+                  )}
+                </Text>
+              ))}
             </Section>
 
             <Text className="text-slate-600">

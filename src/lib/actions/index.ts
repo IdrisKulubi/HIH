@@ -170,6 +170,7 @@ export {
     createMentor,
     createMentorFromForm,
     createMentorshipMatch,
+    assignMentorToEnterprises,
     completeMentorshipSession,
     completeMentorshipSessionFromForm,
     listMentorsForAdmin,

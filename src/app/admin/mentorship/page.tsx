@@ -7,14 +7,7 @@ import {
 } from "@/lib/actions/mentorship";
 import { MentorCreateForm } from "@/components/admin/mentorship/MentorCreateForm";
 import { MentorshipBusinessTable } from "@/components/admin/mentorship/MentorshipBusinessTable";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { MentorshipMentorsTable } from "@/components/admin/mentorship/MentorshipMentorsTable";
 
 export default async function AdminMentorshipPage() {
   const [mentorsRes, businessesRes, usersRes] = await Promise.all([
@@ -29,7 +22,7 @@ export default async function AdminMentorshipPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Mentorship</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Register mentors, then open a business to create a six-session match (sessions 1 &amp; 6 physical, 2–5 virtual).
+            Assign enterprises from the mentors list. Open a business to review six-session matches.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -60,47 +53,24 @@ export default async function AdminMentorshipPage() {
 
       <section className="space-y-4">
         <h2 className="text-lg font-medium">Mentors</h2>
+        <p className="text-sm text-muted-foreground">
+          Click a mentor or Assign, tick the enterprises they should support, then save.
+        </p>
         {!mentorsRes.success || !mentorsRes.data ? (
           <p className="text-destructive text-sm">{mentorsRes.error ?? "Failed to load"}</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Sector</TableHead>
-                <TableHead>Enterprises</TableHead>
-                <TableHead>Active</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mentorsRes.data.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell>{m.userEmail}</TableCell>
-                  <TableCell>{m.userName ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{m.expertiseArea}</TableCell>
-                  <TableCell>
-                    {m.enterpriseCount === 0 ? (
-                      <span className="text-muted-foreground">None</span>
-                    ) : (
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">{m.enterpriseCount}</p>
-                        <p className="max-w-xs truncate text-xs text-muted-foreground">
-                          {m.enterpriseNames.join(", ")}
-                        </p>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{m.isActive ? "Yes" : "No"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <MentorshipMentorsTable
+            mentors={mentorsRes.data}
+            businesses={businessesRes.success && businessesRes.data ? businessesRes.data : []}
+          />
         )}
       </section>
 
       <section className="space-y-4">
         <h2 className="text-lg font-medium">Businesses</h2>
+        <p className="text-sm text-muted-foreground">
+          Open Manage to review matches and session evidence for a business.
+        </p>
         {!businessesRes.success || !businessesRes.data ? (
           <p className="text-destructive text-sm">{businessesRes.error ?? "Failed to load"}</p>
         ) : (

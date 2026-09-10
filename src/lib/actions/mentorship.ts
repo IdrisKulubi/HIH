@@ -304,6 +304,20 @@ export async function createMentor(
   }
 }
 
+function buildMentorshipSessionRows(matchId: number, startDate: Date) {
+  return [1, 2, 3, 4, 5, 6].map((n) => {
+    const scheduled = new Date(startDate);
+    scheduled.setDate(scheduled.getDate() + (n - 1) * 7);
+    return {
+      matchId,
+      sessionNumber: n,
+      sessionType: n === 1 || n === 6 ? ("physical" as const) : ("virtual" as const),
+      status: "scheduled" as const,
+      scheduledDate: scheduled,
+    };
+  });
+}
+
 export async function createMentorshipMatch(
   businessId: number,
   mentorId: number,
@@ -350,29 +364,16 @@ export async function createMentorshipMatch(
 
       if (!match) throw new Error("Insert match failed");
 
-      const sessionRows = [1, 2, 3, 4, 5, 6].map((n) => {
-        const scheduled = new Date(base);
-        scheduled.setDate(scheduled.getDate() + (n - 1) * 7);
-        return {
-          matchId: match.id,
-          sessionNumber: n,
-          sessionType: n === 1 || n === 6 ? ("physical" as const) : ("virtual" as const),
-          status: "scheduled" as const,
-          scheduledDate: scheduled,
-        };
-      });
-
-      await tx.insert(mentorshipSessions).values(sessionRows);
+      await tx.insert(mentorshipSessions).values(buildMentorshipSessionRows(match.id, base));
       return match.id;
     });
 
-    revalidatePath("/admin/mentorship");
-    revalidatePath(`/admin/mentorship/matches/${businessId}`);
+    await revalidateMentorshipPaths(businessId);
 
     void sendMentorshipAssignmentEmail({
       mentorEmail: mentor.user.email,
       mentorName: mentor.user.name ?? mentor.user.email,
-      enterpriseName: business.name,
+      enterpriseNames: [business.name],
     }).catch((error) => {
       console.error("createMentorshipMatch email", error);
     });
@@ -381,6 +382,99 @@ export async function createMentorshipMatch(
   } catch (e) {
     console.error("createMentorshipMatch", e);
     return errorResponse("Failed to create mentorship match");
+  }
+}
+
+export async function assignMentorToEnterprises(
+  mentorId: number,
+  businessIds: number[]
+): Promise<ActionResponse<{ assignedCount: number; skippedCount: number; assignedNames: string[] }>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const uniqueBusinessIds = [...new Set(businessIds.filter((id) => Number.isFinite(id)))];
+    if (uniqueBusinessIds.length === 0) {
+      return errorResponse("Select at least one enterprise.");
+    }
+
+    const mentor = await db.query.mentors.findFirst({
+      where: eq(mentors.id, mentorId),
+      with: { user: true },
+    });
+    if (!mentor?.user) return errorResponse("Mentor not found");
+
+    const selectedBusinesses = await db.query.businesses.findMany({
+      where: inArray(businesses.id, uniqueBusinessIds),
+      columns: { id: true, name: true },
+    });
+    if (selectedBusinesses.length === 0) {
+      return errorResponse("No matching enterprises were found.");
+    }
+
+    const existingActiveMatches = await db.query.mentorshipMatches.findMany({
+      where: and(
+        eq(mentorshipMatches.mentorId, mentorId),
+        eq(mentorshipMatches.status, "active"),
+        inArray(mentorshipMatches.businessId, selectedBusinesses.map((b) => b.id))
+      ),
+      columns: { businessId: true },
+    });
+    const alreadyAssigned = new Set(existingActiveMatches.map((m) => m.businessId));
+    const toAssign = selectedBusinesses.filter((b) => !alreadyAssigned.has(b.id));
+    const skippedCount = uniqueBusinessIds.length - toAssign.length;
+
+    if (toAssign.length === 0) {
+      return successResponse({
+        assignedCount: 0,
+        skippedCount,
+        assignedNames: [],
+      });
+    }
+
+    const base = new Date();
+    const assignedNames = await db.transaction(async (tx) => {
+      const names: string[] = [];
+      for (const business of toAssign) {
+        const [match] = await tx
+          .insert(mentorshipMatches)
+          .values({
+            businessId: business.id,
+            mentorId,
+          })
+          .returning({ id: mentorshipMatches.id });
+
+        if (!match) throw new Error("Insert match failed");
+
+        await tx.insert(mentorshipSessions).values(buildMentorshipSessionRows(match.id, base));
+        names.push(business.name);
+      }
+      return names;
+    });
+
+    await revalidateMentorshipPaths();
+    for (const business of toAssign) {
+      revalidatePath(`/admin/mentorship/matches/${business.id}`);
+    }
+
+    void sendMentorshipAssignmentEmail({
+      mentorEmail: mentor.user.email,
+      mentorName: mentor.user.name ?? mentor.user.email,
+      enterpriseNames: assignedNames,
+    }).catch((error) => {
+      console.error("assignMentorToEnterprises email", error);
+    });
+
+    return successResponse({
+      assignedCount: assignedNames.length,
+      skippedCount,
+      assignedNames,
+    });
+  } catch (e) {
+    console.error("assignMentorToEnterprises", e);
+    return errorResponse("Failed to assign enterprises to this mentor");
   }
 }
 
@@ -691,6 +785,7 @@ export type MentorListRow = {
   isActive: boolean;
   enterpriseCount: number;
   enterpriseNames: string[];
+  assignedBusinessIds: number[];
 };
 
 export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRow[]>> {
@@ -717,23 +812,24 @@ export async function listMentorsForAdmin(): Promise<ActionResponse<MentorListRo
       }),
     ]);
 
-    const enterprisesByMentor = new Map<number, string[]>();
+    const enterprisesByMentor = new Map<number, { id: number; name: string }[]>();
     for (const match of activeMatches) {
-      const names = enterprisesByMentor.get(match.mentorId) ?? [];
-      names.push(match.business.name);
-      enterprisesByMentor.set(match.mentorId, names);
+      const list = enterprisesByMentor.get(match.mentorId) ?? [];
+      list.push({ id: match.businessId, name: match.business.name });
+      enterprisesByMentor.set(match.mentorId, list);
     }
 
     const data: MentorListRow[] = rows.map((m) => {
-      const enterpriseNames = enterprisesByMentor.get(m.id) ?? [];
+      const enterprises = enterprisesByMentor.get(m.id) ?? [];
       return {
         id: m.id,
         userEmail: m.user.email,
         userName: m.user.name,
         expertiseArea: m.expertiseArea,
         isActive: m.isActive ?? true,
-        enterpriseCount: enterpriseNames.length,
-        enterpriseNames,
+        enterpriseCount: enterprises.length,
+        enterpriseNames: enterprises.map((e) => e.name),
+        assignedBusinessIds: enterprises.map((e) => e.id),
       };
     });
 

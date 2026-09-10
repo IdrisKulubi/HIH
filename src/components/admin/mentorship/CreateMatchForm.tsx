@@ -141,8 +141,8 @@ export function CreateMatchForm({
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       <p className="text-xs text-muted-foreground">
-        The same mentor can be assigned to other businesses from their Manage pages under
-        Businesses.
+        Prefer assigning several enterprises at once from the Mentors list. You can still add a
+        mentor here for this business only.
       </p>
       <Button type="submit" disabled={pending || mentors.length === 0 || mentorId === ""}>
         {pending ? "Creating…" : "Create match & 6 sessions"}
