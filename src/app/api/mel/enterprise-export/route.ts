@@ -129,6 +129,7 @@ export async function GET(request: Request) {
         Forum_Participation: response.forumParticipation,
         Public_Private_Partnership: response.publicPrivatePartnership,
         Public_Private_Partnership_Details: response.publicPrivatePartnershipDetails,
+        Positive_Programme_Impacts: response.positiveProgrammeImpacts,
         Main_Challenges: response.mainChallenges,
         Negative_Programme_Impacts: response.negativeProgrammeImpacts,
         Additional_Support_Needed: response.additionalSupportNeeded,

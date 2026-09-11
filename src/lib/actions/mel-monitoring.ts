@@ -686,7 +686,8 @@ export async function saveMelMonitoringAction(
         settings?.includeRefugeeDisaggregation ?? false,
         wasteEligible,
         financialComparison?.explanationRequired ?? false,
-        period.code
+        period.code,
+        submission.status
       );
       if (issues.length > 0) return errorResponse(issues.join(" • "));
     }
@@ -889,6 +890,7 @@ function responseValues(
     publicPrivatePartnership: input.publicPrivatePartnership,
     publicPrivatePartnershipDetails: input.publicPrivatePartnershipDetails,
     mainChallenges: input.mainChallenges,
+    positiveProgrammeImpacts: input.positiveProgrammeImpacts,
     negativeProgrammeImpacts: input.negativeProgrammeImpacts,
     additionalSupportNeeded: input.additionalSupportNeeded,
     collectorComment: input.collectorComment,

@@ -223,6 +223,14 @@ export function isMelEvidenceOptionalPeriod(period: { code: string } | string): 
   return (MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code);
 }
 
+/** First-time draft saves may submit without supporting files; returned reports still require evidence. */
+export function isMelEvidenceOptionalForSubmission(
+  period: { code: string } | string,
+  submissionStatus: string
+): boolean {
+  return isMelEvidenceOptionalPeriod(period) || submissionStatus === "draft";
+}
+
 export const OP11_COUNT_INDICATOR_CODES = [
   "OP1.1-ENTERPRISES-MOBILISED",
   "OP1.1-CNA-COMPLETED",

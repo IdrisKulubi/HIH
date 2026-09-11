@@ -113,6 +113,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <FeedbackAccountabilitySection
         periodLabel={data.selectedPeriod.label}
         responseCount={data.feedbackAccountability.responseCount}
+        positiveEffects={data.feedbackAccountability.positiveEffects}
         enterpriseChallenges={data.feedbackAccountability.enterpriseChallenges}
         supportNeeded={data.feedbackAccountability.supportNeeded}
         negativeEffects={data.feedbackAccountability.negativeEffects}

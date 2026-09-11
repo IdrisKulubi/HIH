@@ -44,6 +44,7 @@ const baseDraft = (): MelMonitoringDraft => ({
   publicPrivatePartnership: false,
   publicPrivatePartnershipDetails: null,
   mainChallenges: "Finance",
+  positiveProgrammeImpacts: "Better business planning",
   negativeProgrammeImpacts: "None",
   additionalSupportNeeded: "Market linkage",
   collectorComment: "Verified during visit",

@@ -10,6 +10,7 @@ import {
   melAuditEvents,
   melDqaIssues,
   melEnterpriseAchievements,
+  melEnterpriseAssignments,
   melEvidenceReviews,
   melIndicatorDefinitions,
   melLearningActions,
@@ -25,6 +26,7 @@ import {
   melReportingPeriods,
   melReviewDecisions,
   userProfiles,
+  users,
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 import { runDqa, visibleDqaIssues, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
@@ -69,6 +71,9 @@ export type MelReviewQueueRow = {
   verifiedEvidenceCount: number;
   stage: "redo" | "mel";
   assignedRedoId: string | null;
+  edoName: string;
+  redoName: string;
+  collectorName: string;
 };
 
 export type MelReviewQueue = {
@@ -112,12 +117,110 @@ export type MelReviewDetail = {
     indirectJobs: number;
   } | null;
   redoReviewers: Array<{ id: string; name: string }>;
+  edoName: string;
+  redoName: string;
+  collectorName: string;
 };
 
 function actionError(error: unknown, fallback: string): ActionResponse<never> {
   if (error instanceof z.ZodError) return errorResponse(error.issues[0]?.message ?? fallback);
   if (error instanceof Error) return errorResponse(error.message);
   return errorResponse(fallback);
+}
+
+function normalizeStaffName(value: string | null | undefined): string | null {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  return trimmed ? trimmed : null;
+}
+
+async function loadMelStaffDisplayNames(userIds: string[]): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      id: users.id,
+      profileName: sql<string | null>`trim(concat_ws(' ', ${userProfiles.firstName}, ${userProfiles.lastName}))`,
+      accountName: users.name,
+      email: users.email,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .where(inArray(users.id, uniqueIds));
+
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      normalizeStaffName(row.profileName) ??
+        normalizeStaffName(row.accountName) ??
+        row.email,
+    ])
+  );
+}
+
+async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<number, string>> {
+  const uniqueBusinessIds = [...new Set(businessIds.filter((id) => Number.isFinite(id)))];
+  if (uniqueBusinessIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      businessId: melEnterpriseAssignments.businessId,
+      name: sql<string | null>`trim(concat_ws(' ', ${userProfiles.firstName}, ${userProfiles.lastName}))`,
+      accountName: users.name,
+      email: users.email,
+    })
+    .from(melEnterpriseAssignments)
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
+    .innerJoin(users, eq(users.id, melEnterpriseAssignments.collectorId))
+    .where(
+      and(
+        inArray(melEnterpriseAssignments.businessId, uniqueBusinessIds),
+        eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo")
+      )
+    );
+
+  const byBusiness = new Map<number, string>();
+  for (const row of rows) {
+    if (byBusiness.has(row.businessId)) continue;
+    byBusiness.set(
+      row.businessId,
+      normalizeStaffName(row.name) ?? normalizeStaffName(row.accountName) ?? row.email
+    );
+  }
+  return byBusiness;
+}
+
+function resolveEdoName(input: {
+  collectorId: string;
+  collectorRole: string;
+  businessId: number;
+  staffNames: Map<string, string>;
+  enterpriseEdoNames: Map<number, string>;
+}): string {
+  if (input.collectorRole === "bds_edo") {
+    return input.staffNames.get(input.collectorId) ?? "Unknown EDO";
+  }
+  return input.enterpriseEdoNames.get(input.businessId) ?? "Not assigned";
+}
+
+function resolveRedoName(input: {
+  collectorId: string;
+  collectorRole: string;
+  assignedRedoId: string | null;
+  staffNames: Map<string, string>;
+}): string {
+  if (input.assignedRedoId) {
+    return input.staffNames.get(input.assignedRedoId) ?? "Unknown REDO";
+  }
+  if (input.collectorRole === "redo") {
+    return input.staffNames.get(input.collectorId) ?? "Unknown REDO";
+  }
+  return "Unassigned";
+}
+
+function resolveCollectorName(collectorId: string, staffNames: Map<string, string>): string {
+  return staffNames.get(collectorId) ?? "Unknown collector";
 }
 
 function numberOrNull(value: string | number | null | undefined): number | null {
@@ -168,7 +271,7 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
         .orderBy(asc(userProfiles.firstName)),
     ]);
 
-    const rows = submissions
+    const queueSubmissions = submissions
       .filter((submission) => isQueueStatus(submission.status))
       .filter((submission) =>
         reviewerCanHandle(
@@ -178,8 +281,17 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           submission.assignedRedoId
         )
       )
-      .filter((submission) => submission.collectorId !== reviewer.id)
-      .map<MelReviewQueueRow>((submission) => {
+      .filter((submission) => submission.collectorId !== reviewer.id);
+
+    const [staffNames, enterpriseEdoNames] = await Promise.all([
+      loadMelStaffDisplayNames([
+        ...queueSubmissions.map((submission) => submission.collectorId),
+        ...queueSubmissions.map((submission) => submission.assignedRedoId ?? ""),
+      ]),
+      loadActiveEnterpriseEdoNames(queueSubmissions.map((submission) => submission.businessId)),
+    ]);
+
+    const rows = queueSubmissions.map<MelReviewQueueRow>((submission) => {
         const snapshot = submission.profileSnapshot;
         const stage = expectedReviewStage(submission.status, submission.collectorRole);
         if (!stage) throw new Error("Invalid review queue status");
@@ -212,6 +324,20 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
             ).length,
           stage,
           assignedRedoId: submission.assignedRedoId,
+          collectorName: resolveCollectorName(submission.collectorId, staffNames),
+          edoName: resolveEdoName({
+            collectorId: submission.collectorId,
+            collectorRole: submission.collectorRole,
+            businessId: submission.businessId,
+            staffNames,
+            enterpriseEdoNames,
+          }),
+          redoName: resolveRedoName({
+            collectorId: submission.collectorId,
+            collectorRole: submission.collectorRole,
+            assignedRedoId: submission.assignedRedoId,
+            staffNames,
+          }),
         };
       });
 
@@ -288,7 +414,7 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       ];
     });
 
-    const [prior, redoReviewers, liveDqa] = await Promise.all([
+    const [prior, redoReviewers, liveDqa, staffNames, enterpriseEdoNames] = await Promise.all([
       loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate),
       db
         .select({
@@ -299,6 +425,8 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         .where(eq(userProfiles.role, "redo"))
         .orderBy(asc(userProfiles.firstName)),
       buildDqaInput(submissionId),
+      loadMelStaffDisplayNames([submission.collectorId, submission.assignedRedoId ?? ""]),
+      loadActiveEnterpriseEdoNames([submission.businessId]),
     ]);
     await reconcileStoredDqaFindings(
       submissionId,
@@ -335,6 +463,20 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
           }
         : null,
       redoReviewers,
+      collectorName: resolveCollectorName(submission.collectorId, staffNames),
+      edoName: resolveEdoName({
+        collectorId: submission.collectorId,
+        collectorRole: submission.collectorRole,
+        businessId: submission.businessId,
+        staffNames,
+        enterpriseEdoNames,
+      }),
+      redoName: resolveRedoName({
+        collectorId: submission.collectorId,
+        collectorRole: submission.collectorRole,
+        assignedRedoId: submission.assignedRedoId,
+        staffNames,
+      }),
     });
   } catch (error) {
     console.error("getMelReviewDetail", error);

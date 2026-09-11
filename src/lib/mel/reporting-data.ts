@@ -220,6 +220,7 @@ export type MelReportingDataset = {
   };
   feedbackAccountability: {
     responseCount: number;
+    positiveEffects: WordCloudTerm[];
     enterpriseChallenges: WordCloudTerm[];
     supportNeeded: WordCloudTerm[];
     negativeEffects: WordCloudTerm[];
@@ -837,6 +838,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     .map((record) => submissionById.get(record.submissionId)?.response)
     .filter((response): response is NonNullable<typeof response> => Boolean(response));
   const feedbackWordClouds = buildFeedbackWordClouds({
+    positiveProgrammeImpacts: latestPeriodResponses.map((response) => response.positiveProgrammeImpacts ?? ""),
     mainChallenges: latestPeriodResponses.map((response) => response.mainChallenges ?? ""),
     additionalSupportNeeded: latestPeriodResponses.map((response) => response.additionalSupportNeeded ?? ""),
     negativeProgrammeImpacts: latestPeriodResponses.map((response) => response.negativeProgrammeImpacts ?? ""),
@@ -889,6 +891,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     },
     feedbackAccountability: {
       responseCount: latestPeriodRecords.length,
+      positiveEffects: feedbackWordClouds.positiveEffects,
       enterpriseChallenges: feedbackWordClouds.enterpriseChallenges,
       supportNeeded: feedbackWordClouds.supportNeeded,
       negativeEffects: feedbackWordClouds.negativeEffects,

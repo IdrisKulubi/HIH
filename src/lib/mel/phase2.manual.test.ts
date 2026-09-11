@@ -45,6 +45,7 @@ function completeDraft(): MelMonitoringDraft {
     publicPrivatePartnership: false,
     publicPrivatePartnershipDetails: null,
     mainChallenges: "Access to working capital",
+    positiveProgrammeImpacts: "Improved record keeping and market linkages",
     negativeProgrammeImpacts: "None observed",
     additionalSupportNeeded: "Financial planning support",
     collectorComment: "Enterprise continues to trade.",
@@ -217,7 +218,22 @@ function testOptionalEvidenceForY1Mq1() {
     monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ2").some(
       (issue) => issue.includes("Evidence is required")
     ),
-    "Later periods still require evidence"
+    "Later periods still require evidence after first submit"
+  );
+
+  assert.deepEqual(
+    monitoringSubmissionIssues(
+      withYesAndJobs,
+      new Set(),
+      new Set(),
+      false,
+      false,
+      false,
+      "Y1-MQ2",
+      "draft"
+    ),
+    [],
+    "Draft reports may submit without evidence in any collection period"
   );
 }
 

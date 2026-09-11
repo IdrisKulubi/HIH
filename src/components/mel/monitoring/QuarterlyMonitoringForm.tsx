@@ -14,7 +14,7 @@ import {
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
 import { findMonitoringJob, MEL_JOB_TYPE } from "@/lib/mel/job-types";
-import { isMelEvidenceOptionalPeriod } from "@/lib/mel/programme-calendar";
+import { isMelEvidenceOptionalForSubmission } from "@/lib/mel/programme-calendar";
 import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
@@ -42,7 +42,10 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
   const locked = !isCollectorEditableStatus(detail.submission.status);
   const isApproved = detail.submission.status === "approved";
-  const evidenceOptional = isMelEvidenceOptionalPeriod(detail.period);
+  const evidenceOptional = isMelEvidenceOptionalForSubmission(
+    detail.period,
+    detail.submission.status
+  );
   const response = detail.response;
   const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
   const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);
@@ -243,6 +246,11 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
 
         <FormSection number="I" title={MONITORING_SECTIONS.I}>
           <div className="grid gap-4 sm:grid-cols-2">
+            <TextAreaField
+              name="positiveProgrammeImpacts"
+              label="What are some of the positive things you/your enterprise has started experiencing as a result of participating in the BIRE project?"
+              value={response?.positiveProgrammeImpacts}
+            />
             <TextAreaField name="mainChallenges" label="What are the enterprise MAIN challenges at the moment? (Access to finance, market access, inputs, skills, regulatory issues, etc.)" value={response?.mainChallenges} />
             <TextAreaField name="negativeProgrammeImpacts" label="Has the entrepreneur or business experienced any direct or indirect negative impacts as a result of participating in the BIRE project?" value={response?.negativeProgrammeImpacts} />
             <TextAreaField name="additionalSupportNeeded" label="What additional support would help the enterprise grow? (Training, technology, linkages, mentorship, etc.)" value={response?.additionalSupportNeeded} />

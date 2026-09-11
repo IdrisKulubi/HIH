@@ -1793,6 +1793,7 @@ export const melMonitoringResponses = pgTable(
     publicPrivatePartnershipDetails: text('public_private_partnership_details'),
 
     mainChallenges: text('main_challenges'),
+    positiveProgrammeImpacts: text('positive_programme_impacts'),
     negativeProgrammeImpacts: text('negative_programme_impacts'),
     additionalSupportNeeded: text('additional_support_needed'),
     collectorComment: text('collector_comment'),

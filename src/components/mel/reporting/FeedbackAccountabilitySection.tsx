@@ -5,6 +5,7 @@ import { WordCloudChart } from "./WordCloudChart";
 type FeedbackAccountabilitySectionProps = {
   periodLabel: string;
   responseCount: number;
+  positiveEffects: WordCloudTerm[];
   enterpriseChallenges: WordCloudTerm[];
   supportNeeded: WordCloudTerm[];
   negativeEffects: WordCloudTerm[];
@@ -13,6 +14,7 @@ type FeedbackAccountabilitySectionProps = {
 export function FeedbackAccountabilitySection({
   periodLabel,
   responseCount,
+  positiveEffects,
   enterpriseChallenges,
   supportNeeded,
   negativeEffects,
@@ -29,7 +31,21 @@ export function FeedbackAccountabilitySection({
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-slate-900">
+              Positive effects of participating in the BIRE project
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WordCloudChart
+              terms={positiveEffects}
+              ariaLabel={`Positive programme effects word cloud for ${periodLabel}`}
+            />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold text-slate-900">Enterprise challenges</CardTitle>

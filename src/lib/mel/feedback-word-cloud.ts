@@ -96,17 +96,20 @@ export function buildWordCloudTerms(
 }
 
 export function buildFeedbackWordClouds(input: {
+  positiveProgrammeImpacts: string[];
   mainChallenges: string[];
   additionalSupportNeeded: string[];
   negativeProgrammeImpacts: string[];
   limit?: number;
 }): {
+  positiveEffects: WordCloudTerm[];
   enterpriseChallenges: WordCloudTerm[];
   supportNeeded: WordCloudTerm[];
   negativeEffects: WordCloudTerm[];
 } {
   const limit = input.limit ?? 30;
   return {
+    positiveEffects: buildWordCloudTerms(input.positiveProgrammeImpacts, { limit }),
     enterpriseChallenges: buildWordCloudTerms(input.mainChallenges, { limit }),
     supportNeeded: buildWordCloudTerms(input.additionalSupportNeeded, { limit }),
     negativeEffects: buildWordCloudTerms(input.negativeProgrammeImpacts, { limit, dropNoneOnly: true }),

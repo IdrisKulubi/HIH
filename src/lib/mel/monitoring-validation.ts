@@ -6,7 +6,7 @@ import {
   MONITORING_QUESTIONS,
   type MonitoringFinanceType,
 } from "./monitoring-question-catalog";
-import { isMelEvidenceOptionalPeriod } from "./programme-calendar";
+import { isMelEvidenceOptionalForSubmission } from "./programme-calendar";
 
 const optionalBoolean = z.preprocess(
   (value) => (value === "" || value === null || value === undefined ? null : value === "true" || value === true),
@@ -81,6 +81,7 @@ export const melMonitoringDraftSchema = z.object({
   publicPrivatePartnership: optionalBoolean,
   publicPrivatePartnershipDetails: optionalText,
   mainChallenges: optionalText,
+  positiveProgrammeImpacts: optionalText,
   negativeProgrammeImpacts: optionalText,
   additionalSupportNeeded: optionalText,
   collectorComment: optionalText,
@@ -157,10 +158,13 @@ export function monitoringSubmissionIssues(
   includeRefugee: boolean,
   wasteEligible: boolean,
   financialExplanationRequired = false,
-  reportingPeriodCode?: string
+  reportingPeriodCode?: string,
+  submissionStatus?: string
 ): string[] {
   const issues: string[] = [];
-  const evidenceOptional = reportingPeriodCode ? isMelEvidenceOptionalPeriod(reportingPeriodCode) : false;
+  const evidenceOptional = reportingPeriodCode
+    ? isMelEvidenceOptionalForSubmission(reportingPeriodCode, submissionStatus ?? "")
+    : submissionStatus === "draft";
   if (!input.visitDate) issues.push("Visit date is required");
 
   const requiredBooleanFields: Array<[keyof MelMonitoringDraft, string, string?]> = [
@@ -257,6 +261,9 @@ export function monitoringSubmissionIssues(
       if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
     }
   }
+  if (!input.positiveProgrammeImpacts) {
+    issues.push("Positive programme impacts are required");
+  }
   if (!input.mainChallenges) issues.push("Main challenges are required");
   if (!input.negativeProgrammeImpacts) issues.push("Programme impacts are required; enter None if none were observed");
   if (!input.additionalSupportNeeded) issues.push("Additional support needs are required");
@@ -301,7 +308,8 @@ export function parseMonitoringFormData(formData: FormData): MelMonitoringDraft 
     strategicPartnerships: get("strategicPartnerships"), strategicPartnershipCount: get("strategicPartnershipCount"),
     strategicPartnershipDetails: get("strategicPartnershipDetails"), forumParticipation: get("forumParticipation"),
     publicPrivatePartnership: get("publicPrivatePartnership"), publicPrivatePartnershipDetails: get("publicPrivatePartnershipDetails"),
-    mainChallenges: get("mainChallenges"), negativeProgrammeImpacts: get("negativeProgrammeImpacts"),
+    mainChallenges: get("mainChallenges"), positiveProgrammeImpacts: get("positiveProgrammeImpacts"),
+    negativeProgrammeImpacts: get("negativeProgrammeImpacts"),
     additionalSupportNeeded: get("additionalSupportNeeded"), collectorComment: get("collectorComment"), reusedEvidenceIds,
   });
 }

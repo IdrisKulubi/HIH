@@ -41,6 +41,13 @@ export default async function MelReviewDetailPage({
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">{detail.period.label}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{detail.businessName}</h1>
             <p className="mt-1 text-sm text-slate-600">Monitoring report quality and evidence review</p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-medium text-slate-900">BDS EDO:</span> {detail.edoName}
+              <span className="mx-2 text-slate-300">·</span>
+              <span className="font-medium text-slate-900">REDO:</span> {detail.redoName}
+              <span className="mx-2 text-slate-300">·</span>
+              <span className="font-medium text-slate-900">Submitted by:</span> {detail.collectorName}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{detail.submission.status.replaceAll("_", " ")}</Badge>
@@ -63,6 +70,9 @@ export default async function MelReviewDetailPage({
                 ["County", snapshot.county],
                 ["Location", snapshot.city],
                 ["Visit date", detail.submission.visitDate],
+                ["BDS EDO", detail.edoName],
+                ["REDO reviewer", detail.redoName],
+                ["Submitted by", detail.collectorName],
                 ["Collector role", detail.submission.collectorRole],
               ].map(([label, value]) => <Value key={String(label)} label={String(label)} value={value} />)}
             </dl>
@@ -207,6 +217,7 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["Forum details", response.forumDetails],
     ["Public-private partnership", response.publicPrivatePartnership],
     ["Public-private partnership details", response.publicPrivatePartnershipDetails],
+    ["Positive programme impacts", response.positiveProgrammeImpacts],
     ["Main challenges", response.mainChallenges],
     ["Negative programme impacts", response.negativeProgrammeImpacts],
     ["Additional support needed", response.additionalSupportNeeded],

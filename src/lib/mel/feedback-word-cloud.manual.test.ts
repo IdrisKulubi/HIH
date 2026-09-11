@@ -23,10 +23,12 @@ function testBuildWordCloudTerms() {
 
 function testBuildFeedbackWordClouds() {
   const clouds = buildFeedbackWordClouds({
+    positiveProgrammeImpacts: ["Improved market access, mentorship support"],
     mainChallenges: ["Access to finance, inputs"],
     additionalSupportNeeded: ["Training, mentorship"],
     negativeProgrammeImpacts: ["None observed", "Increased workload"],
   });
+  assert.ok(clouds.positiveEffects.some((term) => term.text.includes("market access")));
   assert.ok(clouds.enterpriseChallenges.some((term) => term.text === "access to finance"));
   assert.ok(clouds.supportNeeded.some((term) => term.text === "training"));
   assert.equal(clouds.negativeEffects.some((term) => term.text === "none observed"), false);
