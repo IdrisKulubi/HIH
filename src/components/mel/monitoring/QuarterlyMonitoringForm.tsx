@@ -254,7 +254,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
             <TextAreaField name="mainChallenges" label="What are the enterprise MAIN challenges at the moment? (Access to finance, market access, inputs, skills, regulatory issues, etc.)" value={response?.mainChallenges} />
             <TextAreaField name="negativeProgrammeImpacts" label="Has the entrepreneur or business experienced any direct or indirect negative impacts as a result of participating in the BIRE project?" value={response?.negativeProgrammeImpacts} />
             <TextAreaField name="additionalSupportNeeded" label="What additional support would help the enterprise grow? (Training, technology, linkages, mentorship, etc.)" value={response?.additionalSupportNeeded} />
-            <TextAreaField name="collectorComment" label="R/EDO Overall Comment" value={response?.collectorComment} />
+            <TextAreaField name="collectorComment" label="EDO Overall Comment" value={response?.collectorComment} />
           </div>
         </FormSection>
       </fieldset>

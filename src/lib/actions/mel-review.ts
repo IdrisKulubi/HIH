@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { and, asc, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import db from "@/db/drizzle";
 import {
@@ -158,7 +158,10 @@ async function loadMelStaffDisplayNames(userIds: string[]): Promise<Map<string, 
   );
 }
 
-async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<number, string>> {
+async function loadActiveEnterpriseStaffNames(
+  businessIds: number[],
+  role: "bds_edo" | "redo"
+): Promise<Map<number, string>> {
   const uniqueBusinessIds = [...new Set(businessIds.filter((id) => Number.isFinite(id)))];
   if (uniqueBusinessIds.length === 0) return new Map();
 
@@ -176,7 +179,7 @@ async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<
       and(
         inArray(melEnterpriseAssignments.businessId, uniqueBusinessIds),
         eq(melEnterpriseAssignments.isActive, true),
-        eq(userProfiles.role, "bds_edo")
+        eq(userProfiles.role, role)
       )
     );
 
@@ -189,6 +192,54 @@ async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<
     );
   }
   return byBusiness;
+}
+
+async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<number, string>> {
+  return loadActiveEnterpriseStaffNames(businessIds, "bds_edo");
+}
+
+async function loadActiveEnterpriseRedoNames(businessIds: number[]): Promise<Map<number, string>> {
+  return loadActiveEnterpriseStaffNames(businessIds, "redo");
+}
+
+async function loadLatestRedoReviewerBySubmission(
+  submissionIds: number[]
+): Promise<Map<number, string>> {
+  const uniqueSubmissionIds = [...new Set(submissionIds.filter((id) => Number.isFinite(id)))];
+  if (uniqueSubmissionIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      submissionId: melReviewDecisions.submissionId,
+      reviewerId: melReviewDecisions.reviewerId,
+    })
+    .from(melReviewDecisions)
+    .where(
+      and(
+        inArray(melReviewDecisions.submissionId, uniqueSubmissionIds),
+        eq(melReviewDecisions.stage, "redo"),
+        isNotNull(melReviewDecisions.reviewerId)
+      )
+    )
+    .orderBy(desc(melReviewDecisions.createdAt));
+
+  const bySubmission = new Map<number, string>();
+  for (const row of rows) {
+    if (!row.reviewerId || bySubmission.has(row.submissionId)) continue;
+    bySubmission.set(row.submissionId, row.reviewerId);
+  }
+  return bySubmission;
+}
+
+function latestRedoReviewerIdFromDecisions(
+  decisions: Array<{ stage: string; reviewerId: string | null }>
+): string | null {
+  for (const decision of decisions) {
+    if (decision.stage === "redo" && decision.reviewerId) {
+      return decision.reviewerId;
+    }
+  }
+  return null;
 }
 
 function resolveEdoName(input: {
@@ -208,11 +259,18 @@ function resolveRedoName(input: {
   collectorId: string;
   collectorRole: string;
   assignedRedoId: string | null;
+  latestRedoReviewerId: string | null;
+  enterpriseRedoName: string | null;
   staffNames: Map<string, string>;
 }): string {
-  if (input.assignedRedoId) {
-    return input.staffNames.get(input.assignedRedoId) ?? "Unknown REDO";
+  const candidateIds = [input.assignedRedoId, input.latestRedoReviewerId].filter(
+    (value): value is string => Boolean(value)
+  );
+  for (const id of candidateIds) {
+    const name = input.staffNames.get(id);
+    if (name) return name;
   }
+  if (input.enterpriseRedoName) return input.enterpriseRedoName;
   if (input.collectorRole === "redo") {
     return input.staffNames.get(input.collectorId) ?? "Unknown REDO";
   }
@@ -283,12 +341,17 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
       )
       .filter((submission) => submission.collectorId !== reviewer.id);
 
-    const [staffNames, enterpriseEdoNames] = await Promise.all([
-      loadMelStaffDisplayNames([
-        ...queueSubmissions.map((submission) => submission.collectorId),
-        ...queueSubmissions.map((submission) => submission.assignedRedoId ?? ""),
-      ]),
+    const [enterpriseEdoNames, enterpriseRedoNames, latestRedoReviewers] = await Promise.all([
       loadActiveEnterpriseEdoNames(queueSubmissions.map((submission) => submission.businessId)),
+      loadActiveEnterpriseRedoNames(queueSubmissions.map((submission) => submission.businessId)),
+      loadLatestRedoReviewerBySubmission(queueSubmissions.map((submission) => submission.id)),
+    ]);
+
+    const redoReviewerIds = [...latestRedoReviewers.values()];
+    const staffNames = await loadMelStaffDisplayNames([
+      ...queueSubmissions.map((submission) => submission.collectorId),
+      ...queueSubmissions.map((submission) => submission.assignedRedoId ?? ""),
+      ...redoReviewerIds,
     ]);
 
     const rows = queueSubmissions.map<MelReviewQueueRow>((submission) => {
@@ -336,6 +399,8 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
             collectorId: submission.collectorId,
             collectorRole: submission.collectorRole,
             assignedRedoId: submission.assignedRedoId,
+            latestRedoReviewerId: latestRedoReviewers.get(submission.id) ?? null,
+            enterpriseRedoName: enterpriseRedoNames.get(submission.businessId) ?? null,
             staffNames,
           }),
         };
@@ -414,7 +479,8 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       ];
     });
 
-    const [prior, redoReviewers, liveDqa, staffNames, enterpriseEdoNames] = await Promise.all([
+    const [prior, redoReviewers, liveDqa, enterpriseEdoNames, enterpriseRedoNames] =
+      await Promise.all([
       loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate),
       db
         .select({
@@ -425,8 +491,14 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         .where(eq(userProfiles.role, "redo"))
         .orderBy(asc(userProfiles.firstName)),
       buildDqaInput(submissionId),
-      loadMelStaffDisplayNames([submission.collectorId, submission.assignedRedoId ?? ""]),
       loadActiveEnterpriseEdoNames([submission.businessId]),
+      loadActiveEnterpriseRedoNames([submission.businessId]),
+    ]);
+    const latestRedoReviewerId = latestRedoReviewerIdFromDecisions(submission.reviewDecisions);
+    const staffNames = await loadMelStaffDisplayNames([
+      submission.collectorId,
+      submission.assignedRedoId ?? "",
+      latestRedoReviewerId ?? "",
     ]);
     await reconcileStoredDqaFindings(
       submissionId,
@@ -475,6 +547,8 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         collectorId: submission.collectorId,
         collectorRole: submission.collectorRole,
         assignedRedoId: submission.assignedRedoId,
+        latestRedoReviewerId,
+        enterpriseRedoName: enterpriseRedoNames.get(submission.businessId) ?? null,
         staffNames,
       }),
     });
@@ -857,6 +931,10 @@ export async function decideMelReviewAction(
           approvedAt: transition.nextStatus === "approved" ? new Date() : submission.approvedAt,
           approvedById: transition.nextStatus === "approved" ? reviewer.id : submission.approvedById,
           reopenedAt: transition.nextStatus === "reopened" ? new Date() : submission.reopenedAt,
+          ...(transition.stage === "redo" &&
+          (reviewer.role === "redo" || reviewer.role === "admin")
+            ? { assignedRedoId: reviewer.id }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(melMonitoringSubmissions.id, submissionId));
