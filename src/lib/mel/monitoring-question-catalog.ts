@@ -49,7 +49,7 @@ export const MONITORING_QUESTIONS = {
     section: "D",
     field: null,
     label: "Evidence for jobs created in the past 3 months",
-    evidenceRequired: true,
+    evidenceRequired: false,
     oneTime: false,
     indicatorCode: null,
   },

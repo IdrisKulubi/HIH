@@ -275,7 +275,7 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
         <div className="sticky bottom-0 z-20 -mx-4 border-t bg-background/95 px-4 py-4 shadow-[0_-6px_8px_rgba(15,23,42,0.08)] backdrop-blur-sm">
           <div className="container mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <ActionMessage state={state} />
+              {!(autoSaveStatus === "saved" && state && !state.success) ? <ActionMessage state={state} /> : null}
               {autoSaveStatus === "saving" ? (
                 <p className="text-xs text-slate-500">Saving draft…</p>
               ) : autoSaveStatus === "error" ? (

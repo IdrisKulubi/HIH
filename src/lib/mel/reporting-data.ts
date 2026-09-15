@@ -260,16 +260,19 @@ export type MelReportingDataset = {
 
 export type MelWasteReportingSummary = {
   indicatorId: number | null;
-  totalKilograms: number;
   reportingEnterprises: number;
-  targetKilograms: number | null;
-  achievementPercent: number | null;
+  totalBaselineKilograms: number;
+  totalTargetKilograms: number;
+  totalActualMedianKilograms: number;
+  totalAchievementPercent: number | null;
   trafficLight: IndicatorCalculation["trafficLight"] | null;
   byStream: Array<{
     stream: string;
     label: string;
-    kilograms: number;
+    baselineKilograms: number | null;
     targetKilograms: number | null;
+    actualMedianKilograms: number | null;
+    achievementPercent: number | null;
   }>;
 };
 
@@ -294,6 +297,44 @@ function ageAt(dob: Date, date: string): number {
     || (at.getUTCMonth() === dob.getUTCMonth() && at.getUTCDate() < dob.getUTCDate());
   if (beforeBirthday) age -= 1;
   return age;
+}
+
+const MONITORING_REPORTING_STATUSES = new Set([
+  "submitted",
+  "resubmitted",
+  "redo_review",
+  "returned_by_redo",
+  "mel_review",
+  "returned_by_mel",
+  "approved",
+  "returned",
+  "reopened",
+]);
+
+function isMonitoringReportingStatus(status: string): boolean {
+  return MONITORING_REPORTING_STATUSES.has(status);
+}
+
+function activeSupportedEnterpriseCount(
+  supportedEnterprises: SupportedEnterprise[],
+  periodEnd: Date,
+  filters: MelDashboardFilters,
+  programmeYear: number
+): number {
+  const cohortCount = new Set(
+    supportedEnterprises
+      .filter(
+        (enterprise) =>
+          enterprise.selectedAt <= periodEnd && matchesSupportedFilters(enterprise, filters)
+      )
+      .map((enterprise) => enterprise.businessId)
+  ).size;
+  const programmeWide =
+    !filters.track && !filters.county && !filters.sector && !filters.ownerGender;
+  if (programmeWide && programmeYear === 1) {
+    return Math.max(cohortCount, MEL_OP11_YEAR1_ACTUALS["OP1.1-CNA-COMPLETED"]);
+  }
+  return cohortCount;
 }
 
 function buildHash(value: unknown): string {
@@ -686,13 +727,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   });
 
   const wasteDefinition = definitions.find((definition) => definition.code === "OP3.3-WASTE-RECYCLED");
-  const wasteIttRow = ittRows.find((row) => row.code === "OP3.3-WASTE-RECYCLED");
-  const wasteReporting = buildWasteReportingSummary(
-    filteredRecords,
-    wasteDefinition,
-    selectedPeriod,
-    wasteIttRow
-  );
+  const wasteReporting = buildWasteReportingSummary(filteredRecords, wasteDefinition, selectedPeriod, thresholds);
 
   const trends = includedPeriods.map((period) => {
     const periodRecords = filteredRecords.filter((record) => record.periodId === period.id);
@@ -706,6 +741,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     };
   });
   const latestPeriodRecords = filteredRecords.filter((record) => record.periodId === selectedPeriod.id);
+  const latestApprovedForPeriod = latestRecords(latestPeriodRecords);
   const baselines = settings?.monthlyFinancialBaselines ?? {
     foundation: { revenue: 200000, costs: 124221, profit: 50000 },
     acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
@@ -912,7 +948,21 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       acceleration: point.acceleration?.numerator ?? (filters.track === "acceleration" ? point.overall.numerator : null),
       accelerationBaseline: numeric(settings?.monthlyFinancialBaselines?.acceleration.profit) ?? 150000,
     }));
-  const eligibleEnterpriseCount = new Set(scopedAllSubmissions.map((submission) => submission.businessId)).size;
+  const eligibleEnterpriseCount = activeSupportedEnterpriseCount(
+    supportedEnterprises,
+    periodEnd,
+    resolvedFilters,
+    selectedPeriod.programmeYear
+  );
+  const reportingEnterpriseCount = new Set(
+    scopedAllSubmissions
+      .filter(
+        (submission) =>
+          submission.reportingPeriodId === selectedPeriod.id &&
+          isMonitoringReportingStatus(submission.status)
+      )
+      .map((submission) => submission.businessId)
+  ).size;
   const expectedReports = eligibleEnterpriseCount * includedPeriods.length;
   const activeEvidence = evidence.filter((item) => item.status === "active" && includedSubmissionIds.has(item.submissionId));
   const verifiedEvidenceIds = new Set(evidenceReviews.filter((review) => review.status === "verified").map((review) => review.evidenceId));
@@ -942,12 +992,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     approvedRecords: filteredRecords,
     programmeResults: approvedProgrammeResults,
     summary: {
-      reportingEnterprises: new Set(latestPeriodRecords.map((record) => record.businessId)).size,
+      reportingEnterprises: reportingEnterpriseCount,
       eligibleEnterprises: eligibleEnterpriseCount,
-      reportingCompleteness: eligibleEnterpriseCount ? (new Set(latestPeriodRecords.map((record) => record.businessId)).size / eligibleEnterpriseCount) * 100 : null,
-      monthlyMedianRevenue: monthlyMedian(latestPeriodRecords, (record) => record.revenue),
-      monthlyMedianCosts: monthlyMedian(latestPeriodRecords, (record) => record.costs),
-      monthlyMedianProfit: monthlyMedian(latestPeriodRecords, (record) => record.profitLoss),
+      reportingCompleteness: eligibleEnterpriseCount
+        ? (reportingEnterpriseCount / eligibleEnterpriseCount) * 100
+        : null,
+      monthlyMedianRevenue: monthlyMedian(latestApprovedForPeriod, (record) => record.revenue),
+      monthlyMedianCosts: monthlyMedian(latestApprovedForPeriod, (record) => record.costs),
+      monthlyMedianProfit: monthlyMedian(latestApprovedForPeriod, (record) => record.profitLoss),
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
       directQualityJobs: sum(filteredRecords, (record) => record.directQualityJobs.total),
@@ -1011,43 +1063,81 @@ function matchesSupportedFilters(enterprise: SupportedEnterprise, filters: MelDa
 
 function buildWasteReportingSummary(
   records: ApprovedMonitoringRecord[],
-  definition: (typeof melIndicatorDefinitions.$inferSelect & {
-    targets: Array<typeof melIndicatorTargets.$inferSelect>;
-  }) | undefined,
+  definition:
+    | (typeof melIndicatorDefinitions.$inferSelect & {
+        baselines: Array<typeof melIndicatorBaselines.$inferSelect>;
+        targets: Array<typeof melIndicatorTargets.$inferSelect>;
+      })
+    | undefined,
   selectedPeriod: typeof melReportingPeriods.$inferSelect,
-  ittRow: MelIttRow | undefined
+  thresholds: { green: number; red: number }
 ): MelWasteReportingSummary {
   const wasteRecords = records.filter((record) => record.dimensions.sector === "waste_management");
-  const streamTotals = new Map<string, number>();
-  let totalKilograms = 0;
+  const cumulativeKgByBusiness = new Map<number, Map<string, number>>();
   for (const record of wasteRecords) {
+    const perStream = cumulativeKgByBusiness.get(record.businessId) ?? new Map<string, number>();
     for (const item of record.waste) {
-      streamTotals.set(item.stream, (streamTotals.get(item.stream) ?? 0) + item.kilograms);
-      totalKilograms += item.kilograms;
+      perStream.set(item.stream, (perStream.get(item.stream) ?? 0) + item.kilograms);
     }
+    cumulativeKgByBusiness.set(record.businessId, perStream);
   }
-  const reportingEnterprises = new Set(
-    wasteRecords
-      .filter((record) => record.waste.some((item) => item.kilograms > 0))
-      .map((record) => record.businessId)
-  ).size;
+  const reportingEnterprises = [...cumulativeKgByBusiness.entries()].filter(([, streams]) =>
+    [...streams.values()].some((kg) => kg > 0)
+  ).length;
 
-  const byStream = WASTE_STREAMS.map((stream) => ({
-    stream,
-    label: stream.replaceAll("_", " "),
-    kilograms: streamTotals.get(stream) ?? 0,
-    targetKilograms: definition
+  const streamKgForBusiness = (businessId: number, stream: string) =>
+    cumulativeKgByBusiness.get(businessId)?.get(stream) ?? 0;
+
+  const byStream = WASTE_STREAMS.map((stream) => {
+    const baselineKilograms = definition
+      ? selectBaseline(definition.baselines, `waste_stream:${stream}`)
+      : null;
+    const targetKilograms = definition
       ? selectTargetExact(definition.targets, selectedPeriod.id, selectedPeriod.programmeYear, `waste_stream:${stream}`)
-      : null,
-  }));
+      : null;
+    const enterpriseValues = [...cumulativeKgByBusiness.keys()].map((businessId) =>
+      streamKgForBusiness(businessId, stream)
+    );
+    const actualMedianKilograms = enterpriseValues.length > 0 ? median(enterpriseValues) : null;
+    const achievementPercent =
+      actualMedianKilograms !== null && targetKilograms !== null && targetKilograms > 0
+        ? safePercentage(actualMedianKilograms, targetKilograms)
+        : null;
+    return {
+      stream,
+      label: stream.replaceAll("_", " "),
+      baselineKilograms,
+      targetKilograms,
+      actualMedianKilograms,
+      achievementPercent,
+    };
+  });
+
+  const totalBaselineKilograms = byStream.reduce((sum, row) => sum + (row.baselineKilograms ?? 0), 0);
+  const totalTargetKilograms = byStream.reduce((sum, row) => sum + (row.targetKilograms ?? 0), 0);
+  const enterpriseTotalKg = [...cumulativeKgByBusiness.keys()].map((businessId) =>
+    WASTE_STREAMS.reduce((sum, stream) => sum + streamKgForBusiness(businessId, stream), 0)
+  );
+  const totalActualMedianKilograms = enterpriseTotalKg.length > 0 ? (median(enterpriseTotalKg) ?? 0) : 0;
+  const totalAchievementPercent =
+    totalTargetKilograms > 0 ? safePercentage(totalActualMedianKilograms, totalTargetKilograms) : null;
+  const trafficLight =
+    totalAchievementPercent === null
+      ? null
+      : totalAchievementPercent >= thresholds.green
+        ? "green"
+        : totalAchievementPercent >= thresholds.red
+          ? "amber"
+          : "red";
 
   return {
     indicatorId: definition?.id ?? null,
-    totalKilograms,
     reportingEnterprises,
-    targetKilograms: ittRow?.target ?? null,
-    achievementPercent: ittRow?.calculation.achievementPercentage ?? null,
-    trafficLight: ittRow?.calculation.trafficLight ?? null,
+    totalBaselineKilograms,
+    totalTargetKilograms,
+    totalActualMedianKilograms,
+    totalAchievementPercent,
+    trafficLight,
     byStream,
   };
 }

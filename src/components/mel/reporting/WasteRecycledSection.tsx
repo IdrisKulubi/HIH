@@ -12,9 +12,6 @@ export function WasteRecycledSection({
   periodId: number;
   waste: MelWasteReportingSummary;
 }) {
-  const streamTotalTarget = waste.byStream.reduce((sum, row) => sum + (row.targetKilograms ?? 0), 0);
-  const displayTarget = waste.targetKilograms ?? (streamTotalTarget > 0 ? streamTotalTarget : null);
-
   return (
     <section className="overflow-hidden rounded-lg border border-emerald-200 bg-background" aria-labelledby="waste-recycled-heading">
       <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50/80 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
@@ -24,26 +21,25 @@ export function WasteRecycledSection({
             Waste collected and recycled
           </div>
           <h2 id="waste-recycled-heading" className="mt-1 text-base font-semibold text-slate-900">
-            OP3.3 · Volume by waste stream (kg)
+            OP3.3 · Median kg by waste stream
           </h2>
           <p className="mt-0.5 max-w-2xl text-sm text-slate-600">
-            Cumulative approved quantities from waste-management enterprises through {periodLabel}. Matches indicator{" "}
+            Baseline and target values from the ITT. Actual is the median cumulative kg reported per waste-management
+            enterprise through {periodLabel}. % achievement is actual median ÷ target × 100. Matches{" "}
             <span className="font-medium text-slate-800">OP3.3-WASTE-RECYCLED</span>.
           </p>
         </div>
         <div className="text-right text-sm">
-          <p className="text-2xl font-bold tabular-nums text-slate-900">{formatKg(waste.totalKilograms)}</p>
+          <p className="text-2xl font-bold tabular-nums text-slate-900">
+            {formatPercent(waste.totalAchievementPercent)}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-600">Overall achievement (total actual median ÷ total target)</p>
+          <p className="mt-1 text-xs text-slate-600">
+            Actual median {formatKg(waste.totalActualMedianKilograms)} · Target {formatKg(waste.totalTargetKilograms)}
+          </p>
           <p className="mt-0.5 text-xs text-slate-600">
             {waste.reportingEnterprises} enterprise{waste.reportingEnterprises === 1 ? "" : "s"} reporting waste
           </p>
-          {displayTarget !== null ? (
-            <p className="mt-1 text-xs text-slate-600">
-              Target {formatKg(displayTarget)}
-              {waste.achievementPercent !== null ? (
-                <span className="ml-1 font-medium text-slate-800">· {waste.achievementPercent.toFixed(1)}% achieved</span>
-              ) : null}
-            </p>
-          ) : null}
           {waste.trafficLight ? (
             <div className="mt-2 flex justify-end">
               <TrafficBadge status={waste.trafficLight} />
@@ -61,45 +57,50 @@ export function WasteRecycledSection({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs text-slate-600">
             <tr>
               <th className="px-4 py-3 font-medium">Waste stream</th>
-              <th className="px-4 py-3 text-right font-medium">Collected &amp; recycled (kg)</th>
-              <th className="px-4 py-3 text-right font-medium">Stream target (kg)</th>
-              <th className="px-4 py-3 font-medium">Share of total</th>
+              <th className="px-4 py-3 text-right font-medium">Baseline (kg)</th>
+              <th className="px-4 py-3 text-right font-medium">Target (kg)</th>
+              <th className="px-4 py-3 text-right font-medium">Actual median (kg)</th>
+              <th className="px-4 py-3 text-right font-medium">% achievement</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {waste.byStream.map((row) => {
-              const share = waste.totalKilograms > 0 ? (row.kilograms / waste.totalKilograms) * 100 : 0;
-              return (
-                <tr key={row.stream} className={row.kilograms === 0 && !row.targetKilograms ? "text-slate-500" : "text-slate-800"}>
-                  <td className="px-4 py-3 font-medium capitalize text-slate-900">{row.label}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatKg(row.kilograms)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {row.targetKilograms !== null ? formatKg(row.targetKilograms) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
-                        <div className="h-full rounded-full bg-emerald-600" style={{ width: `${Math.min(100, share)}%` }} />
-                      </div>
-                      <span className="min-w-12 tabular-nums text-xs">{share.toFixed(1)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {waste.byStream.map((row) => (
+              <tr key={row.stream} className="text-slate-800">
+                <td className="px-4 py-3 font-medium capitalize text-slate-900">{row.label}</td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {row.baselineKilograms !== null ? formatKg(row.baselineKilograms) : "—"}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {row.targetKilograms !== null ? formatKg(row.targetKilograms) : "—"}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {row.actualMedianKilograms !== null ? formatKg(row.actualMedianKilograms) : "—"}
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium">
+                  {formatPercent(row.achievementPercent)}
+                </td>
+              </tr>
+            ))}
           </tbody>
           <tfoot className="border-t border-slate-200 bg-slate-50/80 text-xs text-slate-700">
             <tr>
               <td className="px-4 py-3 font-semibold text-slate-900">Total</td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">{formatKg(waste.totalKilograms)}</td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                {displayTarget !== null ? formatKg(displayTarget) : "—"}
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+                {formatKg(waste.totalBaselineKilograms)}
               </td>
-              <td className="px-4 py-3" />
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+                {formatKg(waste.totalTargetKilograms)}
+              </td>
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+                {formatKg(waste.totalActualMedianKilograms)}
+              </td>
+              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+                {formatPercent(waste.totalAchievementPercent)}
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -110,6 +111,11 @@ export function WasteRecycledSection({
 
 function formatKg(value: number) {
   return `${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value)} kg`;
+}
+
+function formatPercent(value: number | null) {
+  if (value === null) return "—";
+  return `${value.toFixed(1)}%`;
 }
 
 function TrafficBadge({ status }: { status: "green" | "amber" | "red" | "not_available" }) {

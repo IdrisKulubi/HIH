@@ -52,7 +52,12 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <ReportingFilters dataset={data} />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive reporting summary">
-        <Metric icon={Factory} label="Enterprises reporting" value={data.summary.reportingEnterprises.toLocaleString()} detail={percentage(data.summary.reportingCompleteness) + " complete"} />
+        <Metric
+          icon={Factory}
+          label="Enterprises reporting"
+          value={data.summary.reportingEnterprises.toLocaleString()}
+          detail={`${data.summary.reportingEnterprises} of ${data.summary.eligibleEnterprises.toLocaleString()} active enterprises (${percentage(data.summary.reportingCompleteness)})`}
+        />
         <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
         <CumulativeJobsMetric summary={data.summary} />
         <FinanceAccessedMetric
@@ -129,7 +134,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
           <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents after calculating the cohort median. Only profitability is compared with a baseline.</p>
+          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents using the cohort median (one latest approved report per enterprise). Only profitability is compared with a median baseline.</p>
         </div>
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="w-full min-w-[820px] text-left text-sm">
@@ -160,7 +165,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <p>Each point is the official cumulative result available through that quarter, using the same formula as the ITT table below.</p>
             <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
             <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
-            <p>Waste collected and recycled sums approved kilograms from waste-management enterprises (OP3.3), broken down by stream with ITT targets where configured.</p>
+            <p>Waste collected and recycled compares ITT baseline and target medians with the median cumulative kg reported per waste-management enterprise (OP3.3), by stream.</p>
             <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
           </CardContent>
         </Card>

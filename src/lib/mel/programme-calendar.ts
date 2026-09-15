@@ -218,14 +218,25 @@ export const MEL_Y1_FIRST_MONITORING_SEQUENCE = 2;
  */
 export const MEL_EVIDENCE_OPTIONAL_PERIOD_CODES = ["Y1-MQ1"] as const;
 
-export function isMelEvidenceOptionalPeriod(period: { code: string } | string): boolean {
-  const code = typeof period === "string" ? period : period.code;
-  return (MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code);
+export type MelReportingPeriodRef = {
+  code: string;
+  programmeYear?: number;
+  sequence?: number;
+};
+
+export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | string): boolean {
+  const ref = typeof period === "string" ? { code: period } : period;
+  const code = ref.code.trim();
+  if ((MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code)) {
+    return true;
+  }
+  // Y1 first BDS monitoring window (Jun–Aug) even when legacy DB period codes differ.
+  return ref.programmeYear === 1 && ref.sequence === MEL_Y1_FIRST_MONITORING_SEQUENCE;
 }
 
-/** First-time draft saves may submit without supporting files; returned reports still require evidence. */
+/** Grace-period collections and draft-status reports may submit without supporting files. */
 export function isMelEvidenceOptionalForSubmission(
-  period: { code: string } | string,
+  period: MelReportingPeriodRef | string,
   submissionStatus: string
 ): boolean {
   return isMelEvidenceOptionalPeriod(period) || submissionStatus === "draft";

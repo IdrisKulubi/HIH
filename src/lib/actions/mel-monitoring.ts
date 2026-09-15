@@ -686,7 +686,11 @@ export async function saveMelMonitoringAction(
         settings?.includeRefugeeDisaggregation ?? false,
         wasteEligible,
         financialComparison?.explanationRequired ?? false,
-        period.code,
+        {
+          code: period.code,
+          programmeYear: period.programmeYear,
+          sequence: period.sequence,
+        },
         submission.status
       );
       if (issues.length > 0) return errorResponse(issues.join(" • "));

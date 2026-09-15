@@ -179,8 +179,8 @@ function testZeroJobsValidation() {
   };
   const jobsIssues = monitoringSubmissionIssues(jobsWithoutEvidence, new Set(), new Set(), false, false);
   assert.ok(
-    jobsIssues.some((issue) => issue.includes("Evidence is required for jobs")),
-    "Jobs evidence is still required when total is greater than 0"
+    !jobsIssues.some((issue) => issue.includes("Evidence is required for jobs")),
+    "Jobs evidence is not required while jobs supporting files remain optional"
   );
 
   const incompleteJobs = {
@@ -212,6 +212,16 @@ function testOptionalEvidenceForY1Mq1() {
     monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ1"),
     [],
     "Y1-MQ1 allows submit without evidence when other fields are complete"
+  );
+
+  assert.deepEqual(
+    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, {
+      code: "Y1-LEGACY-MONITORING",
+      programmeYear: 1,
+      sequence: 2,
+    }),
+    [],
+    "Y1 first monitoring quarter allows submit without evidence even when the period code differs"
   );
 
   assert.ok(

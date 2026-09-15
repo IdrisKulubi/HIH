@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChartLineUp } from "@phosphor-icons/react/dist/ssr";
 import { MentorNav } from "@/components/mentor/MentorNav";
+import { MentorToolsDownloads } from "@/components/mentor/MentorToolsDownloads";
 import { MentorWorkspace } from "@/components/mentor/MentorWorkspace";
 import { listMyMentorshipMatches } from "@/lib/actions/mentorship";
 import { getCurrentUser } from "@/lib/actions/user.actions";
@@ -38,6 +39,8 @@ export default async function MentorWorkspacePage() {
         </div>
         <MentorNav />
       </div>
+
+      <MentorToolsDownloads />
 
       {!res.success ? (
         <p className="text-sm text-destructive">{res.error ?? "Failed to load matches"}</p>

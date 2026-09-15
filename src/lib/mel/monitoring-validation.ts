@@ -158,12 +158,14 @@ export function monitoringSubmissionIssues(
   includeRefugee: boolean,
   wasteEligible: boolean,
   financialExplanationRequired = false,
-  reportingPeriodCode?: string,
+  reportingPeriod?: { code: string; programmeYear?: number; sequence?: number } | string,
   submissionStatus?: string
 ): string[] {
   const issues: string[] = [];
-  const evidenceOptional = reportingPeriodCode
-    ? isMelEvidenceOptionalForSubmission(reportingPeriodCode, submissionStatus ?? "")
+  const periodRef =
+    typeof reportingPeriod === "string" ? { code: reportingPeriod } : reportingPeriod;
+  const evidenceOptional = periodRef
+    ? isMelEvidenceOptionalForSubmission(periodRef, submissionStatus ?? "")
     : submissionStatus === "draft";
   if (!input.visitDate) issues.push("Visit date is required");
 
@@ -245,7 +247,11 @@ export function monitoringSubmissionIssues(
       }
     }
     const directJobsTotal = (input.directQualityJobs.total ?? 0) + (input.directNonQualityJobs.total ?? 0);
-    if (directJobsTotal + (input.indirectJobs.total ?? 0) > 0 && !evidenceQuestionCodes.has("jobs")) {
+    if (
+      MONITORING_QUESTIONS.jobs.evidenceRequired &&
+      directJobsTotal + (input.indirectJobs.total ?? 0) > 0 &&
+      !evidenceQuestionCodes.has("jobs")
+    ) {
       issues.push("Evidence is required for jobs created");
     }
     if (wasteEligible) {
