@@ -36,6 +36,7 @@ import {
 import { findMonitoringJob, mergeJobTotals, MEL_JOB_TYPE } from "./job-types";
 import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
+import { WASTE_STREAMS } from "./monitoring-validation";
 import {
   isOp11CountIndicator,
   isOp11VisualizationProgrammeWide,
@@ -254,6 +255,22 @@ export type MelReportingDataset = {
     supportNeeded: WordCloudTerm[];
     negativeEffects: WordCloudTerm[];
   };
+  wasteReporting: MelWasteReportingSummary;
+};
+
+export type MelWasteReportingSummary = {
+  indicatorId: number | null;
+  totalKilograms: number;
+  reportingEnterprises: number;
+  targetKilograms: number | null;
+  achievementPercent: number | null;
+  trafficLight: IndicatorCalculation["trafficLight"] | null;
+  byStream: Array<{
+    stream: string;
+    label: string;
+    kilograms: number;
+    targetKilograms: number | null;
+  }>;
 };
 
 const emptyJobs = (): JobTotals => ({ total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 });
@@ -668,6 +685,15 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     };
   });
 
+  const wasteDefinition = definitions.find((definition) => definition.code === "OP3.3-WASTE-RECYCLED");
+  const wasteIttRow = ittRows.find((row) => row.code === "OP3.3-WASTE-RECYCLED");
+  const wasteReporting = buildWasteReportingSummary(
+    filteredRecords,
+    wasteDefinition,
+    selectedPeriod,
+    wasteIttRow
+  );
+
   const trends = includedPeriods.map((period) => {
     const periodRecords = filteredRecords.filter((record) => record.periodId === period.id);
     return {
@@ -964,6 +990,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       supportNeeded: feedbackWordClouds.supportNeeded,
       negativeEffects: feedbackWordClouds.negativeEffects,
     },
+    wasteReporting,
   };
 }
 
@@ -980,6 +1007,49 @@ function matchesSupportedFilters(enterprise: SupportedEnterprise, filters: MelDa
     ownerYouth: enterprise.ownerYouth,
     filter: filters.ownerGender,
   });
+}
+
+function buildWasteReportingSummary(
+  records: ApprovedMonitoringRecord[],
+  definition: (typeof melIndicatorDefinitions.$inferSelect & {
+    targets: Array<typeof melIndicatorTargets.$inferSelect>;
+  }) | undefined,
+  selectedPeriod: typeof melReportingPeriods.$inferSelect,
+  ittRow: MelIttRow | undefined
+): MelWasteReportingSummary {
+  const wasteRecords = records.filter((record) => record.dimensions.sector === "waste_management");
+  const streamTotals = new Map<string, number>();
+  let totalKilograms = 0;
+  for (const record of wasteRecords) {
+    for (const item of record.waste) {
+      streamTotals.set(item.stream, (streamTotals.get(item.stream) ?? 0) + item.kilograms);
+      totalKilograms += item.kilograms;
+    }
+  }
+  const reportingEnterprises = new Set(
+    wasteRecords
+      .filter((record) => record.waste.some((item) => item.kilograms > 0))
+      .map((record) => record.businessId)
+  ).size;
+
+  const byStream = WASTE_STREAMS.map((stream) => ({
+    stream,
+    label: stream.replaceAll("_", " "),
+    kilograms: streamTotals.get(stream) ?? 0,
+    targetKilograms: definition
+      ? selectTargetExact(definition.targets, selectedPeriod.id, selectedPeriod.programmeYear, `waste_stream:${stream}`)
+      : null,
+  }));
+
+  return {
+    indicatorId: definition?.id ?? null,
+    totalKilograms,
+    reportingEnterprises,
+    targetKilograms: ittRow?.target ?? null,
+    achievementPercent: ittRow?.calculation.achievementPercentage ?? null,
+    trafficLight: ittRow?.calculation.trafficLight ?? null,
+    byStream,
+  };
 }
 
 function isMissingRelation(error: unknown, tableName: string) {

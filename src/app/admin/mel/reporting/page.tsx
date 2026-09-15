@@ -9,6 +9,7 @@ import { RecalculateButton } from "@/components/mel/reporting/RecalculateButton"
 import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRefresh";
 import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer";
 import { FeedbackAccountabilitySection } from "@/components/mel/reporting/FeedbackAccountabilitySection";
+import { WasteRecycledSection } from "@/components/mel/reporting/WasteRecycledSection";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -110,6 +111,12 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         )}
       </section>
 
+      <WasteRecycledSection
+        periodLabel={data.selectedPeriod.label}
+        periodId={data.selectedPeriod.id}
+        waste={data.wasteReporting}
+      />
+
       <FeedbackAccountabilitySection
         periodLabel={data.selectedPeriod.label}
         responseCount={data.feedbackAccountability.responseCount}
@@ -153,6 +160,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <p>Each point is the official cumulative result available through that quarter, using the same formula as the ITT table below.</p>
             <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
             <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
+            <p>Waste collected and recycled sums approved kilograms from waste-management enterprises (OP3.3), broken down by stream with ITT targets where configured.</p>
             <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
           </CardContent>
         </Card>
