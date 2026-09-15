@@ -62,12 +62,33 @@ export type MelDashboardFilters = {
   ownerGender?: string | null;
 };
 
+/** URL/filter value for youth-owned enterprises (distinct from applicant gender). */
+export const OWNER_YOUTH_FILTER_VALUE = "youth";
+
+function isOwnerYouthFilter(value: string | null | undefined): boolean {
+  return value === OWNER_YOUTH_FILTER_VALUE;
+}
+
+function matchesOwnerDemographicFilter(input: {
+  ownerGender: string | null | undefined;
+  ownerYouth: boolean | null | undefined;
+  filter: string | null | undefined;
+}): boolean {
+  if (!input.filter) return true;
+  if (isOwnerYouthFilter(input.filter)) return input.ownerYouth === true;
+  return input.ownerGender === input.filter;
+}
+
 export function dashboardResultSegmentKey(filters: MelDashboardFilters): string {
   const parts = [
     filters.track ? `track:${filters.track}` : null,
     filters.county ? `county:${filters.county}` : null,
     filters.sector ? `sector:${filters.sector}` : null,
-    filters.ownerGender ? `owner_gender:${filters.ownerGender}` : null,
+    filters.ownerGender
+      ? isOwnerYouthFilter(filters.ownerGender)
+        ? "owner_youth:true"
+        : `owner_gender:${filters.ownerGender}`
+      : null,
   ].filter((part): part is string => Boolean(part));
   if (parts.length === 0) return "overall";
   const joined = parts.join("|");
@@ -152,6 +173,7 @@ type SupportedEnterprise = {
   businessId: number;
   track: string | null;
   ownerGender: string | null;
+  ownerYouth: boolean | null;
   county: string | null;
   sector: string | null;
   selectedAt: Date;
@@ -181,6 +203,13 @@ export type MelReportingDataset = {
     directQualityJobs: number;
     directNonQualityJobs: number;
     indirectJobs: number;
+    jobDisaggregation: {
+      male: number;
+      female: number;
+      youth: number;
+      plwd: number;
+      refugee: number;
+    };
     financeAccessed: number;
     externalFinanceAccessed: number;
     externalFinanceTarget: number;
@@ -228,6 +257,13 @@ export type MelReportingDataset = {
 };
 
 const emptyJobs = (): JobTotals => ({ total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 });
+
+function cumulativeJobTotals(records: ApprovedMonitoringRecord[]): JobTotals {
+  return records.reduce(
+    (totals, record) => mergeJobTotals(totals, record.directJobs, record.indirectJobs),
+    emptyJobs()
+  );
+}
 const numeric = (value: string | number | null | undefined): number | null => {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -251,7 +287,15 @@ function matchesDashboardFilters(record: ApprovedMonitoringRecord, filters: MelD
   if (filters.track && record.dimensions.track !== filters.track) return false;
   if (filters.county && record.dimensions.county !== filters.county) return false;
   if (filters.sector && record.dimensions.sector !== filters.sector) return false;
-  if (filters.ownerGender && record.dimensions.ownerGender !== filters.ownerGender) return false;
+  if (
+    !matchesOwnerDemographicFilter({
+      ownerGender: record.dimensions.ownerGender,
+      ownerYouth: record.dimensions.ownerYouth,
+      filter: filters.ownerGender,
+    })
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -322,6 +366,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       businessId: businesses.id,
       track: applications.track,
       ownerGender: applicants.gender,
+      ownerDob: applicants.dob,
       county: businesses.county,
       sector: businesses.sector,
       selectedAt: applications.selectedAt,
@@ -342,6 +387,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     businessId: row.businessId,
     track: row.track,
     ownerGender: row.ownerGender,
+    ownerYouth: row.ownerDob ? ageAt(row.ownerDob, selectedPeriod.endDate) <= 35 : null,
     county: row.county,
     sector: row.sector,
     selectedAt: row.selectedAt ?? row.updatedAt ?? row.createdAt,
@@ -354,10 +400,20 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   }));
 
   const scopedAllSubmissions = allSubmissions.filter((submission) => {
-    if (filters.track && submission.business.application?.track !== filters.track) return false;
-    if (filters.county && submission.business.county !== filters.county) return false;
-    if (filters.sector && submission.business.sector !== filters.sector) return false;
-    if (filters.ownerGender && submission.business.applicant?.gender !== filters.ownerGender) return false;
+    if (resolvedFilters.track && submission.business.application?.track !== resolvedFilters.track) return false;
+    if (resolvedFilters.county && submission.business.county !== resolvedFilters.county) return false;
+    if (resolvedFilters.sector && submission.business.sector !== resolvedFilters.sector) return false;
+    const applicant = submission.business.applicant;
+    const ownerYouth = applicant?.dob ? ageAt(applicant.dob, selectedPeriod.endDate) <= 35 : null;
+    if (
+      !matchesOwnerDemographicFilter({
+        ownerGender: applicant?.gender,
+        ownerYouth,
+        filter: resolvedFilters.ownerGender,
+      })
+    ) {
+      return false;
+    }
     return true;
   });
   const includedSubmissionIds = new Set(scopedAllSubmissions.map((submission) => submission.id));
@@ -435,13 +491,17 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     };
   });
 
+  const genderOptions = unique(records.map((record) => record.dimensions.ownerGender));
+  const hasYouthOwners = records.some((record) => record.dimensions.ownerYouth === true);
   const filterOptions = {
     tracks: unique(records.map((record) => record.dimensions.track)),
     counties: unique(records.map((record) => record.dimensions.county)),
     sectors: unique(records.map((record) => record.dimensions.sector)),
-    ownerGenders: unique(records.map((record) => record.dimensions.ownerGender)),
+    ownerGenders: hasYouthOwners
+      ? [...genderOptions, OWNER_YOUTH_FILTER_VALUE].sort()
+      : genderOptions,
   };
-  const filteredRecords = records.filter((record) => matchesDashboardFilters(record, filters));
+  const filteredRecords = records.filter((record) => matchesDashboardFilters(record, resolvedFilters));
   const financeBreakdown = buildFundingTypeBreakdown(filteredRecords);
   const financeAccessed = sum(financeBreakdown, (item) => item.amount);
   const externalFinanceAccessed = sumExternalFinance(financeBreakdown);
@@ -843,6 +903,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     additionalSupportNeeded: latestPeriodResponses.map((response) => response.additionalSupportNeeded ?? ""),
     negativeProgrammeImpacts: latestPeriodResponses.map((response) => response.negativeProgrammeImpacts ?? ""),
   });
+  const cumulativeJobs = cumulativeJobTotals(filteredRecords);
 
   return {
     filters: resolvedFilters,
@@ -866,6 +927,13 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       directQualityJobs: sum(filteredRecords, (record) => record.directQualityJobs.total),
       directNonQualityJobs: sum(filteredRecords, (record) => record.directNonQualityJobs.total),
       indirectJobs: sum(filteredRecords, (record) => record.indirectJobs.total),
+      jobDisaggregation: {
+        male: cumulativeJobs.male,
+        female: cumulativeJobs.female,
+        youth: cumulativeJobs.youth,
+        plwd: cumulativeJobs.plwd,
+        refugee: cumulativeJobs.refugee,
+      },
       financeAccessed,
       externalFinanceAccessed,
       externalFinanceTarget: EXTERNAL_FUNDING_TARGET_KES,
@@ -907,8 +975,11 @@ function matchesSupportedFilters(enterprise: SupportedEnterprise, filters: MelDa
   if (filters.track && enterprise.track !== filters.track) return false;
   if (filters.county && enterprise.county !== filters.county) return false;
   if (filters.sector && enterprise.sector !== filters.sector) return false;
-  if (filters.ownerGender && enterprise.ownerGender !== filters.ownerGender) return false;
-  return true;
+  return matchesOwnerDemographicFilter({
+    ownerGender: enterprise.ownerGender,
+    ownerYouth: enterprise.ownerYouth,
+    filter: filters.ownerGender,
+  });
 }
 
 function isMissingRelation(error: unknown, tableName: string) {

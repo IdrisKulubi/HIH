@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import type { MelReportingDataset } from "@/lib/mel/reporting-data";
+import { OWNER_YOUTH_FILTER_VALUE, type MelReportingDataset } from "@/lib/mel/reporting-data";
 
 export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) {
   return (
@@ -8,7 +8,7 @@ export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) 
       <FilterSelect name="track" label="Track" value={dataset.filters.track ?? ""} options={dataset.filterOptions.tracks.map(option)} />
       <FilterSelect name="county" label="County" value={dataset.filters.county ?? ""} options={dataset.filterOptions.counties.map(option)} />
       <FilterSelect name="sector" label="Sector" value={dataset.filters.sector ?? ""} options={dataset.filterOptions.sectors.map(option)} />
-      <FilterSelect name="ownerGender" label="Owner gender" value={dataset.filters.ownerGender ?? ""} options={dataset.filterOptions.ownerGenders.map(option)} />
+      <FilterSelect name="ownerGender" label="Owner gender / youth" value={dataset.filters.ownerGender ?? ""} options={dataset.filterOptions.ownerGenders.map(ownerDemographicOption)} />
       <div className="flex items-end gap-2">
         <Button type="submit" className="flex-1">Apply filters</Button>
         <Button type="button" variant="outline" asChild><a href="/admin/mel/reporting">Reset</a></Button>
@@ -19,6 +19,11 @@ export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) 
 
 function option(value: string) {
   return { value, label: value.replaceAll("_", " ") };
+}
+
+function ownerDemographicOption(value: string) {
+  if (value === OWNER_YOUTH_FILTER_VALUE) return { value, label: "youths" };
+  return option(value);
 }
 
 function FilterSelect({ name, label, value, options }: { name: string; label: string; value: string; options: Array<{ value: string; label: string }> }) {

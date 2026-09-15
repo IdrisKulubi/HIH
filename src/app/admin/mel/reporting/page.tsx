@@ -53,7 +53,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive reporting summary">
         <Metric icon={Factory} label="Enterprises reporting" value={data.summary.reportingEnterprises.toLocaleString()} detail={percentage(data.summary.reportingCompleteness) + " complete"} />
         <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
-        <Metric icon={UsersThree} label="Cumulative jobs" value={data.summary.jobs.toLocaleString()} detail={`Direct jobs (Quality=${data.summary.directQualityJobs}, Non-quality=${data.summary.directNonQualityJobs}), ${data.summary.indirectJobs} indirect`} />
+        <CumulativeJobsMetric summary={data.summary} />
         <FinanceAccessedMetric
           actual={data.summary.externalFinanceAccessed}
           target={data.summary.externalFinanceTarget}
@@ -234,6 +234,55 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
 
 function Metric({ icon: Icon, label, value, detail }: { icon: React.ComponentType<{ className?: string; weight?: "duotone" }>; label: string; value: string; detail: string }) {
   return <div className="rounded-lg border border-brand-blue/15 bg-brand-blue/5 p-4"><div className="flex items-center gap-2 text-sm font-medium text-slate-700"><Icon className="size-4 text-brand-blue" weight="duotone" />{label}</div><p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{value}</p><p className="mt-1 text-xs text-slate-600">{detail}</p></div>;
+}
+
+function CumulativeJobsMetric({
+  summary,
+}: {
+  summary: {
+    jobs: number;
+    directQualityJobs: number;
+    directNonQualityJobs: number;
+    indirectJobs: number;
+    jobDisaggregation: { male: number; female: number; youth: number; plwd: number; refugee: number };
+  };
+}) {
+  const { jobDisaggregation: jobs } = summary;
+  return (
+    <div className="rounded-lg border border-brand-blue/15 bg-brand-blue/5 p-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <UsersThree className="size-4 text-brand-blue" weight="duotone" />
+        Cumulative jobs
+      </div>
+      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{summary.jobs.toLocaleString()}</p>
+      <p className="mt-1 text-xs text-slate-600">
+        Direct jobs (Quality={summary.directQualityJobs}, Non-quality={summary.directNonQualityJobs}),{" "}
+        {summary.indirectJobs.toLocaleString()} indirect
+      </p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-3">
+        <div>
+          <dt className="text-slate-500">Male</dt>
+          <dd className="font-medium tabular-nums text-slate-800">{jobs.male.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Female</dt>
+          <dd className="font-medium tabular-nums text-slate-800">{jobs.female.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Youths</dt>
+          <dd className="font-medium tabular-nums text-slate-800">{jobs.youth.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">PLWD</dt>
+          <dd className="font-medium tabular-nums text-slate-800">{jobs.plwd.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Refugees</dt>
+          <dd className="font-medium tabular-nums text-slate-800">{jobs.refugee.toLocaleString()}</dd>
+        </div>
+      </dl>
+    </div>
+  );
 }
 
 function FinanceAccessedMetric({ actual, target, achievement }: { actual: number; target: number; achievement: number | null }) {
