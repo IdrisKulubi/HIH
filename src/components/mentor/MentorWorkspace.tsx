@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CaretUpDown, Check } from "@phosphor-icons/react";
 import type { MyMentorshipMatchRow } from "@/lib/actions/mentorship";
 import { CompleteSessionForm } from "@/components/admin/mentorship/CompleteSessionForm";
+import { MentorEnterpriseBriefPanel } from "@/components/mentor/MentorEnterpriseBriefPanel";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -35,6 +36,8 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
           {match.status}
         </span>
       </div>
+
+      <MentorEnterpriseBriefPanel businessId={match.businessId} enterprise={match.enterprise} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {match.sessions.map((s) => (

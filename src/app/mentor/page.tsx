@@ -25,8 +25,8 @@ export default async function MentorWorkspacePage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Mentorship workspace</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your assigned businesses and six-session mentorship programme. Complete notes and
-              evidence for each session.
+              Your assigned enterprises with contact details, TA gaps from the capacity development
+              plan, and six-session logs with notes and evidence.
             </p>
           </div>
           <Link

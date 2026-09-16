@@ -24,6 +24,10 @@ import {
 import { computeMentorshipAnalytics, type MentorshipAnalytics } from "@/lib/mentorship/analytics";
 import { loadMentorshipExportData } from "@/lib/mentorship/export";
 import { sendMentorshipAssignmentEmail } from "@/lib/email";
+import {
+  loadMentorEnterpriseBriefs,
+  type MentorEnterpriseBrief,
+} from "@/lib/mentorship/mentor-enterprise-brief";
 
 const ADMIN_ROLES = ["admin", "oversight"] as const;
 
@@ -883,6 +887,7 @@ export type MyMentorshipMatchRow = {
   businessId: number;
   businessName: string;
   applicantName: string;
+  enterprise: MentorEnterpriseBrief | null;
   sessions: Array<{
     id: number;
     sessionNumber: number;
@@ -925,12 +930,15 @@ export async function listMyMentorshipMatches(): Promise<
       },
     });
 
+    const briefs = await loadMentorEnterpriseBriefs(matches.map((match) => match.businessId));
+
     const data: MyMentorshipMatchRow[] = matches.map((match) => ({
       id: match.id,
       status: match.status,
       businessId: match.businessId,
       businessName: match.business.name,
       applicantName: `${match.business.applicant.firstName} ${match.business.applicant.lastName}`.trim(),
+      enterprise: briefs.get(match.businessId) ?? null,
       sessions: match.sessions.map((s) => ({
         id: s.id,
         sessionNumber: s.sessionNumber,

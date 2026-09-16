@@ -12,7 +12,7 @@ export default async function MentorCnaPage() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">TA CNA reviews</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Select a business and complete only the TA diagnostic questions.
+              Enterprises assigned to you in mentorship. Complete the TA diagnostic questions for each.
             </p>
           </div>
         </div>
