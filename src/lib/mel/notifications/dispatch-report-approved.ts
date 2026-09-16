@@ -120,6 +120,7 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
         priorities: summary.priorities,
         learningActions: summary.learningActions,
         reviewerNote: summary.reviewerNote,
+        mainChallenges: summary.mainChallenges,
       });
 
       if (result.skipped) {

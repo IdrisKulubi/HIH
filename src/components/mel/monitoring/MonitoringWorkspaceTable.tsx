@@ -46,6 +46,14 @@ function findResumableSubmission(
   );
 }
 
+function findLatestApprovedSubmission(row: MelMonitoringWorkspaceRow) {
+  const approved = row.submissions.filter((submission) => submission.status === "approved");
+  if (approved.length === 0) return null;
+  return approved.reduce((latest, submission) =>
+    submission.updatedAt > latest.updatedAt ? submission : latest
+  );
+}
+
 export function MonitoringWorkspaceTable({
   actor,
   collectors,
@@ -192,36 +200,59 @@ export function MonitoringWorkspaceTable({
                 <td className="px-4 py-4">
                   {(() => {
                     const resumable = findResumableSubmission(row, availablePeriods);
+                    const latestApproved = findLatestApprovedSubmission(row);
                     const canCollect =
                       availablePeriods.length > 0 &&
                       (actor.canAccessAllEnterprises || row.assignedCollectorIds.includes(actor.id));
+                    const canViewSubmission = (collectorId: string) =>
+                      actor.canAccessAllEnterprises ||
+                      row.assignedCollectorIds.includes(actor.id) ||
+                      collectorId === actor.id;
 
-                    if (resumable && canCollect) {
-                      const period = periods.find((item) => item.id === resumable.reportingPeriodId);
+                    if (!resumable && !canCollect && !latestApproved) {
+                      if (availablePeriods.length === 0) {
+                        return <span className="text-xs text-slate-500">Collection unavailable</span>;
+                      }
                       return (
-                        <div className="space-y-2">
-                          <Button asChild size="sm" className="bg-brand-blue hover:bg-brand-blue-dark">
-                            <Link href={`/admin/mel/monitoring/${row.businessId}/${resumable.reportingPeriodId}`}>
-                              Resume draft
-                            </Link>
-                          </Button>
-                          <p className="text-xs text-slate-500">
-                            {period?.label ?? "Open period"} · {resumable.status}
-                          </p>
-                        </div>
+                        <span className="text-xs text-slate-500">Assign this enterprise to start collection</span>
                       );
                     }
 
-                    if (canCollect) {
-                      return <StartMonitoringForm businessId={row.businessId} periods={availablePeriods} />;
-                    }
-
-                    if (availablePeriods.length === 0) {
-                      return <span className="text-xs text-slate-500">Collection unavailable</span>;
-                    }
-
                     return (
-                      <span className="text-xs text-slate-500">Assign this enterprise to start collection</span>
+                      <div className="space-y-2">
+                        {resumable && canCollect ? (
+                          <>
+                            <Button asChild size="sm" className="bg-brand-blue hover:bg-brand-blue-dark">
+                              <Link href={`/admin/mel/monitoring/${row.businessId}/${resumable.reportingPeriodId}`}>
+                                Resume draft
+                              </Link>
+                            </Button>
+                            <p className="text-xs text-slate-500">
+                              {periods.find((item) => item.id === resumable.reportingPeriodId)?.label ??
+                                "Open period"}{" "}
+                              · {resumable.status}
+                            </p>
+                          </>
+                        ) : canCollect ? (
+                          <StartMonitoringForm businessId={row.businessId} periods={availablePeriods} />
+                        ) : null}
+                        {latestApproved && canViewSubmission(latestApproved.collectorId) ? (
+                          <>
+                            <Button asChild size="sm" variant="outline">
+                              <Link
+                                href={`/admin/mel/monitoring/${row.businessId}/${latestApproved.reportingPeriodId}`}
+                              >
+                                View verified report
+                              </Link>
+                            </Button>
+                            <p className="text-xs text-slate-500">
+                              {periods.find((item) => item.id === latestApproved.reportingPeriodId)?.label ??
+                                "Reporting period"}{" "}
+                              · approved (read-only)
+                            </p>
+                          </>
+                        ) : null}
+                      </div>
                     );
                   })()}
                 </td>

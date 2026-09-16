@@ -263,7 +263,7 @@ export type MelWasteReportingSummary = {
   reportingEnterprises: number;
   totalBaselineKilograms: number;
   totalTargetKilograms: number;
-  totalActualMedianKilograms: number;
+  totalActualKilograms: number;
   totalAchievementPercent: number | null;
   trafficLight: IndicatorCalculation["trafficLight"] | null;
   byStream: Array<{
@@ -271,7 +271,7 @@ export type MelWasteReportingSummary = {
     label: string;
     baselineKilograms: number | null;
     targetKilograms: number | null;
-    actualMedianKilograms: number | null;
+    actualSumKilograms: number | null;
     achievementPercent: number | null;
   }>;
 };
@@ -1098,29 +1098,27 @@ function buildWasteReportingSummary(
     const enterpriseValues = [...cumulativeKgByBusiness.keys()].map((businessId) =>
       streamKgForBusiness(businessId, stream)
     );
-    const actualMedianKilograms = enterpriseValues.length > 0 ? median(enterpriseValues) : null;
+    const actualSumKilograms =
+      enterpriseValues.length > 0 ? enterpriseValues.reduce((sum, kg) => sum + kg, 0) : null;
     const achievementPercent =
-      actualMedianKilograms !== null && targetKilograms !== null && targetKilograms > 0
-        ? safePercentage(actualMedianKilograms, targetKilograms)
+      actualSumKilograms !== null && targetKilograms !== null && targetKilograms > 0
+        ? safePercentage(actualSumKilograms, targetKilograms)
         : null;
     return {
       stream,
       label: stream.replaceAll("_", " "),
       baselineKilograms,
       targetKilograms,
-      actualMedianKilograms,
+      actualSumKilograms,
       achievementPercent,
     };
   });
 
   const totalBaselineKilograms = byStream.reduce((sum, row) => sum + (row.baselineKilograms ?? 0), 0);
   const totalTargetKilograms = byStream.reduce((sum, row) => sum + (row.targetKilograms ?? 0), 0);
-  const enterpriseTotalKg = [...cumulativeKgByBusiness.keys()].map((businessId) =>
-    WASTE_STREAMS.reduce((sum, stream) => sum + streamKgForBusiness(businessId, stream), 0)
-  );
-  const totalActualMedianKilograms = enterpriseTotalKg.length > 0 ? (median(enterpriseTotalKg) ?? 0) : 0;
+  const totalActualKilograms = byStream.reduce((sum, row) => sum + (row.actualSumKilograms ?? 0), 0);
   const totalAchievementPercent =
-    totalTargetKilograms > 0 ? safePercentage(totalActualMedianKilograms, totalTargetKilograms) : null;
+    totalTargetKilograms > 0 ? safePercentage(totalActualKilograms, totalTargetKilograms) : null;
   const trafficLight =
     totalAchievementPercent === null
       ? null
@@ -1135,7 +1133,7 @@ function buildWasteReportingSummary(
     reportingEnterprises,
     totalBaselineKilograms,
     totalTargetKilograms,
-    totalActualMedianKilograms,
+    totalActualKilograms,
     totalAchievementPercent,
     trafficLight,
     byStream,

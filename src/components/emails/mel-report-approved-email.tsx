@@ -23,6 +23,7 @@ export interface MelReportApprovedEmailProps {
   priorities: ApprovalPriorityItem[];
   learningActions: ApprovalLearningActionItem[];
   reviewerNote?: string;
+  mainChallenges?: string;
 }
 
 export const MelReportApprovedEmail = ({
@@ -34,6 +35,7 @@ export const MelReportApprovedEmail = ({
   priorities = [],
   learningActions = [],
   reviewerNote,
+  mainChallenges,
 }: MelReportApprovedEmailProps) => {
   const groupedPriorities = groupApprovalPrioritiesBySection(priorities);
   const preview =
@@ -91,6 +93,15 @@ export const MelReportApprovedEmail = ({
                 <strong>Verified on:</strong> {approvedDate}
               </Text>
             </Section>
+
+            {mainChallenges ? (
+              <Section className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-5">
+                <Text className="text-[12px] uppercase font-bold text-slate-500 tracking-wider m-0 mb-3">
+                  Challenges facing the enterprise
+                </Text>
+                <Text className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{mainChallenges}</Text>
+              </Section>
+            ) : null}
 
             <Section className="mb-5">
               <Text className="text-[12px] uppercase font-bold text-brand-blue tracking-wider m-0 mb-3">
@@ -208,4 +219,6 @@ MelReportApprovedEmail.PreviewProps = {
     },
   ],
   reviewerNote: "Prioritize finance linkages and market research in the next quarter.",
+  mainChallenges:
+    "Access to working capital and reliable inputs. Market access remains limited outside Nairobi county.",
 };

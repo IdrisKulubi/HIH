@@ -21,6 +21,7 @@ export type ApprovalPrioritySummary = {
   priorities: ApprovalPriorityItem[];
   learningActions: ApprovalLearningActionItem[];
   reviewerNote?: string;
+  mainChallenges?: string;
 };
 
 type MonitoringResponseLike = Record<string, unknown> | null | undefined;
@@ -57,10 +58,16 @@ export function extractApprovalPriorities(input: {
     return left.label.localeCompare(right.label);
   });
 
+  const mainChallenges =
+    typeof input.response?.mainChallenges === "string"
+      ? input.response.mainChallenges.trim() || undefined
+      : undefined;
+
   return {
     priorities,
     learningActions: input.learningActions ?? [],
     reviewerNote: input.reviewerNote?.trim() || undefined,
+    mainChallenges,
   };
 }
 
@@ -77,6 +84,10 @@ export function buildApprovalPrioritySummaryText(summary: ApprovalPrioritySummar
     }
   } else {
     lines.push("All tracked outcome questions were achieved this quarter.");
+  }
+
+  if (summary.mainChallenges) {
+    lines.push(`Enterprise challenges: ${summary.mainChallenges}`);
   }
 
   if (summary.reviewerNote) {

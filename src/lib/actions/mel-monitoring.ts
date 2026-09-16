@@ -65,6 +65,7 @@ export type MelMonitoringWorkspaceRow = {
     reportingPeriodId: number;
     status: MelWorkflowStatus;
     sourceMode: "current" | "catch_up";
+    collectorId: string;
     updatedAt: Date;
   }>;
 };
@@ -129,6 +130,18 @@ function actionError(error: unknown, fallback: string): ActionResponse<never> {
   if (error instanceof z.ZodError) return errorResponse(error.issues[0]?.message ?? fallback);
   if (error instanceof Error) return errorResponse(error.message);
   return errorResponse(fallback);
+}
+
+async function canViewMelMonitoringReport(
+  actor: MelMonitoringActor,
+  submission: { businessId: number; collectorId: string }
+): Promise<boolean> {
+  if (actor.canAccessAllEnterprises) return true;
+  if (submission.collectorId === actor.id) return true;
+  if (actor.role === "bds_edo" && (await hasActiveAssignment(submission.businessId, actor.id))) {
+    return true;
+  }
+  return false;
 }
 
 async function hasActiveAssignment(businessId: number, collectorId: string): Promise<boolean> {
@@ -239,6 +252,7 @@ export async function getMelMonitoringWorkspace(): Promise<ActionResponse<MelMon
             reportingPeriodId: submission.reportingPeriodId,
             status: submission.status,
             sourceMode: submission.sourceMode,
+            collectorId: submission.collectorId,
             updatedAt: submission.updatedAt,
           })),
       })),
@@ -372,8 +386,8 @@ export async function getMelMonitoringDetail(
       db.query.melEnterpriseFinancialBaselines.findFirst({ where: and(eq(melEnterpriseFinancialBaselines.businessId, businessId), eq(melEnterpriseFinancialBaselines.status, "active")) }),
     ]);
     if (!submission || !period) return errorResponse("Monitoring report not found");
-    if (!actor.canAccessAllEnterprises && submission.collectorId !== actor.id) {
-      return errorResponse("This report belongs to another collector");
+    if (!(await canViewMelMonitoringReport(actor, submission))) {
+      return errorResponse("You do not have access to this monitoring report");
     }
 
     // Load evidence references in flat queries — deep nested `with` joins hit a

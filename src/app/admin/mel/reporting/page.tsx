@@ -165,7 +165,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <p>Each point is the official cumulative result available through that quarter, using the same formula as the ITT table below.</p>
             <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
             <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
-            <p>Waste collected and recycled compares ITT baseline and target medians with the median cumulative kg reported per waste-management enterprise (OP3.3), by stream.</p>
+            <p>Waste collected and recycled compares ITT baseline and targets with the sum of cumulative kg reported by waste-management enterprises (OP3.3), disaggregated by stream.</p>
             <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
           </CardContent>
         </Card>
