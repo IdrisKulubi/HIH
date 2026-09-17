@@ -49,6 +49,23 @@ export type ApprovedMonitoringRecord = {
   directJobs: JobTotals;
   indirectJobs: JobTotals;
   waste: Array<{ stream: string; kilograms: number }>;
+  businessName?: string | null;
+  visitDate?: string | null;
+  approvedAt?: string | null;
+  technologyDetails?: string | null;
+  newProductsDetails?: string | null;
+  strategicPartnershipCount?: number | null;
+  strategicPartnershipDetails?: string | null;
+  forumParticipation?: boolean | null;
+  forumDetails?: string | null;
+  publicPrivatePartnership?: boolean | null;
+  publicPrivatePartnershipDetails?: string | null;
+  circularGrowthValue?: number | null;
+  mainChallenges?: string | null;
+  positiveProgrammeImpacts?: string | null;
+  negativeProgrammeImpacts?: string | null;
+  additionalSupportNeeded?: string | null;
+  collectorComment?: string | null;
 };
 
 export type JobTotals = {

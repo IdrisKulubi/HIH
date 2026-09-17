@@ -4,6 +4,8 @@ import {
   enterpriseNamesAreEquivalent,
   KNOWN_BASELINE_ID_CORRECTIONS,
   normalizeEnterpriseName,
+  summarizeOwnBaselineProfitability,
+  compareMonthlyProfitToOwnBaseline,
 } from "./financial-baselines";
 
 function tests() {
@@ -39,6 +41,28 @@ function tests() {
     ),
     false
   );
+
+  const ownBaseline = summarizeOwnBaselineProfitability([
+    { profitLoss: 45000, financialBaselineSnapshot: { profit: 8000 } },
+    { profitLoss: 36000, financialBaselineSnapshot: { profit: 10000 } },
+    { profitLoss: 48000, financialBaselineSnapshot: { profit: 12000 } },
+    { profitLoss: 9000, financialBaselineSnapshot: { profit: 20000 } },
+    { profitLoss: 30000, financialBaselineSnapshot: null },
+    { profitLoss: null, financialBaselineSnapshot: { profit: 5000 } },
+  ]);
+  assert.equal(ownBaseline.comparableCount, 4);
+  assert.equal(ownBaseline.improvedCount, 3);
+  assert.equal(ownBaseline.declinedCount, 1);
+  assert.equal(ownBaseline.atOrAboveCount, 3);
+  assert.equal(ownBaseline.atOrAboveShare, 75);
+  assert.equal(ownBaseline.missingBaselineCount, 1);
+  assert.equal(ownBaseline.missingProfitCount, 1);
+  assert.equal(ownBaseline.medianProfitChange, 3000);
+
+  const pairwise = compareMonthlyProfitToOwnBaseline({ profitLoss: 45000, financialBaselineSnapshot: { profit: 8000 } });
+  assert.equal(pairwise.monthlyProfit, 15000);
+  assert.equal(pairwise.profitChangeVsOwnBaseline, 7000);
+  assert.equal(pairwise.vsOwnBaseline, "at_or_above");
 }
 
 tests();

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowSquareOut, ChartLineUp, CheckCircle, CurrencyCircleDollar, Factory, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
+import { ArrowSquareOut, ChartLineUp, CheckCircle, CurrencyCircleDollar, DownloadSimple, Factory, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,25 +134,54 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
           <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly enterprise values are converted to monthly equivalents using the cohort median (one latest approved report per enterprise). Only profitability is compared with a median baseline.</p>
+          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. <span className="font-medium text-slate-800">vs ITT baseline</span> compares the cohort median with the programme track bar. <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
         </div>
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-4 py-3">Track</th><th className="px-4 py-3">Enterprises</th><th className="px-4 py-3">Monthly revenue</th><th className="px-4 py-3">Monthly costs</th><th className="px-4 py-3">Monthly profit</th><th className="px-4 py-3">Profit baseline</th><th className="px-4 py-3">Profit variance</th></tr></thead>
+          <table className="w-full min-w-[1080px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-600">
+              <tr>
+                <th className="px-4 py-3">Track</th>
+                <th className="px-4 py-3">Enterprises</th>
+                <th className="px-4 py-3">Monthly revenue</th>
+                <th className="px-4 py-3">Monthly costs</th>
+                <th className="px-4 py-3">Monthly profit</th>
+                <th className="px-4 py-3">ITT profit baseline</th>
+                <th className="px-4 py-3">vs ITT baseline</th>
+                <th className="px-4 py-3">vs own baseline</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-slate-100">
               {data.financialPerformance.map((track) => (
-                <tr key={track.track}>
-                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track}</td>
+                <tr key={track.track} className={track.track === "all" ? "bg-slate-50/80" : undefined}>
+                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "All tracks" : track.track}</td>
                   <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
                   <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianRevenue)}</td>
                   <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianCosts)}</td>
                   <td className="px-4 py-3 font-medium tabular-nums text-slate-900">{money(track.monthlyMedianProfit)}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.baseline.profit)}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.variance.profit)} <span className="text-xs text-slate-500">({percentage(track.variancePercentage.profit)})</span></td>
+                  <td className="px-4 py-3 tabular-nums">{track.baseline ? money(track.baseline.profit) : "Not applicable"}</td>
+                  <td className="px-4 py-3 tabular-nums">{track.baseline ? <>{money(track.variance.profit)} <span className="text-xs text-slate-500">({percentage(track.variancePercentage.profit)})</span></> : "Not applicable"}</td>
+                  <td className="px-4 py-3"><OwnBaselineCell summary={track.ownBaseline} /></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">
+        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="approved-reports-export-heading" className="text-base font-semibold text-slate-900">Approved reports dataset</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-600">Download every approved monitoring report through {data.selectedPeriod.label}, matching the filters above. The file includes questionnaire answers, monthly equivalents, own-baseline profit comparison, jobs, waste, and narrative fields. Excel also adds Jobs and Evidence sheets.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=full&format=csv&${exportQuery}`}><DownloadSimple className="size-4" />CSV</a>
+            </Button>
+            <Button size="sm" className="bg-brand-blue hover:bg-brand-blue-dark" asChild>
+              <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=full&format=xlsx&${exportQuery}`}><DownloadSimple className="size-4" />Excel workbook</a>
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -167,6 +196,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
             <p>Waste collected and recycled compares ITT baseline and targets with the sum of cumulative kg reported by waste-management enterprises (OP3.3), disaggregated by stream.</p>
             <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
+            <p>vs ITT baseline can be negative while vs own baseline is mostly positive: most firms can beat their own opening profit while the typical firm is still below the Foundation (KES 50,000) or Acceleration (KES 150,000) programme bar.</p>
           </CardContent>
         </Card>
         <Card>
@@ -241,6 +271,37 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function OwnBaselineCell({
+  summary,
+}: {
+  summary: {
+    comparableCount: number;
+    atOrAboveCount: number;
+    declinedCount: number;
+    atOrAboveShare: number | null;
+    medianProfitChange: number | null;
+    missingBaselineCount: number;
+  };
+}) {
+  if (summary.comparableCount === 0) {
+    return <p className="text-sm text-slate-500">No own baselines to compare</p>;
+  }
+  const shareTone = (summary.atOrAboveShare ?? 0) >= 50 ? "text-emerald-800" : "text-amber-800";
+  return (
+    <div className="min-w-[220px] space-y-1">
+      <p className={`font-medium tabular-nums ${shareTone}`}>
+        {summary.atOrAboveCount}/{summary.comparableCount} at or above ({percentage(summary.atOrAboveShare)})
+      </p>
+      <p className="text-xs tabular-nums text-slate-600">
+        {summary.declinedCount} below · median change {money(summary.medianProfitChange)}
+      </p>
+      {summary.missingBaselineCount > 0 ? (
+        <p className="text-xs text-slate-500">{summary.missingBaselineCount} without an imported baseline</p>
+      ) : null}
     </div>
   );
 }

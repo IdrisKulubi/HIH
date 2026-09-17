@@ -94,6 +94,106 @@ export function calculateFinancialComparison(input: {
   return { thresholdPercent, currentMonthly, comparators, variances, flags, explanationRequired: flags.length > 0 };
 }
 
+export type OwnBaselineProfitSummary = {
+  comparableCount: number;
+  improvedCount: number;
+  declinedCount: number;
+  unchangedCount: number;
+  atOrAboveCount: number;
+  missingBaselineCount: number;
+  missingProfitCount: number;
+  atOrAboveShare: number | null;
+  medianProfitChange: number | null;
+};
+
+export function snapshotMonthlyProfit(snapshot: Record<string, unknown> | null | undefined): number | null {
+  if (!snapshot) return null;
+  const raw = snapshot.profit;
+  const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function medianChange(values: number[]): number | null {
+  const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (valid.length === 0) return null;
+  const middle = Math.floor(valid.length / 2);
+  const value = valid.length % 2 === 0 ? (valid[middle - 1] + valid[middle]) / 2 : valid[middle];
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/** Pairwise monthly profit vs each enterprise's own imported baseline, not the ITT track median. */
+export function summarizeOwnBaselineProfitability(
+  records: Array<{ profitLoss: number | null; financialBaselineSnapshot?: Record<string, unknown> | null }>
+): OwnBaselineProfitSummary {
+  const changes: number[] = [];
+  let improvedCount = 0;
+  let declinedCount = 0;
+  let unchangedCount = 0;
+  let missingBaselineCount = 0;
+  let missingProfitCount = 0;
+
+  for (const record of records) {
+    if (record.profitLoss === null || !Number.isFinite(record.profitLoss)) {
+      missingProfitCount += 1;
+      continue;
+    }
+    const baselineProfit = snapshotMonthlyProfit(record.financialBaselineSnapshot);
+    if (baselineProfit === null) {
+      missingBaselineCount += 1;
+      continue;
+    }
+    const change = record.profitLoss / 3 - baselineProfit;
+    changes.push(change);
+    if (change > 0) improvedCount += 1;
+    else if (change < 0) declinedCount += 1;
+    else unchangedCount += 1;
+  }
+
+  const comparableCount = improvedCount + declinedCount + unchangedCount;
+  const atOrAboveCount = improvedCount + unchangedCount;
+  return {
+    comparableCount,
+    improvedCount,
+    declinedCount,
+    unchangedCount,
+    atOrAboveCount,
+    missingBaselineCount,
+    missingProfitCount,
+    atOrAboveShare: comparableCount === 0 ? null : Math.round((atOrAboveCount / comparableCount) * 1000) / 10,
+    medianProfitChange: medianChange(changes),
+  };
+}
+
+export type OwnBaselineProfitComparison = {
+  monthlyProfit: number | null;
+  ownBaselineMonthlyProfit: number | null;
+  profitChangeVsOwnBaseline: number | null;
+  vsOwnBaseline: "at_or_above" | "below" | "no_baseline" | "no_profit";
+};
+
+export function compareMonthlyProfitToOwnBaseline(input: {
+  profitLoss: number | null;
+  financialBaselineSnapshot?: Record<string, unknown> | null;
+}): OwnBaselineProfitComparison {
+  const monthlyProfit = input.profitLoss === null || !Number.isFinite(input.profitLoss)
+    ? null
+    : Math.round((input.profitLoss / 3 + Number.EPSILON) * 100) / 100;
+  const ownBaselineMonthlyProfit = snapshotMonthlyProfit(input.financialBaselineSnapshot);
+  if (monthlyProfit === null) {
+    return { monthlyProfit, ownBaselineMonthlyProfit, profitChangeVsOwnBaseline: null, vsOwnBaseline: "no_profit" };
+  }
+  if (ownBaselineMonthlyProfit === null) {
+    return { monthlyProfit, ownBaselineMonthlyProfit, profitChangeVsOwnBaseline: null, vsOwnBaseline: "no_baseline" };
+  }
+  const profitChangeVsOwnBaseline = Math.round((monthlyProfit - ownBaselineMonthlyProfit + Number.EPSILON) * 100) / 100;
+  return {
+    monthlyProfit,
+    ownBaselineMonthlyProfit,
+    profitChangeVsOwnBaseline,
+    vsOwnBaseline: profitChangeVsOwnBaseline >= 0 ? "at_or_above" : "below",
+  };
+}
+
 export function normalizeEnterpriseName(value: string): string {
   return value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "");
 }
