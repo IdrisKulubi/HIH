@@ -736,6 +736,7 @@ export async function saveMelMonitoringAction(
         financialComparison?.explanationRequired ?? false,
         {
           code: period.code,
+          label: period.label,
           programmeYear: period.programmeYear,
           sequence: period.sequence,
         },

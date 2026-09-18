@@ -220,17 +220,39 @@ export const MEL_EVIDENCE_OPTIONAL_PERIOD_CODES = ["Y1-MQ1"] as const;
 
 export type MelReportingPeriodRef = {
   code: string;
+  label?: string;
   programmeYear?: number;
   sequence?: number;
 };
 
+export function monitoringQuarterFromPeriodCode(code: string): number | null {
+  const match = /-MQ(\d+)/i.exec(code.trim());
+  return match ? Number(match[1]) : null;
+}
+
+export function programmeYearFromPeriodCode(code: string): number | null {
+  const match = /^Y(\d)/i.exec(code.trim());
+  return match ? Number(match[1]) : null;
+}
+
 export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | string): boolean {
   const ref = typeof period === "string" ? { code: period } : period;
   const code = ref.code.trim();
+  if (code === MEL_Y1_PREDELIVERY_PERIOD_CODE) {
+    return false;
+  }
   if ((MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code)) {
     return true;
   }
-  // Y1 first BDS monitoring window (Jun–Aug) even when legacy DB period codes differ.
+  if (ref.label && /first bds collection/i.test(ref.label)) {
+    return true;
+  }
+  const monitoringQuarter = monitoringQuarterFromPeriodCode(code);
+  const programmeYear = ref.programmeYear ?? programmeYearFromPeriodCode(code) ?? undefined;
+  if (programmeYear === 1 && monitoringQuarter === 1) {
+    return true;
+  }
+  // Y1 first BDS monitoring window (Jun–Aug) when DB sequence is aligned to the calendar seed.
   return ref.programmeYear === 1 && ref.sequence === MEL_Y1_FIRST_MONITORING_SEQUENCE;
 }
 

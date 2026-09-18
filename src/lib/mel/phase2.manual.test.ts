@@ -6,6 +6,7 @@ import {
   quarterlyToMonthlyEquivalent,
 } from "./monitoring-calculations";
 import { resolveSatisfiedOneTimeQuestionCodes } from "./monitoring-question-catalog";
+import { isMelEvidenceOptionalPeriod } from "./programme-calendar";
 import {
   melMonitoringDraftSchema,
   monitoringSubmissionIssues,
@@ -299,5 +300,21 @@ function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
 }
 
 testIndirectDefaultAndPriorOneTimeEvidenceSkip();
+
+function testFirstBdsEvidenceGraceByPeriodCode() {
+  assert.equal(isMelEvidenceOptionalPeriod("Y1-MQ1"), true);
+  assert.equal(
+    isMelEvidenceOptionalPeriod({ code: "Y1-LEGACY", programmeYear: 1, sequence: 1 }),
+    false
+  );
+  assert.equal(
+    isMelEvidenceOptionalPeriod({ code: "Y1-MQ1", programmeYear: 1, sequence: 1 }),
+    true,
+    "MQ1 in code should allow optional evidence even when DB sequence is 1"
+  );
+  assert.equal(isMelEvidenceOptionalPeriod({ code: "Y1-PRE", programmeYear: 1, sequence: 1 }), false);
+}
+
+testFirstBdsEvidenceGraceByPeriodCode();
 
 console.log("MEL Phase 2 tests passed.");

@@ -313,6 +313,9 @@ function EvidenceBooleanQuestion({ detail, code, value, locked, evidenceOptional
   const question = MONITORING_QUESTIONS[code];
   const hidden = detail.approvedOneTimeCodes.includes(code);
   const [selection, setSelection] = useState(value === null || value === undefined ? "" : String(value));
+  useEffect(() => {
+    setSelection(value === null || value === undefined ? "" : String(value));
+  }, [value]);
   const yes = selection === "true";
   const no = selection === "false";
   const directEvidence = detail.evidence.filter((item) => item.questionCode === code);

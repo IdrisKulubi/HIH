@@ -160,7 +160,7 @@ export function monitoringSubmissionIssues(
   includeRefugee: boolean,
   wasteEligible: boolean,
   financialExplanationRequired = false,
-  reportingPeriod?: { code: string; programmeYear?: number; sequence?: number } | string,
+  reportingPeriod?: { code: string; label?: string; programmeYear?: number; sequence?: number } | string,
   submissionStatus?: string
 ): string[] {
   const issues: string[] = [];
@@ -279,12 +279,25 @@ export function monitoringSubmissionIssues(
   return [...new Set(issues)];
 }
 
+function jobFieldsFromForm(formData: FormData, prefix: string, defaultZeroWhenEmpty: boolean) {
+  const get = (name: string) => formData.get(name);
+  const total = get(`${prefix}Total`);
+  const isEmptyTotal = total === null || total === undefined || total === "";
+  if (defaultZeroWhenEmpty && isEmptyTotal) {
+    return { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 };
+  }
+  return {
+    total,
+    male: get(`${prefix}Male`),
+    female: get(`${prefix}Female`),
+    youth: get(`${prefix}Youth`),
+    plwd: get(`${prefix}Plwd`),
+    refugee: get(`${prefix}Refugee`),
+  };
+}
+
 export function parseMonitoringFormData(formData: FormData): MelMonitoringDraft {
   const get = (name: string) => formData.get(name);
-  const jobs = (prefix: string) => ({
-    total: get(`${prefix}Total`), male: get(`${prefix}Male`), female: get(`${prefix}Female`),
-    youth: get(`${prefix}Youth`), plwd: get(`${prefix}Plwd`), refugee: get(`${prefix}Refugee`),
-  });
   const selectedFinanceTypes = formData.getAll("financeTypes").filter(
     (value): value is MonitoringFinanceType => typeof value === "string" && FINANCE_TYPES.includes(value as MonitoringFinanceType)
   );
@@ -299,7 +312,9 @@ export function parseMonitoringFormData(formData: FormData): MelMonitoringDraft 
   return melMonitoringDraftSchema.parse({
     visitDate: get("visitDate"), businessPlanImproved: get("businessPlanImproved"),
     revenue: get("revenue"), costs: get("costs"), financialChangeExplanation: get("financialChangeExplanation"),
-    directQualityJobs: jobs("directQuality"), directNonQualityJobs: jobs("directNonQuality"), indirectJobs: jobs("indirect"),
+    directQualityJobs: jobFieldsFromForm(formData, "directQuality", false),
+    directNonQualityJobs: jobFieldsFromForm(formData, "directNonQuality", true),
+    indirectJobs: jobFieldsFromForm(formData, "indirect", true),
     marketResearchCompleted: get("marketResearchCompleted"), marketIntelligenceAccessed: get("marketIntelligenceAccessed"),
     newMarketSegments: get("newMarketSegments"), technologyAdopted: get("technologyAdopted"),
     technologyDetails: get("technologyDetails"), newProductsDeveloped: get("newProductsDeveloped"),
