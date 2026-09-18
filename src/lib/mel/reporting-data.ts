@@ -33,7 +33,7 @@ import {
   type JobTotals,
   type ProgrammeResultInput,
 } from "./indicator-engine";
-import { summarizeOwnBaselineProfitability, type OwnBaselineProfitSummary } from "./financial-baselines";
+import { snapshotMonthlyField, summarizeOwnBaselineProfitability, type OwnBaselineProfitSummary } from "./financial-baselines";
 import { findMonitoringJob, mergeJobTotals, MEL_JOB_TYPE } from "./job-types";
 import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
@@ -162,6 +162,24 @@ export type MelProfitabilityTrendPoint = {
   accelerationBaseline: number;
 };
 
+export type MelFinancialMeasureTrendPeriod = {
+  periodId: number;
+  periodLabel: string;
+  revenue: number | null;
+  costs: number | null;
+  profit: number | null;
+};
+
+export type MelFinancialMeasureTrendTrack = {
+  track: "foundation" | "acceleration";
+  baseline: { revenue: number; costs: number; profit: number };
+  periods: MelFinancialMeasureTrendPeriod[];
+};
+
+export type MelFinancialMeasureTrend = {
+  tracks: MelFinancialMeasureTrendTrack[];
+};
+
 type MelSystemActual = {
   actual: number | null;
   sourceIds: number[];
@@ -191,6 +209,7 @@ export type MelReportingDataset = {
   ittRows: MelIttRow[];
   indicatorVisualizations: MelIndicatorVisualization[];
   profitabilityTrend: MelProfitabilityTrendPoint[];
+  financialMeasureTrend: MelFinancialMeasureTrend;
   approvedRecords: ApprovedMonitoringRecord[];
   programmeResults: ProgrammeResultInput[];
   summary: {
@@ -198,6 +217,10 @@ export type MelReportingDataset = {
     eligibleEnterprises: number;
     reportingCompleteness: number | null;
     monthlyMedianRevenue: number | null;
+    monthlyMedianRevenueBaseline: number | null;
+    monthlyMedianRevenueChange: number | null;
+    monthlyMedianRevenueChangePercent: number | null;
+    monthlyMedianRevenueBaselineLabel: string | null;
     monthlyMedianCosts: number | null;
     monthlyMedianProfit: number | null;
     jobs: number;
@@ -776,6 +799,26 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     financialPerformance.push(buildFinancialPerformanceRow("all", latestRecords(filteredRecords), null));
   }
 
+  const monitoringPeriods = includedPeriods.filter((period) => !isY1PreDeliveryPeriod(period));
+  const financialMeasureTrend: MelFinancialMeasureTrend = {
+    tracks: financialTracks.map((track) => ({
+      track,
+      baseline: baselines[track],
+      periods: monitoringPeriods.map((period) => {
+        const periodRecords = filteredRecords.filter(
+          (record) => record.periodId === period.id && record.dimensions.track === track
+        );
+        return {
+          periodId: period.id,
+          periodLabel: period.label,
+          revenue: monthlyMedian(periodRecords, (record) => record.revenue),
+          costs: monthlyMedian(periodRecords, (record) => record.costs),
+          profit: monthlyMedian(periodRecords, (record) => record.profitLoss),
+        };
+      }),
+    })),
+  };
+
   const baseVisualizationFilters = { ...resolvedFilters, track: null };
   const demographicFilterNote = filters.ownerGender || filters.county || filters.sector
     ? "Programme-wide result: enterprise demographic and location filters do not apply."
@@ -979,6 +1022,26 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     negativeProgrammeImpacts: latestPeriodResponses.map((response) => response.negativeProgrammeImpacts ?? ""),
   });
   const cumulativeJobs = cumulativeJobTotals(filteredRecords);
+  const monthlyMedianRevenue = monthlyMedian(latestApprovedForPeriod, (record) => record.revenue);
+  const selectedFinancialTrack = filters.track === "foundation" || filters.track === "acceleration" ? filters.track : null;
+  const ownRevenueBaselines = latestApprovedForPeriod.flatMap((record) => {
+    const value = snapshotMonthlyField(record.financialBaselineSnapshot, "revenue");
+    return value === null ? [] : [value];
+  });
+  const monthlyMedianRevenueBaseline = selectedFinancialTrack
+    ? baselines[selectedFinancialTrack].revenue
+    : median(ownRevenueBaselines);
+  const monthlyMedianRevenueChange = monthlyMedianRevenue === null || monthlyMedianRevenueBaseline === null
+    ? null
+    : monthlyMedianRevenue - monthlyMedianRevenueBaseline;
+  const monthlyMedianRevenueChangePercent = monthlyMedianRevenueChange === null || monthlyMedianRevenueBaseline === null
+    ? null
+    : safePercentage(monthlyMedianRevenueChange, monthlyMedianRevenueBaseline);
+  const monthlyMedianRevenueBaselineLabel = monthlyMedianRevenueBaseline === null
+    ? null
+    : selectedFinancialTrack
+      ? `${selectedFinancialTrack} ITT baseline`
+      : "own baseline median";
 
   return {
     filters: resolvedFilters,
@@ -988,6 +1051,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     ittRows,
     indicatorVisualizations,
     profitabilityTrend,
+    financialMeasureTrend,
     approvedRecords: filteredRecords,
     programmeResults: approvedProgrammeResults,
     summary: {
@@ -996,7 +1060,11 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       reportingCompleteness: eligibleEnterpriseCount
         ? (reportingEnterpriseCount / eligibleEnterpriseCount) * 100
         : null,
-      monthlyMedianRevenue: monthlyMedian(latestApprovedForPeriod, (record) => record.revenue),
+      monthlyMedianRevenue,
+      monthlyMedianRevenueBaseline,
+      monthlyMedianRevenueChange,
+      monthlyMedianRevenueChangePercent,
+      monthlyMedianRevenueBaselineLabel,
       monthlyMedianCosts: monthlyMedian(latestApprovedForPeriod, (record) => record.costs),
       monthlyMedianProfit: monthlyMedian(latestApprovedForPeriod, (record) => record.profitLoss),
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),

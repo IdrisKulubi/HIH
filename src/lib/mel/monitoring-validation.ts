@@ -164,12 +164,13 @@ export function monitoringSubmissionIssues(
   submissionStatus?: string
 ): string[] {
   const issues: string[] = [];
+  const draft = normalizeMonitoringDraft(input, wasteEligible, includeRefugee);
   const periodRef =
     typeof reportingPeriod === "string" ? { code: reportingPeriod } : reportingPeriod;
   const evidenceOptional = periodRef
     ? isMelEvidenceOptionalForSubmission(periodRef, submissionStatus ?? "")
     : submissionStatus === "draft";
-  if (!input.visitDate) issues.push("Visit date is required");
+  if (!draft.visitDate) issues.push("Visit date is required");
 
   const requiredBooleanFields: Array<[keyof MelMonitoringDraft, string, string?]> = [
     ["businessPlanImproved", "Business plan status", "business_plan_improved"],
@@ -191,41 +192,41 @@ export function monitoringSubmissionIssues(
   ];
   for (const [field, label, oneTimeCode] of requiredBooleanFields) {
     if (oneTimeCode && approvedOneTimeCodes.has(oneTimeCode)) continue;
-    if (input[field] === null) issues.push(`${label} is required`);
+    if (draft[field] === null) issues.push(`${label} is required`);
   }
 
-  if (input.revenue === null) issues.push("Total revenue for the past 3 months is required");
-  if (input.costs === null) issues.push("Total costs for the past 3 months are required");
-  if (financialExplanationRequired && (!input.financialChangeExplanation || input.financialChangeExplanation.length < 10)) issues.push("Explain the material loss or unusually large financial change using at least 10 characters");
-  if (input.newMarketSegments === null) issues.push("New market segments is required");
-  if (input.technologyAdopted && !input.technologyDetails) issues.push("Technology or innovation details are required when Yes");
-  if (input.newProductsDeveloped && !input.newProductsDetails) issues.push("Product or service details are required when Yes");
+  if (draft.revenue === null) issues.push("Total revenue for the past 3 months is required");
+  if (draft.costs === null) issues.push("Total costs for the past 3 months are required");
+  if (financialExplanationRequired && (!draft.financialChangeExplanation || draft.financialChangeExplanation.length < 10)) issues.push("Explain the material loss or unusually large financial change using at least 10 characters");
+  if (draft.newMarketSegments === null) issues.push("New market segments is required");
+  if (draft.technologyAdopted && !draft.technologyDetails) issues.push("Technology or innovation details are required when Yes");
+  if (draft.newProductsDeveloped && !draft.newProductsDetails) issues.push("Product or service details are required when Yes");
 
-  if (input.linkedToFinanceProvider) {
-    if (input.financeEntries.length === 0) issues.push("Select at least one finance type");
-    const types = input.financeEntries.map((entry) => entry.financeType);
+  if (draft.linkedToFinanceProvider) {
+    if (draft.financeEntries.length === 0) issues.push("Select at least one finance type");
+    const types = draft.financeEntries.map((entry) => entry.financeType);
     if (new Set(types).size !== types.length) issues.push("Each finance type can be selected only once");
-    for (const entry of input.financeEntries) {
+    for (const entry of draft.financeEntries) {
       if (entry.amount === null) issues.push(`Enter the amount for ${financeTypeLabel(entry.financeType)}`);
       if (entry.financeType === "other" && !entry.otherDescription) issues.push("Describe the other finance type");
       if (entry.financeType !== "other" && entry.otherDescription) issues.push("Other finance description is only valid for Other");
     }
   }
 
-  if (input.strategicPartnerships) {
-    if (input.strategicPartnershipCount === null || input.strategicPartnershipCount < 1) {
+  if (draft.strategicPartnerships) {
+    if (draft.strategicPartnershipCount === null || draft.strategicPartnershipCount < 1) {
       issues.push("Strategic partnership count must be at least 1 when Yes");
     }
-    if (!input.strategicPartnershipDetails) issues.push("Strategic partner names are required when Yes");
+    if (!draft.strategicPartnershipDetails) issues.push("Strategic partner names are required when Yes");
   }
-  if (input.publicPrivatePartnership && !input.publicPrivatePartnershipDetails) {
+  if (draft.publicPrivatePartnership && !draft.publicPrivatePartnershipDetails) {
     issues.push("Public-private partnership details are required when Yes");
   }
 
   for (const [label, row, optional] of [
-    ["Direct jobs (quality)", input.directQualityJobs, false],
-    ["Direct jobs (non-quality)", input.directNonQualityJobs, true],
-    ["Indirect jobs", input.indirectJobs, true],
+    ["Direct jobs (quality)", draft.directQualityJobs, false],
+    ["Direct jobs (non-quality)", draft.directNonQualityJobs, true],
+    ["Indirect jobs", draft.indirectJobs, true],
   ] as const) {
     if (optional && row.total === null) continue;
     const normalized = normalizeJobRow(row, includeRefugee);
@@ -241,41 +242,41 @@ export function monitoringSubmissionIssues(
       const question = MONITORING_QUESTIONS[code as keyof typeof MONITORING_QUESTIONS];
       if (!question.field || approvedOneTimeCodes.has(code)) continue;
       const field = question.field as keyof MelMonitoringDraft;
-      if (input[field] === true && !evidenceQuestionCodes.has(code)) {
+      if (draft[field] === true && !evidenceQuestionCodes.has(code)) {
         issues.push(`Evidence is required for ${code.replaceAll("_", " ")}`);
       }
-      if (input[field] === false && evidenceQuestionCodes.has(code)) {
+      if (draft[field] === false && evidenceQuestionCodes.has(code)) {
         issues.push(`Remove the stale evidence for ${code.replaceAll("_", " ")} before submitting No`);
       }
     }
-    const directJobsTotal = (input.directQualityJobs.total ?? 0) + (input.directNonQualityJobs.total ?? 0);
+    const directJobsTotal = (draft.directQualityJobs.total ?? 0) + (draft.directNonQualityJobs.total ?? 0);
     if (
       MONITORING_QUESTIONS.jobs.evidenceRequired &&
-      directJobsTotal + (input.indirectJobs.total ?? 0) > 0 &&
+      directJobsTotal + (draft.indirectJobs.total ?? 0) > 0 &&
       !evidenceQuestionCodes.has("jobs")
     ) {
       issues.push("Evidence is required for jobs created");
     }
     if (wasteEligible) {
       for (const stream of WASTE_STREAMS) {
-        if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
+        if (draft.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
       }
-      if (Object.values(input.waste).some((value) => (value ?? 0) > 0) && !evidenceQuestionCodes.has("waste")) {
+      if (Object.values(draft.waste).some((value) => (value ?? 0) > 0) && !evidenceQuestionCodes.has("waste")) {
         issues.push("Evidence is required for waste collected and recycled");
       }
     }
   } else if (wasteEligible) {
     for (const stream of WASTE_STREAMS) {
-      if (input.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
+      if (draft.waste[stream] === null) issues.push(`${stream.replaceAll("_", " ")} waste value is required`);
     }
   }
-  if (!input.positiveProgrammeImpacts) {
+  if (!draft.positiveProgrammeImpacts) {
     issues.push("Positive programme impacts are required");
   }
-  if (!input.mainChallenges) issues.push("Main challenges are required");
-  if (!input.negativeProgrammeImpacts) issues.push("Programme impacts are required; enter None if none were observed");
-  if (!input.additionalSupportNeeded) issues.push("Additional support needs are required");
-  if (!input.collectorComment) issues.push("Collector comment is required");
+  if (!draft.mainChallenges) issues.push("Main challenges are required");
+  if (!draft.negativeProgrammeImpacts) issues.push("Programme impacts are required; enter None if none were observed");
+  if (!draft.additionalSupportNeeded) issues.push("Additional support needs are required");
+  if (!draft.collectorComment) issues.push("Collector comment is required");
   return [...new Set(issues)];
 }
 

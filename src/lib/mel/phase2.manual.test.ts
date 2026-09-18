@@ -6,7 +6,10 @@ import {
   quarterlyToMonthlyEquivalent,
 } from "./monitoring-calculations";
 import { resolveSatisfiedOneTimeQuestionCodes } from "./monitoring-question-catalog";
-import { isMelEvidenceOptionalPeriod } from "./programme-calendar";
+import {
+  isMelEvidenceOptionalForSubmission,
+  isMelEvidenceOptionalPeriod,
+} from "./programme-calendar";
 import {
   melMonitoringDraftSchema,
   monitoringSubmissionIssues,
@@ -248,6 +251,33 @@ function testOptionalEvidenceForY1Mq1() {
     [],
     "Draft reports may submit without evidence in any collection period"
   );
+
+  const preDeliveryReturned = {
+    ...withYesAndJobs,
+    financialPlanCompleted: true,
+    lifeCycleAssessmentCompleted: true,
+    waste: { organic: 0, plastic: 0, paper: 0, glass: 0, e_waste: 0, other: 0 },
+    positiveProgrammeImpacts: "Growing waste collection network",
+    mainChallenges: "Cash flow",
+    negativeProgrammeImpacts: "None",
+    additionalSupportNeeded: "None",
+    collectorComment:
+      "Jobs and financial supporting documents were not available this quarter; narrative explanation provided per MEL return.",
+  };
+  assert.deepEqual(
+    monitoringSubmissionIssues(
+      preDeliveryReturned,
+      new Set(),
+      new Set(),
+      false,
+      true,
+      false,
+      { code: "Y1-PRE", label: "Y1 Pre-delivery (Oct 2025–May 2026)", programmeYear: 1, sequence: 1 },
+      "returned_by_mel"
+    ),
+    [],
+    "Y1 pre-delivery catch-up returned by MEL may resubmit without per-question evidence files"
+  );
 }
 
 testCalculations();
@@ -312,7 +342,15 @@ function testFirstBdsEvidenceGraceByPeriodCode() {
     true,
     "MQ1 in code should allow optional evidence even when DB sequence is 1"
   );
-  assert.equal(isMelEvidenceOptionalPeriod({ code: "Y1-PRE", programmeYear: 1, sequence: 1 }), false);
+  assert.equal(isMelEvidenceOptionalPeriod({ code: "Y1-PRE", programmeYear: 1, sequence: 1 }), true);
+  assert.equal(
+    isMelEvidenceOptionalForSubmission(
+      { code: "Y1-MQ2", programmeYear: 1, sequence: 3 },
+      "returned_by_mel"
+    ),
+    true,
+    "Returned reports may resubmit without blocking on every evidence file"
+  );
 }
 
 testFirstBdsEvidenceGraceByPeriodCode();

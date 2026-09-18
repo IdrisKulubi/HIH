@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowSquareOut, ChartLineUp, CheckCircle, CurrencyCircleDollar, DownloadSimple, Factory, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
+import { ArrowDown, ArrowSquareOut, ArrowUp, ChartLineUp, CheckCircle, CurrencyCircleDollar, DownloadSimple, Factory, Minus, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRe
 import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer";
 import { FeedbackAccountabilitySection } from "@/components/mel/reporting/FeedbackAccountabilitySection";
 import { WasteRecycledSection } from "@/components/mel/reporting/WasteRecycledSection";
+import { ProfitabilityMeasureChart } from "@/components/mel/reporting/ProfitabilityMeasureChart";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -58,7 +59,13 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           value={data.summary.reportingEnterprises.toLocaleString()}
           detail={`${data.summary.reportingEnterprises} of ${data.summary.eligibleEnterprises.toLocaleString()} active enterprises (${percentage(data.summary.reportingCompleteness)})`}
         />
-        <Metric icon={CurrencyCircleDollar} label="Monthly median revenue" value={money(data.summary.monthlyMedianRevenue)} detail={`${money(data.summary.monthlyMedianProfit)} monthly median profit`} />
+        <MonthlyMedianRevenueMetric
+          current={data.summary.monthlyMedianRevenue}
+          baseline={data.summary.monthlyMedianRevenueBaseline}
+          change={data.summary.monthlyMedianRevenueChange}
+          changePercent={data.summary.monthlyMedianRevenueChangePercent}
+          baselineLabel={data.summary.monthlyMedianRevenueBaselineLabel}
+        />
         <CumulativeJobsMetric summary={data.summary} />
         <FinanceAccessedMetric
           actual={data.summary.externalFinanceAccessed}
@@ -166,6 +173,16 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="profitability-measure-chart-heading">
+        <div>
+          <h2 id="profitability-measure-chart-heading" className="text-lg font-semibold text-slate-900">Profitability trend over time</h2>
+          <p className="text-sm text-slate-600">
+            Compare monthly median revenue, costs, and profit against the programme baseline for each reporting period, in the same layout as the BIRE baseline workbook.
+          </p>
+        </div>
+        <ProfitabilityMeasureChart trend={data.financialMeasureTrend} selectedTrack={data.filters.track ?? null} />
       </section>
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">
@@ -305,6 +322,54 @@ function OwnBaselineCell({
       {summary.missingBaselineCount > 0 ? (
         <p className="text-xs text-slate-500">{summary.missingBaselineCount} without an imported baseline</p>
       ) : null}
+    </div>
+  );
+}
+
+function MonthlyMedianRevenueMetric({
+  current,
+  baseline,
+  change,
+  changePercent,
+  baselineLabel,
+}: {
+  current: number | null;
+  baseline: number | null;
+  change: number | null;
+  changePercent: number | null;
+  baselineLabel: string | null;
+}) {
+  const direction = change === null ? null : change > 0 ? "up" : change < 0 ? "down" : "flat";
+  const tone = direction === "up"
+    ? "border-emerald-200 bg-emerald-50"
+    : direction === "down"
+      ? "border-red-200 bg-red-50"
+      : "border-brand-blue/15 bg-brand-blue/5";
+  const badge = direction === "up"
+    ? "bg-emerald-600 text-white"
+    : direction === "down"
+      ? "bg-red-600 text-white"
+      : "bg-slate-500 text-white";
+  const Icon = direction === "up" ? ArrowUp : direction === "down" ? ArrowDown : Minus;
+  const statusLabel = direction === "up" ? "Growth" : direction === "down" ? "Decline" : direction === "flat" ? "Unchanged" : "No baseline";
+  return (
+    <div className={`rounded-lg border p-4 ${tone}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <CurrencyCircleDollar className="size-4 text-brand-blue" weight="duotone" />
+          Monthly median revenue
+        </div>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge}`}>
+          <Icon className="size-3" weight="bold" />
+          {statusLabel}
+        </span>
+      </div>
+      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{money(current)}</p>
+      <p className="mt-1 text-xs text-slate-600">
+        {baseline === null
+          ? "No baseline available for this filter"
+          : `${money(change)} vs ${money(baseline)} ${baselineLabel ?? "baseline"} (${percentage(changePercent)})`}
+      </p>
     </div>
   );
 }

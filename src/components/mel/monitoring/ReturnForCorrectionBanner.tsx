@@ -21,6 +21,13 @@ export function ReturnForCorrectionBanner({ feedback }: { feedback: MelReturnFee
       <p className="mt-1 text-sm text-red-900/90">
         Feedback from {stageLabel}. Address the points below, then save and resubmit.
       </p>
+      {feedback.stage === "mel" && /jobs|financial/i.test(feedback.reason) ? (
+        <p className="mt-2 text-sm text-red-900/90">
+          If MEL asked why Jobs or Financials documents were not attached, explain that in the{" "}
+          <span className="font-medium">Collector comment</span> field at the bottom of the form. You do not need to
+          upload every evidence file again to resubmit this correction.
+        </p>
+      ) : null}
       <div className="mt-4 rounded-md border border-red-100 bg-white/80 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-red-800">Reviewer comments</p>
         <p className="mt-2 whitespace-pre-wrap text-sm text-red-950">{feedback.reason}</p>

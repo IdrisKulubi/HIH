@@ -239,7 +239,10 @@ export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | stri
   const ref = typeof period === "string" ? { code: period } : period;
   const code = ref.code.trim();
   if (code === MEL_Y1_PREDELIVERY_PERIOD_CODE) {
-    return false;
+    return true;
+  }
+  if (ref.label && /pre-delivery/i.test(ref.label)) {
+    return true;
   }
   if ((MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code)) {
     return true;
@@ -256,12 +259,25 @@ export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | stri
   return ref.programmeYear === 1 && ref.sequence === MEL_Y1_FIRST_MONITORING_SEQUENCE;
 }
 
-/** Grace-period collections and draft-status reports may submit without supporting files. */
+const CORRECTION_SUBMISSION_STATUSES = new Set([
+  "returned",
+  "returned_by_redo",
+  "returned_by_mel",
+  "reopened",
+]);
+
+/**
+ * Drafts, pre-delivery / first BDS grace periods, and returned reports may submit
+ * without every supporting file. MEL review enforces completeness; returns ask for
+ * narrative corrections (e.g. collector comment) without blocking resubmit on evidence.
+ */
 export function isMelEvidenceOptionalForSubmission(
   period: MelReportingPeriodRef | string,
   submissionStatus: string
 ): boolean {
-  return isMelEvidenceOptionalPeriod(period) || submissionStatus === "draft";
+  if (submissionStatus === "draft") return true;
+  if (CORRECTION_SUBMISSION_STATUSES.has(submissionStatus)) return true;
+  return isMelEvidenceOptionalPeriod(period);
 }
 
 export const OP11_COUNT_INDICATOR_CODES = [
