@@ -699,7 +699,7 @@ export async function saveMelMonitoringAction(
     const approvedCodes = new Set(
       resolveSatisfiedOneTimeQuestionCodes({
         approvedIndicatorCodes: approvedAchievements.map(({ code }) => code),
-        priorVerifiedEvidenceQuestionCodes,
+        priorVerifiedEvidenceQuestionCodes: priorVerifiedOneTimeQuestionCodes,
         priorApprovedResponses: eligiblePriorSubmissions.map((item) => item.response),
       })
     );
