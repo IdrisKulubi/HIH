@@ -121,6 +121,7 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
         learningActions: summary.learningActions,
         reviewerNote: summary.reviewerNote,
         mainChallenges: summary.mainChallenges,
+        collectorComment: summary.collectorComment,
       });
 
       if (result.skipped) {
@@ -155,6 +156,14 @@ export async function dispatchMelReportApprovedEmail(input: DispatchReportApprov
     console.error("dispatchMelReportApprovedEmail", error);
     await markOutboxFailed(eventKey, message);
   }
+}
+
+export async function resolveEnterpriseMonitoringRecipientIds(
+  collectorId: string,
+  businessId: number
+): Promise<string[]> {
+  const recipients = await resolveReportApprovedRecipients(collectorId, businessId);
+  return recipients.map((recipient) => recipient.userId);
 }
 
 async function resolveReportApprovedRecipients(

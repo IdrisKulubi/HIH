@@ -23,6 +23,7 @@ import {
   melMonitoringWaste,
   melProgrammeSettings,
   melReportingPeriods,
+  melReviewDecisions,
   userProfiles,
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
@@ -77,6 +78,14 @@ export type MelMonitoringWorkspace = {
   collectors: Array<{ id: string; name: string; role: string }>;
 };
 
+export type MelReturnFeedback = {
+  stage: string;
+  reviewerRole: string;
+  reason: string;
+  affectedQuestions: string[];
+  createdAt: Date;
+};
+
 export type MelMonitoringDetail = {
   actor: MelMonitoringActor;
   submission: typeof melMonitoringSubmissions.$inferSelect;
@@ -124,12 +133,32 @@ export type MelMonitoringDetail = {
   priorApprovedFinancials: { label: string; revenue: number; costs: number; profit: number } | null;
   financialVarianceThresholdPercent: number;
   approvalSummary: ApprovalPrioritySummary | null;
+  returnFeedback: MelReturnFeedback | null;
 };
 
 function actionError(error: unknown, fallback: string): ActionResponse<never> {
   if (error instanceof z.ZodError) return errorResponse(error.issues[0]?.message ?? fallback);
   if (error instanceof Error) return errorResponse(error.message);
   return errorResponse(fallback);
+}
+
+async function loadLatestReturnFeedback(
+  submissionId: number,
+  status: MelWorkflowStatus
+): Promise<MelReturnFeedback | null> {
+  if (!isCollectorEditableStatus(status)) return null;
+  const decision = await db.query.melReviewDecisions.findFirst({
+    where: and(eq(melReviewDecisions.submissionId, submissionId), eq(melReviewDecisions.action, "returned")),
+    orderBy: [desc(melReviewDecisions.createdAt)],
+  });
+  if (!decision?.reason?.trim()) return null;
+  return {
+    stage: decision.stage,
+    reviewerRole: decision.reviewerRole,
+    reason: decision.reason.trim(),
+    affectedQuestions: decision.affectedQuestions ?? [],
+    createdAt: decision.createdAt,
+  };
 }
 
 async function canViewMelMonitoringReport(
@@ -521,6 +550,8 @@ export async function getMelMonitoringDetail(
           })
         : null;
 
+    const returnFeedback = await loadLatestReturnFeedback(submission.id, submission.status);
+
     return successResponse({
       actor,
       submission,
@@ -555,6 +586,7 @@ export async function getMelMonitoringDetail(
       } : null,
       financialVarianceThresholdPercent: Number(settings?.financialVarianceThresholdPercent ?? 100),
       approvalSummary,
+      returnFeedback,
     });
   } catch (error) {
     console.error("getMelMonitoringDetail", error);

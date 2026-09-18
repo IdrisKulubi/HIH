@@ -44,6 +44,7 @@ function testExtractApprovalPriorities() {
       publicPrivatePartnership: true,
       newProductsDeveloped: true,
       mainChallenges: "Access to finance and skilled labour",
+      collectorComment: "Visited enterprise; records are improving.",
     },
     skipQuestionCodes: ["business_plan_improved"],
     reviewerNote: "Focus on finance linkages next quarter.",
@@ -57,9 +58,11 @@ function testExtractApprovalPriorities() {
   assert.equal(mixed.reviewerNote, "Focus on finance linkages next quarter.");
   assert.equal(mixed.learningActions.length, 1);
   assert.equal(mixed.mainChallenges, "Access to finance and skilled labour");
+  assert.equal(mixed.collectorComment, "Visited enterprise; records are improving.");
 
   const summaryText = buildApprovalPrioritySummaryText(mixed);
   assert.ok(summaryText.includes("Enterprise challenges"));
+  assert.ok(summaryText.includes("Collector comment"));
   assert.ok(summaryText.includes("Priority for next quarter"));
   assert.ok(summaryText.includes("Reviewer note"));
   assert.ok(summaryText.includes("Open learning actions"));

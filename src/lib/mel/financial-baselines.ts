@@ -106,11 +106,18 @@ export type OwnBaselineProfitSummary = {
   medianProfitChange: number | null;
 };
 
-export function snapshotMonthlyProfit(snapshot: Record<string, unknown> | null | undefined): number | null {
+export function snapshotMonthlyField(
+  snapshot: Record<string, unknown> | null | undefined,
+  field: "revenue" | "costs" | "profit"
+): number | null {
   if (!snapshot) return null;
-  const raw = snapshot.profit;
+  const raw = snapshot[field];
   const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function snapshotMonthlyProfit(snapshot: Record<string, unknown> | null | undefined): number | null {
+  return snapshotMonthlyField(snapshot, "profit");
 }
 
 function medianChange(values: number[]): number | null {

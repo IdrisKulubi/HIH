@@ -40,6 +40,22 @@ export function NextQuarterPrioritiesPanel({ summary }: { summary: ApprovalPrior
         </ul>
       )}
 
+      {summary.mainChallenges ? (
+        <div className="mt-4 rounded-md border border-slate-200 bg-white/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+            Challenges facing the enterprise
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{summary.mainChallenges}</p>
+        </div>
+      ) : null}
+
+      {summary.collectorComment ? (
+        <div className="mt-4 rounded-md border border-slate-200 bg-white/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">EDO overall comment</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{summary.collectorComment}</p>
+        </div>
+      ) : null}
+
       {summary.reviewerNote ? (
         <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">Reviewer note</p>

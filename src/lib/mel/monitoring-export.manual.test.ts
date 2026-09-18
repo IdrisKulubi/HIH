@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { ApprovedMonitoringRecord } from "./indicator-engine";
-import { buildApprovedMonitoringExportRows } from "./monitoring-export";
+import { buildApprovedMonitoringExportRows, buildPeriodVsBaselineExportRows } from "./monitoring-export";
 
 function record(overrides: Partial<ApprovedMonitoringRecord> = {}): ApprovedMonitoringRecord {
   return {
@@ -45,7 +45,22 @@ assert.equal(rows.length, 1);
 assert.equal(rows[0].Enterprise, "Acme Foods");
 assert.equal(rows[0].Period, "Y1 Q1");
 assert.equal(rows[0].Monthly_Profit_KES, 10000);
-assert.equal(rows[0].Baseline_Monthly_Profit_KES, 5000);
+assert.equal(rows[0].Own_Baseline_Monthly_Profit_KES, 5000);
+assert.equal(rows[0].Own_Baseline_Quarterly_Profit_KES, 15000);
+assert.equal(rows[0].Own_Baseline_Monthly_Revenue_KES, 8000);
 assert.equal(rows[0].Profit_Change_Vs_Own_Baseline_KES, 5000);
+assert.equal(rows[0].Track_ITT_Baseline_Monthly_Profit_KES, 50000);
 assert.equal(rows[0].Vs_Own_Baseline, "at_or_above");
+
+const periodRows = buildPeriodVsBaselineExportRows(
+  [record(), record({ submissionId: 12, businessId: 23, profitLoss: 9_000, financialBaselineSnapshot: { revenue: 20000, costs: 5000, profit: 15000 } })],
+  [{ id: 3, label: "Y1 Q1", programmeYear: 1, sequence: 1 }]
+);
+const foundationOverall = periodRows.find((row) => row.Track === "foundation");
+assert.ok(foundationOverall);
+assert.equal(foundationOverall.ITT_Baseline_Monthly_Profit_KES, 50000);
+assert.equal(foundationOverall.Cohort_Own_Baseline_Median_Profit_KES, 10000);
+assert.equal(foundationOverall.Enterprises, 2);
+assert.equal(foundationOverall.Enterprises_At_Or_Above_Own_Baseline, 1);
+assert.equal(foundationOverall.Enterprises_Below_Own_Baseline, 1);
 console.log("MEL approved monitoring export tests passed");

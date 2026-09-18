@@ -172,11 +172,14 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 id="approved-reports-export-heading" className="text-base font-semibold text-slate-900">Approved reports dataset</h2>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">Download every approved monitoring report through {data.selectedPeriod.label}, matching the filters above. The file includes questionnaire answers, monthly equivalents, own-baseline profit comparison, jobs, waste, and narrative fields. Excel also adds Jobs and Evidence sheets.</p>
+            <p className="mt-1 max-w-3xl text-sm text-slate-600">Excel opens on <span className="font-medium text-slate-800">Period vs baseline</span>: each quarter&apos;s overall monthly revenue, costs, and profit against both the ITT track baseline and the cohort&apos;s own imported baselines. The Approved reports sheet then lists every enterprise with those baseline values beside the period figures. CSV is the enterprise sheet; use Period vs baseline CSV for the overall comparison.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" asChild>
-              <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=full&format=csv&${exportQuery}`}><DownloadSimple className="size-4" />CSV</a>
+              <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=full&format=csv&${exportQuery}`}><DownloadSimple className="size-4" />Enterprise CSV</a>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=period-baseline&format=csv&${exportQuery}`}><DownloadSimple className="size-4" />Period vs baseline CSV</a>
             </Button>
             <Button size="sm" className="bg-brand-blue hover:bg-brand-blue-dark" asChild>
               <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=full&format=xlsx&${exportQuery}`}><DownloadSimple className="size-4" />Excel workbook</a>

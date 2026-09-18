@@ -19,6 +19,7 @@ import { isCollectorEditableStatus } from "@/lib/mel/review-workflow";
 import { calculateFinancialComparison } from "@/lib/mel/financial-baselines";
 import { MonitoringEvidenceSummary, QuestionEvidence } from "./MonitoringEvidence";
 import { ApprovedReportBanner, LockedReportBanner } from "./ApprovedReportBanner";
+import { ReturnForCorrectionBanner } from "./ReturnForCorrectionBanner";
 import { NextQuarterPrioritiesPanel } from "./NextQuarterPrioritiesPanel";
 import { ActionMessage } from "@/components/admin/mel/ActionMessage";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,10 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
   const [state, action, pending] = useActionState(saveMelMonitoringAction, null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
-  const locked = !isCollectorEditableStatus(detail.submission.status);
+  const canEdit =
+    isCollectorEditableStatus(detail.submission.status) &&
+    (detail.actor.canAccessAllEnterprises || detail.submission.collectorId === detail.actor.id);
+  const locked = !canEdit;
   const isApproved = detail.submission.status === "approved";
   const evidenceOptional = isMelEvidenceOptionalForSubmission(
     detail.period,
@@ -156,6 +160,8 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
       {isApproved && detail.approvalSummary ? (
         <NextQuarterPrioritiesPanel summary={detail.approvalSummary} />
       ) : null}
+
+      {detail.returnFeedback ? <ReturnForCorrectionBanner feedback={detail.returnFeedback} /> : null}
 
       <fieldset disabled={locked} className="space-y-6">
         <FormSection number="0" title={MONITORING_SECTIONS["0"]}>

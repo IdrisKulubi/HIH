@@ -7,10 +7,10 @@ import { requireMelViewer } from "@/lib/mel/access";
 import { buildMelReportingDataset, type MelDashboardFilters } from "@/lib/mel/reporting-data";
 import { getMelGisData } from "@/lib/actions/mel-reporting";
 import { sanitizeExportRows } from "@/lib/mel/import-engine";
-import { buildApprovedMonitoringExportRows } from "@/lib/mel/monitoring-export";
+import { buildApprovedMonitoringExportRows, buildPeriodVsBaselineExportRows, DEFAULT_TRACK_MONTHLY_BASELINES, type TrackMonthlyBaselines } from "@/lib/mel/monitoring-export";
 import { enforceMelRateLimit, recordMelOperationalEvent, requireMelRolloutFeature } from "@/lib/mel/operations";
 
-const TYPES = ["itt", "monitoring", "jobs", "evidence", "quality", "programme", "gis", "full"] as const;
+const TYPES = ["itt", "monitoring", "jobs", "evidence", "quality", "programme", "gis", "full", "period-baseline"] as const;
 type ExportType = typeof TYPES[number];
 
 export async function GET(request: Request) {
@@ -39,8 +39,10 @@ export async function GET(request: Request) {
     };
     const fileBase = `mel-${type}-${exportedAt.toISOString().slice(0, 10)}`;
     if (format === "xlsx" && type === "full" && dataset) {
+      const trackBaselines = trackBaselinesFrom(dataset);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sanitizeExportRows(buildApprovedMonitoringExportRows(dataset.approvedRecords, dataset.periods)) as Array<Record<string, string | number | boolean | null>>), "Approved reports");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sanitizeExportRows(buildPeriodVsBaselineExportRows(dataset.approvedRecords, dataset.periods, trackBaselines)) as Array<Record<string, string | number | boolean | null>>), "Period vs baseline");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sanitizeExportRows(buildApprovedMonitoringExportRows(dataset.approvedRecords, dataset.periods, trackBaselines)) as Array<Record<string, string | number | boolean | null>>), "Approved reports");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sanitizeExportRows(jobExportRows(dataset.approvedRecords)) as Array<Record<string, string | number | boolean | null>>), "Jobs");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(sanitizeExportRows(await evidenceExportRows(dataset.approvedRecords)) as Array<Record<string, string | number | boolean | null>>), "Evidence index");
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(Object.entries(metadata).map(([Field, Value]) => ({ Field, Value }))), "Export metadata");
@@ -83,7 +85,8 @@ async function exportRows(type: ExportType, dataset: Awaited<ReturnType<typeof b
   }
   if (!dataset) return [];
   if (type === "itt") return dataset.ittRows.map((row) => ({ Result_Code: row.resultCode, Indicator_Code: row.code, Indicator: row.name, Result_Level: row.resultLevel, Unit: row.unit, Baseline: row.baseline, Target: row.target, Actual: row.calculation.actual, Numerator: row.calculation.numerator, Denominator: row.calculation.denominator, Denominator_Basis: row.calculation.denominatorBasis, Achievement_Percentage: row.calculation.achievementPercentage, Traffic_Light: row.calculation.trafficLight, Source_Count: row.calculation.sourceCount, Indicator_Version: row.indicatorVersion, Calculation_Rule: row.calculation.calculationRule }));
-  if (type === "monitoring" || type === "full") return buildApprovedMonitoringExportRows(dataset.approvedRecords, dataset.periods);
+  if (type === "monitoring" || type === "full") return buildApprovedMonitoringExportRows(dataset.approvedRecords, dataset.periods, trackBaselinesFrom(dataset));
+  if (type === "period-baseline") return buildPeriodVsBaselineExportRows(dataset.approvedRecords, dataset.periods, trackBaselinesFrom(dataset));
   if (type === "jobs") return jobExportRows(dataset.approvedRecords);
   if (type === "quality") return [{ Expected_Reports: dataset.quality.expectedReports, Approved_Reports: dataset.quality.approvedReports, Late_Or_Catch_Up: dataset.quality.lateOrCatchUp, Returned_Reports: dataset.quality.returnedReports, Open_DQA_Issues: dataset.quality.unresolvedDqaIssues, Active_Evidence: dataset.quality.activeEvidence, Verified_Evidence: dataset.quality.verifiedEvidence, Enterprises_Without_Verified_GPS: dataset.quality.enterprisesWithoutVerifiedGps }];
   if (type === "programme") {
@@ -130,8 +133,21 @@ async function recordExport(
   });
 }
 
+function trackBaselinesFrom(dataset: NonNullable<Awaited<ReturnType<typeof buildMelReportingDataset>>>): TrackMonthlyBaselines {
+  const baselines: TrackMonthlyBaselines = {
+    foundation: { ...DEFAULT_TRACK_MONTHLY_BASELINES.foundation },
+    acceleration: { ...DEFAULT_TRACK_MONTHLY_BASELINES.acceleration },
+  };
+  for (const row of dataset.financialPerformance) {
+    if ((row.track === "foundation" || row.track === "acceleration") && row.baseline) {
+      baselines[row.track] = row.baseline;
+    }
+  }
+  return baselines;
+}
+
 function jobColumns(job: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number }) { return { Total: job.total, Male: job.male, Female: job.female, Youth: job.youth, PLWD: job.plwd, Refugee: job.refugee }; }
 function positiveNumber(value: string | null) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
 function filterSummary(filters: MelDashboardFilters) { return [`period=${filters.periodId ?? "latest"}`, `track=${filters.track ?? "all"}`, `county=${filters.county ?? "all"}`, `sector=${filters.sector ?? "all"}`, `ownerGender=${filters.ownerGender ?? "all"}`].join("; "); }
-function sheetName(type: ExportType) { return ({ itt: "ITT", monitoring: "Approved reports", jobs: "Jobs", evidence: "Evidence index", quality: "Data quality", programme: "Programme results", gis: "Protected GIS", full: "Approved reports" })[type]; }
+function sheetName(type: ExportType) { return ({ itt: "ITT", monitoring: "Approved reports", jobs: "Jobs", evidence: "Evidence index", quality: "Data quality", programme: "Programme results", gis: "Protected GIS", full: "Approved reports", "period-baseline": "Period vs baseline" })[type]; }
 function downloadHeaders(fileName: string, contentType: string) { return { "Content-Type": contentType, "Content-Disposition": `attachment; filename="${fileName}"`, "Cache-Control": "no-store" }; }

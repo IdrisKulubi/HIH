@@ -22,6 +22,7 @@ export type ApprovalPrioritySummary = {
   learningActions: ApprovalLearningActionItem[];
   reviewerNote?: string;
   mainChallenges?: string;
+  collectorComment?: string;
 };
 
 type MonitoringResponseLike = Record<string, unknown> | null | undefined;
@@ -62,12 +63,17 @@ export function extractApprovalPriorities(input: {
     typeof input.response?.mainChallenges === "string"
       ? input.response.mainChallenges.trim() || undefined
       : undefined;
+  const collectorComment =
+    typeof input.response?.collectorComment === "string"
+      ? input.response.collectorComment.trim() || undefined
+      : undefined;
 
   return {
     priorities,
     learningActions: input.learningActions ?? [],
     reviewerNote: input.reviewerNote?.trim() || undefined,
     mainChallenges,
+    collectorComment,
   };
 }
 
@@ -88,6 +94,10 @@ export function buildApprovalPrioritySummaryText(summary: ApprovalPrioritySummar
 
   if (summary.mainChallenges) {
     lines.push(`Enterprise challenges: ${summary.mainChallenges}`);
+  }
+
+  if (summary.collectorComment) {
+    lines.push(`Collector comment: ${summary.collectorComment}`);
   }
 
   if (summary.reviewerNote) {

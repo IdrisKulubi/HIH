@@ -47,7 +47,10 @@ import {
   ONE_TIME_QUESTION_BY_INDICATOR,
   type MonitoringQuestionCode,
 } from "@/lib/mel/monitoring-question-catalog";
-import { dispatchMelReportApprovedEmail } from "@/lib/mel/notifications/dispatch-report-approved";
+import {
+  dispatchMelReportApprovedEmail,
+  resolveEnterpriseMonitoringRecipientIds,
+} from "@/lib/mel/notifications/dispatch-report-approved";
 
 export type MelReviewQueueRow = {
   submissionId: number;
@@ -908,6 +911,11 @@ export async function decideMelReviewAction(
     let approvedNotificationBody =
       reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`;
 
+    const shouldNotifyCollectors = ["returned", "approved", "reopened"].includes(transition.action);
+    const notificationRecipientIds = shouldNotifyCollectors
+      ? await resolveEnterpriseMonitoringRecipientIds(submission.collectorId, submission.businessId)
+      : [];
+
     await db.transaction(async (tx) => {
       await tx
         .insert(melMonitoringVersions)
@@ -1027,22 +1035,25 @@ export async function decideMelReviewAction(
         approvedNotificationBody = buildApprovalPrioritySummaryText(approvalSummary);
       }
 
-      await tx
-        .insert(melNotificationOutbox)
-        .values({
-          eventKey: `mel-review:${submissionId}:${submission.submissionVersion}:${transition.action}`,
-          recipientId: ["returned", "approved", "reopened"].includes(transition.action)
-            ? submission.collectorId
-            : null,
-          eventType: `report_${transition.action}`,
-          title: reviewNotificationTitle(transition.action),
-          body:
-            transition.nextStatus === "approved" && transition.action === "approved"
-              ? approvedNotificationBody
-              : reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`,
-          href: `/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`,
-        })
-        .onConflictDoNothing();
+      if (notificationRecipientIds.length > 0) {
+        const notificationBody =
+          transition.nextStatus === "approved" && transition.action === "approved"
+            ? approvedNotificationBody
+            : reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`;
+        for (const recipientId of notificationRecipientIds) {
+          await tx
+            .insert(melNotificationOutbox)
+            .values({
+              eventKey: `mel-review:${submissionId}:${submission.submissionVersion}:${transition.action}:${recipientId}`,
+              recipientId,
+              eventType: `report_${transition.action}`,
+              title: reviewNotificationTitle(transition.action),
+              body: notificationBody,
+              href: `/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`,
+            })
+            .onConflictDoNothing();
+        }
+      }
     });
 
     if (transition.nextStatus === "approved" && transition.action === "approved") {

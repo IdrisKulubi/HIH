@@ -24,6 +24,7 @@ export interface MelReportApprovedEmailProps {
   learningActions: ApprovalLearningActionItem[];
   reviewerNote?: string;
   mainChallenges?: string;
+  collectorComment?: string;
 }
 
 export const MelReportApprovedEmail = ({
@@ -36,6 +37,7 @@ export const MelReportApprovedEmail = ({
   learningActions = [],
   reviewerNote,
   mainChallenges,
+  collectorComment,
 }: MelReportApprovedEmailProps) => {
   const groupedPriorities = groupApprovalPrioritiesBySection(priorities);
   const preview =
@@ -100,6 +102,15 @@ export const MelReportApprovedEmail = ({
                   Challenges facing the enterprise
                 </Text>
                 <Text className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{mainChallenges}</Text>
+              </Section>
+            ) : null}
+
+            {collectorComment ? (
+              <Section className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-5">
+                <Text className="text-[12px] uppercase font-bold text-slate-500 tracking-wider m-0 mb-3">
+                  EDO overall comment
+                </Text>
+                <Text className="text-sm text-slate-700 m-0 whitespace-pre-wrap">{collectorComment}</Text>
               </Section>
             ) : null}
 
@@ -221,4 +232,5 @@ MelReportApprovedEmail.PreviewProps = {
   reviewerNote: "Prioritize finance linkages and market research in the next quarter.",
   mainChallenges:
     "Access to working capital and reliable inputs. Market access remains limited outside Nairobi county.",
+  collectorComment: "Enterprise continues to trade steadily; follow up on finance linkages next visit.",
 };
