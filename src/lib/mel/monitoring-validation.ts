@@ -131,7 +131,9 @@ export function normalizeMonitoringDraft(
   const directNonQualityJobs =
     normalizeJobRow(input.directNonQualityJobs, includeRefugee) ??
     (input.directNonQualityJobs.total === null ? EMPTY_JOB_BREAKDOWN : null);
-  const indirectJobs = normalizeJobRow(input.indirectJobs, includeRefugee);
+  const indirectJobs =
+    normalizeJobRow(input.indirectJobs, includeRefugee) ??
+    (input.indirectJobs.total === null ? EMPTY_JOB_BREAKDOWN : null);
   return {
     ...input,
     directQualityJobs: directQualityJobs ? jobRowFromBreakdown(directQualityJobs) : input.directQualityJobs,
@@ -223,7 +225,7 @@ export function monitoringSubmissionIssues(
   for (const [label, row, optional] of [
     ["Direct jobs (quality)", input.directQualityJobs, false],
     ["Direct jobs (non-quality)", input.directNonQualityJobs, true],
-    ["Indirect jobs", input.indirectJobs, false],
+    ["Indirect jobs", input.indirectJobs, true],
   ] as const) {
     if (optional && row.total === null) continue;
     const normalized = normalizeJobRow(row, includeRefugee);

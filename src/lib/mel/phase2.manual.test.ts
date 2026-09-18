@@ -5,9 +5,11 @@ import {
   jobBreakdownIssues,
   quarterlyToMonthlyEquivalent,
 } from "./monitoring-calculations";
+import { resolveSatisfiedOneTimeQuestionCodes } from "./monitoring-question-catalog";
 import {
   melMonitoringDraftSchema,
   monitoringSubmissionIssues,
+  normalizeMonitoringDraft,
   type MelMonitoringDraft,
 } from "./monitoring-validation";
 
@@ -252,5 +254,50 @@ testJobValidation();
 testSubmissionValidation();
 testZeroJobsValidation();
 testOptionalEvidenceForY1Mq1();
+
+function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
+  const valid = completeDraft();
+  const missingIndirect = normalizeMonitoringDraft(
+    {
+      ...valid,
+      indirectJobs: { total: null, male: null, female: null, youth: null, plwd: null, refugee: null },
+    },
+    false
+  );
+  assert.equal(missingIndirect.indirectJobs.total, 0);
+  assert.deepEqual(
+    monitoringSubmissionIssues(missingIndirect, new Set(), new Set(), false, false, false, "Y1-MQ2"),
+    [],
+    "Unset indirect jobs should default to zero"
+  );
+
+  const withTechnology = {
+    ...valid,
+    technologyAdopted: true,
+    technologyDetails: "Waste sorting equipment",
+  };
+  const satisfied = new Set(
+    resolveSatisfiedOneTimeQuestionCodes({
+      approvedIndicatorCodes: [],
+      priorVerifiedEvidenceQuestionCodes: [],
+      priorApprovedResponses: [{ technologyAdopted: true }],
+    })
+  );
+  const issues = monitoringSubmissionIssues(
+    withTechnology,
+    new Set(),
+    satisfied,
+    false,
+    false,
+    false,
+    "Y1-MQ2"
+  );
+  assert.ok(
+    !issues.some((issue) => issue.includes("technology adopted")),
+    "One-time achievements from prior approved reports should not require new evidence"
+  );
+}
+
+testIndirectDefaultAndPriorOneTimeEvidenceSkip();
 
 console.log("MEL Phase 2 tests passed.");

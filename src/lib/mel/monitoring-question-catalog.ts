@@ -184,6 +184,39 @@ export const ONE_TIME_QUESTION_BY_INDICATOR = Object.fromEntries(
 ) as Record<string, MonitoringQuestionCode>;
 
 /** One-time questions hidden because they were approved or satisfied in a prior quarter. */
+/** One-time questions already answered Yes on a prior approved monitoring report. */
+export function oneTimeQuestionCodesFromPriorApprovedResponses(
+  responses: ReadonlyArray<Record<string, unknown> | null | undefined>
+): MonitoringQuestionCode[] {
+  const satisfied = new Set<MonitoringQuestionCode>();
+  for (const response of responses) {
+    if (!response) continue;
+    for (const [code, question] of Object.entries(MONITORING_QUESTIONS)) {
+      if (!question.oneTime || !question.field) continue;
+      if (response[question.field] === true) {
+        satisfied.add(code as MonitoringQuestionCode);
+      }
+    }
+  }
+  return [...satisfied];
+}
+
+export function resolveSatisfiedOneTimeQuestionCodes(input: {
+  approvedIndicatorCodes: ReadonlyArray<string>;
+  priorVerifiedEvidenceQuestionCodes: ReadonlyArray<string>;
+  priorApprovedResponses: ReadonlyArray<Record<string, unknown> | null | undefined>;
+}): MonitoringQuestionCode[] {
+  return [
+    ...new Set([
+      ...hiddenOneTimeQuestionCodes(
+        input.approvedIndicatorCodes,
+        input.priorVerifiedEvidenceQuestionCodes
+      ),
+      ...oneTimeQuestionCodesFromPriorApprovedResponses(input.priorApprovedResponses),
+    ]),
+  ];
+}
+
 export function hiddenOneTimeQuestionCodes(
   approvedIndicatorCodes: ReadonlyArray<string>,
   priorVerifiedEvidenceQuestionCodes: ReadonlyArray<string>

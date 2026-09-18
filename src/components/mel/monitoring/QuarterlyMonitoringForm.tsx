@@ -509,7 +509,7 @@ function JobFields({
   includeRefugee: boolean;
   onTotalChange: (value: string) => void;
 }) {
-  const [total, setTotal] = useState(String(row?.quarterlyTotal ?? ""));
+  const [total, setTotal] = useState(String(row?.quarterlyTotal ?? "0"));
   const zeroTotal = total === "0";
   const dimensions = [
     ["Male", "Male", row?.male],

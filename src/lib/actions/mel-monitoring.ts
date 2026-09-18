@@ -44,7 +44,7 @@ import {
   WASTE_STREAMS,
 } from "@/lib/mel/monitoring-validation";
 import {
-  hiddenOneTimeQuestionCodes,
+  resolveSatisfiedOneTimeQuestionCodes,
   MONITORING_QUESTIONS,
   ONE_TIME_QUESTION_BY_INDICATOR,
   type MonitoringQuestionCode,
@@ -564,10 +564,11 @@ export async function getMelMonitoringDetail(
       reusableEvidence,
       period,
       profile: stableProfile,
-      approvedOneTimeCodes: hiddenOneTimeQuestionCodes(
-        approvedAchievements.map(({ code }) => code),
-        reusableEvidence.map((item) => item.questionCode)
-      ),
+      approvedOneTimeCodes: resolveSatisfiedOneTimeQuestionCodes({
+        approvedIndicatorCodes: approvedAchievements.map(({ code }) => code),
+        priorVerifiedEvidenceQuestionCodes: reusableEvidence.map((item) => item.questionCode),
+        priorApprovedResponses: eligiblePriorSubmissions.map((item) => item.response),
+      }),
       cumulativeJobs: {
         directQuality:
           cumulativeRows.find((row) => row.jobType === MEL_JOB_TYPE.directQuality) ??
@@ -696,10 +697,11 @@ export async function saveMelMonitoringAction(
       .from(melIndicatorDefinitions)
       .where(inArray(melIndicatorDefinitions.code, Object.keys(ONE_TIME_QUESTION_BY_INDICATOR)));
     const approvedCodes = new Set(
-      hiddenOneTimeQuestionCodes(
-        approvedAchievements.map(({ code }) => code),
-        priorVerifiedOneTimeQuestionCodes
-      )
+      resolveSatisfiedOneTimeQuestionCodes({
+        approvedIndicatorCodes: approvedAchievements.map(({ code }) => code),
+        priorVerifiedEvidenceQuestionCodes,
+        priorApprovedResponses: eligiblePriorSubmissions.map((item) => item.response),
+      })
     );
 
     input = normalizeMonitoringDraft(
