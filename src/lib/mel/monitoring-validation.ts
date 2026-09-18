@@ -231,7 +231,14 @@ export function monitoringSubmissionIssues(
     if (optional && row.total === null) continue;
     const normalized = normalizeJobRow(row, includeRefugee);
     if (!normalized) {
-      issues.push(`${label} breakdown is required`);
+      const missing = missingJobBreakdownDimensions(row, includeRefugee);
+      if (missing.length > 0 && (row.total ?? 0) > 0) {
+        issues.push(
+          `${label}: enter ${missing.join(", ")} (use 0 if none — every box is required when total is greater than 0)`
+        );
+      } else {
+        issues.push(`${label} breakdown is required`);
+      }
       continue;
     }
     issues.push(...jobBreakdownIssues(label, normalized));
@@ -280,6 +287,17 @@ export function monitoringSubmissionIssues(
   return [...new Set(issues)];
 }
 
+function missingJobBreakdownDimensions(row: JobRowInput, includeRefugee: boolean): string[] {
+  if (row.total === null || row.total <= 0) return [];
+  const missing: string[] = [];
+  if (row.male === null) missing.push("male");
+  if (row.female === null) missing.push("female");
+  if (row.youth === null) missing.push("youth");
+  if (row.plwd === null) missing.push("PLWD");
+  if (includeRefugee && row.refugee === null) missing.push("refugee");
+  return missing;
+}
+
 function jobFieldsFromForm(formData: FormData, prefix: string, defaultZeroWhenEmpty: boolean) {
   const get = (name: string) => formData.get(name);
   const total = get(`${prefix}Total`);
@@ -287,13 +305,21 @@ function jobFieldsFromForm(formData: FormData, prefix: string, defaultZeroWhenEm
   if (defaultZeroWhenEmpty && isEmptyTotal) {
     return { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 };
   }
+  const totalNumber = isEmptyTotal ? null : Number(total);
+  const dimension = (suffix: string) => {
+    const raw = get(`${prefix}${suffix}`);
+    if (raw === null || raw === undefined || raw === "") {
+      return totalNumber !== null && Number.isFinite(totalNumber) && totalNumber > 0 ? 0 : raw;
+    }
+    return raw;
+  };
   return {
     total,
-    male: get(`${prefix}Male`),
-    female: get(`${prefix}Female`),
-    youth: get(`${prefix}Youth`),
-    plwd: get(`${prefix}Plwd`),
-    refugee: get(`${prefix}Refugee`),
+    male: dimension("Male"),
+    female: dimension("Female"),
+    youth: dimension("Youth"),
+    plwd: dimension("Plwd"),
+    refugee: dimension("Refugee"),
   };
 }
 

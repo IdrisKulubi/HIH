@@ -196,10 +196,23 @@ function testZeroJobsValidation() {
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   assert.ok(
-    monitoringSubmissionIssues(incompleteJobs, new Set(["jobs"]), new Set(), false, false).some((issue) =>
-      issue.includes("Direct jobs (quality) breakdown is required")
+    monitoringSubmissionIssues(incompleteJobs, new Set(["jobs"]), new Set(), false, false).some(
+      (issue) =>
+        issue.includes("Direct jobs (quality)") &&
+        (issue.includes("breakdown is required") || issue.includes("enter male"))
     ),
     "Incomplete breakdown is still required when total is greater than 0"
+  );
+
+  const indirectGenderMismatch = {
+    ...valid,
+    indirectJobs: { total: 14, male: 9, female: 0, youth: 11, plwd: 0, refugee: 0 },
+  };
+  assert.ok(
+    monitoringSubmissionIssues(indirectGenderMismatch, new Set(), new Set(), false, false).some((issue) =>
+      issue.includes("male and female jobs must equal the total")
+    ),
+    "Indirect male and female must sum to the job total"
   );
 }
 

@@ -193,7 +193,11 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
           <ProfitFields detail={detail} locked={locked} evidenceOptional={evidenceOptional} />
         </FormSection>
 
-        <FormSection number="D" title={MONITORING_SECTIONS.D} help="Youth, PLWD and refugee figures may overlap with male and female totals. Enter 0 in Total when no new jobs were created this quarter.">
+        <FormSection
+          number="D"
+          title={MONITORING_SECTIONS.D}
+          help="Male plus female must equal the job total for each row. Youth, PLWD and refugee may overlap with male and female (they are not added on top). Enter 0 in any box where none apply. Enter 0 in Total when no new jobs were created this quarter."
+        >
           <JobsSection
             detail={detail}
             directQuality={directQuality}
@@ -558,7 +562,7 @@ function JobFields({
                 type="number"
                 min="0"
                 step="1"
-                value={value ?? ""}
+                value={value === null || value === undefined ? "0" : value}
               />
             ))}
       </div>
