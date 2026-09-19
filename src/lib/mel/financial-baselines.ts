@@ -120,6 +120,25 @@ export function snapshotMonthlyProfit(snapshot: Record<string, unknown> | null |
   return snapshotMonthlyField(snapshot, "profit");
 }
 
+function isAbsentFinancialValue(value: number | null | undefined): boolean {
+  return value === null || value === undefined || !Number.isFinite(value) || value === 0;
+}
+
+/** True when the enterprise reported at least one non-zero revenue, cost, or profit figure. */
+export function hasReportedFinancialActivity(input: {
+  revenue: number | null;
+  costs: number | null;
+  profitLoss?: number | null;
+}): boolean {
+  return !isAbsentFinancialValue(input.revenue)
+    || !isAbsentFinancialValue(input.costs)
+    || !isAbsentFinancialValue(input.profitLoss);
+}
+
+export function withReportedFinancialActivity<T extends { revenue: number | null; costs: number | null; profitLoss: number | null }>(records: T[]): T[] {
+  return records.filter(hasReportedFinancialActivity);
+}
+
 function medianChange(values: number[]): number | null {
   const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (valid.length === 0) return null;

@@ -134,13 +134,11 @@ async function recordExport(
 }
 
 function trackBaselinesFrom(dataset: NonNullable<Awaited<ReturnType<typeof buildMelReportingDataset>>>): TrackMonthlyBaselines {
-  const baselines: TrackMonthlyBaselines = {
-    foundation: { ...DEFAULT_TRACK_MONTHLY_BASELINES.foundation },
-    acceleration: { ...DEFAULT_TRACK_MONTHLY_BASELINES.acceleration },
-  };
+  const baselines: TrackMonthlyBaselines = { ...DEFAULT_TRACK_MONTHLY_BASELINES };
   for (const row of dataset.financialPerformance) {
-    if ((row.track === "foundation" || row.track === "acceleration") && row.baseline) {
-      baselines[row.track] = row.baseline;
+    if ((row.track === "foundation" || row.track === "acceleration" || row.track === "all") && row.baseline) {
+      const key = row.track === "all" ? "overall" : row.track;
+      baselines[key] = row.baseline;
     }
   }
   return baselines;

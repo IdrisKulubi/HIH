@@ -6,6 +6,7 @@ import {
   normalizeEnterpriseName,
   summarizeOwnBaselineProfitability,
   compareMonthlyProfitToOwnBaseline,
+  hasReportedFinancialActivity,
 } from "./financial-baselines";
 
 function tests() {
@@ -63,6 +64,10 @@ function tests() {
   assert.equal(pairwise.monthlyProfit, 15000);
   assert.equal(pairwise.profitChangeVsOwnBaseline, 7000);
   assert.equal(pairwise.vsOwnBaseline, "at_or_above");
+
+  assert.equal(hasReportedFinancialActivity({ revenue: 0, costs: 0, profitLoss: 0 }), false);
+  assert.equal(hasReportedFinancialActivity({ revenue: null, costs: null, profitLoss: null }), false);
+  assert.equal(hasReportedFinancialActivity({ revenue: 100, costs: 100, profitLoss: 0 }), true);
 }
 
 tests();

@@ -1452,10 +1452,12 @@ export const melProgrammeSettings = pgTable(
       .$type<{
         foundation: { revenue: number; costs: number; profit: number };
         acceleration: { revenue: number; costs: number; profit: number };
+        overall: { revenue: number; costs: number; profit: number };
       }>()
       .default({
         foundation: { revenue: 200000, costs: 124221, profit: 50000 },
         acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+        overall: { revenue: 300000, costs: 202530, profit: 66100 },
       })
       .notNull(),
     includeRefugeeDisaggregation: boolean('include_refugee_disaggregation').default(false).notNull(),

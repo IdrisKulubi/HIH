@@ -1,7 +1,12 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { MelFinancialMeasureTrend, MelFinancialMeasureTrendTrack } from "@/lib/mel/reporting-data";
+import type {
+  MelFinancialDemographic,
+  MelFinancialMeasureTrend,
+  MelFinancialMeasureTrendTrack,
+} from "@/lib/mel/reporting-data";
 
 const MEASURES = [
   { key: "revenue" as const, label: "Monthly Revenue" },
@@ -11,33 +16,81 @@ const MEASURES = [
 
 const SERIES_COLORS = ["#2563eb", "#ea580c", "#16a34a", "#9333ea", "#dc2626", "#0891b2", "#ca8a04"];
 
+const DEMOGRAPHICS: Array<{ key: MelFinancialDemographic; label: string }> = [
+  { key: "all", label: "All owners" },
+  { key: "male", label: "Male" },
+  { key: "female", label: "Female" },
+  { key: "youth", label: "Youth" },
+];
+
 type Props = {
   trend: MelFinancialMeasureTrend;
   selectedTrack: string | null;
+  selectedDemographic?: string | null;
 };
 
-export function ProfitabilityMeasureChart({ trend, selectedTrack }: Props) {
-  const tracks = trend.tracks.filter((item) => !selectedTrack || item.track === selectedTrack);
+function toDemographic(value: string | null | undefined): MelFinancialDemographic {
+  if (value === "male" || value === "female" || value === "youth") return value;
+  return "all";
+}
+
+export function ProfitabilityMeasureChart({ trend, selectedTrack, selectedDemographic }: Props) {
+  const [demographic, setDemographic] = useState<MelFinancialDemographic>(() => toDemographic(selectedDemographic));
+  const tracks = trend.tracks.filter((item) => {
+    if (!selectedTrack) return true;
+    return item.track === selectedTrack;
+  });
   if (tracks.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-600">
-        Select Foundation or Acceleration to view the profitability measure chart.
+        No track baselines are available for this filter.
       </p>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {tracks.map((track) => (
-        <TrackProfitabilityPanel key={track.track} track={track} />
-      ))}
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Period performance by owner gender">
+        {DEMOGRAPHICS.map((item) => {
+          const active = demographic === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setDemographic(item.key)}
+              className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                active
+                  ? "border-brand-blue bg-brand-blue text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:border-brand-blue/40 hover:bg-blue-50"
+              }`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="space-y-8">
+        {tracks.map((track) => (
+          <TrackProfitabilityPanel key={track.track} track={track} demographic={demographic} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function TrackProfitabilityPanel({ track }: { track: MelFinancialMeasureTrendTrack }) {
-  const periodsWithData = track.periods.filter(
-    (period) => period.revenue !== null || period.costs !== null || period.profit !== null
+function TrackProfitabilityPanel({
+  track,
+  demographic,
+}: {
+  track: MelFinancialMeasureTrendTrack;
+  demographic: MelFinancialDemographic;
+}) {
+  const periods = track.demographics[demographic];
+  const periodsWithData = useMemo(
+    () => periods.filter((period) => period.revenue !== null || period.costs !== null || period.profit !== null),
+    [periods]
   );
   const tableRows = [
     { period: "Baseline", revenue: track.baseline.revenue, costs: track.baseline.costs, profit: track.baseline.profit },
@@ -60,15 +113,17 @@ function TrackProfitabilityPanel({ track }: { track: MelFinancialMeasureTrendTra
   });
 
   const hasChartData = periodsWithData.length > 0;
+  const trackLabel = track.track === "all" ? "Overall" : track.track === "acceleration" ? "Accelerator" : "Foundation";
+  const demographicLabel = DEMOGRAPHICS.find((item) => item.key === demographic)?.label ?? "All owners";
 
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby={`profitability-measure-${track.track}`}>
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
-        <h3 id={`profitability-measure-${track.track}`} className="text-base font-semibold capitalize text-slate-900">
-          {track.track} · All median values
+        <h3 id={`profitability-measure-${track.track}`} className="text-base font-semibold text-slate-900">
+          {trackLabel} · All median values
         </h3>
         <p className="mt-0.5 text-sm text-slate-600">
-          Monthly medians from approved reports in each quarter, compared with the programme ITT baseline for this track.
+          {demographicLabel}: monthly medians from approved reports in each quarter, compared with the programme ITT baseline.
         </p>
       </div>
       <div className="grid gap-6 p-4 sm:p-5 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)] xl:items-start">
@@ -98,10 +153,10 @@ function TrackProfitabilityPanel({ track }: { track: MelFinancialMeasureTrendTra
           <h4 className="text-sm font-semibold text-slate-800">Profitability trend over time</h4>
           {!hasChartData ? (
             <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-12 text-center text-sm text-slate-600">
-              No approved quarterly medians yet. The baseline row is shown; period lines appear when monitoring data is approved.
+              No approved quarterly medians yet for this track and owner group. The baseline row is shown; period lines appear when monitoring data is approved.
             </p>
           ) : (
-            <div className="mt-4 h-80 w-full" role="img" aria-label={`${track.track} profitability trend by revenue, costs, and profit`}>
+            <div className="mt-4 h-80 w-full" role="img" aria-label={`${trackLabel} ${demographicLabel} profitability trend by revenue, costs, and profit`}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

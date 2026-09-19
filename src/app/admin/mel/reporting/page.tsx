@@ -141,7 +141,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
           <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. <span className="font-medium text-slate-800">vs ITT baseline</span> compares the cohort median with the programme track bar. <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
+          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. <span className="font-medium text-slate-800">vs ITT baseline</span> compares the cohort median with the programme track bar, including Overall (all tracks). <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
         </div>
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="w-full min-w-[1080px] text-left text-sm">
@@ -160,7 +160,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <tbody className="divide-y divide-slate-100">
               {data.financialPerformance.map((track) => (
                 <tr key={track.track} className={track.track === "all" ? "bg-slate-50/80" : undefined}>
-                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "All tracks" : track.track}</td>
+                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "Overall" : track.track}</td>
                   <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
                   <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianRevenue)}</td>
                   <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianCosts)}</td>
@@ -179,10 +179,14 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         <div>
           <h2 id="profitability-measure-chart-heading" className="text-lg font-semibold text-slate-900">Profitability trend over time</h2>
           <p className="text-sm text-slate-600">
-            Compare monthly median revenue, costs, and profit against the programme baseline for each reporting period, in the same layout as the BIRE baseline workbook.
+            Compare monthly median revenue, costs, and profit against the programme baseline for Foundation, Accelerator, and Overall. Use Male, Female, or Youth to view period performance for that owner group.
           </p>
         </div>
-        <ProfitabilityMeasureChart trend={data.financialMeasureTrend} selectedTrack={data.filters.track ?? null} />
+        <ProfitabilityMeasureChart
+          trend={data.financialMeasureTrend}
+          selectedTrack={data.filters.track ?? null}
+          selectedDemographic={data.filters.ownerGender}
+        />
       </section>
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">

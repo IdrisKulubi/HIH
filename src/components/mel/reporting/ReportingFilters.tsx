@@ -8,7 +8,7 @@ export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) 
       <FilterSelect name="track" label="Track" value={dataset.filters.track ?? ""} options={dataset.filterOptions.tracks.map(option)} />
       <FilterSelect name="county" label="County" value={dataset.filters.county ?? ""} options={dataset.filterOptions.counties.map(option)} />
       <FilterSelect name="sector" label="Sector" value={dataset.filters.sector ?? ""} options={dataset.filterOptions.sectors.map(option)} />
-      <FilterSelect name="ownerGender" label="Owner gender / youth" value={dataset.filters.ownerGender ?? ""} options={dataset.filterOptions.ownerGenders.map(ownerDemographicOption)} />
+      <FilterSelect name="ownerGender" label="Owner gender / youth" value={dataset.filters.ownerGender ?? ""} options={ownerDemographicOptions(dataset.filterOptions.ownerGenders)} />
       <div className="flex items-end gap-2">
         <Button type="submit" className="flex-1">Apply filters</Button>
         <Button type="button" variant="outline" asChild><a href="/admin/mel/reporting">Reset</a></Button>
@@ -21,8 +21,22 @@ function option(value: string) {
   return { value, label: value.replaceAll("_", " ") };
 }
 
+function ownerDemographicOptions(values: string[]) {
+  const preferred = [
+    { value: "male", label: "Male" },
+    { value: "female", label: "Female" },
+    { value: OWNER_YOUTH_FILTER_VALUE, label: "Youth" },
+  ];
+  const extras = values
+    .filter((value) => value && !preferred.some((item) => item.value === value))
+    .map(ownerDemographicOption);
+  return [...preferred, ...extras];
+}
+
 function ownerDemographicOption(value: string) {
-  if (value === OWNER_YOUTH_FILTER_VALUE) return { value, label: "youths" };
+  if (value === OWNER_YOUTH_FILTER_VALUE) return { value, label: "Youth" };
+  if (value === "male") return { value, label: "Male" };
+  if (value === "female") return { value, label: "Female" };
   return option(value);
 }
 

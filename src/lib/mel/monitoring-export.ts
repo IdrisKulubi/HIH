@@ -1,4 +1,4 @@
-import { snapshotMonthlyField, summarizeOwnBaselineProfitability } from "./financial-baselines";
+import { snapshotMonthlyField, summarizeOwnBaselineProfitability, withReportedFinancialActivity } from "./financial-baselines";
 import { median, safePercentage, type ApprovedMonitoringRecord, type JobTotals } from "./indicator-engine";
 
 export type MonitoringExportPeriod = {
@@ -17,12 +17,31 @@ export type TrackMonthlyBaseline = {
 export type TrackMonthlyBaselines = {
   foundation: TrackMonthlyBaseline;
   acceleration: TrackMonthlyBaseline;
+  overall: TrackMonthlyBaseline;
 };
 
 export const DEFAULT_TRACK_MONTHLY_BASELINES: TrackMonthlyBaselines = {
   foundation: { revenue: 200000, costs: 124221, profit: 50000 },
   acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+  overall: { revenue: 300000, costs: 202530, profit: 66100 },
 };
+
+export function resolveMonthlyFinancialBaselines(raw: unknown): TrackMonthlyBaselines {
+  const source = (raw ?? {}) as Partial<Record<keyof TrackMonthlyBaselines, Partial<TrackMonthlyBaseline>>>;
+  const pick = (key: keyof TrackMonthlyBaselines): TrackMonthlyBaseline => {
+    const defaults = DEFAULT_TRACK_MONTHLY_BASELINES[key];
+    const candidate = source[key];
+    const revenue = Number(candidate?.revenue);
+    const costs = Number(candidate?.costs);
+    const profit = Number(candidate?.profit);
+    return {
+      revenue: Number.isFinite(revenue) ? revenue : defaults.revenue,
+      costs: Number.isFinite(costs) ? costs : defaults.costs,
+      profit: Number.isFinite(profit) ? profit : defaults.profit,
+    };
+  };
+  return { foundation: pick("foundation"), acceleration: pick("acceleration"), overall: pick("overall") };
+}
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -223,20 +242,21 @@ export function buildPeriodVsBaselineExportRows(
         ? periodRecords
         : periodRecords.filter((record) => record.dimensions.track === track);
       if (trackRecords.length === 0) continue;
-      const ittBaseline = track === "all" ? null : trackBaselines[track];
-      const periodRevenue = monthlyMedian(trackRecords, (record) => record.revenue);
-      const periodCosts = monthlyMedian(trackRecords, (record) => record.costs);
-      const periodProfit = monthlyMedian(trackRecords, (record) => record.profitLoss);
-      const totalRevenue = monthlyTotal(trackRecords, (record) => record.revenue);
-      const totalCosts = monthlyTotal(trackRecords, (record) => record.costs);
-      const totalProfit = monthlyTotal(trackRecords, (record) => record.profitLoss);
-      const ownMedianRevenue = ownBaselineMedian(trackRecords, "revenue");
-      const ownMedianCosts = ownBaselineMedian(trackRecords, "costs");
-      const ownMedianProfit = ownBaselineMedian(trackRecords, "profit");
-      const ownTotalRevenue = ownBaselineTotal(trackRecords, "revenue");
-      const ownTotalCosts = ownBaselineTotal(trackRecords, "costs");
-      const ownTotalProfit = ownBaselineTotal(trackRecords, "profit");
-      const ownBaseline = summarizeOwnBaselineProfitability(trackRecords);
+      const financialRecords = withReportedFinancialActivity(trackRecords);
+      const ittBaseline = track === "all" ? trackBaselines.overall : trackBaselines[track];
+      const periodRevenue = monthlyMedian(financialRecords, (record) => record.revenue);
+      const periodCosts = monthlyMedian(financialRecords, (record) => record.costs);
+      const periodProfit = monthlyMedian(financialRecords, (record) => record.profitLoss);
+      const totalRevenue = monthlyTotal(financialRecords, (record) => record.revenue);
+      const totalCosts = monthlyTotal(financialRecords, (record) => record.costs);
+      const totalProfit = monthlyTotal(financialRecords, (record) => record.profitLoss);
+      const ownMedianRevenue = ownBaselineMedian(financialRecords, "revenue");
+      const ownMedianCosts = ownBaselineMedian(financialRecords, "costs");
+      const ownMedianProfit = ownBaselineMedian(financialRecords, "profit");
+      const ownTotalRevenue = ownBaselineTotal(financialRecords, "revenue");
+      const ownTotalCosts = ownBaselineTotal(financialRecords, "costs");
+      const ownTotalProfit = ownBaselineTotal(financialRecords, "profit");
+      const ownBaseline = summarizeOwnBaselineProfitability(financialRecords);
       rows.push({
         Period_ID: period.id,
         Period: period.label,

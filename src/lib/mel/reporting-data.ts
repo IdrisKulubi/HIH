@@ -33,7 +33,8 @@ import {
   type JobTotals,
   type ProgrammeResultInput,
 } from "./indicator-engine";
-import { snapshotMonthlyField, summarizeOwnBaselineProfitability, type OwnBaselineProfitSummary } from "./financial-baselines";
+import { snapshotMonthlyField, summarizeOwnBaselineProfitability, withReportedFinancialActivity, type OwnBaselineProfitSummary } from "./financial-baselines";
+import { resolveMonthlyFinancialBaselines } from "./monitoring-export";
 import { findMonitoringJob, mergeJobTotals, MEL_JOB_TYPE } from "./job-types";
 import { cumulativePlannedCohort } from "./cohort-denominator";
 import { buildFeedbackWordClouds, type WordCloudTerm } from "./feedback-word-cloud";
@@ -162,6 +163,8 @@ export type MelProfitabilityTrendPoint = {
   accelerationBaseline: number;
 };
 
+export type MelFinancialDemographic = "all" | "male" | "female" | "youth";
+
 export type MelFinancialMeasureTrendPeriod = {
   periodId: number;
   periodLabel: string;
@@ -171,9 +174,9 @@ export type MelFinancialMeasureTrendPeriod = {
 };
 
 export type MelFinancialMeasureTrendTrack = {
-  track: "foundation" | "acceleration";
+  track: "foundation" | "acceleration" | "all";
   baseline: { revenue: number; costs: number; profit: number };
-  periods: MelFinancialMeasureTrendPeriod[];
+  demographics: Record<MelFinancialDemographic, MelFinancialMeasureTrendPeriod[]>;
 };
 
 export type MelFinancialMeasureTrend = {
@@ -772,22 +775,19 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const wasteReporting = buildWasteReportingSummary(filteredRecords, wasteDefinition, selectedPeriod, thresholds);
 
   const trends = includedPeriods.map((period) => {
-    const periodRecords = filteredRecords.filter((record) => record.periodId === period.id);
+    const periodRecords = withReportedFinancialActivity(filteredRecords.filter((record) => record.periodId === period.id));
     return {
       periodId: period.id,
       periodLabel: period.label,
       revenue: monthlyMedian(periodRecords, (record) => record.revenue),
       profit: monthlyMedian(periodRecords, (record) => record.profitLoss),
-      jobs: sum(periodRecords, (record) => record.directJobs.total + record.indirectJobs.total),
+      jobs: sum(filteredRecords.filter((record) => record.periodId === period.id), (record) => record.directJobs.total + record.indirectJobs.total),
       enterprises: new Set(periodRecords.map((record) => record.businessId)).size,
     };
   });
   const latestPeriodRecords = filteredRecords.filter((record) => record.periodId === selectedPeriod.id);
   const latestApprovedForPeriod = latestRecords(latestPeriodRecords);
-  const baselines = settings?.monthlyFinancialBaselines ?? {
-    foundation: { revenue: 200000, costs: 124221, profit: 50000 },
-    acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
-  };
+  const baselines = resolveMonthlyFinancialBaselines(settings?.monthlyFinancialBaselines);
   const financialTracks = (filters.track
     ? [filters.track]
     : ["foundation", "acceleration"]
@@ -796,27 +796,32 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     buildFinancialPerformanceRow(track, latestRecords(filteredRecords.filter((record) => record.dimensions.track === track)), baselines[track])
   );
   if (financialTracks.length > 1) {
-    financialPerformance.push(buildFinancialPerformanceRow("all", latestRecords(filteredRecords), null));
+    financialPerformance.push(buildFinancialPerformanceRow("all", latestRecords(filteredRecords), baselines.overall));
   }
 
   const monitoringPeriods = includedPeriods.filter((period) => !isY1PreDeliveryPeriod(period));
+  const measureTrendRecords = records.filter((record) =>
+    matchesDashboardFilters(record, { ...resolvedFilters, ownerGender: null })
+  );
+  const measureTrendTracks: Array<"foundation" | "acceleration" | "all"> = financialTracks.length > 1
+    ? ["foundation", "acceleration", "all"]
+    : financialTracks;
   const financialMeasureTrend: MelFinancialMeasureTrend = {
-    tracks: financialTracks.map((track) => ({
-      track,
-      baseline: baselines[track],
-      periods: monitoringPeriods.map((period) => {
-        const periodRecords = filteredRecords.filter(
-          (record) => record.periodId === period.id && record.dimensions.track === track
-        );
-        return {
-          periodId: period.id,
-          periodLabel: period.label,
-          revenue: monthlyMedian(periodRecords, (record) => record.revenue),
-          costs: monthlyMedian(periodRecords, (record) => record.costs),
-          profit: monthlyMedian(periodRecords, (record) => record.profitLoss),
-        };
-      }),
-    })),
+    tracks: measureTrendTracks.map((track) => {
+      const trackRecords = track === "all"
+        ? measureTrendRecords
+        : measureTrendRecords.filter((record) => record.dimensions.track === track);
+      return {
+        track,
+        baseline: baselines[track === "all" ? "overall" : track],
+        demographics: {
+          all: periodMedians(trackRecords, monitoringPeriods),
+          male: periodMedians(trackRecords.filter((record) => record.dimensions.ownerGender === "male"), monitoringPeriods),
+          female: periodMedians(trackRecords.filter((record) => record.dimensions.ownerGender === "female"), monitoringPeriods),
+          youth: periodMedians(trackRecords.filter((record) => record.dimensions.ownerYouth === true), monitoringPeriods),
+        },
+      };
+    }),
   };
 
   const baseVisualizationFilters = { ...resolvedFilters, track: null };
@@ -1022,26 +1027,21 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     negativeProgrammeImpacts: latestPeriodResponses.map((response) => response.negativeProgrammeImpacts ?? ""),
   });
   const cumulativeJobs = cumulativeJobTotals(filteredRecords);
-  const monthlyMedianRevenue = monthlyMedian(latestApprovedForPeriod, (record) => record.revenue);
+  const latestApprovedWithFinancials = withReportedFinancialActivity(latestApprovedForPeriod);
+  const monthlyMedianRevenue = monthlyMedian(latestApprovedWithFinancials, (record) => record.revenue);
   const selectedFinancialTrack = filters.track === "foundation" || filters.track === "acceleration" ? filters.track : null;
-  const ownRevenueBaselines = latestApprovedForPeriod.flatMap((record) => {
-    const value = snapshotMonthlyField(record.financialBaselineSnapshot, "revenue");
-    return value === null ? [] : [value];
-  });
   const monthlyMedianRevenueBaseline = selectedFinancialTrack
     ? baselines[selectedFinancialTrack].revenue
-    : median(ownRevenueBaselines);
+    : baselines.overall.revenue;
   const monthlyMedianRevenueChange = monthlyMedianRevenue === null || monthlyMedianRevenueBaseline === null
     ? null
     : monthlyMedianRevenue - monthlyMedianRevenueBaseline;
   const monthlyMedianRevenueChangePercent = monthlyMedianRevenueChange === null || monthlyMedianRevenueBaseline === null
     ? null
     : safePercentage(monthlyMedianRevenueChange, monthlyMedianRevenueBaseline);
-  const monthlyMedianRevenueBaselineLabel = monthlyMedianRevenueBaseline === null
-    ? null
-    : selectedFinancialTrack
-      ? `${selectedFinancialTrack} ITT baseline`
-      : "own baseline median";
+  const monthlyMedianRevenueBaselineLabel = selectedFinancialTrack
+    ? `${selectedFinancialTrack} ITT baseline`
+    : "overall ITT baseline";
 
   return {
     filters: resolvedFilters,
@@ -1065,8 +1065,8 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       monthlyMedianRevenueChange,
       monthlyMedianRevenueChangePercent,
       monthlyMedianRevenueBaselineLabel,
-      monthlyMedianCosts: monthlyMedian(latestApprovedForPeriod, (record) => record.costs),
-      monthlyMedianProfit: monthlyMedian(latestApprovedForPeriod, (record) => record.profitLoss),
+      monthlyMedianCosts: monthlyMedian(latestApprovedWithFinancials, (record) => record.costs),
+      monthlyMedianProfit: monthlyMedian(latestApprovedWithFinancials, (record) => record.profitLoss),
       jobs: sum(filteredRecords, (record) => record.directJobs.total + record.indirectJobs.total),
       directJobs: sum(filteredRecords, (record) => record.directJobs.total),
       directQualityJobs: sum(filteredRecords, (record) => record.directQualityJobs.total),
@@ -1282,6 +1282,22 @@ function monthlyMedian<T>(values: T[], selector: (value: T) => number | null): n
   return quarterlyMedian === null ? null : quarterlyMedian / 3;
 }
 
+function periodMedians(
+  records: ApprovedMonitoringRecord[],
+  periods: Array<{ id: number; label: string }>
+): MelFinancialMeasureTrendPeriod[] {
+  return periods.map((period) => {
+    const periodRecords = withReportedFinancialActivity(records.filter((record) => record.periodId === period.id));
+    return {
+      periodId: period.id,
+      periodLabel: period.label,
+      revenue: monthlyMedian(periodRecords, (record) => record.revenue),
+      costs: monthlyMedian(periodRecords, (record) => record.costs),
+      profit: monthlyMedian(periodRecords, (record) => record.profitLoss),
+    };
+  });
+}
+
 function difference(actual: number | null, baseline: number): number | null {
   return actual === null ? null : actual - baseline;
 }
@@ -1291,9 +1307,10 @@ function buildFinancialPerformanceRow(
   trackRecords: ApprovedMonitoringRecord[],
   baseline: { revenue: number; costs: number; profit: number } | null
 ) {
-  const monthlyMedianRevenue = monthlyMedian(trackRecords, (record) => record.revenue);
-  const monthlyMedianCosts = monthlyMedian(trackRecords, (record) => record.costs);
-  const monthlyMedianProfit = monthlyMedian(trackRecords, (record) => record.profitLoss);
+  const financialRecords = withReportedFinancialActivity(trackRecords);
+  const monthlyMedianRevenue = monthlyMedian(financialRecords, (record) => record.revenue);
+  const monthlyMedianCosts = monthlyMedian(financialRecords, (record) => record.costs);
+  const monthlyMedianProfit = monthlyMedian(financialRecords, (record) => record.profitLoss);
   const variance = {
     revenue: baseline ? difference(monthlyMedianRevenue, baseline.revenue) : null,
     costs: baseline ? difference(monthlyMedianCosts, baseline.costs) : null,
