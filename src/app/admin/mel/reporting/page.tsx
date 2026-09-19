@@ -162,11 +162,11 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                 <tr key={track.track} className={track.track === "all" ? "bg-slate-50/80" : undefined}>
                   <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "Overall" : track.track}</td>
                   <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianRevenue)}</td>
-                  <td className="px-4 py-3 tabular-nums">{money(track.monthlyMedianCosts)}</td>
-                  <td className="px-4 py-3 font-medium tabular-nums text-slate-900">{money(track.monthlyMedianProfit)}</td>
+                  <td className={`px-4 py-3 tabular-nums ${varianceTone("revenue", track.monthlyMedianRevenue, track.baseline?.revenue ?? null)}`}>{money(track.monthlyMedianRevenue)}</td>
+                  <td className={`px-4 py-3 tabular-nums ${varianceTone("costs", track.monthlyMedianCosts, track.baseline?.costs ?? null)}`}>{money(track.monthlyMedianCosts)}</td>
+                  <td className={`px-4 py-3 font-medium tabular-nums ${varianceTone("profit", track.monthlyMedianProfit, track.baseline?.profit ?? null)}`}>{money(track.monthlyMedianProfit)}</td>
                   <td className="px-4 py-3 tabular-nums">{track.baseline ? money(track.baseline.profit) : "Not applicable"}</td>
-                  <td className="px-4 py-3 tabular-nums">{track.baseline ? <>{money(track.variance.profit)} <span className="text-xs text-slate-500">({percentage(track.variancePercentage.profit)})</span></> : "Not applicable"}</td>
+                  <td className={`px-4 py-3 tabular-nums ${changeTone("profit", track.variance.profit)}`}>{track.baseline ? <>{money(track.variance.profit)} <span className="text-xs opacity-80">({percentage(track.variancePercentage.profit)})</span></> : "Not applicable"}</td>
                   <td className="px-4 py-3"><OwnBaselineCell summary={track.ownBaseline} /></td>
                 </tr>
               ))}
@@ -175,11 +175,11 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         </div>
       </section>
 
-      <section className="space-y-3" aria-labelledby="profitability-measure-chart-heading">
+      <section className="space-y-3" aria-labelledby="financial-performance-over-time-heading">
         <div>
-          <h2 id="profitability-measure-chart-heading" className="text-lg font-semibold text-slate-900">Profitability trend over time</h2>
+          <h2 id="financial-performance-over-time-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance over time</h2>
           <p className="text-sm text-slate-600">
-            Compare monthly median revenue, costs, and profit against the programme baseline for Foundation, Accelerator, and Overall. Use Male, Female, or Youth to view period performance for that owner group.
+            Compare monthly median revenue, costs, and profit against the programme baseline for Foundation, Accelerator, and Overall. Costs: increase is red, decrease is green. Profit and revenue: increase is green, decrease is red. Use Male, Female, or Youth to view period performance for that owner group.
           </p>
         </div>
         <ProfitabilityMeasureChart
@@ -472,6 +472,15 @@ function TrafficBadge({ status }: { status: "green" | "amber" | "red" | "not_ava
 function scalar(value: string | string[] | undefined) { return typeof value === "string" && value ? value : null; }
 function positiveNumber(value: string | string[] | undefined) { const parsed = Number(scalar(value)); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
 function money(value: number | null) { return value === null ? "Not available" : new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); }
+function varianceTone(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
+  if (current === null || baseline === null) return "text-slate-800";
+  return changeTone(measure, current - baseline);
+}
+function changeTone(measure: "revenue" | "costs" | "profit", change: number | null) {
+  if (change === null || change === 0) return "text-slate-800";
+  const improved = measure === "costs" ? change < 0 : change > 0;
+  return improved ? "font-medium text-emerald-700" : "font-medium text-red-700";
+}
 function percentage(value: number | null) {
   if (value === null) return "Not available";
   if (value > 0 && value < 0.1) return `${value.toFixed(2)}%`;

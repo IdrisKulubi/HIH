@@ -141,22 +141,22 @@ function TrackProfitabilityPanel({
               {tableRows.map((row) => (
                 <tr key={row.period} className={row.period === "Baseline" ? "bg-slate-50/80" : undefined}>
                   <td className="px-3 py-2.5 font-medium text-slate-900">{row.period}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money(row.revenue)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money(row.costs)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money(row.profit)}</td>
+                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("revenue", row.revenue, track.baseline.revenue)}`}>{money(row.revenue)}</td>
+                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("costs", row.costs, track.baseline.costs)}`}>{money(row.costs)}</td>
+                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("profit", row.profit, track.baseline.profit)}`}>{money(row.profit)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-slate-800">Profitability trend over time</h4>
+          <h4 className="text-sm font-semibold text-slate-800">Monthly financial performance over time</h4>
           {!hasChartData ? (
             <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-12 text-center text-sm text-slate-600">
               No approved quarterly medians yet for this track and owner group. The baseline row is shown; period lines appear when monitoring data is approved.
             </p>
           ) : (
-            <div className="mt-4 h-80 w-full" role="img" aria-label={`${trackLabel} ${demographicLabel} profitability trend by revenue, costs, and profit`}>
+            <div className="mt-4 h-80 w-full" role="img" aria-label={`${trackLabel} ${demographicLabel} monthly financial performance by revenue, costs, and profit`}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -170,10 +170,10 @@ function TrackProfitabilityPanel({
                       type="monotone"
                       dataKey={name}
                       name={name}
-                      stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+                      stroke={name === "Baseline" ? "#64748b" : SERIES_COLORS[index % SERIES_COLORS.length]}
                       strokeWidth={name === "Baseline" ? 2.5 : 2}
                       strokeDasharray={name === "Baseline" ? "6 4" : undefined}
-                      dot={{ r: 4 }}
+                      dot={name === "Baseline" ? { r: 4, fill: "#64748b" } : <VarianceDot />}
                       connectNulls={false}
                     />
                   ))}
@@ -185,6 +185,32 @@ function TrackProfitabilityPanel({
       </div>
     </section>
   );
+}
+
+function measureKeyFromLabel(label: string): "revenue" | "costs" | "profit" | null {
+  if (label === "Monthly Revenue") return "revenue";
+  if (label === "Monthly costs") return "costs";
+  if (label === "Monthly profit") return "profit";
+  return null;
+}
+
+function varianceClass(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
+  const color = varianceColor(measure, current, baseline);
+  if (color === "#334155") return "";
+  return color === "#047857" ? "font-medium text-emerald-700" : "font-medium text-red-700";
+}
+
+function varianceColor(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
+  if (current === null || baseline === null || current === baseline) return "#334155";
+  const improved = measure === "costs" ? current < baseline : current > baseline;
+  return improved ? "#047857" : "#b91c1c";
+}
+
+function VarianceDot({ cx, cy, payload, value }: { cx?: number; cy?: number; payload?: { measure?: string; Baseline?: number | null }; value?: number }) {
+  if (cx == null || cy == null) return null;
+  const measure = measureKeyFromLabel(payload?.measure ?? "");
+  const fill = measure ? varianceColor(measure, typeof value === "number" ? value : null, payload?.Baseline ?? null) : "#334155";
+  return <circle cx={cx} cy={cy} r={5} fill={fill} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function money(value: number | null) {
