@@ -141,10 +141,10 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
           <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. <span className="font-medium text-slate-800">vs ITT baseline</span> compares the cohort median with the programme track bar, including Overall (all tracks). <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
+          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. Each measure shows change vs the programme ITT baseline (revenue, costs, and profit), including Overall (all tracks). LT1 tracks a <span className="font-medium text-slate-800">50% increase in median revenue</span>. <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
         </div>
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[1080px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
                 <th className="px-4 py-3">Track</th>
@@ -152,8 +152,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">Monthly revenue</th>
                 <th className="px-4 py-3">Monthly costs</th>
                 <th className="px-4 py-3">Monthly profit</th>
-                <th className="px-4 py-3">ITT profit baseline</th>
-                <th className="px-4 py-3">vs ITT baseline</th>
+                <th className="px-4 py-3">ITT revenue baseline</th>
                 <th className="px-4 py-3">vs own baseline</th>
               </tr>
             </thead>
@@ -162,11 +161,10 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
                 <tr key={track.track} className={track.track === "all" ? "bg-slate-50/80" : undefined}>
                   <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "Overall" : track.track}</td>
                   <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
-                  <td className={`px-4 py-3 tabular-nums ${varianceTone("revenue", track.monthlyMedianRevenue, track.baseline?.revenue ?? null)}`}>{money(track.monthlyMedianRevenue)}</td>
-                  <td className={`px-4 py-3 tabular-nums ${varianceTone("costs", track.monthlyMedianCosts, track.baseline?.costs ?? null)}`}>{money(track.monthlyMedianCosts)}</td>
-                  <td className={`px-4 py-3 font-medium tabular-nums ${varianceTone("profit", track.monthlyMedianProfit, track.baseline?.profit ?? null)}`}>{money(track.monthlyMedianProfit)}</td>
-                  <td className="px-4 py-3 tabular-nums">{track.baseline ? money(track.baseline.profit) : "Not applicable"}</td>
-                  <td className={`px-4 py-3 tabular-nums ${changeTone("profit", track.variance.profit)}`}>{track.baseline ? <>{money(track.variance.profit)} <span className="text-xs opacity-80">({percentage(track.variancePercentage.profit)})</span></> : "Not applicable"}</td>
+                  <FinancialMeasureCell measure="revenue" current={track.monthlyMedianRevenue} variance={track.variance.revenue} variancePercent={track.variancePercentage.revenue} baseline={track.baseline?.revenue ?? null} />
+                  <FinancialMeasureCell measure="costs" current={track.monthlyMedianCosts} variance={track.variance.costs} variancePercent={track.variancePercentage.costs} baseline={track.baseline?.costs ?? null} />
+                  <FinancialMeasureCell measure="profit" current={track.monthlyMedianProfit} variance={track.variance.profit} variancePercent={track.variancePercentage.profit} baseline={track.baseline?.profit ?? null} emphasis />
+                  <td className="px-4 py-3 tabular-nums">{track.baseline ? money(track.baseline.revenue) : "Not applicable"}</td>
                   <td className="px-4 py-3"><OwnBaselineCell summary={track.ownBaseline} /></td>
                 </tr>
               ))}
@@ -219,8 +217,8 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
             <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
             <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
             <p>Waste collected and recycled compares ITT baseline and targets with the sum of cumulative kg reported by waste-management enterprises (OP3.3), disaggregated by stream.</p>
-            <p>Profitability is the only visualization with baseline lines; other indicators show observed approved results only.</p>
-            <p>vs ITT baseline can be negative while vs own baseline is mostly positive: most firms can beat their own opening profit while the typical firm is still below the Foundation (KES 50,000) or Acceleration (KES 150,000) programme bar.</p>
+            <p>LT1 (revenue increase) is the only visualization with baseline lines; other indicators show observed approved results only.</p>
+            <p>Revenue vs ITT baseline can be negative while vs own baseline is mostly positive: many firms can beat their own opening profit while the cohort median is still below the programme revenue bar.</p>
           </CardContent>
         </Card>
         <Card>
@@ -480,6 +478,41 @@ function changeTone(measure: "revenue" | "costs" | "profit", change: number | nu
   if (change === null || change === 0) return "text-slate-800";
   const improved = measure === "costs" ? change < 0 : change > 0;
   return improved ? "font-medium text-emerald-700" : "font-medium text-red-700";
+}
+function FinancialMeasureCell({
+  measure,
+  current,
+  variance,
+  variancePercent,
+  baseline,
+  emphasis = false,
+}: {
+  measure: "revenue" | "costs" | "profit";
+  current: number | null;
+  variance: number | null;
+  variancePercent: number | null;
+  baseline: number | null;
+  emphasis?: boolean;
+}) {
+  const tone = varianceTone(measure, current, baseline);
+  const showDelta = baseline !== null && current !== null && variance !== null;
+  return (
+    <td className={`px-4 py-3 tabular-nums ${tone} ${emphasis ? "font-medium" : ""}`}>
+      <div>{money(current)}</div>
+      {showDelta ? (
+        <div className={`text-xs ${changeTone(measure, variance)}`}>
+          {signedMoney(variance)} ({percentage(variancePercent)})
+        </div>
+      ) : null}
+    </td>
+  );
+}
+function signedMoney(value: number | null) {
+  if (value === null) return "Not available";
+  const formatted = new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(Math.abs(value));
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
 }
 function percentage(value: number | null) {
   if (value === null) return "Not available";

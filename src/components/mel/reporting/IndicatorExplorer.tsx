@@ -95,8 +95,8 @@ export function IndicatorExplorer({ indicators, profitabilityTrend, selectedTrac
             <>
               <IndicatorChart indicator={selected} selectedTrack={selectedTrack} />
               <div className="mt-8 border-t border-slate-200 pt-6">
-                <h4 className="text-sm font-semibold text-slate-800">Supporting view: monthly median profit vs baseline</h4>
-                <p className="mt-1 text-sm text-slate-600">Kenyan shillings from approved monitoring records. The chart above shows the official ITT percentage actual vs target.</p>
+                <h4 className="text-sm font-semibold text-slate-800">Supporting view: monthly median revenue vs baseline</h4>
+                <p className="mt-1 text-sm text-slate-600">Kenyan shillings from approved monitoring records. The chart above shows the official ITT revenue growth (%) actual vs the 50% target.</p>
                 <ProfitabilityChart data={profitabilityTrend} selectedTrack={selectedTrack} />
               </div>
             </>
@@ -177,20 +177,20 @@ function IndicatorChart({ indicator, selectedTrack }: { indicator: MelIndicatorV
 
 function ProfitabilityChart({ data, selectedTrack }: { data: MelProfitabilityTrendPoint[]; selectedTrack: string | null }) {
   const series = selectedTrack === "foundation"
-    ? [{ key: "foundation", label: "Foundation profit", color: "#0891b2", dashed: false }, { key: "foundationBaseline", label: "Foundation baseline", color: "#67e8f9", dashed: true }] as const
+    ? [{ key: "foundation", label: "Foundation revenue", color: "#0891b2", dashed: false }, { key: "foundationBaseline", label: "Foundation revenue baseline", color: "#67e8f9", dashed: true }] as const
     : selectedTrack === "acceleration"
-      ? [{ key: "acceleration", label: "Acceleration profit", color: "#d97706", dashed: false }, { key: "accelerationBaseline", label: "Acceleration baseline", color: "#fcd34d", dashed: true }] as const
+      ? [{ key: "acceleration", label: "Acceleration revenue", color: "#d97706", dashed: false }, { key: "accelerationBaseline", label: "Acceleration revenue baseline", color: "#fcd34d", dashed: true }] as const
       : [
-          { key: "foundation", label: "Foundation profit", color: "#0891b2", dashed: false },
-          { key: "foundationBaseline", label: "Foundation baseline", color: "#67e8f9", dashed: true },
-          { key: "acceleration", label: "Acceleration profit", color: "#d97706", dashed: false },
-          { key: "accelerationBaseline", label: "Acceleration baseline", color: "#fcd34d", dashed: true },
+          { key: "foundation", label: "Foundation revenue", color: "#0891b2", dashed: false },
+          { key: "foundationBaseline", label: "Foundation revenue baseline", color: "#67e8f9", dashed: true },
+          { key: "acceleration", label: "Acceleration revenue", color: "#d97706", dashed: false },
+          { key: "accelerationBaseline", label: "Acceleration revenue baseline", color: "#fcd34d", dashed: true },
         ] as const;
   const hasData = data.some((point) => point.foundation !== null || point.acceleration !== null);
-  if (!hasData) return <EmptyChart message="No approved profitability record is available through this reporting period." />;
+  if (!hasData) return <EmptyChart message="No approved revenue record is available through this reporting period." />;
   return (
     <>
-      <div className="mt-6 h-80 w-full" role="img" aria-label="Monthly median profitability by track with validated track baselines">
+      <div className="mt-6 h-80 w-full" role="img" aria-label="Monthly median revenue by track with validated track baselines">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 10, right: 18, left: 4, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

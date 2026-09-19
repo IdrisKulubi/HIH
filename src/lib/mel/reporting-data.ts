@@ -717,10 +717,12 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     };
   };
   const systemActuals = systemActualsAt(selectedPeriod, systemEligibleIds);
+  const baselines = resolveMonthlyFinancialBaselines(settings?.monthlyFinancialBaselines);
 
   const ittRows: MelIttRow[] = definitions.map((definition) => {
     const definitionTargetKey = definition.sourceType === "programme_mel_entry" ? "overall" : targetSegmentKey;
-    const baseline = selectBaseline(definition.baselines, definitionTargetKey);
+    const segmentKey = definition.sourceType === "programme_mel_entry" ? "overall" : filters.track ? `track:${filters.track}` : "overall";
+    const baseline = resolveIndicatorBaseline(definition.code, definition.baselines, segmentKey.startsWith("track:") ? segmentKey : definitionTargetKey, baselines);
     const target = selectTarget(definition.targets, selectedPeriod.id, selectedPeriod.programmeYear, definitionTargetKey);
     const targetBreakdown = buildTargetBreakdown(
       definition.code,
@@ -728,7 +730,6 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       selectedPeriod.id,
       selectedPeriod.programmeYear
     );
-    const segmentKey = definition.sourceType === "programme_mel_entry" ? "overall" : filters.track ? `track:${filters.track}` : "overall";
     const enterpriseDenominator = denominatorFor(definition, selectedPeriod, segmentKey, resolvedFilters);
     const calculation = calculateIndicator({
       definition: {
@@ -787,7 +788,6 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   });
   const latestPeriodRecords = filteredRecords.filter((record) => record.periodId === selectedPeriod.id);
   const latestApprovedForPeriod = latestRecords(latestPeriodRecords);
-  const baselines = resolveMonthlyFinancialBaselines(settings?.monthlyFinancialBaselines);
   const financialTracks = (filters.track
     ? [filters.track]
     : ["foundation", "acceleration"]
@@ -859,7 +859,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       },
       records: periodRecords,
       programmeResults: programmeResultsAtPeriod,
-      baseline: selectBaseline(definition.baselines, targetKey),
+      baseline: resolveIndicatorBaseline(definition.code, definition.baselines, targetKey, baselines),
       target: selectTarget(definition.targets, period.id, period.programmeYear, targetKey),
       systemActual: systemActualsAt(period, systemEligible)[definition.code] ?? null,
       approvedAchievements: achievementsFor(definition.code, period, enterpriseDenominator),
@@ -991,9 +991,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       periodId: point.period.id,
       periodLabel: point.period.label,
       foundation: point.foundation?.numerator ?? (filters.track === "foundation" ? point.overall.numerator : null),
-      foundationBaseline: numeric(settings?.monthlyFinancialBaselines?.foundation.profit) ?? 50000,
+      foundationBaseline: baselines.foundation.revenue,
       acceleration: point.acceleration?.numerator ?? (filters.track === "acceleration" ? point.overall.numerator : null),
-      accelerationBaseline: numeric(settings?.monthlyFinancialBaselines?.acceleration.profit) ?? 150000,
+      accelerationBaseline: baselines.acceleration.revenue,
     }));
   const eligibleEnterpriseCount = activeSupportedEnterpriseCount(
     supportedEnterprises,
@@ -1378,6 +1378,20 @@ function trainingCompletionSystem(
 function selectBaseline(baselines: Array<typeof melIndicatorBaselines.$inferSelect>, segmentKey: string): number | null {
   return numeric(baselines.find((item) => item.segmentKey === segmentKey)?.value
     ?? baselines.find((item) => item.segmentKey === "overall")?.value);
+}
+
+function resolveIndicatorBaseline(
+  code: string,
+  indicatorBaselines: Array<typeof melIndicatorBaselines.$inferSelect>,
+  segmentKey: string,
+  monthlyBaselines: ReturnType<typeof resolveMonthlyFinancialBaselines>
+): number | null {
+  if (code === "LT1-PROFITABILITY-INCREASE") {
+    if (segmentKey === "track:foundation") return monthlyBaselines.foundation.revenue;
+    if (segmentKey === "track:acceleration") return monthlyBaselines.acceleration.revenue;
+    return null;
+  }
+  return selectBaseline(indicatorBaselines, segmentKey);
 }
 
 function selectTarget(

@@ -397,22 +397,22 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
     if (segmentKey === "overall") {
       return result(
         input,
-        { actual: null, numerator: null, denominator: null, calculationRule: "Track-specific monthly median profitability comparison" },
+        { actual: null, numerator: null, denominator: null, calculationRule: "Track-specific monthly median revenue comparison" },
         [],
         [],
         ["Overall comparison is unavailable. Select Foundation or Acceleration to view the validated track-specific baseline."]
       );
     }
-    const cohortMedian = median(latest.flatMap((record) => record.profitLoss === null ? [] : [record.profitLoss / 3]));
+    const cohortMedian = median(latest.flatMap((record) => record.revenue === null ? [] : [record.revenue / 3]));
     const growth = cohortMedian === null || !input.baseline
       ? null
       : safePercentage(cohortMedian - input.baseline, input.baseline);
     const exclusions = input.baseline === 0 || input.baseline === null || input.baseline === undefined
-      ? ["Profitability growth unavailable because the matching baseline is zero or missing."]
+      ? ["Revenue growth unavailable because the matching baseline is zero or missing."]
       : [];
     return result(
       input,
-      { actual: growth, numerator: cohortMedian, denominator: input.baseline ?? null, calculationRule: "Growth in median monthly-equivalent profit against baseline" },
+      { actual: growth, numerator: cohortMedian, denominator: input.baseline ?? null, calculationRule: "Growth in median monthly-equivalent revenue against baseline" },
       latest,
       [],
       exclusions

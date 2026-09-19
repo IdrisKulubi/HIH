@@ -97,7 +97,7 @@ function tests() {
   assert.equal(overachievement.trafficLight, "green");
   assert.equal(achievementStatus(3, 5, base.thresholds, true).trafficLight, "green");
 
-  const profitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), segmentKey: "track:foundation", records: [record(1, 1, { profitLoss: 300 }), record(2, 2, { profitLoss: 600 })], baseline: 100, target: 50 });
+  const profitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), segmentKey: "track:foundation", records: [record(1, 1, { revenue: 300 }), record(2, 2, { revenue: 600 })], baseline: 100, target: 50 });
   assert.equal(profitability.numerator, 150);
   assert.equal(profitability.actual, 50);
   const overallProfitability = calculateIndicator({ ...base, definition: definition("LT1-PROFITABILITY-INCREASE", "median"), records: [record(1, 1)], baseline: null });

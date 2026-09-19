@@ -141,9 +141,9 @@ function TrackProfitabilityPanel({
               {tableRows.map((row) => (
                 <tr key={row.period} className={row.period === "Baseline" ? "bg-slate-50/80" : undefined}>
                   <td className="px-3 py-2.5 font-medium text-slate-900">{row.period}</td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("revenue", row.revenue, track.baseline.revenue)}`}>{money(row.revenue)}</td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("costs", row.costs, track.baseline.costs)}`}>{money(row.costs)}</td>
-                  <td className={`px-3 py-2.5 text-right tabular-nums ${row.period === "Baseline" ? "" : varianceClass("profit", row.profit, track.baseline.profit)}`}>{money(row.profit)}</td>
+                  <MeasureTableCell measure="revenue" value={row.revenue} baseline={track.baseline.revenue} isBaselineRow={row.period === "Baseline"} />
+                  <MeasureTableCell measure="costs" value={row.costs} baseline={track.baseline.costs} isBaselineRow={row.period === "Baseline"} />
+                  <MeasureTableCell measure="profit" value={row.profit} baseline={track.baseline.profit} isBaselineRow={row.period === "Baseline"} />
                 </tr>
               ))}
             </tbody>
@@ -194,6 +194,33 @@ function measureKeyFromLabel(label: string): "revenue" | "costs" | "profit" | nu
   return null;
 }
 
+function MeasureTableCell({
+  measure,
+  value,
+  baseline,
+  isBaselineRow,
+}: {
+  measure: "revenue" | "costs" | "profit";
+  value: number | null;
+  baseline: number;
+  isBaselineRow: boolean;
+}) {
+  const delta = value === null ? null : value - baseline;
+  const percent = delta === null || baseline === 0 ? null : (delta / Math.abs(baseline)) * 100;
+  const tone = isBaselineRow ? "" : varianceClass(measure, value, baseline);
+  const deltaTone = isBaselineRow || delta === null ? "" : varianceClass(measure, value, baseline);
+  return (
+    <td className={`px-3 py-2.5 text-right tabular-nums ${tone}`}>
+      <div>{money(value)}</div>
+      {!isBaselineRow && delta !== null && percent !== null ? (
+        <div className={`text-xs ${deltaTone}`}>
+          {signedMoney(delta)} ({formatPercent(percent)})
+        </div>
+      ) : null}
+    </td>
+  );
+}
+
 function varianceClass(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
   const color = varianceColor(measure, current, baseline);
   if (color === "#334155") return "";
@@ -216,6 +243,18 @@ function VarianceDot({ cx, cy, payload, value }: { cx?: number; cy?: number; pay
 function money(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(value);
+}
+
+function signedMoney(value: number) {
+  const formatted = new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Math.abs(value));
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
+
+function formatPercent(value: number) {
+  if (value > 0 && value < 0.1) return `${value.toFixed(2)}%`;
+  return `${value.toFixed(1)}%`;
 }
 
 function formatKes(value: number) {

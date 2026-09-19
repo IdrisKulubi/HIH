@@ -91,9 +91,9 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     resultCode: "LT1",
     resultLevel: "long_term_outcome",
     resultStatement: "Increased commercialization and scale-up of supported MSEs across sectors",
-    name: "Percentage increase in enterprise profitability",
+    name: "Percentage increase in enterprise revenue",
     definition:
-      "Growth in the cohort median monthly-equivalent enterprise profit compared with the approved baseline median.",
+      "Growth in the cohort median monthly-equivalent enterprise revenue compared with the approved ITT baseline median.",
     unit: "percentage",
     sourceType: "derived",
     frequency: "quarterly",
@@ -102,22 +102,20 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     evidenceRequired: false,
     isOneTime: false,
     sortOrder: 20,
-    unresolvedNotes:
-      "The ITT also lists an overall KES endline value of 1,200,000. Keep it as a target note until MEL confirms whether it is a secondary target.",
     baselines: [
       {
         segmentKey: "overall",
         valueText: "Track-specific baseline required",
         notes: "Overall comparison is unavailable. View Foundation and Acceleration separately.",
       },
-      { segmentKey: "track:foundation", value: 50000, notes: "Validated monthly profitability baseline" },
-      { segmentKey: "track:acceleration", value: 150000, notes: "Validated monthly profitability baseline" },
+      { segmentKey: "track:foundation", value: 200000, notes: "Validated monthly revenue baseline" },
+      { segmentKey: "track:acceleration", value: 692600, notes: "Validated monthly revenue baseline" },
     ],
     targets: [
-      { programmeYear: 0, value: 50, notes: "Overall growth target; ITT also notes KES 1,200,000." },
-      { programmeYear: 1, valueText: "KES 900,000 median monthly-equivalent profit" },
-      { programmeYear: 2, valueText: "KES 1,000,000 median monthly-equivalent profit" },
-      { programmeYear: 3, valueText: "KES 1,200,000 median monthly-equivalent profit" },
+      { programmeYear: 0, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 1, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 2, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 3, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
     ],
   },
   {
