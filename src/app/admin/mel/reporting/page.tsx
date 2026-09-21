@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMelReportingDashboard } from "@/lib/actions/mel-reporting";
+import type { MelDashboardFilters } from "@/lib/mel/reporting-data";
 import { ReportingFilters } from "@/components/mel/reporting/ReportingFilters";
 import { RecalculateButton } from "@/components/mel/reporting/RecalculateButton";
 import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRefresh";
@@ -17,13 +18,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function MelReportingPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const filters = {
+  const filters: MelDashboardFilters = {
     periodId: positiveNumber(params.periodId),
     track: scalar(params.track),
     county: scalar(params.county),
     sector: scalar(params.sector),
     ownerGender: scalar(params.ownerGender),
     panelBusinessId: positiveNumber(params.panelBusinessId),
+    panelSource: params.panelSource === "system" ? "system" : "workbook",
   };
   const result = await getMelReportingDashboard(filters);
   if (!result.success || !result.data) return <LoadError message={result.error ?? "Unable to load reporting dashboard."} />;
@@ -34,6 +36,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
   if (data.filters.sector) exportQuery.set("sector", data.filters.sector);
   if (data.filters.ownerGender) exportQuery.set("ownerGender", data.filters.ownerGender);
   if (data.filters.panelBusinessId) exportQuery.set("panelBusinessId", String(data.filters.panelBusinessId));
+  if (data.filters.panelSource) exportQuery.set("panelSource", data.filters.panelSource);
 
   return (
     <div className="container mx-auto space-y-7 px-4 py-8">

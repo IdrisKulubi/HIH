@@ -1,41 +1,27 @@
-import { median, safePercentage, type ApprovedMonitoringRecord } from "./indicator-engine";
+import { safePercentage, type ApprovedMonitoringRecord } from "./indicator-engine";
 import { snapshotMonthlyField, withReportedFinancialActivity } from "./financial-baselines";
+import {
+  computePanelAnalysis,
+  type MelPanelAnalysis,
+  type PanelCoverage,
+  type PanelDataQualitySummary,
+  type PanelEnterpriseInput,
+  type PanelFinancialValues,
+  PANEL_OUTLIER_MONTHLY_THRESHOLD,
+  hasFinancialActivity,
+} from "./panel-analysis-core";
 
 export const PANEL_MONITORING_PERIOD_CODE = "Y1-MQ1";
 
-export type PanelFinancialValues = {
-  revenue: number | null;
-  costs: number | null;
-  profit: number | null;
-};
-
-export type PanelMatchedEnterprise = {
-  businessId: number;
-  businessName: string;
-  track: string | null;
-  baseline: PanelFinancialValues;
-  monitoring: PanelFinancialValues;
-};
-
-export type MelPanelAnalysis = {
-  monitoringPeriodLabel: string;
-  monitoringPeriodCode: string;
-  coverage: {
-    monitoringEligible: number;
-    matched: number;
-    unmatched: number;
-    matchPercent: number | null;
-  };
-  viewMode: "cohort" | "single" | "empty";
-  selectedBusinessId: number | null;
-  summaryLabel: string;
-  baseline: PanelFinancialValues;
-  monitoring: PanelFinancialValues;
-  change: PanelFinancialValues;
-  changePercent: PanelFinancialValues;
-  matchedEnterprises: PanelMatchedEnterprise[];
-  enterpriseOptions: Array<{ businessId: number; label: string }>;
-};
+export type {
+  MelPanelAnalysis,
+  PanelCoverage,
+  PanelDataQualitySummary,
+  PanelDisaggregation,
+  PanelFinancialValues,
+  PanelMatchedEnterprise,
+  PanelSource,
+} from "./panel-analysis-core";
 
 export type ActiveEnterpriseBaseline = {
   businessId: number;
@@ -77,39 +63,30 @@ function monitoringMonthly(record: ApprovedMonitoringRecord): PanelFinancialValu
   };
 }
 
-function medianValues(rows: PanelMatchedEnterprise[], selector: (row: PanelMatchedEnterprise) => PanelFinancialValues): PanelFinancialValues {
-  const pick = (field: keyof PanelFinancialValues) =>
-    median(rows.map((row) => selector(row)[field]).filter((value): value is number => value !== null && Number.isFinite(value)));
+function buildSystemCoverage(input: {
+  baselineTotalRows: number;
+  baselineUniqueIds: number;
+  monitoringTotal: number;
+  matched: number;
+  unmatchedMonitoringIds: number[];
+  unmatchedBaselineCount: number;
+  monitoringEligible: number;
+}): PanelCoverage {
+  const unmatchedMonitoringCount = input.unmatchedMonitoringIds.length;
+  const matchPercentOfBaseline =
+    input.baselineUniqueIds === 0 ? null : safePercentage(input.matched, input.baselineUniqueIds);
   return {
-    revenue: pick("revenue"),
-    costs: pick("costs"),
-    profit: pick("profit"),
-  };
-}
-
-function diffValues(current: PanelFinancialValues, baseline: PanelFinancialValues): PanelFinancialValues {
-  const delta = (field: keyof PanelFinancialValues) => {
-    const from = baseline[field];
-    const to = current[field];
-    return from === null || to === null ? null : to - from;
-  };
-  return {
-    revenue: delta("revenue"),
-    costs: delta("costs"),
-    profit: delta("profit"),
-  };
-}
-
-function percentChangeValues(change: PanelFinancialValues, baseline: PanelFinancialValues): PanelFinancialValues {
-  const pct = (field: keyof PanelFinancialValues) => {
-    const base = baseline[field];
-    const delta = change[field];
-    return base === null || delta === null ? null : safePercentage(delta, base);
-  };
-  return {
-    revenue: pct("revenue"),
-    costs: pct("costs"),
-    profit: pct("profit"),
+    baselineTotalRows: input.baselineTotalRows,
+    baselineUniqueIds: input.baselineUniqueIds,
+    monitoringTotal: input.monitoringTotal,
+    matched: input.matched,
+    unmatchedMonitoringCount,
+    unmatchedBaselineCount: input.unmatchedBaselineCount,
+    matchPercentOfBaseline,
+    monitoringEligible: input.monitoringEligible,
+    unmatched: unmatchedMonitoringCount,
+    matchPercent: matchPercentOfBaseline,
+    unmatchedMonitoringIds: input.unmatchedMonitoringIds.sort((left, right) => left - right),
   };
 }
 
@@ -121,99 +98,108 @@ export function buildPanelAnalysis(input: {
   activeBaselinesByBusinessId: Map<number, ActiveEnterpriseBaseline>;
   panelBusinessId: number | null;
 }): MelPanelAnalysis {
-  const monitoringEligible = withReportedFinancialActivity(
-    input.records.filter((record) => record.periodId === input.monitoringPeriodId)
-  );
+  const panelPeriodRecords = input.records.filter((record) => record.periodId === input.monitoringPeriodId);
+  const monitoringEligible = withReportedFinancialActivity(panelPeriodRecords);
+  const monitoringByBusinessId = new Map(panelPeriodRecords.map((record) => [record.businessId, record]));
 
-  const matched: PanelMatchedEnterprise[] = [];
-  for (const record of monitoringEligible) {
+  const baselineUniqueIds = new Set<number>();
+  for (const businessId of input.activeBaselinesByBusinessId.keys()) {
+    baselineUniqueIds.add(businessId);
+  }
+  for (const record of panelPeriodRecords) {
     const baseline = resolveEnterpriseOwnBaseline(
       record.financialBaselineSnapshot,
       input.activeBaselinesByBusinessId.get(record.businessId)
     );
-    if (!hasOwnBaseline(baseline)) continue;
-    matched.push({
-      businessId: record.businessId,
-      businessName: record.businessName ?? `Enterprise ${record.businessId}`,
-      track: record.dimensions.track,
+    if (hasOwnBaseline(baseline)) baselineUniqueIds.add(record.businessId);
+  }
+  const monitoringIds = new Set(panelPeriodRecords.map((record) => record.businessId));
+
+  const enterprises: PanelEnterpriseInput[] = [];
+  const allBusinessIds = new Set([...baselineUniqueIds, ...monitoringIds]);
+
+  let monitoringAllZeroCount = 0;
+  let baselineNegativeProfitCount = 0;
+  let outlierCount = 0;
+
+  for (const businessId of allBusinessIds) {
+    const record = monitoringByBusinessId.get(businessId);
+    const tableRow = input.activeBaselinesByBusinessId.get(businessId);
+    const baseline = resolveEnterpriseOwnBaseline(record?.financialBaselineSnapshot, tableRow);
+    const monitoring = record ? monitoringMonthly(record) : null;
+    const flags: string[] = [];
+
+    if (monitoring && !hasFinancialActivity(monitoring)) monitoringAllZeroCount += 1;
+    if (baseline.profit !== null && baseline.profit < 0) baselineNegativeProfitCount += 1;
+    if (
+      [baseline, monitoring].some((values) =>
+        values &&
+        [values.revenue, values.costs, values.profit].some(
+          (value) => value !== null && Math.abs(value) > PANEL_OUTLIER_MONTHLY_THRESHOLD
+        )
+      )
+    ) {
+      outlierCount += 1;
+      flags.push("outlier_monthly_value");
+    }
+
+    const inBaselineUniverse = hasOwnBaseline(baseline);
+    enterprises.push({
+      businessId,
+      businessName: record?.businessName ?? `Enterprise ${businessId}`,
+      track: record?.dimensions.track ?? null,
+      ownerGender: record?.dimensions.ownerGender ?? null,
+      ownerYouth: record?.dimensions.ownerYouth ?? null,
+      sector: record?.dimensions.sector ?? null,
+      county: record?.dimensions.county ?? null,
       baseline,
-      monitoring: monitoringMonthly(record),
+      monitoring,
+      inBaselineUniverse,
+      inMonitoringRound: monitoringIds.has(businessId),
+      excludedFromPanel: false,
+      flags,
     });
   }
 
-  const enterpriseOptions = monitoringEligible
-    .map((record) => ({
-      businessId: record.businessId,
-      label: `${record.businessId} — ${record.businessName ?? `Enterprise ${record.businessId}`}`,
-    }))
-    .sort((left, right) => left.businessId - right.businessId);
+  const matchedIds = enterprises.filter(
+    (row) => row.inBaselineUniverse && row.inMonitoringRound && row.monitoring && !row.excludedFromPanel
+  ).map((row) => row.businessId);
+  const matchedSet = new Set(matchedIds);
+  const unmatchedMonitoringIds = [...monitoringIds].filter((id) => !matchedSet.has(id));
+  const unmatchedBaselineCount = [...baselineUniqueIds].filter((id) => !matchedSet.has(id)).length;
 
-  const coverage = {
+  const dataQuality: PanelDataQualitySummary = {
+    duplicateBaselineIds: [],
+    missingBaselineIds: 0,
+    missingMonitoringIds: 0,
+    monitoringAllZeroCount,
+    baselineNegativeProfitCount,
+    outlierCount,
+    excludedDuplicateRows: 0,
+    notes: [
+      "Live monitoring quarterly totals are converted to monthly (÷ 3).",
+      "Missing financial fields are not treated as zero; medians use non-null values only.",
+      "Matched panel includes enterprises with all-zero monitoring when baseline and monitoring records exist.",
+    ],
+  };
+
+  const coverage = buildSystemCoverage({
+    baselineTotalRows: input.activeBaselinesByBusinessId.size,
+    baselineUniqueIds: baselineUniqueIds.size,
+    monitoringTotal: panelPeriodRecords.length,
+    matched: matchedSet.size,
+    unmatchedMonitoringIds,
+    unmatchedBaselineCount,
     monitoringEligible: monitoringEligible.length,
-    matched: matched.length,
-    unmatched: Math.max(0, monitoringEligible.length - matched.length),
-    matchPercent: monitoringEligible.length === 0 ? null : safePercentage(matched.length, monitoringEligible.length),
-  };
+  });
 
-  const emptyValues: PanelFinancialValues = { revenue: null, costs: null, profit: null };
-  const empty: MelPanelAnalysis = {
+  return computePanelAnalysis({
+    source: "system",
     monitoringPeriodLabel: input.monitoringPeriodLabel,
     monitoringPeriodCode: input.monitoringPeriodCode,
+    enterprises,
+    panelBusinessId: input.panelBusinessId,
+    dataQuality,
     coverage,
-    viewMode: "empty",
-    selectedBusinessId: input.panelBusinessId,
-    summaryLabel: "No matched panel data",
-    baseline: emptyValues,
-    monitoring: emptyValues,
-    change: emptyValues,
-    changePercent: emptyValues,
-    matchedEnterprises: matched,
-    enterpriseOptions,
-  };
-
-  if (matched.length === 0) return empty;
-
-  if (input.panelBusinessId !== null) {
-    const selected = matched.find((row) => row.businessId === input.panelBusinessId);
-    if (!selected) {
-      return {
-        ...empty,
-        viewMode: "empty",
-        summaryLabel: `Enterprise ${input.panelBusinessId} is not in the matched panel (needs imported baseline and Jun–Aug monitoring with financial activity).`,
-      };
-    }
-    const change = diffValues(selected.monitoring, selected.baseline);
-    return {
-      monitoringPeriodLabel: input.monitoringPeriodLabel,
-      monitoringPeriodCode: input.monitoringPeriodCode,
-      coverage,
-      viewMode: "single",
-      selectedBusinessId: input.panelBusinessId,
-      summaryLabel: `${selected.businessName} (ID ${selected.businessId})`,
-      baseline: selected.baseline,
-      monitoring: selected.monitoring,
-      change,
-      changePercent: percentChangeValues(change, selected.baseline),
-      matchedEnterprises: matched,
-      enterpriseOptions,
-    };
-  }
-
-  const baseline = medianValues(matched, (row) => row.baseline);
-  const monitoring = medianValues(matched, (row) => row.monitoring);
-  const change = diffValues(monitoring, baseline);
-  return {
-    monitoringPeriodLabel: input.monitoringPeriodLabel,
-    monitoringPeriodCode: input.monitoringPeriodCode,
-    coverage,
-    viewMode: "cohort",
-    selectedBusinessId: null,
-    summaryLabel: `Matched panel median (${matched.length} enterprises)`,
-    baseline,
-    monitoring,
-    change,
-    changePercent: percentChangeValues(change, baseline),
-    matchedEnterprises: matched,
-    enterpriseOptions,
-  };
+  });
 }

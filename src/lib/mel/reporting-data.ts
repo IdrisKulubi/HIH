@@ -55,9 +55,19 @@ import {
   type FundingTypeBreakdown,
 } from "./reporting-finance";
 import { buildPanelAnalysis, PANEL_MONITORING_PERIOD_CODE, type MelPanelAnalysis } from "./panel-analysis";
+import { emptyPanelAnalysis } from "./panel-analysis-core";
+import {
+  buildEmptyWorkbookPanelAnalysis,
+  buildPanelAnalysisFromWorkbook,
+  loadPanelWorkbookBuffer,
+  parsePanelAnalysisWorkbook,
+  type PanelWorkbookDemographics,
+} from "./panel-analysis-workbook";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
 export type { WordCloudTerm } from "./feedback-word-cloud";
+
+export type MelPanelSource = "system" | "workbook";
 
 export type MelDashboardFilters = {
   periodId?: number | null;
@@ -66,6 +76,7 @@ export type MelDashboardFilters = {
   sector?: string | null;
   ownerGender?: string | null;
   panelBusinessId?: number | null;
+  panelSource?: MelPanelSource | null;
 };
 
 /** URL/filter value for youth-owned enterprises (distinct from applicant gender). */
@@ -331,6 +342,41 @@ function ageAt(dob: Date, date: string): number {
   return age;
 }
 
+async function loadPanelWorkbookDemographics(
+  businessIds: number[],
+  periodEndDate: string
+): Promise<Map<number, PanelWorkbookDemographics>> {
+  if (!businessIds.length) return new Map();
+  const rows = await db
+    .select({
+      businessId: businesses.id,
+      businessName: businesses.name,
+      county: businesses.county,
+      sector: businesses.sector,
+      track: applications.track,
+      ownerGender: applicants.gender,
+      ownerDob: applicants.dob,
+    })
+    .from(businesses)
+    .leftJoin(applications, eq(applications.businessId, businesses.id))
+    .leftJoin(applicants, eq(applicants.id, businesses.applicantId))
+    .where(inArray(businesses.id, businessIds));
+
+  const map = new Map<number, PanelWorkbookDemographics>();
+  for (const row of rows) {
+    map.set(row.businessId, {
+      businessId: row.businessId,
+      businessName: row.businessName ?? `Enterprise ${row.businessId}`,
+      track: row.track,
+      ownerGender: row.ownerGender,
+      ownerYouth: row.ownerDob ? ageAt(row.ownerDob, periodEndDate) <= 35 : null,
+      sector: row.sector,
+      county: row.county,
+    });
+  }
+  return map;
+}
+
 const MONITORING_REPORTING_STATUSES = new Set([
   "submitted",
   "resubmitted",
@@ -398,13 +444,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     ? periods.find((period) => period.id === filters.periodId)
     : periods.at(-1);
   if (!selectedPeriod) throw new Error("No open or closed MEL reporting period is available.");
-  const resolvedFilters = {
+  const resolvedFilters: MelReportingDataset["filters"] = {
     periodId: selectedPeriod.id,
     track: filters.track ?? null,
     county: filters.county ?? null,
     sector: filters.sector ?? null,
     ownerGender: filters.ownerGender ?? null,
     panelBusinessId: filters.panelBusinessId ?? null,
+    panelSource: filters.panelSource === "system" ? "system" : "workbook",
   };
 
   const includedPeriods = periods.filter(
@@ -971,21 +1018,42 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const panelPeriod = await db.query.melReportingPeriods.findFirst({
     where: eq(melReportingPeriods.code, PANEL_MONITORING_PERIOD_CODE),
   });
-  let panelAnalysis: MelPanelAnalysis = {
-    monitoringPeriodLabel: panelPeriod?.label ?? "Y1 Monitoring Q1 (Jun–Aug 2026)",
-    monitoringPeriodCode: PANEL_MONITORING_PERIOD_CODE,
-    coverage: { monitoringEligible: 0, matched: 0, unmatched: 0, matchPercent: null },
-    viewMode: "empty",
+  const panelPeriodLabel = panelPeriod?.label ?? "Y1 Monitoring Q1 (Jun–Aug 2026)";
+  const panelPeriodCode = panelPeriod?.code ?? PANEL_MONITORING_PERIOD_CODE;
+  let panelAnalysis: MelPanelAnalysis = emptyPanelAnalysis({
+    monitoringPeriodLabel: panelPeriodLabel,
+    monitoringPeriodCode: panelPeriodCode,
     selectedBusinessId: resolvedFilters.panelBusinessId,
     summaryLabel: panelPeriod ? "No matched panel data" : "Panel monitoring period is not configured",
-    baseline: { revenue: null, costs: null, profit: null },
-    monitoring: { revenue: null, costs: null, profit: null },
-    change: { revenue: null, costs: null, profit: null },
-    changePercent: { revenue: null, costs: null, profit: null },
-    matchedEnterprises: [],
-    enterpriseOptions: [],
-  };
-  if (panelPeriod) {
+  });
+
+  if (resolvedFilters.panelSource === "workbook") {
+    const workbookBuffer = loadPanelWorkbookBuffer();
+    if (!workbookBuffer) {
+      panelAnalysis = buildEmptyWorkbookPanelAnalysis(
+        panelPeriodLabel,
+        panelPeriodCode,
+        resolvedFilters.panelBusinessId ?? null,
+        "Panel workbook not found at data/mel/panel-analysis.xlsx. Switch to live system panel or add the workbook."
+      );
+    } else {
+      const parsed = parsePanelAnalysisWorkbook(workbookBuffer);
+      const workbookBusinessIds = [
+        ...new Set([
+          ...parsed.baselineRows.map((row) => row.businessId),
+          ...parsed.monitoringRows.map((row) => row.businessId),
+        ]),
+      ];
+      const demographicsById = await loadPanelWorkbookDemographics(workbookBusinessIds, selectedPeriod.endDate);
+      panelAnalysis = buildPanelAnalysisFromWorkbook({
+        buffer: workbookBuffer,
+        demographicsById,
+        panelBusinessId: resolvedFilters.panelBusinessId ?? null,
+        monitoringPeriodLabel: panelPeriodLabel,
+        monitoringPeriodCode: panelPeriodCode,
+      });
+    }
+  } else if (panelPeriod) {
     let panelRecords = filteredRecords;
     if (!filteredRecords.some((record) => record.periodId === panelPeriod.id)) {
       const panelSubmissions = await db.query.melMonitoringSubmissions.findMany({
@@ -1008,18 +1076,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
           .filter((record) => matchesDashboardFilters(record, resolvedFilters)),
       ];
     }
-    const panelCandidateIds = [
-      ...new Set(
-        withReportedFinancialActivity(panelRecords.filter((record) => record.periodId === panelPeriod.id)).map(
-          (record) => record.businessId
-        )
-      ),
-    ];
-    const activeBaselineRows = panelCandidateIds.length
+    const panelScopedBusinessIds = supportedEnterprises
+      .filter((enterprise) => matchesSupportedFilters(enterprise, resolvedFilters))
+      .map((enterprise) => enterprise.businessId);
+    const activeBaselineRows = panelScopedBusinessIds.length
       ? await db.query.melEnterpriseFinancialBaselines.findMany({
           where: and(
             eq(melEnterpriseFinancialBaselines.status, "active"),
-            inArray(melEnterpriseFinancialBaselines.businessId, panelCandidateIds)
+            inArray(melEnterpriseFinancialBaselines.businessId, panelScopedBusinessIds)
           ),
         })
       : [];
@@ -1042,7 +1106,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       monitoringPeriodLabel: panelPeriod.label,
       monitoringPeriodCode: panelPeriod.code,
       activeBaselinesByBusinessId,
-      panelBusinessId: resolvedFilters.panelBusinessId,
+      panelBusinessId: resolvedFilters.panelBusinessId ?? null,
     });
   }
 
