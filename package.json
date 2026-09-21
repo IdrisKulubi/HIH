@@ -22,6 +22,7 @@
     "test:mel-review-fixes": "npx tsx src/lib/mel/monitoring-review-fixes.manual.test.ts",
     "test:mel-financial-baselines": "npx tsx src/lib/mel/financial-baselines.manual.test.ts",
     "test:mel-panel-analysis": "npx tsx src/lib/mel/panel-analysis.manual.test.ts",
+    "test:mel-executive-pdf": "npx tsx src/lib/mel/executive-summary-pdf.manual.test.ts",
     "test:mel-monitoring-export": "npx tsx src/lib/mel/monitoring-export.manual.test.ts",
     "test:mel-enterprise-export": "npx tsx src/lib/mel/enterprise-export.manual.test.ts",
     "migrate:mel-historical": "npx tsx scripts/migrate-mel-historical.ts",

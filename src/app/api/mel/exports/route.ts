@@ -9,9 +9,11 @@ import { getMelGisData } from "@/lib/actions/mel-reporting";
 import { sanitizeExportRows } from "@/lib/mel/import-engine";
 import { buildApprovedMonitoringExportRows, buildPeriodVsBaselineExportRows, DEFAULT_TRACK_MONTHLY_BASELINES, type TrackMonthlyBaselines } from "@/lib/mel/monitoring-export";
 import { enforceMelRateLimit, recordMelOperationalEvent, requireMelRolloutFeature } from "@/lib/mel/operations";
+import { renderMelExecutiveSummaryPdf } from "@/lib/mel/executive-summary-pdf";
 
-const TYPES = ["itt", "monitoring", "jobs", "evidence", "quality", "programme", "gis", "full", "period-baseline"] as const;
+const TYPES = ["itt", "monitoring", "jobs", "evidence", "quality", "programme", "gis", "full", "period-baseline", "executive-summary"] as const;
 type ExportType = typeof TYPES[number];
+type ExportFormat = "csv" | "xlsx" | "pdf";
 
 export async function GET(request: Request) {
   try {
@@ -20,15 +22,42 @@ export async function GET(request: Request) {
     await enforceMelRateLimit(`mel-export:${actor.id}`, 20, 60);
     const url = new URL(request.url);
     const type = url.searchParams.get("type") as ExportType | null;
-    const format = url.searchParams.get("format") === "xlsx" ? "xlsx" : "csv";
+    const formatParam = url.searchParams.get("format");
+    const format: ExportFormat =
+      formatParam === "xlsx" ? "xlsx" : formatParam === "pdf" ? "pdf" : "csv";
     if (!type || !TYPES.includes(type)) return Response.json({ error: "Unsupported MEL export type." }, { status: 400 });
+    if (type === "executive-summary" && format !== "pdf") {
+      return Response.json({ error: "Executive summary is only available as PDF (format=pdf)." }, { status: 400 });
+    }
     const filters: MelDashboardFilters = {
       periodId: positiveNumber(url.searchParams.get("periodId")),
       track: url.searchParams.get("track") || null,
       county: url.searchParams.get("county") || null,
       sector: url.searchParams.get("sector") || null,
       ownerGender: url.searchParams.get("ownerGender") || null,
+      panelBusinessId: positiveNumber(url.searchParams.get("panelBusinessId")),
+      panelSource: url.searchParams.get("panelSource") === "system" ? "system" : "workbook",
     };
+    if (type === "executive-summary") {
+      const dataset = await buildMelReportingDataset(filters);
+      const exportedAt = new Date();
+      const pdf = await renderMelExecutiveSummaryPdf(
+        {
+          selectedPeriod: dataset.selectedPeriod,
+          filters: dataset.filters,
+          summary: dataset.summary,
+          financeBreakdown: dataset.financeBreakdown,
+          financialPerformance: dataset.financialPerformance,
+          panelAnalysis: dataset.panelAnalysis,
+        },
+        exportedAt
+      );
+      const fileBase = `mel-executive-summary-${exportedAt.toISOString().slice(0, 10)}`;
+      await recordExport(actor, type, format, filters, 1, exportedAt);
+      return new Response(new Uint8Array(pdf), {
+        headers: downloadHeaders(`${fileBase}.pdf`, "application/pdf"),
+      });
+    }
     const dataset = type === "gis" ? null : await buildMelReportingDataset(filters);
     const exportedAt = new Date();
     const metadata = {
@@ -116,7 +145,7 @@ async function evidenceExportRows(records: Array<{ submissionId: number }>) {
 async function recordExport(
   actor: { id: string; role: string },
   type: ExportType,
-  format: "csv" | "xlsx",
+  format: ExportFormat,
   filters: MelDashboardFilters,
   rowCount: number,
   exportedAt: Date
@@ -146,6 +175,29 @@ function trackBaselinesFrom(dataset: NonNullable<Awaited<ReturnType<typeof build
 
 function jobColumns(job: { total: number; male: number; female: number; youth: number; plwd: number; refugee: number }) { return { Total: job.total, Male: job.male, Female: job.female, Youth: job.youth, PLWD: job.plwd, Refugee: job.refugee }; }
 function positiveNumber(value: string | null) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
-function filterSummary(filters: MelDashboardFilters) { return [`period=${filters.periodId ?? "latest"}`, `track=${filters.track ?? "all"}`, `county=${filters.county ?? "all"}`, `sector=${filters.sector ?? "all"}`, `ownerGender=${filters.ownerGender ?? "all"}`].join("; "); }
-function sheetName(type: ExportType) { return ({ itt: "ITT", monitoring: "Approved reports", jobs: "Jobs", evidence: "Evidence index", quality: "Data quality", programme: "Programme results", gis: "Protected GIS", full: "Approved reports", "period-baseline": "Period vs baseline" })[type]; }
+function filterSummary(filters: MelDashboardFilters) {
+  return [
+    `period=${filters.periodId ?? "latest"}`,
+    `track=${filters.track ?? "all"}`,
+    `county=${filters.county ?? "all"}`,
+    `sector=${filters.sector ?? "all"}`,
+    `ownerGender=${filters.ownerGender ?? "all"}`,
+    `panelSource=${filters.panelSource ?? "workbook"}`,
+    `panelBusinessId=${filters.panelBusinessId ?? "all"}`,
+  ].join("; ");
+}
+function sheetName(type: ExportType) {
+  return ({
+    itt: "ITT",
+    monitoring: "Approved reports",
+    jobs: "Jobs",
+    evidence: "Evidence index",
+    quality: "Data quality",
+    programme: "Programme results",
+    gis: "Protected GIS",
+    full: "Approved reports",
+    "period-baseline": "Period vs baseline",
+    "executive-summary": "Executive summary",
+  })[type];
+}
 function downloadHeaders(fileName: string, contentType: string) { return { "Content-Type": contentType, "Content-Disposition": `attachment; filename="${fileName}"`, "Cache-Control": "no-store" }; }

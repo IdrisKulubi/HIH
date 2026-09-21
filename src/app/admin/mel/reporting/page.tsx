@@ -49,6 +49,12 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           <div className="mt-2"><DashboardAutoRefresh /></div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button className="bg-brand-blue hover:bg-brand-blue-dark" asChild>
+            <a className="inline-flex items-center gap-1.5" href={`/api/mel/exports?type=executive-summary&format=pdf&${exportQuery}`}>
+              <DownloadSimple className="size-4" />
+              Executive summary PDF
+            </a>
+          </Button>
           <Button variant="outline" asChild><Link href="/admin/mel/reporting/data-quality">Data quality</Link></Button>
           <Button variant="outline" asChild><Link href="/admin/mel/gis">Protected GIS</Link></Button>
           <Button variant="outline" asChild><Link href="/admin/mel/programme-results">Programme entries</Link></Button>
