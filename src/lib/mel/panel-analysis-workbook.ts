@@ -7,6 +7,7 @@ import {
   emptyPanelAnalysis,
   hasFinancialActivity,
   PANEL_OUTLIER_MONTHLY_THRESHOLD,
+  type MelPanelAnalysis,
   type PanelDataQualitySummary,
   type PanelEnterpriseInput,
   type PanelFinancialValues,
@@ -287,7 +288,7 @@ export function buildEmptyWorkbookPanelAnalysis(
   monitoringPeriodCode: string,
   panelBusinessId: number | null,
   summaryLabel: string
-) {
+): MelPanelAnalysis {
   return {
     ...emptyPanelAnalysis({
       monitoringPeriodLabel,
