@@ -1238,8 +1238,14 @@ type ApprovedSubmissionForRecord = {
   };
 };
 
+type SubmissionInputForRecord = Omit<ApprovedSubmissionForRecord, "visitDate" | "approvedAt"> & {
+  /** Drizzle `date` / `timestamp` columns may be ISO strings at runtime. */
+  visitDate: string | Date | null;
+  approvedAt: string | Date | null;
+};
+
 function mapApprovedSubmissionToRecord(
-  submission: ApprovedSubmissionForRecord,
+  submission: SubmissionInputForRecord,
   selectedPeriod: typeof melReportingPeriods.$inferSelect
 ): ApprovedMonitoringRecord {
   const response = submission.response;
