@@ -14,6 +14,7 @@ import {
   melIndicatorResults,
   melIndicatorTargets,
   melEnterpriseAchievements,
+  melEnterpriseFinancialBaselines,
   melMonitoringEvidence,
   melMonitoringSubmissions,
   melProgrammeResults,
@@ -53,6 +54,7 @@ import {
   sumExternalFinance,
   type FundingTypeBreakdown,
 } from "./reporting-finance";
+import { buildPanelAnalysis, PANEL_MONITORING_PERIOD_CODE, type MelPanelAnalysis } from "./panel-analysis";
 import { indicatorGroup, type MelIndicatorGroup } from "./reporting-visualizations";
 export type { MelIndicatorGroup } from "./reporting-visualizations";
 export type { WordCloudTerm } from "./feedback-word-cloud";
@@ -63,6 +65,7 @@ export type MelDashboardFilters = {
   county?: string | null;
   sector?: string | null;
   ownerGender?: string | null;
+  panelBusinessId?: number | null;
 };
 
 /** URL/filter value for youth-owned enterprises (distinct from applicant gender). */
@@ -284,6 +287,7 @@ export type MelReportingDataset = {
     negativeEffects: WordCloudTerm[];
   };
   wasteReporting: MelWasteReportingSummary;
+  panelAnalysis: MelPanelAnalysis;
 };
 
 export type MelWasteReportingSummary = {
@@ -400,6 +404,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     county: filters.county ?? null,
     sector: filters.sector ?? null,
     ownerGender: filters.ownerGender ?? null,
+    panelBusinessId: filters.panelBusinessId ?? null,
   };
 
   const includedPeriods = periods.filter(
@@ -510,89 +515,9 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     db.select().from(melEvidenceReviews),
   ]);
 
-  const records: ApprovedMonitoringRecord[] = submissions.map((submission) => {
-    const response = submission.response;
-    const directQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directQuality);
-    const directNonQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directNonQuality);
-    const indirect = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.indirect);
-    const toJobs = (job: typeof directQuality): JobTotals => job ? {
-      total: job.quarterlyTotal ?? 0,
-      male: job.male ?? 0,
-      female: job.female ?? 0,
-      youth: job.youth ?? 0,
-      plwd: job.plwd ?? 0,
-      refugee: job.refugee ?? 0,
-    } : emptyJobs();
-    const application = submission.business.application;
-    const applicant = submission.business.applicant;
-    return {
-      submissionId: submission.id,
-      businessId: submission.businessId,
-      periodId: submission.reportingPeriodId,
-      businessName: submission.business.name,
-      visitDate: submission.visitDate ?? null,
-      approvedAt: submission.approvedAt?.toISOString() ?? null,
-      dimensions: {
-        track: application?.track ?? null,
-        ownerGender: applicant?.gender ?? null,
-        ownerYouth: applicant?.dob ? ageAt(applicant.dob, selectedPeriod.endDate) <= 35 : null,
-        ownerPlwd: null,
-        county: submission.business.county ?? null,
-        sector: submission.business.sector ?? null,
-      },
-      revenue: numeric(response?.revenue),
-      costs: numeric(response?.costs),
-      profitLoss: numeric(response?.profitLoss),
-      financialChangeExplanation: response?.financialChangeExplanation ?? null,
-      financialBaselineSnapshot: response?.financialBaselineSnapshot ?? null,
-      financialComparisonSnapshot: response?.financialComparisonSnapshot ?? null,
-      newMarketSegments: response?.newMarketSegments ?? null,
-      businessPlanImproved: response?.businessPlanImproved ?? null,
-      marketResearchCompleted: response?.marketResearchCompleted ?? null,
-      marketIntelligenceAccessed: response?.marketIntelligenceAccessed ?? null,
-      technologyAdopted: response?.technologyAdopted ?? null,
-      newProductsDeveloped: response?.newProductsDeveloped ?? null,
-      linkedToFinanceProvider: response?.linkedToFinanceProvider ?? null,
-      financeValue: submission.financeEntries.length > 0
-        ? sum(submission.financeEntries, (entry) => numeric(entry.amount) ?? 0)
-        : numeric(response?.financeValue),
-      financeEntries: submission.financeEntries.map((entry) => ({
-        financeType: entry.financeType,
-        otherDescription: entry.otherDescription,
-        amount: numeric(entry.amount) ?? 0,
-      })),
-      financialPlanCompleted: response?.financialPlanCompleted ?? null,
-      activeInsurance: response?.activeInsurance ?? null,
-      investorReadinessCompleted: response?.investorReadinessCompleted ?? null,
-      lifeCycleAssessmentCompleted: response?.lifeCycleAssessmentCompleted ?? null,
-      ecoCertificationActive: response?.ecoCertificationActive ?? null,
-      esgReportCompleted: response?.esgReportCompleted ?? null,
-      socialSafeguardingGuidelines: response?.socialSafeguardingGuidelines ?? null,
-      circularGrowthReported: response?.circularGrowthReported ?? null,
-      circularGrowthValue: numeric(response?.circularGrowthValue),
-      strategicPartnerships: response?.strategicPartnerships ?? null,
-      strategicPartnershipCount: response?.strategicPartnershipCount ?? null,
-      strategicPartnershipDetails: response?.strategicPartnershipDetails ?? null,
-      forumParticipation: response?.forumParticipation ?? null,
-      forumDetails: response?.forumDetails ?? null,
-      publicPrivatePartnership: response?.publicPrivatePartnership ?? null,
-      publicPrivatePartnershipDetails: response?.publicPrivatePartnershipDetails ?? null,
-      technologyDetails: response?.technologyDetails ?? null,
-      newProductsDetails: response?.newProductsDetails ?? null,
-      mainChallenges: response?.mainChallenges ?? null,
-      positiveProgrammeImpacts: response?.positiveProgrammeImpacts ?? null,
-      negativeProgrammeImpacts: response?.negativeProgrammeImpacts ?? null,
-      additionalSupportNeeded: response?.additionalSupportNeeded ?? null,
-      collectorComment: response?.collectorComment ?? null,
-      directQualityJobs: toJobs(directQuality),
-      directNonQualityJobs: toJobs(directNonQuality),
-      directJobs: mergeJobTotals(toJobs(directQuality), toJobs(directNonQuality)),
-      indirectJobs: toJobs(indirect),
-      waste: submission.business.sector === "waste_management"
-        ? submission.waste.map((item) => ({ stream: item.wasteStream, kilograms: numeric(item.kilograms) ?? 0 }))
-        : [],
-    };
-  });
+  const records: ApprovedMonitoringRecord[] = submissions.map((submission) =>
+    mapApprovedSubmissionToRecord(submission, selectedPeriod)
+  );
 
   const genderOptions = unique(records.map((record) => record.dimensions.ownerGender));
   const hasYouthOwners = records.some((record) => record.dimensions.ownerYouth === true);
@@ -1043,6 +968,84 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     ? `${selectedFinancialTrack} ITT baseline`
     : "overall ITT baseline";
 
+  const panelPeriod = await db.query.melReportingPeriods.findFirst({
+    where: eq(melReportingPeriods.code, PANEL_MONITORING_PERIOD_CODE),
+  });
+  let panelAnalysis: MelPanelAnalysis = {
+    monitoringPeriodLabel: panelPeriod?.label ?? "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: PANEL_MONITORING_PERIOD_CODE,
+    coverage: { monitoringEligible: 0, matched: 0, unmatched: 0, matchPercent: null },
+    viewMode: "empty",
+    selectedBusinessId: resolvedFilters.panelBusinessId,
+    summaryLabel: panelPeriod ? "No matched panel data" : "Panel monitoring period is not configured",
+    baseline: { revenue: null, costs: null, profit: null },
+    monitoring: { revenue: null, costs: null, profit: null },
+    change: { revenue: null, costs: null, profit: null },
+    changePercent: { revenue: null, costs: null, profit: null },
+    matchedEnterprises: [],
+    enterpriseOptions: [],
+  };
+  if (panelPeriod) {
+    let panelRecords = filteredRecords;
+    if (!filteredRecords.some((record) => record.periodId === panelPeriod.id)) {
+      const panelSubmissions = await db.query.melMonitoringSubmissions.findMany({
+        where: and(
+          eq(melMonitoringSubmissions.status, "approved"),
+          eq(melMonitoringSubmissions.reportingPeriodId, panelPeriod.id)
+        ),
+        with: {
+          response: true,
+          financeEntries: true,
+          jobs: true,
+          waste: true,
+          business: { with: { applicant: true, application: true, kycProfile: true } },
+        },
+      });
+      panelRecords = [
+        ...filteredRecords,
+        ...panelSubmissions
+          .map((submission) => mapApprovedSubmissionToRecord(submission, selectedPeriod))
+          .filter((record) => matchesDashboardFilters(record, resolvedFilters)),
+      ];
+    }
+    const panelCandidateIds = [
+      ...new Set(
+        withReportedFinancialActivity(panelRecords.filter((record) => record.periodId === panelPeriod.id)).map(
+          (record) => record.businessId
+        )
+      ),
+    ];
+    const activeBaselineRows = panelCandidateIds.length
+      ? await db.query.melEnterpriseFinancialBaselines.findMany({
+          where: and(
+            eq(melEnterpriseFinancialBaselines.status, "active"),
+            inArray(melEnterpriseFinancialBaselines.businessId, panelCandidateIds)
+          ),
+        })
+      : [];
+    const activeBaselinesByBusinessId = new Map(
+      activeBaselineRows
+        .filter((row): row is typeof row & { businessId: number } => row.businessId !== null)
+        .map((row) => [
+          row.businessId,
+          {
+            businessId: row.businessId,
+            monthlyRevenue: row.monthlyRevenue,
+            monthlyCosts: row.monthlyCosts,
+            monthlyProfit: row.monthlyProfit,
+          },
+        ])
+    );
+    panelAnalysis = buildPanelAnalysis({
+      records: panelRecords,
+      monitoringPeriodId: panelPeriod.id,
+      monitoringPeriodLabel: panelPeriod.label,
+      monitoringPeriodCode: panelPeriod.code,
+      activeBaselinesByBusinessId,
+      panelBusinessId: resolvedFilters.panelBusinessId,
+    });
+  }
+
   return {
     filters: resolvedFilters,
     selectedPeriod,
@@ -1110,6 +1113,151 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       negativeEffects: feedbackWordClouds.negativeEffects,
     },
     wasteReporting,
+    panelAnalysis,
+  };
+}
+
+type ApprovedSubmissionForRecord = {
+  id: number;
+  businessId: number;
+  reportingPeriodId: number;
+  visitDate: Date | null;
+  approvedAt: Date | null;
+  response: {
+    revenue: string | number | null;
+    costs: string | number | null;
+    profitLoss: string | number | null;
+    financialChangeExplanation: string | null;
+    financialBaselineSnapshot: Record<string, unknown> | null;
+    financialComparisonSnapshot: Record<string, unknown> | null;
+    newMarketSegments: number | null;
+    businessPlanImproved: boolean | null;
+    marketResearchCompleted: boolean | null;
+    marketIntelligenceAccessed: boolean | null;
+    technologyAdopted: boolean | null;
+    newProductsDeveloped: boolean | null;
+    linkedToFinanceProvider: boolean | null;
+    financeValue: string | number | null;
+    financialPlanCompleted: boolean | null;
+    activeInsurance: boolean | null;
+    investorReadinessCompleted: boolean | null;
+    lifeCycleAssessmentCompleted: boolean | null;
+    ecoCertificationActive: boolean | null;
+    esgReportCompleted: boolean | null;
+    socialSafeguardingGuidelines: boolean | null;
+    circularGrowthReported: boolean | null;
+    circularGrowthValue: string | number | null;
+    strategicPartnerships: boolean | null;
+    strategicPartnershipCount: number | null;
+    strategicPartnershipDetails: string | null;
+    forumParticipation: boolean | null;
+    forumDetails: string | null;
+    publicPrivatePartnership: boolean | null;
+    publicPrivatePartnershipDetails: string | null;
+    technologyDetails: string | null;
+    newProductsDetails: string | null;
+    mainChallenges: string | null;
+    positiveProgrammeImpacts: string | null;
+    negativeProgrammeImpacts: string | null;
+    additionalSupportNeeded: string | null;
+    collectorComment: string | null;
+  } | null;
+  financeEntries: Array<{ financeType: string; otherDescription: string | null; amount: string | number | null }>;
+  jobs: Array<{ jobType: string; quarterlyTotal: number | null; male: number | null; female: number | null; youth: number | null; plwd: number | null; refugee: number | null }>;
+  waste: Array<{ wasteStream: string; kilograms: string | number | null }>;
+  business: {
+    name: string;
+    county: string | null;
+    sector: string | null;
+    applicant: { gender: string | null; dob: Date | null } | null;
+    application: { track: string | null } | null;
+  };
+};
+
+function mapApprovedSubmissionToRecord(
+  submission: ApprovedSubmissionForRecord,
+  selectedPeriod: typeof melReportingPeriods.$inferSelect
+): ApprovedMonitoringRecord {
+  const response = submission.response;
+  const directQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directQuality);
+  const directNonQuality = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.directNonQuality);
+  const indirect = findMonitoringJob(submission.jobs, MEL_JOB_TYPE.indirect);
+  const toJobs = (job: typeof directQuality): JobTotals => job ? {
+    total: job.quarterlyTotal ?? 0,
+    male: job.male ?? 0,
+    female: job.female ?? 0,
+    youth: job.youth ?? 0,
+    plwd: job.plwd ?? 0,
+    refugee: job.refugee ?? 0,
+  } : emptyJobs();
+  const application = submission.business.application;
+  const applicant = submission.business.applicant;
+  return {
+    submissionId: submission.id,
+    businessId: submission.businessId,
+    periodId: submission.reportingPeriodId,
+    businessName: submission.business.name,
+    visitDate: submission.visitDate ?? null,
+    approvedAt: submission.approvedAt?.toISOString() ?? null,
+    dimensions: {
+      track: application?.track ?? null,
+      ownerGender: applicant?.gender ?? null,
+      ownerYouth: applicant?.dob ? ageAt(applicant.dob, selectedPeriod.endDate) <= 35 : null,
+      ownerPlwd: null,
+      county: submission.business.county ?? null,
+      sector: submission.business.sector ?? null,
+    },
+    revenue: numeric(response?.revenue),
+    costs: numeric(response?.costs),
+    profitLoss: numeric(response?.profitLoss),
+    financialChangeExplanation: response?.financialChangeExplanation ?? null,
+    financialBaselineSnapshot: response?.financialBaselineSnapshot ?? null,
+    financialComparisonSnapshot: response?.financialComparisonSnapshot ?? null,
+    newMarketSegments: response?.newMarketSegments ?? null,
+    businessPlanImproved: response?.businessPlanImproved ?? null,
+    marketResearchCompleted: response?.marketResearchCompleted ?? null,
+    marketIntelligenceAccessed: response?.marketIntelligenceAccessed ?? null,
+    technologyAdopted: response?.technologyAdopted ?? null,
+    newProductsDeveloped: response?.newProductsDeveloped ?? null,
+    linkedToFinanceProvider: response?.linkedToFinanceProvider ?? null,
+    financeValue: submission.financeEntries.length > 0
+      ? sum(submission.financeEntries, (entry) => numeric(entry.amount) ?? 0)
+      : numeric(response?.financeValue),
+    financeEntries: submission.financeEntries.map((entry) => ({
+      financeType: entry.financeType,
+      otherDescription: entry.otherDescription,
+      amount: numeric(entry.amount) ?? 0,
+    })),
+    financialPlanCompleted: response?.financialPlanCompleted ?? null,
+    activeInsurance: response?.activeInsurance ?? null,
+    investorReadinessCompleted: response?.investorReadinessCompleted ?? null,
+    lifeCycleAssessmentCompleted: response?.lifeCycleAssessmentCompleted ?? null,
+    ecoCertificationActive: response?.ecoCertificationActive ?? null,
+    esgReportCompleted: response?.esgReportCompleted ?? null,
+    socialSafeguardingGuidelines: response?.socialSafeguardingGuidelines ?? null,
+    circularGrowthReported: response?.circularGrowthReported ?? null,
+    circularGrowthValue: numeric(response?.circularGrowthValue),
+    strategicPartnerships: response?.strategicPartnerships ?? null,
+    strategicPartnershipCount: response?.strategicPartnershipCount ?? null,
+    strategicPartnershipDetails: response?.strategicPartnershipDetails ?? null,
+    forumParticipation: response?.forumParticipation ?? null,
+    forumDetails: response?.forumDetails ?? null,
+    publicPrivatePartnership: response?.publicPrivatePartnership ?? null,
+    publicPrivatePartnershipDetails: response?.publicPrivatePartnershipDetails ?? null,
+    technologyDetails: response?.technologyDetails ?? null,
+    newProductsDetails: response?.newProductsDetails ?? null,
+    mainChallenges: response?.mainChallenges ?? null,
+    positiveProgrammeImpacts: response?.positiveProgrammeImpacts ?? null,
+    negativeProgrammeImpacts: response?.negativeProgrammeImpacts ?? null,
+    additionalSupportNeeded: response?.additionalSupportNeeded ?? null,
+    collectorComment: response?.collectorComment ?? null,
+    directQualityJobs: toJobs(directQuality),
+    directNonQualityJobs: toJobs(directNonQuality),
+    directJobs: mergeJobTotals(toJobs(directQuality), toJobs(directNonQuality)),
+    indirectJobs: toJobs(indirect),
+    waste: submission.business.sector === "waste_management"
+      ? submission.waste.map((item) => ({ stream: item.wasteStream, kilograms: numeric(item.kilograms) ?? 0 }))
+      : [],
   };
 }
 

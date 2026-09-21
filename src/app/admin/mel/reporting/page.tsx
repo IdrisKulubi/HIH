@@ -10,6 +10,7 @@ import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRe
 import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer";
 import { FeedbackAccountabilitySection } from "@/components/mel/reporting/FeedbackAccountabilitySection";
 import { WasteRecycledSection } from "@/components/mel/reporting/WasteRecycledSection";
+import { PanelAnalysisSection } from "@/components/mel/reporting/PanelAnalysisSection";
 import { ProfitabilityMeasureChart } from "@/components/mel/reporting/ProfitabilityMeasureChart";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -22,6 +23,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
     county: scalar(params.county),
     sector: scalar(params.sector),
     ownerGender: scalar(params.ownerGender),
+    panelBusinessId: positiveNumber(params.panelBusinessId),
   };
   const result = await getMelReportingDashboard(filters);
   if (!result.success || !result.data) return <LoadError message={result.error ?? "Unable to load reporting dashboard."} />;
@@ -31,6 +33,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
   if (data.filters.county) exportQuery.set("county", data.filters.county);
   if (data.filters.sector) exportQuery.set("sector", data.filters.sector);
   if (data.filters.ownerGender) exportQuery.set("ownerGender", data.filters.ownerGender);
+  if (data.filters.panelBusinessId) exportQuery.set("panelBusinessId", String(data.filters.panelBusinessId));
 
   return (
     <div className="container mx-auto space-y-7 px-4 py-8">
@@ -186,6 +189,8 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           selectedDemographic={data.filters.ownerGender}
         />
       </section>
+
+      <PanelAnalysisSection panel={data.panelAnalysis} filters={data.filters} />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
