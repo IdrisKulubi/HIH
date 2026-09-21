@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
+import { previousSessionGateMessage } from "@/lib/mentorship/session-order";
 import {
   mentorshipEvidenceFilesFromLegacyUrl,
   parseMentorshipEvidenceFilesInput,
@@ -526,10 +527,9 @@ export async function completeMentorshipSession(input: {
           eq(mentorshipSessions.sessionNumber, row.sessionNumber - 1)
         ),
       });
-      if (!prev || prev.status !== "completed") {
-        return errorResponse(
-          `Session ${row.sessionNumber - 1} must be completed before session ${row.sessionNumber}.`
-        );
+      const orderError = previousSessionGateMessage(row.sessionNumber, prev);
+      if (orderError) {
+        return errorResponse(orderError);
       }
     }
 

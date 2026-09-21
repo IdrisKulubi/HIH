@@ -61,6 +61,9 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
               photographicEvidenceUrl={s.photographicEvidenceUrl}
               evidenceFiles={s.evidenceFiles}
               diagnosticNotes={s.diagnosticNotes}
+              previousSession={
+                match.sessions.find((p) => p.sessionNumber === s.sessionNumber - 1) ?? null
+              }
             />
           </div>
         ))}

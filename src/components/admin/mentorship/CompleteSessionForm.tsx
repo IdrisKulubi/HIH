@@ -9,6 +9,10 @@ import {
   toDateInputValue,
 } from "@/lib/mentorship/session-display";
 import {
+  previousSessionGateMessage,
+  type PreviousMentorshipSession,
+} from "@/lib/mentorship/session-order";
+import {
   mentorshipEvidenceFilesFromLegacyUrl,
   type MentorshipEvidenceFile,
 } from "@/lib/mentorship/evidence";
@@ -68,6 +72,7 @@ export function CompleteSessionForm({
   photographicEvidenceUrl,
   evidenceFiles,
   diagnosticNotes,
+  previousSession,
 }: {
   sessionId: number;
   sessionNumber: number;
@@ -80,6 +85,7 @@ export function CompleteSessionForm({
   photographicEvidenceUrl?: string | null;
   evidenceFiles?: MentorshipEvidenceFile[] | null;
   diagnosticNotes?: string | null;
+  previousSession?: PreviousMentorshipSession | null;
 }) {
   const resolvedEvidenceFiles = mentorshipEvidenceFilesFromLegacyUrl(
     photographicEvidenceUrl,
@@ -117,6 +123,20 @@ export function CompleteSessionForm({
           diagnosticNotes={diagnosticNotes}
           evidenceFiles={resolvedEvidenceFiles}
         />
+      </div>
+    );
+  }
+
+  const orderGate = previousSessionGateMessage(sessionNumber, previousSession);
+  if (orderGate) {
+    return (
+      <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
+        <p className="text-sm font-medium text-amber-950">{orderGate}</p>
+        <p className="mt-1 text-xs text-amber-900/80">
+          {previousSession?.sessionType === "physical"
+            ? `Session ${sessionNumber - 1} is physical and needs diagnostic notes plus evidence before it can be submitted.`
+            : `Open Session ${sessionNumber - 1} and submit it for approval first.`}
+        </p>
       </div>
     );
   }
