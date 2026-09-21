@@ -118,6 +118,17 @@ export function hasFinancialActivity(values: PanelFinancialValues): boolean {
   );
 }
 
+function hasBaselinePresent(baseline: PanelFinancialValues): boolean {
+  return baseline.revenue !== null || baseline.costs !== null || baseline.profit !== null;
+}
+
+/** Matched panel: same ID, baseline present, monitoring with at least one non-zero financial value. */
+export function isPanelMatchedCandidate(row: PanelEnterpriseInput): boolean {
+  if (row.excludedFromPanel || !row.inBaselineUniverse || !row.inMonitoringRound || !row.monitoring) return false;
+  if (!hasBaselinePresent(row.baseline)) return false;
+  return hasFinancialActivity(row.monitoring);
+}
+
 function medianField(rows: PanelMatchedEnterprise[], field: keyof PanelFinancialValues): number | null {
   return median(
     rows
@@ -225,14 +236,20 @@ function buildInterpretation(
   }
 
   const track = disaggregations.find((item) => item.dimension === "Track");
+  const overall = track?.groups.find((group) => group.key === "overall");
   const foundation = track?.groups.find((group) => group.key === "foundation");
   const acceleration = track?.groups.find((group) => group.key === "acceleration");
+  if (overall && overall.changePercent.profit !== null) {
+    lines.push(
+      `Overall matched enterprises (n=${overall.n}) had median profit change of ${formatPct(overall.changePercent.profit)} (revenue ${formatPct(overall.changePercent.revenue)}).`
+    );
+  }
   if (foundation && acceleration && foundation.n >= PANEL_MIN_DISAGGREGATION_N && acceleration.n >= PANEL_MIN_DISAGGREGATION_N) {
     const fProfit = foundation.changePercent.profit;
     const aProfit = acceleration.changePercent.profit;
     if (fProfit !== null && aProfit !== null) {
       lines.push(
-        `Foundation matched enterprises (n=${foundation.n}) showed ${fProfit >= 0 ? "higher" : "lower"} median profit than baseline (${fProfit.toFixed(1)}%), compared with Accelerator (n=${acceleration.n}, ${aProfit.toFixed(1)}%).`
+        `By track: Foundation (n=${foundation.n}) median profit change ${fProfit.toFixed(1)}%; Accelerator (n=${acceleration.n}) ${aProfit.toFixed(1)}%.`
       );
     }
   }
@@ -286,9 +303,7 @@ export function computePanelAnalysis(input: {
 
   const matched: PanelMatchedEnterprise[] = [];
   for (const row of input.enterprises) {
-    if (row.excludedFromPanel || !row.inBaselineUniverse || !row.inMonitoringRound || !row.monitoring) continue;
-    const baselinePresent = row.baseline.revenue !== null || row.baseline.costs !== null || row.baseline.profit !== null;
-    if (!baselinePresent) continue;
+    if (!isPanelMatchedCandidate(row) || !row.monitoring) continue;
     matched.push({
       businessId: row.businessId,
       businessName: row.businessName,
@@ -304,7 +319,7 @@ export function computePanelAnalysis(input: {
   }
 
   const enterpriseOptions = input.enterprises
-    .filter((row) => row.inMonitoringRound)
+    .filter((row) => isPanelMatchedCandidate(row))
     .map((row) => ({
       businessId: row.businessId,
       label: `${row.businessId} — ${row.businessName}`,
@@ -452,9 +467,58 @@ function sensitivityFromMatched(matched: PanelMatchedEnterprise[]) {
   };
 }
 
+function buildTrackGroup(
+  key: string,
+  label: string,
+  rows: PanelMatchedEnterprise[]
+): PanelDisaggregationGroup {
+  const baseline = medianValuesFromMatched(rows, "baseline");
+  const monitoring = medianValuesFromMatched(rows, "monitoring");
+  const change = diffValues(monitoring, baseline);
+  return {
+    key,
+    label,
+    n: rows.length,
+    baseline,
+    monitoring,
+    change,
+    changePercent: percentChangeValues(change, baseline),
+  };
+}
+
+function buildTrackDisaggregation(matched: PanelMatchedEnterprise[]): PanelDisaggregation {
+  const foundationRows = matched.filter((row) => normalizeTrack(row.track) === "foundation");
+  const accelerationRows = matched.filter((row) => normalizeTrack(row.track) === "acceleration");
+  const otherTrackKeys = [
+    ...new Set(
+      matched
+        .map((row) => normalizeTrack(row.track))
+        .filter((key): key is string => Boolean(key) && key !== "foundation" && key !== "acceleration")
+    ),
+  ].sort();
+
+  const groups: PanelDisaggregationGroup[] = [];
+  if (matched.length > 0) {
+    groups.push(buildTrackGroup("overall", "Overall", matched));
+  }
+  if (foundationRows.length > 0) {
+    groups.push(buildTrackGroup("foundation", "Foundation", foundationRows));
+  }
+  if (accelerationRows.length > 0) {
+    groups.push(buildTrackGroup("acceleration", "Accelerator", accelerationRows));
+  }
+  for (const key of otherTrackKeys) {
+    const rows = matched.filter((row) => normalizeTrack(row.track) === key);
+    if (rows.length > 0) {
+      groups.push(buildTrackGroup(key, titleCase(key), rows));
+    }
+  }
+  return { dimension: "Track", groups };
+}
+
 function buildAllDisaggregations(matched: PanelMatchedEnterprise[]): PanelDisaggregation[] {
   return [
-    buildDisaggregation("Track", matched, (row) => normalizeTrack(row.track), (key) => titleCase(key)),
+    buildTrackDisaggregation(matched),
     buildDisaggregation("Owner gender", matched, (row) => row.ownerGender, (key) => titleCase(key)),
     buildDisaggregation(
       "Youth-led",

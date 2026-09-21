@@ -6,6 +6,7 @@ import {
   computePanelAnalysis,
   emptyPanelAnalysis,
   hasFinancialActivity,
+  isPanelMatchedCandidate,
   PANEL_OUTLIER_MONTHLY_THRESHOLD,
   type MelPanelAnalysis,
   type PanelDataQualitySummary,
@@ -14,6 +15,14 @@ import {
 } from "./panel-analysis-core";
 
 export const PANEL_WORKBOOK_RELATIVE_PATH = "data/mel/panel-analysis.xlsx";
+
+function normalizeWorkbookTrack(track: string | null): string | null {
+  if (!track) return null;
+  const value = track.trim().toLowerCase();
+  if (value === "foundation") return "foundation";
+  if (value === "acceleration" || value === "accelerator") return "acceleration";
+  return value;
+}
 
 export type PanelWorkbookDemographics = {
   businessId: number;
@@ -143,7 +152,28 @@ function buildDataQualityAndEnterprises(
   const baselineIds = new Set(parsed.baselineRows.map((row) => row.businessId));
   const monitoringIds = new Set(parsed.monitoringRows.map((row) => row.businessId));
 
-  const matchedIds = [...baselineIds].filter((id) => monitoringById.has(id) && !duplicateIdSet.has(id));
+  const matchedIds = [...baselineIds].filter((id) => {
+    if (duplicateIdSet.has(id)) return false;
+    const monitoringRow = monitoringById.get(id);
+    if (!monitoringRow) return false;
+    const baselineRow = baselineById.get(id);
+    const baseline = baselineRow?.baseline ?? { revenue: null, costs: null, profit: null };
+    return isPanelMatchedCandidate({
+      businessId: id,
+      businessName: "",
+      track: null,
+      ownerGender: null,
+      ownerYouth: null,
+      sector: null,
+      county: null,
+      baseline,
+      monitoring: monitoringRow.monitoring,
+      inBaselineUniverse: Boolean(baselineRow),
+      inMonitoringRound: true,
+      excludedFromPanel: false,
+      flags: [],
+    });
+  });
   const unmatchedMonitoringIds = [...monitoringIds].filter((id) => !baselineIds.has(id) || duplicateIdSet.has(id));
   const unmatchedBaselineCount = [...baselineIds].filter((id) => !monitoringIds.has(id) && !duplicateIdSet.has(id)).length;
 
@@ -180,7 +210,10 @@ function buildDataQualityAndEnterprises(
 
     if (!baselineRow && baselineIds.has(businessId)) missingBaselineIds += 1;
     if (!monitoringRow && monitoringIds.has(businessId)) missingMonitoringIds += 1;
-    if (monitoring && !hasFinancialActivity(monitoring)) monitoringAllZeroCount += 1;
+    if (monitoring && !hasFinancialActivity(monitoring)) {
+      monitoringAllZeroCount += 1;
+      flags.push("monitoring_all_zero_non_response");
+    }
     if (baseline.profit !== null && baseline.profit < 0) baselineNegativeProfitCount += 1;
     if (
       [baseline, monitoring].some((values) =>
@@ -197,7 +230,7 @@ function buildDataQualityAndEnterprises(
     enterprises.push({
       businessId,
       businessName: demog?.businessName ?? monitoringRow?.businessName ?? baselineRow?.businessName ?? `Enterprise ${businessId}`,
-      track: baselineRow?.track ?? demog?.track ?? null,
+      track: normalizeWorkbookTrack(baselineRow?.track ?? demog?.track ?? null),
       ownerGender: demog?.ownerGender ?? null,
       ownerYouth: demog?.ownerYouth ?? null,
       sector: demog?.sector ?? null,
@@ -222,6 +255,11 @@ function buildDataQualityAndEnterprises(
   }
   notes.push("Workbook monitoring values are already monthly (not divided by 3).");
   notes.push("Missing financial cells are not treated as zero; medians use non-null values only.");
+  if (monitoringAllZeroCount > 0) {
+    notes.push(
+      `${monitoringAllZeroCount} monitoring row(s) have all-zero revenue, costs, and profit; these are non-response and are excluded from the matched panel.`
+    );
+  }
 
   const dataQuality: PanelDataQualitySummary = {
     duplicateBaselineIds,

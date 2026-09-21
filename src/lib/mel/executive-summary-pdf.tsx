@@ -396,6 +396,30 @@ export function MelExecutiveSummaryPdfDocument({
         ))}
         <Text style={styles.chartCaption}>Grey = baseline median · Blue = monitoring median</Text>
 
+        {panelAnalysis.disaggregations
+          .find((item) => item.dimension === "Track")
+          ?.groups.length ? (
+          <>
+            <Text style={styles.sectionTitle}>Panel by overall &amp; track</Text>
+            <View style={styles.tableHeader}>
+              <Text style={styles.cell}>Track</Text>
+              <Text style={styles.cellRight}>n</Text>
+              <Text style={styles.cellRight}>Δ rev %</Text>
+              <Text style={styles.cellRight}>Δ profit %</Text>
+            </View>
+            {panelAnalysis.disaggregations
+              .find((item) => item.dimension === "Track")!
+              .groups.map((group) => (
+                <View key={group.key} style={styles.tableRow}>
+                  <Text style={styles.cell}>{group.label}</Text>
+                  <Text style={styles.cellRight}>{group.n}</Text>
+                  <Text style={styles.cellRight}>{percent(group.changePercent.revenue)}</Text>
+                  <Text style={styles.cellRight}>{percent(group.changePercent.profit)}</Text>
+                </View>
+              ))}
+          </>
+        ) : null}
+
         <PageFooter />
       </Page>
 

@@ -9,6 +9,7 @@ import {
   type PanelFinancialValues,
   PANEL_OUTLIER_MONTHLY_THRESHOLD,
   hasFinancialActivity,
+  isPanelMatchedCandidate,
 } from "./panel-analysis-core";
 
 export const PANEL_MONITORING_PERIOD_CODE = "Y1-MQ1";
@@ -129,7 +130,10 @@ export function buildPanelAnalysis(input: {
     const monitoring = record ? monitoringMonthly(record) : null;
     const flags: string[] = [];
 
-    if (monitoring && !hasFinancialActivity(monitoring)) monitoringAllZeroCount += 1;
+    if (monitoring && !hasFinancialActivity(monitoring)) {
+      monitoringAllZeroCount += 1;
+      flags.push("monitoring_all_zero_non_response");
+    }
     if (baseline.profit !== null && baseline.profit < 0) baselineNegativeProfitCount += 1;
     if (
       [baseline, monitoring].some((values) =>
@@ -161,9 +165,7 @@ export function buildPanelAnalysis(input: {
     });
   }
 
-  const matchedIds = enterprises.filter(
-    (row) => row.inBaselineUniverse && row.inMonitoringRound && row.monitoring && !row.excludedFromPanel
-  ).map((row) => row.businessId);
+  const matchedIds = enterprises.filter((row) => isPanelMatchedCandidate(row)).map((row) => row.businessId);
   const matchedSet = new Set(matchedIds);
   const unmatchedMonitoringIds = [...monitoringIds].filter((id) => !matchedSet.has(id));
   const unmatchedBaselineCount = [...baselineUniqueIds].filter((id) => !matchedSet.has(id)).length;
@@ -179,7 +181,7 @@ export function buildPanelAnalysis(input: {
     notes: [
       "Live monitoring quarterly totals are converted to monthly (÷ 3).",
       "Missing financial fields are not treated as zero; medians use non-null values only.",
-      "Matched panel includes enterprises with all-zero monitoring when baseline and monitoring records exist.",
+      "All-zero monitoring (revenue, costs, and profit) is treated as non-response and excluded from the matched panel.",
     ],
   };
 

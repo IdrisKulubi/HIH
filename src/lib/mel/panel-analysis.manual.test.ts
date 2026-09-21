@@ -92,11 +92,12 @@ function tests() {
   });
 
   assert.equal(panel.coverage.monitoringEligible, 3);
-  assert.equal(panel.coverage.matched, 4);
-  assert.equal(panel.coverage.matchPercentOfBaseline, 100);
-  assert.equal(panel.baseline.revenue, 145_000);
-  assert.equal(panel.monitoring.revenue, 65_000);
-  assert.equal(panel.change.revenue, -80_000);
+  assert.equal(panel.coverage.matched, 3);
+  assert.equal(panel.coverage.matchPercentOfBaseline, 75);
+  assert.equal(panel.baseline.revenue, 200_000);
+  assert.equal(panel.monitoring.revenue, 100_000);
+  assert.equal(panel.change.revenue, -100_000);
+  assert.ok(!panel.matchedEnterprises.some((row) => row.businessId === 3));
 
   const missingNotZero = buildPanelAnalysis({
     records: [
@@ -145,6 +146,35 @@ function tests() {
 
   const ownBaseline = resolveEnterpriseOwnBaseline(null, { businessId: 4, monthlyRevenue: 10_000, monthlyCosts: 5_000, monthlyProfit: 5_000 });
   assert.equal(ownBaseline.revenue, 10_000);
+
+  const byTrack = buildPanelAnalysis({
+    records: [
+      record(10, {
+        dimensions: { track: "foundation", ownerGender: "female", ownerYouth: false, ownerPlwd: null, county: "nairobi", sector: "agriculture" },
+        revenue: 300_000,
+        costs: 150_000,
+        profitLoss: 150_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(11, {
+        dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" },
+        revenue: 600_000,
+        costs: 300_000,
+        profitLoss: 300_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 99,
+    monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: "Y1-MQ1",
+    activeBaselinesByBusinessId: new Map(),
+    panelBusinessId: null,
+  });
+  const trackGroups = byTrack.disaggregations.find((item) => item.dimension === "Track")?.groups ?? [];
+  assert.equal(trackGroups[0]?.key, "overall");
+  assert.equal(trackGroups[0]?.n, 2);
+  assert.ok(trackGroups.some((group) => group.key === "foundation" && group.n === 1));
+  assert.ok(trackGroups.some((group) => group.key === "acceleration" && group.n === 1));
 
   const workbookPath = resolvePanelWorkbookPath();
   if (existsSync(workbookPath)) {

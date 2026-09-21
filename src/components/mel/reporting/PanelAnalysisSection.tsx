@@ -59,7 +59,7 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
         <h2 id="panel-analysis-heading" className="text-lg font-semibold text-slate-900">Panel analysis (matched enterprises)</h2>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">
           Compare opening baselines with {monitoringShort} monitoring for the same enterprises, matched by Enterprise ID.
-          Main results use only IDs present at both time points. Match rate is measured against unique baseline IDs.
+          Main results use only IDs present at both time points with non-zero monitoring financials (all-zero rows are non-response and excluded). Match rate is measured against unique baseline IDs.
           {panel.source === "system"
             ? " Live panel uses approved monitoring (quarterly ÷ 3). Dashboard track, county, sector, and owner filters apply."
             : " Workbook panel uses Dickson’s Baseline / Monitoring sheets (monthly values, not ÷ 3). Demographics are joined from programme records."}
@@ -117,7 +117,7 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
               ))}
             </ul>
             <p className="mt-2 text-xs text-amber-900/80">
-              Zeros in monitoring ({panel.dataQuality.monitoringAllZeroCount}) are kept in medians where reported; negatives in baseline profit (
+              All-zero monitoring rows ({panel.dataQuality.monitoringAllZeroCount}) are excluded from the matched panel; negatives in baseline profit (
               {panel.dataQuality.baselineNegativeProfitCount}); flagged outliers ({panel.dataQuality.outlierCount}) — sensitivity medians below exclude outliers (&gt;10M KES/month).
             </p>
           </div>
@@ -180,6 +180,11 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
               </table>
             </div>
 
+            <TrackOverallPanelTable
+              groups={panel.disaggregations.find((item) => item.dimension === "Track")?.groups ?? []}
+              monitoringShort={monitoringShort}
+            />
+
             {hasValues ? (
               <div className="h-80 w-full" role="img" aria-label="Panel analysis baseline versus monitoring">
                 <ResponsiveContainer width="100%" height="100%">
@@ -222,9 +227,11 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
               </div>
             ) : null}
 
-            {panel.disaggregations.map((disaggregation) => (
-              <DisaggregationTable key={disaggregation.dimension} dimension={disaggregation.dimension} groups={disaggregation.groups} />
-            ))}
+            {panel.disaggregations
+              .filter((disaggregation) => disaggregation.dimension !== "Track")
+              .map((disaggregation) => (
+                <DisaggregationTable key={disaggregation.dimension} dimension={disaggregation.dimension} groups={disaggregation.groups} />
+              ))}
 
             {panel.viewMode === "cohort" && panel.matchedEnterprises.length > 0 ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3">
@@ -246,6 +253,61 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
         )}
       </div>
     </section>
+  );
+}
+
+function TrackOverallPanelTable({
+  groups,
+  monitoringShort,
+}: {
+  groups: Array<{
+    key: string;
+    label: string;
+    n: number;
+    baseline: { revenue: number | null; costs: number | null; profit: number | null };
+    monitoring: { revenue: number | null; costs: number | null; profit: number | null };
+    changePercent: { revenue: number | null; costs: number | null; profit: number | null };
+  }>;
+  monitoringShort: string;
+}) {
+  if (!groups.length) return null;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <p className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        Overall &amp; track (matched panel medians)
+        <span className="ml-2 font-normal normal-case text-slate-500">
+          Overall = all matched enterprises; Foundation / Accelerator from enterprise track
+        </span>
+      </p>
+      <table className="w-full min-w-[960px] text-left text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-600">
+          <tr>
+            <th className="px-3 py-2 font-medium">Track</th>
+            <th className="px-3 py-2 text-right font-medium">n</th>
+            <th className="px-3 py-2 text-right font-medium">Baseline revenue</th>
+            <th className="px-3 py-2 text-right font-medium">{monitoringShort} revenue</th>
+            <th className="px-3 py-2 text-right font-medium">Δ revenue %</th>
+            <th className="px-3 py-2 text-right font-medium">Baseline profit</th>
+            <th className="px-3 py-2 text-right font-medium">{monitoringShort} profit</th>
+            <th className="px-3 py-2 text-right font-medium">Δ profit %</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {groups.map((group) => (
+            <tr key={group.key} className={group.key === "overall" ? "bg-slate-50/80 font-medium" : undefined}>
+              <td className="px-3 py-2 text-slate-900">{group.label}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{group.n}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{money(group.baseline.revenue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{money(group.monitoring.revenue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{formatPercent(group.changePercent.revenue)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{money(group.baseline.profit)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{money(group.monitoring.profit)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{formatPercent(group.changePercent.profit)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
