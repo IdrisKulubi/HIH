@@ -1719,7 +1719,7 @@ export const melMonitoringSubmissions = pgTable(
     collectorRole: varchar('collector_role', { length: 50 }).notNull(),
     assignedRedoId: text('assigned_redo_id').references(() => users.id, { onDelete: 'set null' }),
     sourceMode: melMonitoringSourceModeEnum('source_mode').default('current').notNull(),
-    visitDate: date('visit_date'),
+    visitDate: date('visit_date', { mode: 'string' }),
     status: melMonitoringStatusEnum('status').default('draft').notNull(),
     submissionVersion: integer('submission_version').default(1).notNull(),
     returnCount: integer('return_count').default(0).notNull(),

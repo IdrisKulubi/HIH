@@ -1185,8 +1185,8 @@ type ApprovedSubmissionForRecord = {
   id: number;
   businessId: number;
   reportingPeriodId: number;
-  visitDate: string | Date | null;
-  approvedAt: Date | string | null;
+  visitDate: (typeof melMonitoringSubmissions.$inferSelect)["visitDate"];
+  approvedAt: (typeof melMonitoringSubmissions.$inferSelect)["approvedAt"] | string | null;
   response: {
     revenue: string | number | null;
     costs: string | number | null;
@@ -1238,14 +1238,20 @@ type ApprovedSubmissionForRecord = {
   };
 };
 
-type SubmissionInputForRecord = Omit<ApprovedSubmissionForRecord, "visitDate" | "approvedAt"> & {
-  /** Drizzle `date` / `timestamp` columns may be ISO strings at runtime. */
-  visitDate: string | Date | null;
-  approvedAt: string | Date | null;
-};
+function visitDateToIsoDate(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value.slice(0, 10);
+  return value.toISOString().slice(0, 10);
+}
+
+function timestampToIso(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") return value;
+  return value.toISOString();
+}
 
 function mapApprovedSubmissionToRecord(
-  submission: SubmissionInputForRecord,
+  submission: ApprovedSubmissionForRecord,
   selectedPeriod: typeof melReportingPeriods.$inferSelect
 ): ApprovedMonitoringRecord {
   const response = submission.response;
@@ -1272,16 +1278,8 @@ function mapApprovedSubmissionToRecord(
     businessId: submission.businessId,
     periodId: submission.reportingPeriodId,
     businessName: submission.business.name,
-    visitDate: submission.visitDate == null
-      ? null
-      : typeof submission.visitDate === "string"
-        ? submission.visitDate
-        : submission.visitDate.toISOString().slice(0, 10),
-    approvedAt: submission.approvedAt == null
-      ? null
-      : typeof submission.approvedAt === "string"
-        ? submission.approvedAt
-        : submission.approvedAt.toISOString(),
+    visitDate: visitDateToIsoDate(submission.visitDate),
+    approvedAt: timestampToIso(submission.approvedAt),
     dimensions: {
       track: application?.track ?? null,
       ownerGender: applicant?.gender ?? null,
