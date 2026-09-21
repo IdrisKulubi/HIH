@@ -22,6 +22,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MentorshipEvidenceField } from "@/components/admin/mentorship/MentorshipEvidenceField";
 import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
+import {
+  canChooseMentorshipSessionType,
+  resolveMentorshipSessionType,
+  type MentorshipSessionKind,
+} from "@/lib/mentorship/session-types";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const initial: ActionResponse<void> | null = null;
 
@@ -91,6 +97,10 @@ export function CompleteSessionForm({
     photographicEvidenceUrl,
     evidenceFiles
   );
+  const initialSessionType = resolveMentorshipSessionType({
+    sessionNumber,
+    currentType: sessionType,
+  });
 
   const [state, formAction, pending] = useActionState(
     completeMentorshipSessionFromForm,
@@ -98,6 +108,17 @@ export function CompleteSessionForm({
   );
   const initialDuration = splitDurationMinutes(durationMinutes);
   const [evidence, setEvidence] = useState<MentorshipEvidenceFile[]>(resolvedEvidenceFiles);
+  const [chosenType, setChosenType] = useState<MentorshipSessionKind>(initialSessionType);
+  const canChooseType = canChooseMentorshipSessionType(sessionNumber);
+  const resolvedPrevious = previousSession
+    ? {
+        ...previousSession,
+        sessionType: resolveMentorshipSessionType({
+          sessionNumber: previousSession.sessionNumber,
+          currentType: previousSession.sessionType ?? "virtual",
+        }),
+      }
+    : previousSession;
 
   if (status === "completed") {
     return (
@@ -127,31 +148,62 @@ export function CompleteSessionForm({
     );
   }
 
-  const orderGate = previousSessionGateMessage(sessionNumber, previousSession);
+  const orderGate = previousSessionGateMessage(sessionNumber, resolvedPrevious);
   if (orderGate) {
     return (
       <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
         <p className="text-sm font-medium text-amber-950">{orderGate}</p>
         <p className="mt-1 text-xs text-amber-900/80">
-          {previousSession?.sessionType === "physical"
-            ? `Session ${sessionNumber - 1} is physical and needs diagnostic notes plus evidence before it can be submitted.`
-            : `Open Session ${sessionNumber - 1} and submit it for approval first.`}
+          Open Session {sessionNumber - 1} and submit it for approval first.
+          {resolvedPrevious?.sessionType === "physical"
+            ? " Physical sessions need diagnostic notes plus evidence."
+            : " Virtual sessions need a date and duration; evidence is optional."}
         </p>
       </div>
     );
   }
 
   const physicalHint =
-    sessionType === "physical"
+    chosenType === "physical"
       ? "Physical sessions require notes and evidence (upload or URL)."
       : "Evidence is optional for virtual sessions.";
 
   return (
     <form action={formAction} className="space-y-3 rounded-md border bg-muted/30 p-3">
       <input type="hidden" name="sessionId" value={sessionId} />
+      <input type="hidden" name="sessionType" value={chosenType} />
       <p className="text-xs text-muted-foreground">
-        Session {sessionNumber} · {sessionType} · {physicalHint}
+        Session {sessionNumber} · {chosenType} · {physicalHint}
       </p>
+      {canChooseType ? (
+        <div className="space-y-2">
+          <Label>How was this session held?</Label>
+          <RadioGroup
+            value={chosenType}
+            onValueChange={(value) => {
+              if (value === "physical" || value === "virtual") setChosenType(value);
+            }}
+            disabled={pending}
+            className="grid grid-cols-2 gap-2"
+          >
+            <label
+              className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
+            >
+              <RadioGroupItem value="virtual" id={`session-type-virtual-${sessionId}`} />
+              Virtual
+            </label>
+            <label
+              className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
+            >
+              <RadioGroupItem value="physical" id={`session-type-physical-${sessionId}`} />
+              Physical
+            </label>
+          </RadioGroup>
+          <p className="text-xs text-muted-foreground">
+            Virtual needs a date and duration. Physical also needs notes and evidence.
+          </p>
+        </div>
+      ) : null}
       {scheduledDate ? (
         <p className="text-xs text-muted-foreground">
           Scheduled: {new Date(scheduledDate).toLocaleDateString()}
@@ -218,7 +270,7 @@ export function CompleteSessionForm({
         inputId={`photo-${sessionId}`}
         value={evidence}
         onChange={setEvidence}
-        required={sessionType === "physical"}
+        required={chosenType === "physical"}
         disabled={pending}
       />
       {state?.success === false && state.error ? (

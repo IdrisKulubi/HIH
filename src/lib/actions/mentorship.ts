@@ -17,6 +17,10 @@ import { ActionResponse, errorResponse, successResponse } from "./types";
 import { formatMentorshipDurationMinutes } from "@/lib/mentorship/session-display";
 import { previousSessionGateMessage } from "@/lib/mentorship/session-order";
 import {
+  defaultMentorshipSessionType,
+  resolveMentorshipSessionType,
+} from "@/lib/mentorship/session-types";
+import {
   mentorshipEvidenceFilesFromLegacyUrl,
   parseMentorshipEvidenceFilesInput,
   primaryMentorshipEvidenceUrl,
@@ -316,7 +320,7 @@ function buildMentorshipSessionRows(matchId: number, startDate: Date) {
     return {
       matchId,
       sessionNumber: n,
-      sessionType: n === 1 || n === 6 ? ("physical" as const) : ("virtual" as const),
+      sessionType: defaultMentorshipSessionType(n),
       status: "scheduled" as const,
       scheduledDate: scheduled,
     };
@@ -490,6 +494,7 @@ export async function completeMentorshipSession(input: {
   durationMinutes: number;
   diagnosticNotes?: string;
   evidenceFiles?: MentorshipEvidenceFile[];
+  sessionType?: string | null;
 }): Promise<ActionResponse<void>> {
   try {
     const authSession = await auth();
@@ -545,8 +550,13 @@ export async function completeMentorshipSession(input: {
 
     const notes = (input.diagnosticNotes ?? "").trim();
     const evidenceFiles = input.evidenceFiles ?? [];
+    const sessionType = resolveMentorshipSessionType({
+      sessionNumber: row.sessionNumber,
+      currentType: row.sessionType,
+      requestedType: input.sessionType,
+    });
 
-    if (row.sessionType === "physical") {
+    if (sessionType === "physical") {
       if (!notes.length || evidenceFiles.length === 0) {
         return errorResponse(
           "Physical sessions require diagnostic notes and evidence (upload or URL)."
@@ -560,6 +570,7 @@ export async function completeMentorshipSession(input: {
       .update(mentorshipSessions)
       .set({
         status: "pending_approval",
+        sessionType,
         completedDate,
         durationMinutes,
         diagnosticNotes: notes.length ? notes : null,
@@ -596,6 +607,7 @@ export async function completeMentorshipSessionFromForm(
     durationMinutes: Number(formData.get("durationMinutes")),
     diagnosticNotes: String(formData.get("diagnosticNotes") ?? ""),
     evidenceFiles: parseMentorshipEvidenceFilesInput(String(formData.get("evidenceFiles") ?? "")),
+    sessionType: String(formData.get("sessionType") ?? ""),
   });
 }
 

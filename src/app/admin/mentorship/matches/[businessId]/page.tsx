@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { listMentorsForAdmin, listMentorshipMatchesForBusiness } from "@/lib/actions/mentorship";
 import { CreateMatchForm } from "@/components/admin/mentorship/CreateMatchForm";
 import { CompleteSessionForm } from "@/components/admin/mentorship/CompleteSessionForm";
+import { resolveMentorshipSessionType } from "@/lib/mentorship/session-types";
 
 export default async function AdminMentorshipMatchesPage({
   params,
@@ -80,10 +81,15 @@ export default async function AdminMentorshipMatchesPage({
                   <span className="text-xs uppercase text-muted-foreground">{match.status}</span>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {match.sessions.map((s) => (
+                  {match.sessions.map((s) => {
+                    const displayType = resolveMentorshipSessionType({
+                      sessionNumber: s.sessionNumber,
+                      currentType: s.sessionType,
+                    });
+                    return (
                     <div key={s.id} className="rounded-md border bg-card p-3 space-y-2">
                       <div className="text-sm font-medium">
-                        #{s.sessionNumber} · {s.sessionType} · {s.status}
+                        #{s.sessionNumber} · {displayType} · {s.status}
                       </div>
                     <p className="text-xs text-muted-foreground">
                       Scheduled: {s.scheduledDate ? new Date(s.scheduledDate).toLocaleDateString() : "—"}
@@ -91,7 +97,7 @@ export default async function AdminMentorshipMatchesPage({
                     <CompleteSessionForm
                       sessionId={s.id}
                       sessionNumber={s.sessionNumber}
-                      sessionType={s.sessionType}
+                      sessionType={displayType}
                       status={s.status}
                       scheduledDate={s.scheduledDate}
                       completedDate={s.completedDate}
@@ -106,7 +112,8 @@ export default async function AdminMentorshipMatchesPage({
                       }
                     />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

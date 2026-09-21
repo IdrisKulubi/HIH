@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CaretUpDown, Check } from "@phosphor-icons/react";
 import type { MyMentorshipMatchRow } from "@/lib/actions/mentorship";
 import { CompleteSessionForm } from "@/components/admin/mentorship/CompleteSessionForm";
+import { resolveMentorshipSessionType } from "@/lib/mentorship/session-types";
 import { MentorEnterpriseBriefPanel } from "@/components/mentor/MentorEnterpriseBriefPanel";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,10 +41,15 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
       <MentorEnterpriseBriefPanel businessId={match.businessId} enterprise={match.enterprise} />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {match.sessions.map((s) => (
+        {match.sessions.map((s) => {
+          const displayType = resolveMentorshipSessionType({
+            sessionNumber: s.sessionNumber,
+            currentType: s.sessionType,
+          });
+          return (
           <div key={s.id} className="rounded-md border bg-muted/20 p-3 space-y-2">
             <div className="text-sm font-medium">
-              #{s.sessionNumber} · {s.sessionType} · {s.status}
+              #{s.sessionNumber} · {displayType} · {s.status}
             </div>
             <p className="text-xs text-muted-foreground">
               Scheduled:{" "}
@@ -52,7 +58,7 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
             <CompleteSessionForm
               sessionId={s.id}
               sessionNumber={s.sessionNumber}
-              sessionType={s.sessionType}
+              sessionType={displayType}
               status={s.status}
               scheduledDate={s.scheduledDate}
               completedDate={s.completedDate}
@@ -66,7 +72,8 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
               }
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
