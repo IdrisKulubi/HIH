@@ -1121,8 +1121,8 @@ type ApprovedSubmissionForRecord = {
   id: number;
   businessId: number;
   reportingPeriodId: number;
-  visitDate: Date | null;
-  approvedAt: Date | null;
+  visitDate: string | Date | null;
+  approvedAt: Date | string | null;
   response: {
     revenue: string | number | null;
     costs: string | number | null;
@@ -1169,7 +1169,7 @@ type ApprovedSubmissionForRecord = {
     name: string;
     county: string | null;
     sector: string | null;
-    applicant: { gender: string | null; dob: Date | null } | null;
+    applicant: { gender: string | null; dob: Date | string | null } | null;
     application: { track: string | null } | null;
   };
 };
@@ -1192,17 +1192,30 @@ function mapApprovedSubmissionToRecord(
   } : emptyJobs();
   const application = submission.business.application;
   const applicant = submission.business.applicant;
+  const ownerDob = applicant?.dob == null
+    ? null
+    : typeof applicant.dob === "string"
+      ? new Date(applicant.dob)
+      : applicant.dob;
   return {
     submissionId: submission.id,
     businessId: submission.businessId,
     periodId: submission.reportingPeriodId,
     businessName: submission.business.name,
-    visitDate: submission.visitDate ?? null,
-    approvedAt: submission.approvedAt?.toISOString() ?? null,
+    visitDate: submission.visitDate == null
+      ? null
+      : typeof submission.visitDate === "string"
+        ? submission.visitDate
+        : submission.visitDate.toISOString().slice(0, 10),
+    approvedAt: submission.approvedAt == null
+      ? null
+      : typeof submission.approvedAt === "string"
+        ? submission.approvedAt
+        : submission.approvedAt.toISOString(),
     dimensions: {
       track: application?.track ?? null,
       ownerGender: applicant?.gender ?? null,
-      ownerYouth: applicant?.dob ? ageAt(applicant.dob, selectedPeriod.endDate) <= 35 : null,
+      ownerYouth: ownerDob ? ageAt(ownerDob, selectedPeriod.endDate) <= 35 : null,
       ownerPlwd: null,
       county: submission.business.county ?? null,
       sector: submission.business.sector ?? null,
