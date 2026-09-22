@@ -451,7 +451,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     sector: filters.sector ?? null,
     ownerGender: filters.ownerGender ?? null,
     panelBusinessId: filters.panelBusinessId ?? null,
-    panelSource: filters.panelSource === "system" ? "system" : "workbook",
+    panelSource: "workbook",
   };
 
   const includedPeriods = periods.filter(
@@ -1035,7 +1035,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         panelPeriodLabel,
         panelPeriodCode,
         resolvedFilters.panelBusinessId ?? null,
-        "Panel workbook not found at data/mel/panel-analysis.xlsx. Switch to live system panel or add the workbook."
+        "Panel workbook not found at data/mel/panel-analysis.xlsx."
       );
     } else {
       const parsed = parsePanelAnalysisWorkbook(workbookBuffer);

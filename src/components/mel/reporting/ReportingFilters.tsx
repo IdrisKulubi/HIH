@@ -1,9 +1,28 @@
+"use client";
+
+import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { pushKeepingScroll } from "@/components/mel/reporting/keep-scroll";
 import { OWNER_YOUTH_FILTER_VALUE, type MelReportingDataset } from "@/lib/mel/reporting-data";
 
 export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) {
+  const router = useRouter();
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const params = new URLSearchParams(window.location.search);
+    for (const key of ["periodId", "track", "county", "sector", "ownerGender"]) {
+      const value = String(form.get(key) ?? "").trim();
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    pushKeepingScroll(router, `/admin/mel/reporting?${params.toString()}`);
+  };
+
   return (
-    <form className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <FilterSelect name="periodId" label="Reporting period" value={String(dataset.selectedPeriod.id)} options={dataset.periods.map((period) => ({ value: String(period.id), label: period.label }))} />
       <FilterSelect name="track" label="Track" value={dataset.filters.track ?? ""} options={dataset.filterOptions.tracks.map(option)} />
       <FilterSelect name="county" label="County" value={dataset.filters.county ?? ""} options={dataset.filterOptions.counties.map(option)} />
@@ -11,7 +30,13 @@ export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) 
       <FilterSelect name="ownerGender" label="Owner gender / youth" value={dataset.filters.ownerGender ?? ""} options={ownerDemographicOptions(dataset.filterOptions.ownerGenders)} />
       <div className="flex items-end gap-2">
         <Button type="submit" className="flex-1">Apply filters</Button>
-        <Button type="button" variant="outline" asChild><a href="/admin/mel/reporting">Reset</a></Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => pushKeepingScroll(router, "/admin/mel/reporting")}
+        >
+          Reset
+        </Button>
       </div>
     </form>
   );

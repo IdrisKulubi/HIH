@@ -300,7 +300,7 @@ function buildDataQualityAndEnterprises(
   if (unmatchedMonitoringIds.length) {
     notes.push(`Monitoring IDs not on baseline: ${unmatchedMonitoringIds.sort((a, b) => a - b).join(", ")}.`);
   }
-  notes.push("Workbook monitoring values are already monthly (not divided by 3).");
+  notes.push("Monitoring figures in this panel are monthly.");
   notes.push("Missing financial cells are not treated as zero; medians use non-null values only.");
   if (monitoringAllZeroCount > 0) {
     notes.push(
@@ -386,16 +386,7 @@ export function buildPanelAnalysisFromWorkbook(input: {
         ),
       }
     : built.coverage;
-  const dataQuality: PanelDataQualitySummary =
-    overlay.addedFromApprovedCount > 0
-      ? {
-          ...built.dataQuality,
-          notes: [
-            ...built.dataQuality.notes,
-            `${overlay.addedFromApprovedCount} additional approved monitoring report(s) from BIRE were merged into the workbook panel (quarterly totals ÷ 3).`,
-          ],
-        }
-      : built.dataQuality;
+  const { dataQuality } = built;
   const analysis = computePanelAnalysis({
     source: "workbook",
     monitoringPeriodLabel: input.monitoringPeriodLabel,

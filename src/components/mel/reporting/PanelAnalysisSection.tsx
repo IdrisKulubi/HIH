@@ -11,6 +11,7 @@ import { IndicatorTrackComparison, type IndicatorTrackRow } from "@/components/m
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { pushKeepingScroll } from "@/components/mel/reporting/keep-scroll";
 
 type Props = {
   panel: MelPanelAnalysis;
@@ -46,34 +47,28 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
       if (value) params.set(key, value);
       else params.delete(key);
     }
-    router.push(`/admin/mel/reporting?${params.toString()}`);
+    pushKeepingScroll(router, `/admin/mel/reporting?${params.toString()}`);
   };
 
   const handleEnterpriseChange = (value: string) => {
     pushParams({ panelBusinessId: value || null });
   };
 
-  const handleSourceChange = (value: string) => {
-    pushParams({ panelSource: value, panelBusinessId: null });
-  };
-
-  const sourceLabel = panelSourceCaption(panel);
+  const sourceLabel = "Imported workbook";
 
   return (
     <section className="space-y-4 overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="panel-analysis-heading">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
         <h2 id="panel-analysis-heading" className="text-lg font-semibold text-slate-900">Panel analysis (matched enterprises)</h2>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">
-          Each approved monitoring quarter is matched back to the same enterprise baseline, through the quarter selected above, until the programme ends.
-          The trend is the median monthly revenue, costs, and profit of enterprises that reported in that quarter with a baseline. All-zero rows are non-response and are left out.
+          Compare opening baselines with monitoring for the same enterprises, matched by Enterprise ID.
+          Main results use only IDs present at both time points with non-zero monitoring financials (all-zero rows are non-response and excluded).
+          Match rate is measured against unique baseline IDs. Figures are monthly. Demographics are joined from programme records.
           Track, county, sector, owner, and enterprise filters apply to every point.
-          {panel.source === "system"
-            ? " Live figures use approved monitoring (quarterly ÷ 3)."
-            : " The workbook is one monitoring round (monthly values, not ÷ 3). Newly approved BIRE reports for enterprises not already in the Excel file are merged on each page refresh (quarterly ÷ 3). Recalculate only updates ITT indicators. Switch to the live system panel for a fully system-driven cohort."}
         </p>
       </div>
       <div className="space-y-5 px-4 pb-5 sm:px-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,200px)_minmax(0,280px)] lg:items-end">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)] lg:items-end">
           <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <CoverageStat label="Baseline rows" value={panel.coverage.baselineTotalRows.toLocaleString()} />
             <CoverageStat label="Unique baseline IDs" value={panel.coverage.baselineUniqueIds.toLocaleString()} />
@@ -82,17 +77,6 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
             <CoverageStat label="Match % (of baseline)" value={formatPercent(panel.coverage.matchPercentOfBaseline)} />
             <CoverageStat label="Unmatched monitoring" value={panel.coverage.unmatchedMonitoringCount.toLocaleString()} />
           </dl>
-          <label className="block space-y-1.5 text-sm font-medium text-slate-700">
-            <span>Data source</span>
-            <select
-              className="h-10 w-full rounded-md border border-slate-300 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40"
-              value={filters.panelSource ?? "workbook"}
-              onChange={(event) => handleSourceChange(event.target.value)}
-            >
-              <option value="workbook">Workbook panel</option>
-              <option value="system">Live system panel</option>
-            </select>
-          </label>
           <EnterpriseFilter
             value={filters.panelBusinessId ?? null}
             options={panel.enterpriseOptions}
@@ -451,17 +435,6 @@ function EnterpriseFilter({
       </Popover>
     </div>
   );
-}
-
-function panelSourceCaption(panel: MelPanelAnalysis): string {
-  if (panel.source === "system") return "Live approved monitoring";
-  const overlay = panel.workbookApprovedOverlayCount ?? 0;
-  const monitoring = panel.coverage.monitoringTotal.toLocaleString();
-  const baselineRows = panel.coverage.baselineTotalRows.toLocaleString();
-  if (overlay > 0) {
-    return `Imported workbook (${baselineRows} baseline rows · ${monitoring} monitoring, +${overlay} from approved BIRE reports)`;
-  }
-  return `Imported workbook (${baselineRows} baseline rows · ${monitoring} monitoring)`;
 }
 
 function CoverageStat({ label, value }: { label: string; value: string }) {
