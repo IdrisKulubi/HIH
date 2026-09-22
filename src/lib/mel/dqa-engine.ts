@@ -1,9 +1,18 @@
 import { calculateProfitLoss, EMPTY_JOB_BREAKDOWN, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
 import type { FinancialComparison } from "./financial-baselines";
+import { FINANCE_TYPES } from "./monitoring-question-catalog";
+
+export type DqaCategory =
+  | "completeness"
+  | "consistency"
+  | "plausibility"
+  | "timeliness"
+  | "validity"
+  | "traceability";
 
 export type DqaFinding = {
   ruleCode: string;
-  category: "completeness" | "consistency" | "plausibility" | "timeliness";
+  category: DqaCategory;
   severity: "error" | "warning";
   questionCode?: string;
   message: string;
@@ -28,6 +37,8 @@ export type DqaInput = {
   financeLinked: boolean | null;
   financeType: string | null;
   financeValue: number | null;
+  financeEntryTypes: string[];
+  waste: Array<{ stream: string; kilograms: number | null }>;
   evidence: Array<{ id: number; questionCode: string; fileKey: string }>;
   priorApproved?: {
     revenue: number | null;
@@ -222,6 +233,74 @@ export function runDqa(input: DqaInput): DqaFinding[] {
         observedValue: item.fileKey,
       });
     }
+  }
+
+  if (input.revenue !== null && input.revenue < 0) {
+    findings.push({
+      ruleCode: "validity.negative_revenue",
+      category: "validity",
+      severity: "error",
+      questionCode: "profitability",
+      message: "Quarterly revenue must be zero or positive",
+      observedValue: input.revenue,
+    });
+  }
+  if (input.costs !== null && input.costs < 0) {
+    findings.push({
+      ruleCode: "validity.negative_costs",
+      category: "validity",
+      severity: "error",
+      questionCode: "profitability",
+      message: "Quarterly costs must be zero or positive",
+      observedValue: input.costs,
+    });
+  }
+
+  const allowedFinanceTypes = new Set<string>(FINANCE_TYPES);
+  const financeTypesToCheck = input.financeEntryTypes.length
+    ? input.financeEntryTypes
+    : input.financeType
+      ? input.financeType.split(",").map((value) => value.trim()).filter(Boolean)
+      : [];
+  for (const [index, type] of financeTypesToCheck.entries()) {
+    if (!allowedFinanceTypes.has(type)) {
+      findings.push({
+        ruleCode: `validity.finance_type.${index}`,
+        category: "validity",
+        severity: "error",
+        questionCode: "linked_to_finance_provider",
+        message: `Finance type "${type}" is not a permitted monitoring value`,
+        observedValue: type,
+        comparisonValue: [...FINANCE_TYPES],
+      });
+    }
+  }
+
+  for (const [index, row] of input.waste.entries()) {
+    if (row.kilograms !== null && row.kilograms < 0) {
+      findings.push({
+        ruleCode: `validity.negative_waste.${index}`,
+        category: "validity",
+        severity: "error",
+        questionCode: "waste",
+        message: `Waste quantity for ${row.stream} must be zero or more kilograms`,
+        observedValue: row.kilograms,
+      });
+    }
+  }
+
+  const hasFinancialFigures =
+    input.revenue !== null || input.costs !== null || input.storedProfitLoss !== null;
+  const hasProfitabilityEvidence = input.evidence.some((item) => item.questionCode === "profitability");
+  if (hasFinancialFigures && !hasProfitabilityEvidence) {
+    findings.push({
+      ruleCode: "traceability.profitability_evidence",
+      category: "traceability",
+      severity: "warning",
+      questionCode: "profitability",
+      message:
+        "Financial figures are recorded without profitability supporting evidence to trace dashboard values back to a source document",
+    });
   }
 
   return findings;

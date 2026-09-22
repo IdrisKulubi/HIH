@@ -602,6 +602,7 @@ async function buildDqaInput(submissionId: number): Promise<{
       response: true,
       financeEntries: true,
       jobs: true,
+      waste: true,
       evidence: true,
       evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
     },
@@ -673,6 +674,11 @@ async function buildDqaInput(submissionId: number): Promise<{
     financeValue: submission.financeEntries.length
       ? submission.financeEntries.reduce((sum, entry) => sum + (numberOrNull(entry.amount) ?? 0), 0)
       : numberOrNull(response?.financeValue),
+    financeEntryTypes: submission.financeEntries.map((entry) => entry.financeType),
+    waste: submission.waste.map((row) => ({
+      stream: row.wasteStream,
+      kilograms: numberOrNull(row.kilograms),
+    })),
     evidence: [...activeEvidence, ...referencedEvidence].map((item) => ({
       id: item.id,
       questionCode: item.questionCode,

@@ -31,7 +31,9 @@ function validDqaInput(): DqaInput {
     financeLinked: false,
     financeType: null,
     financeValue: null,
-    evidence: [],
+    financeEntryTypes: [],
+    waste: [],
+    evidence: [{ id: 1, questionCode: "profitability", fileKey: "profit-doc" }],
     priorApproved: null,
     duplicateEvidenceKeys: new Set(),
   };
@@ -147,6 +149,18 @@ function testDqa() {
     duplicateEvidenceKeys: new Set(["shared-key"]),
   };
   assert.ok(runDqa(reusedEvidence).some((issue) => issue.ruleCode.includes("reused_evidence")));
+
+  const negativeRevenue = { ...validDqaInput(), revenue: -1 };
+  assert.ok(runDqa(negativeRevenue).some((issue) => issue.ruleCode === "validity.negative_revenue"));
+
+  const invalidFinance = { ...validDqaInput(), financeEntryTypes: ["not_a_real_type"] };
+  assert.ok(runDqa(invalidFinance).some((issue) => issue.category === "validity"));
+
+  const negativeWaste = { ...validDqaInput(), waste: [{ stream: "plastic", kilograms: -5 }] };
+  assert.ok(runDqa(negativeWaste).some((issue) => issue.ruleCode === "validity.negative_waste.0"));
+
+  const missingProfitEvidence = { ...validDqaInput(), evidence: [] };
+  assert.ok(runDqa(missingProfitEvidence).some((issue) => issue.ruleCode === "traceability.profitability_evidence"));
 
   const staleNonQuality = {
     id: 1,

@@ -218,6 +218,14 @@ type SupportedEnterprise = {
 
 type PeriodAchievement = ApprovedEnterpriseAchievementInput & { periodId: number };
 
+export type MelCohortQualityEnterprise = {
+  businessId: number;
+  businessName: string;
+  track: string | null;
+  county: string | null;
+  submissionId: number | null;
+};
+
 export type MelReportingDataset = {
   filters: Required<Pick<MelDashboardFilters, "periodId">> & Omit<MelDashboardFilters, "periodId">;
   selectedPeriod: typeof melReportingPeriods.$inferSelect;
@@ -289,6 +297,9 @@ export type MelReportingDataset = {
     activeEvidence: number;
     verifiedEvidence: number;
     enterprisesWithoutVerifiedGps: number;
+    missingApprovedReports: MelCohortQualityEnterprise[];
+    attritionFromPriorPeriod: MelCohortQualityEnterprise[];
+    priorMonitoringPeriodLabel: string | null;
   };
   feedbackAccountability: {
     responseCount: number;
@@ -391,6 +402,76 @@ const MONITORING_REPORTING_STATUSES = new Set([
 
 function isMonitoringReportingStatus(status: string): boolean {
   return MONITORING_REPORTING_STATUSES.has(status);
+}
+
+type ScopedMonitoringSubmission = {
+  id: number;
+  businessId: number;
+  reportingPeriodId: number;
+  status: string;
+  business: { name: string };
+};
+
+function buildCohortQuality(
+  supportedEnterprises: SupportedEnterprise[],
+  periodEnd: Date,
+  filters: MelDashboardFilters,
+  selectedPeriod: typeof melReportingPeriods.$inferSelect,
+  includedPeriods: Array<typeof melReportingPeriods.$inferSelect>,
+  scopedAllSubmissions: ScopedMonitoringSubmission[]
+) {
+  const eligible = supportedEnterprises.filter(
+    (enterprise) => enterprise.selectedAt <= periodEnd && matchesSupportedFilters(enterprise, filters)
+  );
+  const businessName = (businessId: number) =>
+    scopedAllSubmissions.find((submission) => submission.businessId === businessId)?.business.name
+    ?? `Enterprise ${businessId}`;
+  const submissionFor = (businessId: number, periodId: number) =>
+    scopedAllSubmissions.find(
+      (submission) => submission.businessId === businessId && submission.reportingPeriodId === periodId
+    );
+  const approvedThisPeriod = new Set(
+    scopedAllSubmissions
+      .filter((submission) => submission.reportingPeriodId === selectedPeriod.id && submission.status === "approved")
+      .map((submission) => submission.businessId)
+  );
+  const toRow = (enterprise: SupportedEnterprise): MelCohortQualityEnterprise => {
+    const submission = submissionFor(enterprise.businessId, selectedPeriod.id);
+    return {
+      businessId: enterprise.businessId,
+      businessName: businessName(enterprise.businessId),
+      track: enterprise.track,
+      county: enterprise.county,
+      submissionId: submission?.id ?? null,
+    };
+  };
+  const missingApprovedReports = eligible
+    .filter((enterprise) => !approvedThisPeriod.has(enterprise.businessId))
+    .map(toRow)
+    .sort((left, right) => left.businessId - right.businessId);
+
+  const monitoringPeriods = includedPeriods.filter((period) => !isY1PreDeliveryPeriod(period));
+  const currentIndex = monitoringPeriods.findIndex((period) => period.id === selectedPeriod.id);
+  const priorPeriod = currentIndex > 0 ? monitoringPeriods[currentIndex - 1] : null;
+  let attritionFromPriorPeriod: MelCohortQualityEnterprise[] = [];
+  let priorMonitoringPeriodLabel: string | null = null;
+  if (priorPeriod) {
+    priorMonitoringPeriodLabel = priorPeriod.label;
+    const approvedPrior = new Set(
+      scopedAllSubmissions
+        .filter((submission) => submission.reportingPeriodId === priorPeriod.id && submission.status === "approved")
+        .map((submission) => submission.businessId)
+    );
+    attritionFromPriorPeriod = eligible
+      .filter(
+        (enterprise) =>
+          approvedPrior.has(enterprise.businessId) && !approvedThisPeriod.has(enterprise.businessId)
+      )
+      .map(toRow)
+      .sort((left, right) => left.businessId - right.businessId);
+  }
+
+  return { missingApprovedReports, attritionFromPriorPeriod, priorMonitoringPeriodLabel };
 }
 
 function activeSupportedEnterpriseCount(
@@ -992,6 +1073,14 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   const latestPeriodResponses = latestPeriodRecords
     .map((record) => submissionById.get(record.submissionId)?.response)
     .filter((response): response is NonNullable<typeof response> => Boolean(response));
+  const cohortQuality = buildCohortQuality(
+    supportedEnterprises,
+    periodEnd,
+    resolvedFilters,
+    selectedPeriod,
+    includedPeriods,
+    scopedAllSubmissions
+  );
   const feedbackWordClouds = buildFeedbackWordClouds({
     positiveProgrammeImpacts: latestPeriodResponses.map((response) => response.positiveProgrammeImpacts ?? ""),
     mainChallenges: latestPeriodResponses.map((response) => response.mainChallenges ?? ""),
@@ -1156,6 +1245,7 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       enterprisesWithoutVerifiedGps: [...latestSubmissionsByBusiness.values()].filter(
         (submission) => submission.business.kycProfile?.status !== "verified" || !submission.business.kycProfile.gpsCoordinates
       ).length,
+      ...cohortQuality,
     },
     feedbackAccountability: {
       responseCount: latestPeriodRecords.length,

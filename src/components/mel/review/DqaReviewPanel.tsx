@@ -22,7 +22,10 @@ export function DqaReviewPanel({ submissionId, issues }: { submissionId: number;
       <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
         <div>
           <h2 className="font-semibold text-slate-900">Data quality assurance</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Errors must be corrected. Warnings require a documented exception.</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Checks cover completeness, consistency, validity, timeliness, plausibility, and traceability. Errors must be corrected; warnings need a documented exception.
+            Reliability is judged by spot-checking evidence and the collection form, not by an automated score.
+          </p>
         </div>
         <Button
           type="button"

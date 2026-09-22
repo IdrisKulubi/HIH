@@ -330,6 +330,8 @@ export const melDqaCategoryEnum = pgEnum('mel_dqa_category', [
   'consistency',
   'plausibility',
   'timeliness',
+  'validity',
+  'traceability',
 ]);
 export const melDqaStatusEnum = pgEnum('mel_dqa_status', ['open', 'accepted', 'resolved']);
 export const melEvidenceReviewStatusEnum = pgEnum('mel_evidence_review_status', [
