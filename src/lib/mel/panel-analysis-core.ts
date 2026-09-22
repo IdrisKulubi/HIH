@@ -620,7 +620,6 @@ function buildAllDisaggregations(matched: PanelMatchedEnterprise[]): PanelDisagg
       (key) => (key === "youth" ? "Youth-led" : "Non-youth-led")
     ),
     buildDisaggregation("Sector", matched, (row) => row.sector, (key) => titleCase(key.replaceAll("_", " "))),
-    buildDisaggregation("County", matched, (row) => row.county, (key) => titleCase(key)),
   ].filter((item) => item.groups.length > 0);
 }
 
