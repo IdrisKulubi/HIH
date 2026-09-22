@@ -212,7 +212,7 @@ MelReportApprovedEmail.PreviewProps = {
       section: "F",
       sectionLabel: "Financial Linkages",
       code: "linked_to_finance_provider",
-      label: "Has the enterprise been linked to a financial service provider in the past 3 months?",
+      label: "Has the enterprise been linked to a financial service provider (bank, SACCO, MFI, investor) by the BIRE PROJECT in the past 3 months?",
       status: "not_achieved" as const,
     },
     {

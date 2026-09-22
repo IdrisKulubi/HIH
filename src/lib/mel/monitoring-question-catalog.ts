@@ -80,7 +80,7 @@ export const MONITORING_QUESTIONS = {
   linked_to_finance_provider: {
     section: "F",
     field: "linkedToFinanceProvider",
-    label: "Has the enterprise been linked to a financial service provider (bank, SACCO, MFI, investor) in the past 3 months?",
+    label: "Has the enterprise been linked to a financial service provider (bank, SACCO, MFI, investor) by the BIRE PROJECT in the past 3 months?",
     evidenceRequired: true,
     oneTime: true,
     indicatorCode: "OP2.1-FINANCIAL-LINKAGES",

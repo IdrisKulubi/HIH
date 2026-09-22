@@ -219,9 +219,17 @@ function tests() {
   assert.equal(cumulativeJobs.actual, 10, "Official as-of trends retain cumulative quarterly job activity.");
 
   const financeBreakdown = buildFundingTypeBreakdown([
-    record(1, 1, { financeValue: 30000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 20000 }, { financeType: "matching_grant", otherDescription: null, amount: 10000 }] }),
-    record(2, 2, { financeValue: 5000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 5000 }] }),
-    record(3, 1, { financeValue: 2000, financeEntries: [] }),
+    record(1, 1, {
+      linkedToFinanceProvider: true,
+      financeValue: 30000,
+      financeEntries: [{ financeType: "loan", otherDescription: null, amount: 20000 }, { financeType: "matching_grant", otherDescription: null, amount: 10000 }],
+    }),
+    record(2, 2, {
+      linkedToFinanceProvider: true,
+      financeValue: 5000,
+      financeEntries: [{ financeType: "loan", otherDescription: null, amount: 5000 }],
+    }),
+    record(3, 1, { linkedToFinanceProvider: false, financeValue: 2000, financeEntries: [{ financeType: "loan", otherDescription: null, amount: 2000 }] }),
   ]);
   assert.deepEqual(
     financeBreakdown.map(({ type, amount, enterpriseCount }) => ({ type, amount, enterpriseCount })),
@@ -229,12 +237,12 @@ function tests() {
       { type: "loan", amount: 25000, enterpriseCount: 2 },
       { type: "matching_grant", amount: 10000, enterpriseCount: 1 },
       { type: "repayable_grant", amount: 0, enterpriseCount: 0 },
-      { type: "other", amount: 2000, enterpriseCount: 1 },
+      { type: "other", amount: 0, enterpriseCount: 0 },
     ]
   );
   assert.equal(Math.round(financeBreakdown.reduce((total, item) => total + item.percentage, 0)), 100);
   assert.equal(FUNDING_TYPE_LABELS.matching_grant, "BIRE matching grant");
-  assert.equal(sumExternalFinance(financeBreakdown), 27000, "External finance excludes BIRE matching grant");
+  assert.equal(sumExternalFinance(financeBreakdown), 25000, "External finance excludes BIRE matching grant and non-BIRE-linked loans");
   assert.equal(EXTERNAL_FUNDING_TARGET_KES, 130_000_000);
 }
 

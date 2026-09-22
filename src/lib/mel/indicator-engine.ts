@@ -450,8 +450,18 @@ export function calculateIndicator(input: IndicatorCalculationInput): IndicatorC
   }
 
   if (code === "OP2.1-FINANCE-VALUE") {
-    const actual = records.reduce((sum, record) => sum + (record.financeValue ?? 0), 0);
-    return result(input, { actual: round(actual), numerator: null, denominator: null, calculationRule: "Sum of approved finance accessed" }, records);
+    const contributing = records.filter((record) => record.linkedToFinanceProvider === true);
+    const actual = contributing.reduce((sum, record) => sum + (record.financeValue ?? 0), 0);
+    return result(
+      input,
+      {
+        actual: round(actual),
+        numerator: null,
+        denominator: null,
+        calculationRule: "Sum of approved finance accessed where the enterprise confirmed BIRE-facilitated linkage to a financial service provider",
+      },
+      contributing
+    );
   }
 
   if (code === "OP3.1-LIFE-CYCLE-ASSESSMENTS") {

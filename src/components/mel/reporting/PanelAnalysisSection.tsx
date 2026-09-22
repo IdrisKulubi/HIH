@@ -57,7 +57,7 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
     pushParams({ panelSource: value, panelBusinessId: null });
   };
 
-  const sourceLabel = panel.source === "workbook" ? "Imported workbook (239 / 151)" : "Live approved monitoring";
+  const sourceLabel = panelSourceCaption(panel);
 
   return (
     <section className="space-y-4 overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="panel-analysis-heading">
@@ -69,7 +69,7 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
           Track, county, sector, owner, and enterprise filters apply to every point.
           {panel.source === "system"
             ? " Live figures use approved monitoring (quarterly ÷ 3)."
-            : " The workbook is one monitoring round (monthly values, not ÷ 3). Switch to the live system panel to follow later quarters as they are approved."}
+            : " The workbook is one monitoring round (monthly values, not ÷ 3). Newly approved BIRE reports for enterprises not already in the Excel file are merged on each page refresh (quarterly ÷ 3). Recalculate only updates ITT indicators. Switch to the live system panel for a fully system-driven cohort."}
         </p>
       </div>
       <div className="space-y-5 px-4 pb-5 sm:px-5">
@@ -451,6 +451,17 @@ function EnterpriseFilter({
       </Popover>
     </div>
   );
+}
+
+function panelSourceCaption(panel: MelPanelAnalysis): string {
+  if (panel.source === "system") return "Live approved monitoring";
+  const overlay = panel.workbookApprovedOverlayCount ?? 0;
+  const monitoring = panel.coverage.monitoringTotal.toLocaleString();
+  const baselineRows = panel.coverage.baselineTotalRows.toLocaleString();
+  if (overlay > 0) {
+    return `Imported workbook (${baselineRows} baseline rows · ${monitoring} monitoring, +${overlay} from approved BIRE reports)`;
+  }
+  return `Imported workbook (${baselineRows} baseline rows · ${monitoring} monitoring)`;
 }
 
 function CoverageStat({ label, value }: { label: string; value: string }) {

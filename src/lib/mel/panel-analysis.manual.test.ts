@@ -5,8 +5,10 @@ import type { ApprovedMonitoringRecord } from "./indicator-engine";
 import { buildPanelAnalysis, resolveEnterpriseOwnBaseline } from "./panel-analysis";
 import {
   buildPanelAnalysisFromWorkbook,
+  mergeApprovedReportsIntoWorkbookMonitoring,
   parsePanelAnalysisWorkbook,
   resolvePanelWorkbookPath,
+  type ParsedPanelWorkbook,
 } from "./panel-analysis-workbook";
 
 function record(
@@ -220,6 +222,44 @@ function tests() {
   assert.equal(trendPanel.trend[2]?.n, 2);
   assert.equal(trendPanel.trend[2]?.revenue, 210_000);
 
+  const overlayPeriodId = 88001;
+  const overlayParsed: ParsedPanelWorkbook = {
+    baselineRows: [
+      {
+        businessId: 88002,
+        businessName: "Overlay baseline only",
+        track: "foundation",
+        baseline: { revenue: 90_000, costs: 45_000, profit: 45_000 },
+      },
+    ],
+    monitoringRows: [
+      {
+        businessId: 88003,
+        businessName: "Already in workbook",
+        monitoring: { revenue: 10_000, costs: 5_000, profit: 5_000 },
+      },
+    ],
+  };
+  const skipExisting = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88003, { periodId: overlayPeriodId })],
+    overlayPeriodId
+  );
+  assert.equal(skipExisting.addedFromApprovedCount, 0);
+  const addEligible = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88002, { periodId: overlayPeriodId, revenue: 300_000, costs: 150_000, profitLoss: 150_000 })],
+    overlayPeriodId
+  );
+  assert.equal(addEligible.addedFromApprovedCount, 1);
+  assert.equal(addEligible.parsed.monitoringRows.length, 2);
+  const addZero = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88004, { periodId: overlayPeriodId, revenue: 0, costs: 0, profitLoss: 0 })],
+    overlayPeriodId
+  );
+  assert.equal(addZero.addedFromApprovedCount, 1);
+
   const workbookPath = resolvePanelWorkbookPath();
   if (existsSync(workbookPath)) {
     const buffer = readFileSync(workbookPath);
@@ -243,6 +283,38 @@ function tests() {
     assert.equal(workbookPanel.dataQuality.duplicateBaselineIds.length, 1);
     assert.equal(workbookPanel.dataQuality.duplicateBaselineIds[0]?.businessId, "827");
     assert.deepEqual(workbookPanel.coverage.unmatchedMonitoringIds.sort(), [421, 534, 826, 827, 986]);
+
+    const monitoringIds = new Set(parsed.monitoringRows.map((row) => row.businessId));
+    const duplicateIds = new Set(
+      parsed.baselineRows
+        .map((row) => row.businessId)
+        .filter((id, index, all) => all.indexOf(id) !== index)
+    );
+    const baselineOnlyId = parsed.baselineRows.find(
+      (row) => !monitoringIds.has(row.businessId) && !duplicateIds.has(row.businessId)
+    )?.businessId;
+    if (baselineOnlyId) {
+      const overlayPeriod = 77001;
+      const withOverlay = buildPanelAnalysisFromWorkbook({
+        buffer,
+        demographicsById: new Map(),
+        panelBusinessId: null,
+        monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+        monitoringPeriodCode: "Y1-MQ1",
+        approvedOverlayRecords: [
+          record(baselineOnlyId, {
+            periodId: overlayPeriod,
+            revenue: 300_000,
+            costs: 150_000,
+            profitLoss: 150_000,
+          }),
+        ],
+        panelPeriodId: overlayPeriod,
+      });
+      assert.equal(withOverlay.workbookApprovedOverlayCount, 1);
+      assert.equal(withOverlay.coverage.monitoringTotal, workbookPanel.coverage.monitoringTotal + 1);
+      assert.equal(withOverlay.coverage.matched, workbookPanel.coverage.matched + 1);
+    }
 
     const firstMonitoring = parsed.monitoringRows[0];
     if (firstMonitoring) {

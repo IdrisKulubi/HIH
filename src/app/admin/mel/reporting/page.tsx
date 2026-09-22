@@ -91,7 +91,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
         <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 id="funding-breakdown-heading" className="text-base font-semibold text-slate-900">Finance accessed by funding type</h2>
-            <p className="mt-0.5 text-sm text-slate-600">Cumulative approved funding through {data.selectedPeriod.label}. Loan, repayable grant, and other count toward the {money(data.summary.externalFinanceTarget)} external funding target. BIRE matching grant is excluded from that target.</p>
+            <p className="mt-0.5 text-sm text-slate-600">Cumulative approved funding through {data.selectedPeriod.label}, only where enterprises confirmed linkage by the BIRE PROJECT. Loan, repayable grant, and other count toward the {money(data.summary.externalFinanceTarget)} external funding target. BIRE matching grant is excluded from that target.</p>
           </div>
           <div className="text-sm text-slate-700 sm:text-right">
             <p>Actual vs target <span className="ml-1 font-semibold tabular-nums text-slate-900">{money(data.summary.externalFinanceAccessed)} / {money(data.summary.externalFinanceTarget)}</span></p>

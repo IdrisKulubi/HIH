@@ -1053,6 +1053,8 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         monitoringPeriodLabel: panelPeriodLabel,
         monitoringPeriodCode: panelPeriodCode,
         filters: resolvedFilters,
+        approvedOverlayRecords: panelPeriod ? filteredRecords : undefined,
+        panelPeriodId: panelPeriod?.id,
       });
     }
   } else if (panelPeriod) {
@@ -1287,14 +1289,18 @@ function mapApprovedSubmissionToRecord(
     technologyAdopted: response?.technologyAdopted ?? null,
     newProductsDeveloped: response?.newProductsDeveloped ?? null,
     linkedToFinanceProvider: response?.linkedToFinanceProvider ?? null,
-    financeValue: submission.financeEntries.length > 0
-      ? sum(submission.financeEntries, (entry) => numeric(entry.amount) ?? 0)
-      : numeric(response?.financeValue),
-    financeEntries: submission.financeEntries.map((entry) => ({
-      financeType: entry.financeType,
-      otherDescription: entry.otherDescription,
-      amount: numeric(entry.amount) ?? 0,
-    })),
+    financeValue: response?.linkedToFinanceProvider === true
+      ? submission.financeEntries.length > 0
+        ? sum(submission.financeEntries, (entry) => numeric(entry.amount) ?? 0)
+        : numeric(response?.financeValue)
+      : null,
+    financeEntries: response?.linkedToFinanceProvider === true
+      ? submission.financeEntries.map((entry) => ({
+          financeType: entry.financeType,
+          otherDescription: entry.otherDescription,
+          amount: numeric(entry.amount) ?? 0,
+        }))
+      : [],
     financialPlanCompleted: response?.financialPlanCompleted ?? null,
     activeInsurance: response?.activeInsurance ?? null,
     investorReadinessCompleted: response?.investorReadinessCompleted ?? null,

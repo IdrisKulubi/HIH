@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
-import { safePercentage } from "./indicator-engine";
+import { safePercentage, type ApprovedMonitoringRecord } from "./indicator-engine";
 import {
   computePanelAnalysis,
   emptyPanelAnalysis,
@@ -116,6 +116,51 @@ export function parsePanelAnalysisWorkbook(buffer: Buffer): ParsedPanelWorkbook 
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
   return { baselineRows, monitoringRows };
+}
+
+function monthlyFromQuarterly(value: number | null): number | null {
+  return value === null ? null : value / 3;
+}
+
+export type WorkbookPanelOverlayResult = {
+  parsed: ParsedPanelWorkbook;
+  addedFromApprovedCount: number;
+};
+
+/** Append approved monitoring for enterprises not already on the workbook Monitoring sheet. */
+export function mergeApprovedReportsIntoWorkbookMonitoring(
+  parsed: ParsedPanelWorkbook,
+  approvedRecords: ApprovedMonitoringRecord[],
+  panelPeriodId: number
+): WorkbookPanelOverlayResult {
+  const workbookMonitoringIds = new Set(parsed.monitoringRows.map((row) => row.businessId));
+  const byBusiness = new Map<number, ApprovedMonitoringRecord>();
+  for (const record of approvedRecords) {
+    if (record.periodId !== panelPeriodId) continue;
+    byBusiness.set(record.businessId, record);
+  }
+
+  const addedRows: ParsedPanelWorkbook["monitoringRows"] = [];
+  for (const record of byBusiness.values()) {
+    if (workbookMonitoringIds.has(record.businessId)) continue;
+    addedRows.push({
+      businessId: record.businessId,
+      businessName: record.businessName?.trim() || `Enterprise ${record.businessId}`,
+      monitoring: {
+        revenue: monthlyFromQuarterly(record.revenue),
+        costs: monthlyFromQuarterly(record.costs),
+        profit: monthlyFromQuarterly(record.profitLoss),
+      },
+    });
+  }
+
+  return {
+    parsed: {
+      baselineRows: parsed.baselineRows,
+      monitoringRows: [...parsed.monitoringRows, ...addedRows],
+    },
+    addedFromApprovedCount: addedRows.length,
+  };
 }
 
 export function resolvePanelWorkbookPath(): string {
@@ -310,8 +355,19 @@ export function buildPanelAnalysisFromWorkbook(input: {
   monitoringPeriodLabel: string;
   monitoringPeriodCode: string;
   filters?: PanelDashboardFilters | null;
+  approvedOverlayRecords?: ApprovedMonitoringRecord[];
+  panelPeriodId?: number;
 }) {
-  const parsed = parsePanelAnalysisWorkbook(input.buffer);
+  const parsedFromFile = parsePanelAnalysisWorkbook(input.buffer);
+  const overlay =
+    input.approvedOverlayRecords && input.panelPeriodId !== undefined
+      ? mergeApprovedReportsIntoWorkbookMonitoring(
+          parsedFromFile,
+          input.approvedOverlayRecords,
+          input.panelPeriodId
+        )
+      : { parsed: parsedFromFile, addedFromApprovedCount: 0 };
+  const parsed = overlay.parsed;
   const built = buildDataQualityAndEnterprises(parsed, input.demographicsById);
   const hasFilter = Boolean(
     input.filters?.track || input.filters?.county || input.filters?.sector || input.filters?.ownerGender
@@ -330,8 +386,17 @@ export function buildPanelAnalysisFromWorkbook(input: {
         ),
       }
     : built.coverage;
-  const { dataQuality } = built;
-  return computePanelAnalysis({
+  const dataQuality: PanelDataQualitySummary =
+    overlay.addedFromApprovedCount > 0
+      ? {
+          ...built.dataQuality,
+          notes: [
+            ...built.dataQuality.notes,
+            `${overlay.addedFromApprovedCount} additional approved monitoring report(s) from BIRE were merged into the workbook panel (quarterly totals ÷ 3).`,
+          ],
+        }
+      : built.dataQuality;
+  const analysis = computePanelAnalysis({
     source: "workbook",
     monitoringPeriodLabel: input.monitoringPeriodLabel,
     monitoringPeriodCode: input.monitoringPeriodCode,
@@ -340,6 +405,10 @@ export function buildPanelAnalysisFromWorkbook(input: {
     dataQuality,
     coverage,
   });
+  return {
+    ...analysis,
+    workbookApprovedOverlayCount: overlay.addedFromApprovedCount,
+  };
 }
 
 export function buildEmptyWorkbookPanelAnalysis(

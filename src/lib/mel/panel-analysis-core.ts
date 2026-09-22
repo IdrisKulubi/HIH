@@ -164,6 +164,8 @@ export type MelPanelAnalysis = {
   matchedEnterprises: PanelMatchedEnterprise[];
   enterpriseOptions: Array<{ businessId: number; label: string }>;
   trend: PanelTrendPoint[];
+  /** Approved BIRE reports merged into workbook monitoring (not already in the Excel file). */
+  workbookApprovedOverlayCount?: number;
 };
 
 export type PanelEnterpriseInput = {

@@ -18,12 +18,18 @@ export type FundingTypeBreakdown = {
 
 type FundingRecord = {
   businessId: number;
+  linkedToFinanceProvider?: boolean | null;
   financeValue: number | null;
   financeEntries: Array<{
     financeType: string;
     amount: number;
   }>;
 };
+
+/** Finance amounts count only when the enterprise confirmed BIRE-facilitated linkage. */
+export function countsTowardBireFinanceAccess(record: Pick<FundingRecord, "linkedToFinanceProvider">): boolean {
+  return record.linkedToFinanceProvider === true;
+}
 
 const FUNDING_TYPES = [...FINANCE_TYPES];
 
@@ -34,6 +40,7 @@ export function buildFundingTypeBreakdown(records: FundingRecord[]): FundingType
   );
 
   for (const record of records) {
+    if (!countsTowardBireFinanceAccess(record)) continue;
     const entries = record.financeEntries.length > 0
       ? record.financeEntries
       : record.financeValue && record.financeValue > 0

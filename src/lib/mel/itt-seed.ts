@@ -512,7 +512,7 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     resultLevel: "output",
     resultStatement: "Enterprises have increased access to financial services",
     name: "Value of financial services accessed by MSEs",
-    definition: "Approved value of grants, matching grants, loans, or other configured finance accessed.",
+    definition: "Approved value of grants, matching grants, loans, or other finance accessed only where the enterprise confirmed linkage by the BIRE PROJECT.",
     unit: "kes",
     sourceType: "quarterly_enterprise_form",
     frequency: "quarterly",
