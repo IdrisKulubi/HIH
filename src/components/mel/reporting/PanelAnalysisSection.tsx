@@ -94,7 +94,7 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
             </select>
           </label>
           <EnterpriseFilter
-            value={filters.panelBusinessId}
+            value={filters.panelBusinessId ?? null}
             options={panel.enterpriseOptions}
             onChange={handleEnterpriseChange}
           />
