@@ -316,17 +316,15 @@ export type MelWasteReportingSummary = {
   indicatorId: number | null;
   reportingEnterprises: number;
   totalBaselineKilograms: number;
-  totalTargetKilograms: number;
-  totalActualKilograms: number;
-  totalAchievementPercent: number | null;
+  totalActualMonthlyMedianKilograms: number;
+  totalChangePercent: number | null;
   trafficLight: IndicatorCalculation["trafficLight"] | null;
   byStream: Array<{
     stream: string;
     label: string;
-    baselineKilograms: number | null;
-    targetKilograms: number | null;
-    actualSumKilograms: number | null;
-    achievementPercent: number | null;
+    baselineMonthlyMedianKilograms: number | null;
+    actualMonthlyMedianKilograms: number | null;
+    changePercent: number | null;
   }>;
 };
 
@@ -826,7 +824,13 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
   });
 
   const wasteDefinition = definitions.find((definition) => definition.code === "OP3.3-WASTE-RECYCLED");
-  const wasteReporting = buildWasteReportingSummary(filteredRecords, wasteDefinition, selectedPeriod, thresholds);
+  const wasteReporting = buildWasteReportingSummary(
+    filteredRecords,
+    wasteDefinition,
+    selectedPeriod,
+    thresholds,
+    periodOrder
+  );
 
   const trends = includedPeriods.map((period) => {
     const periodRecords = withReportedFinancialActivity(filteredRecords.filter((record) => record.periodId === period.id));
@@ -1439,6 +1443,30 @@ function matchesSupportedFilters(enterprise: SupportedEnterprise, filters: MelDa
   });
 }
 
+function wasteStreamKilograms(record: ApprovedMonitoringRecord, stream: string): number | null {
+  if (record.dimensions.sector !== "waste_management") return null;
+  const item = record.waste.find((entry) => entry.stream === stream);
+  return item ? item.kilograms : 0;
+}
+
+function earliestRecords(
+  records: ApprovedMonitoringRecord[],
+  periodOrder: Map<number, number>
+): ApprovedMonitoringRecord[] {
+  const byBusiness = new Map<number, ApprovedMonitoringRecord>();
+  for (const record of records) {
+    const current = byBusiness.get(record.businessId);
+    if (!current) {
+      byBusiness.set(record.businessId, record);
+      continue;
+    }
+    const currentOrder = periodOrder.get(current.periodId) ?? Number.POSITIVE_INFINITY;
+    const nextOrder = periodOrder.get(record.periodId) ?? Number.POSITIVE_INFINITY;
+    if (nextOrder < currentOrder) byBusiness.set(record.businessId, record);
+  }
+  return [...byBusiness.values()];
+}
+
 function buildWasteReportingSummary(
   records: ApprovedMonitoringRecord[],
   definition:
@@ -1448,61 +1476,64 @@ function buildWasteReportingSummary(
       })
     | undefined,
   selectedPeriod: typeof melReportingPeriods.$inferSelect,
-  thresholds: { green: number; red: number }
+  thresholds: { green: number; red: number },
+  periodOrder: Map<number, number>
 ): MelWasteReportingSummary {
   const wasteRecords = records.filter((record) => record.dimensions.sector === "waste_management");
-  const cumulativeKgByBusiness = new Map<number, Map<string, number>>();
-  for (const record of wasteRecords) {
-    const perStream = cumulativeKgByBusiness.get(record.businessId) ?? new Map<string, number>();
-    for (const item of record.waste) {
-      perStream.set(item.stream, (perStream.get(item.stream) ?? 0) + item.kilograms);
-    }
-    cumulativeKgByBusiness.set(record.businessId, perStream);
-  }
-  const reportingEnterprises = [...cumulativeKgByBusiness.entries()].filter(([, streams]) =>
-    [...streams.values()].some((kg) => kg > 0)
+  const latestPeriodRecords = latestRecords(
+    wasteRecords.filter((record) => record.periodId === selectedPeriod.id)
+  );
+  const baselinePeriodRecords = earliestRecords(wasteRecords, periodOrder);
+  const reportingEnterprises = latestPeriodRecords.filter((record) =>
+    record.waste.some((item) => item.kilograms > 0)
   ).length;
 
-  const streamKgForBusiness = (businessId: number, stream: string) =>
-    cumulativeKgByBusiness.get(businessId)?.get(stream) ?? 0;
-
   const byStream = WASTE_STREAMS.map((stream) => {
-    const baselineKilograms = definition
-      ? selectBaseline(definition.baselines, `waste_stream:${stream}`)
-      : null;
-    const targetKilograms = definition
-      ? selectTargetExact(definition.targets, selectedPeriod.id, selectedPeriod.programmeYear, `waste_stream:${stream}`)
-      : null;
-    const enterpriseValues = [...cumulativeKgByBusiness.keys()].map((businessId) =>
-      streamKgForBusiness(businessId, stream)
+    const baselineMonthlyMedianKilograms = monthlyMedian(baselinePeriodRecords, (record) =>
+      wasteStreamKilograms(record, stream)
     );
-    const actualSumKilograms =
-      enterpriseValues.length > 0 ? enterpriseValues.reduce((sum, kg) => sum + kg, 0) : null;
-    const achievementPercent =
-      actualSumKilograms !== null && targetKilograms !== null && targetKilograms > 0
-        ? safePercentage(actualSumKilograms, targetKilograms)
-        : null;
+    const actualMonthlyMedianKilograms = monthlyMedian(latestPeriodRecords, (record) =>
+      wasteStreamKilograms(record, stream)
+    );
+    const changePercent =
+      baselineMonthlyMedianKilograms === null ||
+      actualMonthlyMedianKilograms === null ||
+      baselineMonthlyMedianKilograms === 0
+        ? null
+        : safePercentage(
+            actualMonthlyMedianKilograms - baselineMonthlyMedianKilograms,
+            baselineMonthlyMedianKilograms
+          );
     return {
       stream,
       label: stream.replaceAll("_", " "),
-      baselineKilograms,
-      targetKilograms,
-      actualSumKilograms,
-      achievementPercent,
+      baselineMonthlyMedianKilograms,
+      actualMonthlyMedianKilograms,
+      changePercent,
     };
   });
 
-  const totalBaselineKilograms = byStream.reduce((sum, row) => sum + (row.baselineKilograms ?? 0), 0);
-  const totalTargetKilograms = byStream.reduce((sum, row) => sum + (row.targetKilograms ?? 0), 0);
-  const totalActualKilograms = byStream.reduce((sum, row) => sum + (row.actualSumKilograms ?? 0), 0);
-  const totalAchievementPercent =
-    totalTargetKilograms > 0 ? safePercentage(totalActualKilograms, totalTargetKilograms) : null;
+  const totalBaselineKilograms = byStream.reduce(
+    (sum, row) => sum + (row.baselineMonthlyMedianKilograms ?? 0),
+    0
+  );
+  const totalActualMonthlyMedianKilograms = byStream.reduce(
+    (sum, row) => sum + (row.actualMonthlyMedianKilograms ?? 0),
+    0
+  );
+  const totalChangePercent =
+    totalBaselineKilograms > 0
+      ? safePercentage(
+          totalActualMonthlyMedianKilograms - totalBaselineKilograms,
+          totalBaselineKilograms
+        )
+      : null;
   const trafficLight =
-    totalAchievementPercent === null
+    totalChangePercent === null
       ? null
-      : totalAchievementPercent >= thresholds.green
+      : totalChangePercent >= thresholds.green
         ? "green"
-        : totalAchievementPercent >= thresholds.red
+        : totalChangePercent >= thresholds.red
           ? "amber"
           : "red";
 
@@ -1510,9 +1541,8 @@ function buildWasteReportingSummary(
     indicatorId: definition?.id ?? null,
     reportingEnterprises,
     totalBaselineKilograms,
-    totalTargetKilograms,
-    totalActualKilograms,
-    totalAchievementPercent,
+    totalActualMonthlyMedianKilograms,
+    totalChangePercent,
     trafficLight,
     byStream,
   };

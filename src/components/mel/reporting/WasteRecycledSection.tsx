@@ -24,16 +24,19 @@ export function WasteRecycledSection({
             OP3.3 · Total kg by waste stream
           </h2>
           <p className="mt-0.5 max-w-2xl text-sm text-slate-600">
-            Baseline and target values from the ITT. Actual is the sum of cumulative kg reported by waste-management
-            enterprises through {periodLabel}, disaggregated by stream. % achievement is actual sum ÷ target × 100.
-            Matches <span className="font-medium text-slate-800">OP3.3-WASTE-RECYCLED</span>.
+            Baseline is the monthly median kg per stream from each enterprise&apos;s earliest approved monitoring
+            report (quarterly ÷ 3). Actual is the monthly median for {periodLabel} (quarterly ÷ 3). % change is
+            (actual − baseline) ÷ baseline × 100. Matches{" "}
+            <span className="font-medium text-slate-800">OP3.3-WASTE-RECYCLED</span>.
           </p>
         </div>
         <div className="text-right text-sm">
-          <p className="text-2xl font-bold tabular-nums text-slate-900">{formatKg(waste.totalActualKilograms)}</p>
-          <p className="mt-0.5 text-xs text-slate-600">Total waste collected (all streams)</p>
+          <p className="text-2xl font-bold tabular-nums text-slate-900">
+            {formatKg(waste.totalActualMonthlyMedianKilograms)}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-600">Monthly median waste (all streams, summed)</p>
           <p className="mt-1 text-xs text-slate-600">
-            {formatPercent(waste.totalAchievementPercent)} of target · Target {formatKg(waste.totalTargetKilograms)}
+            {formatPercent(waste.totalChangePercent)} vs baseline · Baseline {formatKg(waste.totalBaselineKilograms)}
           </p>
           <p className="mt-0.5 text-xs text-slate-600">
             {waste.reportingEnterprises} enterprise{waste.reportingEnterprises === 1 ? "" : "s"} reporting waste
@@ -55,14 +58,13 @@ export function WasteRecycledSection({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="text-xs text-slate-600">
             <tr>
               <th className="px-4 py-3 font-medium">Waste stream</th>
-              <th className="px-4 py-3 text-right font-medium">Baseline (kg)</th>
-              <th className="px-4 py-3 text-right font-medium">Target (kg)</th>
-              <th className="px-4 py-3 text-right font-medium">Actual total (kg)</th>
-              <th className="px-4 py-3 text-right font-medium">% achievement</th>
+              <th className="px-4 py-3 text-right font-medium">Baseline monthly median (kg)</th>
+              <th className="px-4 py-3 text-right font-medium">Actual monthly median (kg)</th>
+              <th className="px-4 py-3 text-right font-medium">% change</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -70,16 +72,17 @@ export function WasteRecycledSection({
               <tr key={row.stream} className="text-slate-800">
                 <td className="px-4 py-3 font-medium capitalize text-slate-900">{row.label}</td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {row.baselineKilograms !== null ? formatKg(row.baselineKilograms) : "—"}
+                  {row.baselineMonthlyMedianKilograms !== null
+                    ? formatKg(row.baselineMonthlyMedianKilograms)
+                    : "—"}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {row.targetKilograms !== null ? formatKg(row.targetKilograms) : "—"}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">
-                  {row.actualSumKilograms !== null ? formatKg(row.actualSumKilograms) : "—"}
+                  {row.actualMonthlyMedianKilograms !== null
+                    ? formatKg(row.actualMonthlyMedianKilograms)
+                    : "—"}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums font-medium">
-                  {formatPercent(row.achievementPercent)}
+                  {formatPercent(row.changePercent)}
                 </td>
               </tr>
             ))}
@@ -91,13 +94,10 @@ export function WasteRecycledSection({
                 {formatKg(waste.totalBaselineKilograms)}
               </td>
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
-                {formatKg(waste.totalTargetKilograms)}
+                {formatKg(waste.totalActualMonthlyMedianKilograms)}
               </td>
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
-                {formatKg(waste.totalActualKilograms)}
-              </td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
-                {formatPercent(waste.totalAchievementPercent)}
+                {formatPercent(waste.totalChangePercent)}
               </td>
             </tr>
           </tfoot>

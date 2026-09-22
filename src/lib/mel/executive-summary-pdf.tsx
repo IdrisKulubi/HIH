@@ -298,14 +298,15 @@ export function MelExecutiveSummaryPdfDocument({
 
         <Text style={styles.sectionTitle}>Waste collected</Text>
         <Text style={styles.note}>
-          OP3.3 · Sum of cumulative kg reported by waste-management enterprises through {data.selectedPeriod.label}.
+          OP3.3 · Monthly median kg by stream for waste-management enterprises in {data.selectedPeriod.label}
+          (quarterly ÷ 3). Baseline is the monthly median from each enterprise&apos;s earliest approved report.
         </Text>
         <View style={styles.kpiRow}>
           <View style={styles.kpiTile}>
-            <Text style={styles.kpiLabel}>Total waste collected</Text>
-            <Text style={styles.kpiValue}>{kilograms(wasteReporting.totalActualKilograms)}</Text>
+            <Text style={styles.kpiLabel}>Monthly median waste (all streams)</Text>
+            <Text style={styles.kpiValue}>{kilograms(wasteReporting.totalActualMonthlyMedianKilograms)}</Text>
             <Text style={styles.kpiDetail}>
-              {percent(wasteReporting.totalAchievementPercent)} of target {kilograms(wasteReporting.totalTargetKilograms)}
+              {percent(wasteReporting.totalChangePercent)} vs baseline {kilograms(wasteReporting.totalBaselineKilograms)}
               {" · "}
               {wasteReporting.reportingEnterprises.toLocaleString()} enterprise
               {wasteReporting.reportingEnterprises === 1 ? "" : "s"}
@@ -314,26 +315,23 @@ export function MelExecutiveSummaryPdfDocument({
         </View>
         <View style={styles.tableHeader}>
           <Text style={styles.cellWide}>Waste stream</Text>
-          <Text style={styles.cellRight}>Baseline</Text>
-          <Text style={styles.cellRight}>Target</Text>
-          <Text style={styles.cellRight}>Actual</Text>
-          <Text style={styles.cellRight}>% of target</Text>
+          <Text style={styles.cellRight}>Baseline (monthly median)</Text>
+          <Text style={styles.cellRight}>Actual (monthly median)</Text>
+          <Text style={styles.cellRight}>% change</Text>
         </View>
         {wasteReporting.byStream.map((row) => (
           <View key={row.stream} style={styles.tableRow}>
             <Text style={styles.cellWide}>{row.label}</Text>
-            <Text style={styles.cellRight}>{kilograms(row.baselineKilograms)}</Text>
-            <Text style={styles.cellRight}>{kilograms(row.targetKilograms)}</Text>
-            <Text style={styles.cellRight}>{kilograms(row.actualSumKilograms)}</Text>
-            <Text style={styles.cellRight}>{percent(row.achievementPercent)}</Text>
+            <Text style={styles.cellRight}>{kilograms(row.baselineMonthlyMedianKilograms)}</Text>
+            <Text style={styles.cellRight}>{kilograms(row.actualMonthlyMedianKilograms)}</Text>
+            <Text style={styles.cellRight}>{percent(row.changePercent)}</Text>
           </View>
         ))}
         <View style={styles.tableRow}>
           <Text style={[styles.cellWide, { fontFamily: "Helvetica-Bold" }]}>Total</Text>
           <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalBaselineKilograms)}</Text>
-          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalTargetKilograms)}</Text>
-          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalActualKilograms)}</Text>
-          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{percent(wasteReporting.totalAchievementPercent)}</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalActualMonthlyMedianKilograms)}</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{percent(wasteReporting.totalChangePercent)}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>External finance</Text>
