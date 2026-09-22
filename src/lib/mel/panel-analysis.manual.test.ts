@@ -176,6 +176,50 @@ function tests() {
   assert.ok(trackGroups.some((group) => group.key === "foundation" && group.n === 1));
   assert.ok(trackGroups.some((group) => group.key === "acceleration" && group.n === 1));
 
+  const trendPanel = buildPanelAnalysis({
+    records: [
+      record(1, {
+        periodId: 1,
+        revenue: 300_000,
+        costs: 180_000,
+        profitLoss: 120_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(1, {
+        periodId: 2,
+        submissionId: 11,
+        revenue: 360_000,
+        costs: 150_000,
+        profitLoss: 210_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(2, {
+        periodId: 2,
+        submissionId: 12,
+        dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" },
+        revenue: 900_000,
+        costs: 450_000,
+        profitLoss: 450_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 2,
+    monitoringPeriodLabel: "Y1 Monitoring Q2 (Sept–Nov 2026)",
+    monitoringPeriodCode: "Y1-MQ2",
+    monitoringPeriods: [
+      { id: 1, code: "Y1-MQ1", label: "Y1 Monitoring Q1 (Jun–Aug 2026)" },
+      { id: 2, code: "Y1-MQ2", label: "Y1 Monitoring Q2 (Sept–Nov 2026)" },
+    ],
+    activeBaselinesByBusinessId: new Map(),
+    panelBusinessId: null,
+  });
+  assert.deepEqual(trendPanel.trend.map((point) => point.label), ["Baseline", "Jun–Aug", "Sept–Nov"]);
+  assert.equal(trendPanel.trend[0]?.n, 2);
+  assert.equal(trendPanel.trend[1]?.n, 1);
+  assert.equal(trendPanel.trend[1]?.revenue, 100_000);
+  assert.equal(trendPanel.trend[2]?.n, 2);
+  assert.equal(trendPanel.trend[2]?.revenue, 210_000);
+
   const workbookPath = resolvePanelWorkbookPath();
   if (existsSync(workbookPath)) {
     const buffer = readFileSync(workbookPath);
@@ -194,8 +238,8 @@ function tests() {
     });
     assert.equal(workbookPanel.coverage.baselineUniqueIds, 238);
     assert.equal(workbookPanel.coverage.monitoringTotal, 151);
-    assert.ok(workbookPanel.coverage.matched >= 146 && workbookPanel.coverage.matched <= 147);
-    assert.ok(Math.abs((workbookPanel.coverage.matchPercentOfBaseline ?? 0) - 61.8) < 0.5);
+    assert.equal(workbookPanel.coverage.matched, 141);
+    assert.ok(Math.abs((workbookPanel.coverage.matchPercentOfBaseline ?? 0) - 59.2) < 0.5);
     assert.equal(workbookPanel.dataQuality.duplicateBaselineIds.length, 1);
     assert.equal(workbookPanel.dataQuality.duplicateBaselineIds[0]?.businessId, "827");
     assert.deepEqual(workbookPanel.coverage.unmatchedMonitoringIds.sort(), [421, 534, 826, 827, 986]);

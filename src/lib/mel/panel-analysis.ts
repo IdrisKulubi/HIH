@@ -1,12 +1,14 @@
-import { safePercentage, type ApprovedMonitoringRecord } from "./indicator-engine";
+import { median, safePercentage, type ApprovedMonitoringRecord } from "./indicator-engine";
 import { snapshotMonthlyField, withReportedFinancialActivity } from "./financial-baselines";
 import {
   computePanelAnalysis,
+  shortMonitoringPeriodLabel,
   type MelPanelAnalysis,
   type PanelCoverage,
   type PanelDataQualitySummary,
   type PanelEnterpriseInput,
   type PanelFinancialValues,
+  type PanelTrendPoint,
   PANEL_OUTLIER_MONTHLY_THRESHOLD,
   hasFinancialActivity,
   isPanelMatchedCandidate,
@@ -17,12 +19,20 @@ export const PANEL_MONITORING_PERIOD_CODE = "Y1-MQ1";
 export type {
   MelPanelAnalysis,
   PanelCoverage,
+  PanelDashboardFilters,
   PanelDataQualitySummary,
   PanelDisaggregation,
   PanelFinancialValues,
   PanelMatchedEnterprise,
   PanelSource,
+  PanelTrendPoint,
 } from "./panel-analysis-core";
+
+export type PanelMonitoringPeriod = {
+  id: number;
+  code: string;
+  label: string;
+};
 
 export type ActiveEnterpriseBaseline = {
   businessId: number;
@@ -91,15 +101,79 @@ function buildSystemCoverage(input: {
   };
 }
 
+function medianField(values: Array<number | null>): number | null {
+  return median(values.filter((value): value is number => value !== null && Number.isFinite(value)));
+}
+
+function trendPoint(key: string, label: string, rows: PanelFinancialValues[]): PanelTrendPoint {
+  return {
+    key,
+    label,
+    n: rows.length,
+    revenue: medianField(rows.map((row) => row.revenue)),
+    costs: medianField(rows.map((row) => row.costs)),
+    profit: medianField(rows.map((row) => row.profit)),
+  };
+}
+
+export function buildSystemPanelTrend(input: {
+  records: ApprovedMonitoringRecord[];
+  monitoringPeriods: PanelMonitoringPeriod[];
+  activeBaselinesByBusinessId: Map<number, ActiveEnterpriseBaseline>;
+  panelBusinessId: number | null;
+}): PanelTrendPoint[] {
+  const periods = input.monitoringPeriods;
+  if (periods.length === 0) return [];
+
+  const cohort = new Map<number, PanelFinancialValues>();
+  const periodRows = new Map<number, PanelFinancialValues[]>();
+
+  for (const period of periods) {
+    const rows: PanelFinancialValues[] = [];
+    const seen = new Set<number>();
+    for (const record of input.records) {
+      if (record.periodId !== period.id || seen.has(record.businessId)) continue;
+      if (input.panelBusinessId !== null && record.businessId !== input.panelBusinessId) continue;
+      const baseline = resolveEnterpriseOwnBaseline(
+        record.financialBaselineSnapshot,
+        input.activeBaselinesByBusinessId.get(record.businessId)
+      );
+      const monitoring = monitoringMonthly(record);
+      if (!hasOwnBaseline(baseline) || !hasFinancialActivity(monitoring)) continue;
+      seen.add(record.businessId);
+      if (!cohort.has(record.businessId)) cohort.set(record.businessId, baseline);
+      rows.push(monitoring);
+    }
+    periodRows.set(period.id, rows);
+  }
+
+  const baselineRows = [...cohort.values()];
+  return [
+    trendPoint("baseline", "Baseline", baselineRows),
+    ...periods.map((period) =>
+      trendPoint(period.code, shortMonitoringPeriodLabel(period.label), periodRows.get(period.id) ?? [])
+    ),
+  ];
+}
+
 export function buildPanelAnalysis(input: {
   records: ApprovedMonitoringRecord[];
   monitoringPeriodId: number;
   monitoringPeriodLabel: string;
   monitoringPeriodCode: string;
+  monitoringPeriods?: PanelMonitoringPeriod[];
   activeBaselinesByBusinessId: Map<number, ActiveEnterpriseBaseline>;
   panelBusinessId: number | null;
 }): MelPanelAnalysis {
-  const panelPeriodRecords = input.records.filter((record) => record.periodId === input.monitoringPeriodId);
+  const monitoringPeriods = input.monitoringPeriods?.length
+    ? input.monitoringPeriods
+    : [{
+        id: input.monitoringPeriodId,
+        code: input.monitoringPeriodCode,
+        label: input.monitoringPeriodLabel,
+      }];
+  const focusPeriod = monitoringPeriods.find((period) => period.id === input.monitoringPeriodId) ?? monitoringPeriods[monitoringPeriods.length - 1];
+  const panelPeriodRecords = input.records.filter((record) => record.periodId === focusPeriod.id);
   const monitoringEligible = withReportedFinancialActivity(panelPeriodRecords);
   const monitoringByBusinessId = new Map(panelPeriodRecords.map((record) => [record.businessId, record]));
 
@@ -182,6 +256,7 @@ export function buildPanelAnalysis(input: {
       "Live monitoring quarterly totals are converted to monthly (÷ 3).",
       "Missing financial fields are not treated as zero; medians use non-null values only.",
       "All-zero monitoring (revenue, costs, and profit) is treated as non-response and excluded from the matched panel.",
+      "Each monitoring quarter through the selected period is matched to the enterprise baseline. Later quarters join the trend when their reports are approved.",
     ],
   };
 
@@ -195,13 +270,22 @@ export function buildPanelAnalysis(input: {
     monitoringEligible: monitoringEligible.length,
   });
 
-  return computePanelAnalysis({
+  const analysis = computePanelAnalysis({
     source: "system",
-    monitoringPeriodLabel: input.monitoringPeriodLabel,
-    monitoringPeriodCode: input.monitoringPeriodCode,
+    monitoringPeriodLabel: focusPeriod.label,
+    monitoringPeriodCode: focusPeriod.code,
     enterprises,
     panelBusinessId: input.panelBusinessId,
     dataQuality,
     coverage,
   });
+  return {
+    ...analysis,
+    trend: buildSystemPanelTrend({
+      records: input.records,
+      monitoringPeriods,
+      activeBaselinesByBusinessId: input.activeBaselinesByBusinessId,
+      panelBusinessId: input.panelBusinessId,
+    }),
+  };
 }

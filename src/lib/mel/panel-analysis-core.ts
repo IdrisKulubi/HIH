@@ -72,6 +72,75 @@ export type PanelComparisonSummary = {
 
 export type PanelSource = "system" | "workbook";
 
+export type PanelTrendPoint = {
+  key: string;
+  label: string;
+  n: number;
+  revenue: number | null;
+  costs: number | null;
+  profit: number | null;
+};
+
+export type PanelDashboardFilters = {
+  track?: string | null;
+  county?: string | null;
+  sector?: string | null;
+  ownerGender?: string | null;
+};
+
+export function shortMonitoringPeriodLabel(label: string): string {
+  const paren = /\(([^)]+)\)/.exec(label);
+  const inner = (paren ? paren[1] : label).split("·")[0]?.trim() ?? label;
+  const shortened = inner.replace(/\s*20\d{2}/g, "").replace(/\s*–\s*/g, "–").replace(/\s+/g, " ").trim();
+  return shortened || label;
+}
+
+export function snapshotPanelTrend(input: {
+  periodCode: string;
+  periodLabel: string;
+  n: number;
+  baseline: PanelFinancialValues;
+  monitoring: PanelFinancialValues;
+}): PanelTrendPoint[] {
+  return [
+    {
+      key: "baseline",
+      label: "Baseline",
+      n: input.n,
+      revenue: input.baseline.revenue,
+      costs: input.baseline.costs,
+      profit: input.baseline.profit,
+    },
+    {
+      key: input.periodCode,
+      label: shortMonitoringPeriodLabel(input.periodLabel),
+      n: input.n,
+      revenue: input.monitoring.revenue,
+      costs: input.monitoring.costs,
+      profit: input.monitoring.profit,
+    },
+  ];
+}
+
+export function panelEnterpriseMatchesFilters(
+  enterprise: {
+    track: string | null;
+    ownerGender: string | null;
+    ownerYouth: boolean | null;
+    sector: string | null;
+    county: string | null;
+  },
+  filters: PanelDashboardFilters | null | undefined
+): boolean {
+  if (!filters) return true;
+  if (filters.track && enterprise.track !== filters.track) return false;
+  if (filters.county && enterprise.county !== filters.county) return false;
+  if (filters.sector && enterprise.sector !== filters.sector) return false;
+  if (!filters.ownerGender) return true;
+  if (filters.ownerGender === "youth") return enterprise.ownerYouth === true;
+  return enterprise.ownerGender === filters.ownerGender;
+}
+
 export type MelPanelAnalysis = {
   source: PanelSource;
   monitoringPeriodLabel: string;
@@ -94,6 +163,7 @@ export type MelPanelAnalysis = {
   interpretation: string[];
   matchedEnterprises: PanelMatchedEnterprise[];
   enterpriseOptions: Array<{ businessId: number; label: string }>;
+  trend: PanelTrendPoint[];
 };
 
 export type PanelEnterpriseInput = {
@@ -367,6 +437,13 @@ export function computePanelAnalysis(input: {
     },
     disaggregations: [] as PanelDisaggregation[],
     interpretation: [] as string[],
+    trend: snapshotPanelTrend({
+      periodCode: input.monitoringPeriodCode,
+      periodLabel: input.monitoringPeriodLabel,
+      n: 0,
+      baseline: emptyValues,
+      monitoring: emptyValues,
+    }),
   };
 
   if (matched.length === 0) {
@@ -423,6 +500,13 @@ export function computePanelAnalysis(input: {
       },
       disaggregations,
       interpretation: buildInterpretation(matched, input.coverage, changePercent, disaggregations),
+      trend: snapshotPanelTrend({
+        periodCode: input.monitoringPeriodCode,
+        periodLabel: input.monitoringPeriodLabel,
+        n: 1,
+        baseline: selected.baseline,
+        monitoring: selected.monitoring,
+      }),
     };
   }
 
@@ -452,6 +536,13 @@ export function computePanelAnalysis(input: {
     },
     disaggregations,
     interpretation: buildInterpretation(matched, input.coverage, changePercent, disaggregations),
+    trend: snapshotPanelTrend({
+      periodCode: input.monitoringPeriodCode,
+      periodLabel: input.monitoringPeriodLabel,
+      n: matched.length,
+      baseline,
+      monitoring,
+    }),
   };
 }
 
@@ -603,5 +694,6 @@ export function emptyPanelAnalysis(
     interpretation: [],
     matchedEnterprises: [],
     enterpriseOptions: [],
+    trend: [],
   };
 }

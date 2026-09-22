@@ -54,7 +54,7 @@ import {
   sumExternalFinance,
   type FundingTypeBreakdown,
 } from "./reporting-finance";
-import { buildPanelAnalysis, PANEL_MONITORING_PERIOD_CODE, type MelPanelAnalysis } from "./panel-analysis";
+import { buildPanelAnalysis, type MelPanelAnalysis } from "./panel-analysis";
 import { emptyPanelAnalysis } from "./panel-analysis-core";
 import {
   buildEmptyWorkbookPanelAnalysis,
@@ -1015,16 +1015,17 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
     ? `${selectedFinancialTrack} ITT baseline`
     : "overall ITT baseline";
 
-  const panelPeriod = await db.query.melReportingPeriods.findFirst({
-    where: eq(melReportingPeriods.code, PANEL_MONITORING_PERIOD_CODE),
-  });
-  const panelPeriodLabel = panelPeriod?.label ?? "Y1 Monitoring Q1 (Jun–Aug 2026)";
-  const panelPeriodCode = panelPeriod?.code ?? PANEL_MONITORING_PERIOD_CODE;
+  const panelMonitoringPeriods = includedPeriods.filter((period) => !isY1PreDeliveryPeriod(period));
+  const panelPeriod = panelMonitoringPeriods.find((period) => period.id === selectedPeriod.id)
+    ?? panelMonitoringPeriods.at(-1)
+    ?? null;
+  const panelPeriodLabel = panelPeriod?.label ?? selectedPeriod.label;
+  const panelPeriodCode = panelPeriod?.code ?? selectedPeriod.code;
   let panelAnalysis: MelPanelAnalysis = emptyPanelAnalysis({
     monitoringPeriodLabel: panelPeriodLabel,
     monitoringPeriodCode: panelPeriodCode,
     selectedBusinessId: resolvedFilters.panelBusinessId,
-    summaryLabel: panelPeriod ? "No matched panel data" : "Panel monitoring period is not configured",
+    summaryLabel: panelPeriod ? "No matched panel data" : "No monitoring period is open through the selected quarter",
   });
 
   if (resolvedFilters.panelSource === "workbook") {
@@ -1051,31 +1052,11 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
         panelBusinessId: resolvedFilters.panelBusinessId ?? null,
         monitoringPeriodLabel: panelPeriodLabel,
         monitoringPeriodCode: panelPeriodCode,
+        filters: resolvedFilters,
       });
     }
   } else if (panelPeriod) {
-    let panelRecords = filteredRecords;
-    if (!filteredRecords.some((record) => record.periodId === panelPeriod.id)) {
-      const panelSubmissions = await db.query.melMonitoringSubmissions.findMany({
-        where: and(
-          eq(melMonitoringSubmissions.status, "approved"),
-          eq(melMonitoringSubmissions.reportingPeriodId, panelPeriod.id)
-        ),
-        with: {
-          response: true,
-          financeEntries: true,
-          jobs: true,
-          waste: true,
-          business: { with: { applicant: true, application: true, kycProfile: true } },
-        },
-      });
-      panelRecords = [
-        ...filteredRecords,
-        ...panelSubmissions
-          .map((submission) => mapApprovedSubmissionToRecord(submission, selectedPeriod))
-          .filter((record) => matchesDashboardFilters(record, resolvedFilters)),
-      ];
-    }
+    const panelRecords = filteredRecords;
     const panelScopedBusinessIds = supportedEnterprises
       .filter((enterprise) => matchesSupportedFilters(enterprise, resolvedFilters))
       .map((enterprise) => enterprise.businessId);
@@ -1105,6 +1086,11 @@ export async function buildMelReportingDataset(filters: MelDashboardFilters = {}
       monitoringPeriodId: panelPeriod.id,
       monitoringPeriodLabel: panelPeriod.label,
       monitoringPeriodCode: panelPeriod.code,
+      monitoringPeriods: panelMonitoringPeriods.map((period) => ({
+        id: period.id,
+        code: period.code,
+        label: period.label,
+      })),
       activeBaselinesByBusinessId,
       panelBusinessId: resolvedFilters.panelBusinessId ?? null,
     });

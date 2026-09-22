@@ -15,9 +15,6 @@ const BRAND_BLUE = "#1da1db";
 const SLATE_900 = "#0f172a";
 const SLATE_600 = "#475569";
 const SLATE_200 = "#e2e8f0";
-const GREEN = "#047857";
-const AMBER = "#b45309";
-const RED = "#b91c1c";
 
 const styles = StyleSheet.create({
   page: {
@@ -57,19 +54,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 9,
     color: SLATE_600,
-    marginBottom: 14,
+    marginBottom: 4,
   },
   sectionTitle: {
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     marginTop: 12,
-    marginBottom: 6,
+    marginBottom: 4,
     color: SLATE_900,
+  },
+  note: {
+    fontSize: 8,
+    color: SLATE_600,
+    marginBottom: 6,
   },
   kpiRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   kpiTile: {
     flex: 1,
@@ -93,17 +95,6 @@ const styles = StyleSheet.create({
     color: SLATE_600,
     marginTop: 3,
   },
-  statusRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
-  statusPill: {
-    flex: 1,
-    padding: 6,
-    borderRadius: 4,
-    alignItems: "center",
-  },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#f1f5f9",
@@ -121,7 +112,7 @@ const styles = StyleSheet.create({
   },
   cell: { flex: 1 },
   cellRight: { flex: 1, textAlign: "right" },
-  cellWide: { flex: 1.4 },
+  cellWide: { flex: 1.6 },
   bullet: {
     marginBottom: 3,
     paddingLeft: 8,
@@ -136,7 +127,7 @@ const styles = StyleSheet.create({
 
 export type MelExecutiveSummaryPdfInput = Pick<
   MelReportingDataset,
-  "selectedPeriod" | "filters" | "summary" | "financeBreakdown" | "financialPerformance" | "panelAnalysis"
+  "selectedPeriod" | "filters" | "summary" | "financeBreakdown" | "wasteReporting" | "panelAnalysis"
 >;
 
 function money(value: number | null | undefined) {
@@ -147,6 +138,11 @@ function money(value: number | null | undefined) {
 function percent(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   return `${value.toFixed(1)}%`;
+}
+
+function kilograms(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return `${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value)} kg`;
 }
 
 function filterLines(filters: MelExecutiveSummaryPdfInput["filters"]) {
@@ -168,12 +164,12 @@ function PageFooter() {
 }
 
 function FinanceShareBar({ percentage }: { percentage: number }) {
-  const width = 120;
+  const width = 72;
   const fill = Math.min(100, Math.max(0, percentage));
   return (
-    <Svg width={width} height={10}>
-      <Rect x={0} y={0} width={width} height={10} fill={SLATE_200} rx={2} />
-      <Rect x={0} y={0} width={(width * fill) / 100} height={10} fill={BRAND_BLUE} rx={2} />
+    <Svg width={width} height={8}>
+      <Rect x={0} y={0} width={width} height={8} fill={SLATE_200} rx={2} />
+      <Rect x={0} y={0} width={(width * fill) / 100} height={8} fill={BRAND_BLUE} rx={2} />
     </Svg>
   );
 }
@@ -210,13 +206,12 @@ export function MelExecutiveSummaryPdfDocument({
   data: MelExecutiveSummaryPdfInput;
   exportedAt: Date;
 }) {
-  const { summary, panelAnalysis } = data;
+  const { summary, panelAnalysis, wasteReporting } = data;
   const generated = exportedAt.toLocaleDateString("en-KE", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const completeness = summary.reportingCompleteness;
   const panelMax = Math.max(
     panelAnalysis.baseline.revenue ?? 0,
     panelAnalysis.monitoring.revenue ?? 0,
@@ -226,47 +221,126 @@ export function MelExecutiveSummaryPdfDocument({
     panelAnalysis.monitoring.profit ?? 0,
     1
   );
-
   const measures = [
     { key: "revenue" as const, label: "Revenue" },
     { key: "costs" as const, label: "Costs" },
     { key: "profit" as const, label: "Profit" },
   ];
+  const trackGroups = panelAnalysis.disaggregations.find((item) => item.dimension === "Track")?.groups ?? [];
+  const jobs = summary.jobDisaggregation;
 
   return (
     <Document title="MEL executive summary">
       <Page size="A4" style={styles.page}>
         <Text style={styles.kicker}>Hand in Hand · MEL executive summary</Text>
-        <Text style={styles.title}>Programme results and ITT</Text>
+        <Text style={styles.title}>Executive summary</Text>
         <Text style={styles.subtitle}>
           Period: {data.selectedPeriod.label} · Generated {generated}
         </Text>
-        <Text style={styles.subtitle}>Filters: {filterLines(data.filters)}</Text>
+        <Text style={[styles.subtitle, { marginBottom: 8 }]}>Filters: {filterLines(data.filters)}</Text>
 
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiTile}>
-            <Text style={styles.kpiLabel}>Enterprises reporting</Text>
-            <Text style={styles.kpiValue}>{summary.reportingEnterprises.toLocaleString()}</Text>
-            <Text style={styles.kpiDetail}>
-              of {summary.eligibleEnterprises.toLocaleString()} eligible ({percent(completeness)})
-            </Text>
-          </View>
-          <View style={styles.kpiTile}>
-            <Text style={styles.kpiLabel}>Median monthly revenue</Text>
-            <Text style={styles.kpiValue}>{money(summary.monthlyMedianRevenue)}</Text>
-            <Text style={styles.kpiDetail}>
-              vs ITT {money(summary.monthlyMedianRevenueBaseline)} ({percent(summary.monthlyMedianRevenueChangePercent)})
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.sectionTitle}>Jobs</Text>
+        <Text style={styles.note}>Cumulative jobs from approved reports in the selected filters.</Text>
         <View style={styles.kpiRow}>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>Cumulative jobs</Text>
             <Text style={styles.kpiValue}>{summary.jobs.toLocaleString()}</Text>
             <Text style={styles.kpiDetail}>
-              Direct {summary.directJobs.toLocaleString()} · Indirect {summary.indirectJobs.toLocaleString()}
+              Direct quality {summary.directQualityJobs.toLocaleString()} · Direct non-quality{" "}
+              {summary.directNonQualityJobs.toLocaleString()} · Indirect {summary.indirectJobs.toLocaleString()}
             </Text>
           </View>
+        </View>
+        <View style={styles.tableHeader}>
+          <Text style={styles.cell}>Male</Text>
+          <Text style={styles.cell}>Female</Text>
+          <Text style={styles.cell}>Youth</Text>
+          <Text style={styles.cell}>PLWD</Text>
+          <Text style={styles.cell}>Refugee</Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={styles.cell}>{jobs.male.toLocaleString()}</Text>
+          <Text style={styles.cell}>{jobs.female.toLocaleString()}</Text>
+          <Text style={styles.cell}>{jobs.youth.toLocaleString()}</Text>
+          <Text style={styles.cell}>{jobs.plwd.toLocaleString()}</Text>
+          <Text style={styles.cell}>{jobs.refugee.toLocaleString()}</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Profitability (matched vs unmatched)</Text>
+        <Text style={styles.note}>
+          Median monthly profit, revenue, and costs. Overall monitoring is every reached enterprise with reported
+          activity, including unmatched enterprises. The matched panel is the same enterprise at baseline and monitoring.
+        </Text>
+        <View style={styles.tableHeader}>
+          <Text style={styles.cellWide}>Cohort</Text>
+          <Text style={styles.cellRight}>n</Text>
+          <Text style={styles.cellRight}>Profit</Text>
+          <Text style={styles.cellRight}>Δ profit</Text>
+          <Text style={styles.cellRight}>Revenue</Text>
+          <Text style={styles.cellRight}>Costs</Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={styles.cellWide}>Overall monitoring</Text>
+          <Text style={styles.cellRight}>{panelAnalysis.unpairedMonitoring.enterpriseCount.toLocaleString()}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.unpairedMonitoring.monitoring.profit)}</Text>
+          <Text style={styles.cellRight}>{percent(panelAnalysis.unpairedMonitoring.changePercent.profit)}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.unpairedMonitoring.monitoring.revenue)}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.unpairedMonitoring.monitoring.costs)}</Text>
+        </View>
+        <View style={styles.tableRow}>
+          <Text style={styles.cellWide}>Matched panel</Text>
+          <Text style={styles.cellRight}>{panelAnalysis.matchedPanel.enterpriseCount.toLocaleString()}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.matchedPanel.monitoring.profit)}</Text>
+          <Text style={styles.cellRight}>{percent(panelAnalysis.matchedPanel.changePercent.profit)}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.matchedPanel.monitoring.revenue)}</Text>
+          <Text style={styles.cellRight}>{money(panelAnalysis.matchedPanel.monitoring.costs)}</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Waste collected</Text>
+        <Text style={styles.note}>
+          OP3.3 · Sum of cumulative kg reported by waste-management enterprises through {data.selectedPeriod.label}.
+        </Text>
+        <View style={styles.kpiRow}>
+          <View style={styles.kpiTile}>
+            <Text style={styles.kpiLabel}>Total waste collected</Text>
+            <Text style={styles.kpiValue}>{kilograms(wasteReporting.totalActualKilograms)}</Text>
+            <Text style={styles.kpiDetail}>
+              {percent(wasteReporting.totalAchievementPercent)} of target {kilograms(wasteReporting.totalTargetKilograms)}
+              {" · "}
+              {wasteReporting.reportingEnterprises.toLocaleString()} enterprise
+              {wasteReporting.reportingEnterprises === 1 ? "" : "s"}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.tableHeader}>
+          <Text style={styles.cellWide}>Waste stream</Text>
+          <Text style={styles.cellRight}>Baseline</Text>
+          <Text style={styles.cellRight}>Target</Text>
+          <Text style={styles.cellRight}>Actual</Text>
+          <Text style={styles.cellRight}>% of target</Text>
+        </View>
+        {wasteReporting.byStream.map((row) => (
+          <View key={row.stream} style={styles.tableRow}>
+            <Text style={styles.cellWide}>{row.label}</Text>
+            <Text style={styles.cellRight}>{kilograms(row.baselineKilograms)}</Text>
+            <Text style={styles.cellRight}>{kilograms(row.targetKilograms)}</Text>
+            <Text style={styles.cellRight}>{kilograms(row.actualSumKilograms)}</Text>
+            <Text style={styles.cellRight}>{percent(row.achievementPercent)}</Text>
+          </View>
+        ))}
+        <View style={styles.tableRow}>
+          <Text style={[styles.cellWide, { fontFamily: "Helvetica-Bold" }]}>Total</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalBaselineKilograms)}</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalTargetKilograms)}</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalActualKilograms)}</Text>
+          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{percent(wasteReporting.totalAchievementPercent)}</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>External finance</Text>
+        <Text style={styles.note}>
+          Loan, repayable grant, and other count toward the external funding target. BIRE matching grant is excluded.
+        </Text>
+        <View style={styles.kpiRow}>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>External finance accessed</Text>
             <Text style={styles.kpiValue}>{money(summary.externalFinanceAccessed)}</Text>
@@ -275,24 +349,6 @@ export function MelExecutiveSummaryPdfDocument({
             </Text>
           </View>
         </View>
-
-        <Text style={styles.sectionTitle}>ITT status (indicator count)</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusPill, { backgroundColor: "#d1fae5" }]}>
-            <Text style={{ fontFamily: "Helvetica-Bold", color: GREEN }}>On track</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Helvetica-Bold", marginTop: 2 }}>{summary.greenResults}</Text>
-          </View>
-          <View style={[styles.statusPill, { backgroundColor: "#fef3c7" }]}>
-            <Text style={{ fontFamily: "Helvetica-Bold", color: AMBER }}>Needs attention</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Helvetica-Bold", marginTop: 2 }}>{summary.amberResults}</Text>
-          </View>
-          <View style={[styles.statusPill, { backgroundColor: "#fee2e2" }]}>
-            <Text style={{ fontFamily: "Helvetica-Bold", color: RED }}>Off track</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Helvetica-Bold", marginTop: 2 }}>{summary.redResults}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Finance accessed by funding type</Text>
         <View style={styles.tableHeader}>
           <Text style={styles.cellWide}>Type</Text>
           <Text style={styles.cellRight}>Enterprises</Text>
@@ -301,8 +357,11 @@ export function MelExecutiveSummaryPdfDocument({
         </View>
         {data.financeBreakdown.map((item) => (
           <View key={item.type} style={styles.tableRow}>
-            <Text style={styles.cellWide}>{item.label}</Text>
-            <Text style={styles.cellRight}>{item.enterpriseCount}</Text>
+            <Text style={styles.cellWide}>
+              {item.label}
+              {item.type === "matching_grant" ? " (excluded from target)" : ""}
+            </Text>
+            <Text style={styles.cellRight}>{item.enterpriseCount.toLocaleString()}</Text>
             <Text style={styles.cellRight}>{money(item.amount)}</Text>
             <View style={styles.cell}>
               <FinanceShareBar percentage={item.percentage} />
@@ -311,67 +370,29 @@ export function MelExecutiveSummaryPdfDocument({
           </View>
         ))}
 
-        <PageFooter />
-      </Page>
-
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.sectionTitle}>Monthly financial performance by track</Text>
-        <Text style={{ fontSize: 8, color: SLATE_600, marginBottom: 6 }}>
-          Quarterly monitoring converted to monthly (÷ 3). % change vs programme ITT baseline.
-        </Text>
-        <View style={styles.tableHeader}>
-          <Text style={styles.cell}>Track</Text>
-          <Text style={styles.cellRight}>n</Text>
-          <Text style={styles.cellRight}>Revenue</Text>
-          <Text style={styles.cellRight}>Δ%</Text>
-          <Text style={styles.cellRight}>Costs</Text>
-          <Text style={styles.cellRight}>Δ%</Text>
-          <Text style={styles.cellRight}>Profit</Text>
-          <Text style={styles.cellRight}>Δ%</Text>
-        </View>
-        {data.financialPerformance.map((track) => (
-          <View key={track.track} style={styles.tableRow}>
-            <Text style={[styles.cell, { fontFamily: "Helvetica-Bold" }]}>
-              {track.track === "all" ? "Overall" : track.track}
-            </Text>
-            <Text style={styles.cellRight}>{track.enterpriseCount}</Text>
-            <Text style={styles.cellRight}>{money(track.monthlyMedianRevenue)}</Text>
-            <Text style={styles.cellRight}>{percent(track.variancePercentage.revenue)}</Text>
-            <Text style={styles.cellRight}>{money(track.monthlyMedianCosts)}</Text>
-            <Text style={styles.cellRight}>{percent(track.variancePercentage.costs)}</Text>
-            <Text style={styles.cellRight}>{money(track.monthlyMedianProfit)}</Text>
-            <Text style={styles.cellRight}>{percent(track.variancePercentage.profit)}</Text>
-          </View>
-        ))}
-
         <Text style={styles.sectionTitle}>Panel analysis (matched enterprises)</Text>
-        <Text style={{ fontSize: 8, color: SLATE_600, marginBottom: 4 }}>
+        <Text style={styles.note}>
           {panelAnalysis.summaryLabel} · Source: {panelAnalysis.source === "workbook" ? "imported workbook" : "live monitoring"} ·{" "}
           {panelAnalysis.monitoringPeriodLabel}
         </Text>
         <View style={styles.kpiRow}>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>Unique baseline IDs</Text>
-            <Text style={styles.kpiValue}>{panelAnalysis.coverage.baselineUniqueIds}</Text>
+            <Text style={styles.kpiValue}>{panelAnalysis.coverage.baselineUniqueIds.toLocaleString()}</Text>
           </View>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>Monitoring</Text>
-            <Text style={styles.kpiValue}>{panelAnalysis.coverage.monitoringTotal}</Text>
+            <Text style={styles.kpiValue}>{panelAnalysis.coverage.monitoringTotal.toLocaleString()}</Text>
           </View>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>Matched</Text>
-            <Text style={styles.kpiValue}>{panelAnalysis.coverage.matched}</Text>
+            <Text style={styles.kpiValue}>{panelAnalysis.coverage.matched.toLocaleString()}</Text>
           </View>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>Match % of baseline</Text>
             <Text style={styles.kpiValue}>{percent(panelAnalysis.coverage.matchPercentOfBaseline)}</Text>
           </View>
         </View>
-        <Text style={{ fontSize: 8, marginBottom: 4 }}>
-          Unpaired monitoring (with activity): n={panelAnalysis.unpairedMonitoring.enterpriseCount} · Matched panel: n=
-          {panelAnalysis.matchedPanel.enterpriseCount}
-        </Text>
-
         <View style={styles.tableHeader}>
           <Text style={styles.cell}>Measure</Text>
           <Text style={styles.cellRight}>Baseline</Text>
@@ -396,62 +417,44 @@ export function MelExecutiveSummaryPdfDocument({
         ))}
         <Text style={styles.chartCaption}>Grey = baseline median · Blue = monitoring median</Text>
 
-        {panelAnalysis.disaggregations
-          .find((item) => item.dimension === "Track")
-          ?.groups.length ? (
-          <>
-            <Text style={styles.sectionTitle}>Panel by overall &amp; track</Text>
-            <View style={styles.tableHeader}>
-              <Text style={styles.cell}>Track</Text>
-              <Text style={styles.cellRight}>n</Text>
-              <Text style={styles.cellRight}>Δ rev %</Text>
-              <Text style={styles.cellRight}>Δ profit %</Text>
-            </View>
-            {panelAnalysis.disaggregations
-              .find((item) => item.dimension === "Track")!
-              .groups.map((group) => (
-                <View key={group.key} style={styles.tableRow}>
-                  <Text style={styles.cell}>{group.label}</Text>
-                  <Text style={styles.cellRight}>{group.n}</Text>
-                  <Text style={styles.cellRight}>{percent(group.changePercent.revenue)}</Text>
-                  <Text style={styles.cellRight}>{percent(group.changePercent.profit)}</Text>
+        <Text style={styles.sectionTitle}>Panel by overall &amp; track</Text>
+        {trackGroups.length === 0 ? (
+          <Text style={styles.note}>No track breakdown for the current filters.</Text>
+        ) : (
+          measures.map((measure) => (
+            <View key={measure.key}>
+              <Text style={[styles.note, { marginTop: 4, fontFamily: "Helvetica-Bold", color: SLATE_900 }]}>
+                {measure.label}
+              </Text>
+              <View style={styles.tableHeader}>
+                <Text style={styles.cell}>Track</Text>
+                <Text style={styles.cellRight}>n</Text>
+                <Text style={styles.cellRight}>Baseline</Text>
+                <Text style={styles.cellRight}>Monitoring</Text>
+                <Text style={styles.cellRight}>Δ%</Text>
+              </View>
+              {trackGroups.map((group) => (
+                <View key={`${measure.key}-${group.key}`} style={styles.tableRow}>
+                  <Text style={[styles.cell, group.key === "overall" ? { fontFamily: "Helvetica-Bold" } : {}]}>
+                    {group.label}
+                  </Text>
+                  <Text style={styles.cellRight}>{group.n.toLocaleString()}</Text>
+                  <Text style={styles.cellRight}>{money(group.baseline[measure.key])}</Text>
+                  <Text style={styles.cellRight}>{money(group.monitoring[measure.key])}</Text>
+                  <Text style={styles.cellRight}>{percent(group.changePercent[measure.key])}</Text>
                 </View>
               ))}
-          </>
-        ) : null}
+            </View>
+          ))
+        )}
 
-        <PageFooter />
-      </Page>
-
-      <Page size="A4" style={styles.page}>
         <Text style={styles.sectionTitle}>Panel interpretation</Text>
         {panelAnalysis.interpretation.length === 0 ? (
           <Text style={{ color: SLATE_600 }}>No matched panel interpretation available for current filters.</Text>
         ) : (
-          panelAnalysis.interpretation.slice(0, 8).map((line) => (
+          panelAnalysis.interpretation.map((line) => (
             <Text key={line} style={styles.bullet}>• {line}</Text>
           ))
-        )}
-
-        {(panelAnalysis.dataQuality.duplicateBaselineIds.length > 0 ||
-          panelAnalysis.dataQuality.notes.length > 0 ||
-          panelAnalysis.coverage.unmatchedMonitoringIds.length > 0) && (
-          <>
-            <Text style={styles.sectionTitle}>Data quality notes</Text>
-            {panelAnalysis.dataQuality.duplicateBaselineIds.map((item) => (
-              <Text key={item.businessId} style={styles.bullet}>
-                • Duplicate baseline ID {item.businessId}: {item.names.join(" · ")}
-              </Text>
-            ))}
-            {panelAnalysis.coverage.unmatchedMonitoringIds.length > 0 ? (
-              <Text style={styles.bullet}>
-                • Unmatched monitoring IDs: {panelAnalysis.coverage.unmatchedMonitoringIds.join(", ")}
-              </Text>
-            ) : null}
-            {panelAnalysis.dataQuality.notes.slice(0, 4).map((note) => (
-              <Text key={note} style={styles.bullet}>• {note}</Text>
-            ))}
-          </>
         )}
 
         <PageFooter />

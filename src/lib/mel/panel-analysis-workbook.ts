@@ -7,8 +7,10 @@ import {
   emptyPanelAnalysis,
   hasFinancialActivity,
   isPanelMatchedCandidate,
+  panelEnterpriseMatchesFilters,
   PANEL_OUTLIER_MONTHLY_THRESHOLD,
   type MelPanelAnalysis,
+  type PanelDashboardFilters,
   type PanelDataQualitySummary,
   type PanelEnterpriseInput,
   type PanelFinancialValues,
@@ -307,9 +309,28 @@ export function buildPanelAnalysisFromWorkbook(input: {
   panelBusinessId: number | null;
   monitoringPeriodLabel: string;
   monitoringPeriodCode: string;
+  filters?: PanelDashboardFilters | null;
 }) {
   const parsed = parsePanelAnalysisWorkbook(input.buffer);
-  const { enterprises, dataQuality, coverage } = buildDataQualityAndEnterprises(parsed, input.demographicsById);
+  const built = buildDataQualityAndEnterprises(parsed, input.demographicsById);
+  const hasFilter = Boolean(
+    input.filters?.track || input.filters?.county || input.filters?.sector || input.filters?.ownerGender
+  );
+  const enterprises = hasFilter
+    ? built.enterprises.filter((enterprise) => panelEnterpriseMatchesFilters(enterprise, input.filters))
+    : built.enterprises;
+  const coverage = hasFilter
+    ? {
+        ...built.coverage,
+        matched: enterprises.filter((enterprise) => isPanelMatchedCandidate(enterprise)).length,
+        monitoringTotal: enterprises.filter((enterprise) => enterprise.inMonitoringRound).length,
+        baselineUniqueIds: enterprises.filter((enterprise) => enterprise.inBaselineUniverse).length,
+        unmatchedMonitoringIds: built.coverage.unmatchedMonitoringIds.filter((id) =>
+          enterprises.some((enterprise) => enterprise.businessId === id)
+        ),
+      }
+    : built.coverage;
+  const { dataQuality } = built;
   return computePanelAnalysis({
     source: "workbook",
     monitoringPeriodLabel: input.monitoringPeriodLabel,

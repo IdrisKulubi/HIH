@@ -47,7 +47,7 @@ export async function GET(request: Request) {
           filters: dataset.filters,
           summary: dataset.summary,
           financeBreakdown: dataset.financeBreakdown,
-          financialPerformance: dataset.financialPerformance,
+          wasteReporting: dataset.wasteReporting,
           panelAnalysis: dataset.panelAnalysis,
         },
         exportedAt

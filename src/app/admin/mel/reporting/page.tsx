@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMelReportingDashboard } from "@/lib/actions/mel-reporting";
-import type { MelDashboardFilters } from "@/lib/mel/reporting-data";
+import type { MelDashboardFilters, MelReportingDataset } from "@/lib/mel/reporting-data";
 import { ReportingFilters } from "@/components/mel/reporting/ReportingFilters";
 import { RecalculateButton } from "@/components/mel/reporting/RecalculateButton";
 import { DashboardAutoRefresh } from "@/components/mel/reporting/DashboardAutoRefresh";
@@ -13,6 +13,7 @@ import { FeedbackAccountabilitySection } from "@/components/mel/reporting/Feedba
 import { WasteRecycledSection } from "@/components/mel/reporting/WasteRecycledSection";
 import { PanelAnalysisSection } from "@/components/mel/reporting/PanelAnalysisSection";
 import { ProfitabilityMeasureChart } from "@/components/mel/reporting/ProfitabilityMeasureChart";
+import { IndicatorTrackComparison, type IndicatorTrackRow } from "@/components/mel/reporting/IndicatorTrackComparison";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -152,37 +153,16 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
 
       <section className="space-y-3" aria-labelledby="financial-performance-heading">
         <div>
-          <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Monthly financial performance by track</h2>
-          <p className="text-sm text-slate-600">Quarterly values are converted to monthly equivalents (÷ 3), using one latest approved report per enterprise. Each measure shows change vs the programme ITT baseline (revenue, costs, and profit), including Overall (all tracks). LT1 tracks a <span className="font-medium text-slate-800">50% increase in median revenue</span>. <span className="font-medium text-slate-800">vs own baseline</span> counts enterprises whose monthly profit is at or above their imported opening baseline.</p>
+          <h2 id="financial-performance-heading" className="text-lg font-semibold text-slate-900">Overall monitoring by enterprise track</h2>
+          <p className="text-sm text-slate-600">
+            All approved reports, not only the matched panel. Quarterly values are monthly equivalents (÷ 3), one latest report per enterprise, compared with the programme ITT baseline. Charts show Foundation and Accelerator. LT1 tracks a <span className="font-medium text-slate-800">50% increase in median revenue</span>.
+          </p>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-600">
-              <tr>
-                <th className="px-4 py-3">Track</th>
-                <th className="px-4 py-3">Enterprises</th>
-                <th className="px-4 py-3">Monthly revenue</th>
-                <th className="px-4 py-3">Monthly costs</th>
-                <th className="px-4 py-3">Monthly profit</th>
-                <th className="px-4 py-3">ITT revenue baseline</th>
-                <th className="px-4 py-3">vs own baseline</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data.financialPerformance.map((track) => (
-                <tr key={track.track} className={track.track === "all" ? "bg-slate-50/80" : undefined}>
-                  <td className="px-4 py-3 font-semibold capitalize text-slate-900">{track.track === "all" ? "Overall" : track.track}</td>
-                  <td className="px-4 py-3 tabular-nums">{track.enterpriseCount}</td>
-                  <FinancialMeasureCell measure="revenue" current={track.monthlyMedianRevenue} variance={track.variance.revenue} variancePercent={track.variancePercentage.revenue} baseline={track.baseline?.revenue ?? null} />
-                  <FinancialMeasureCell measure="costs" current={track.monthlyMedianCosts} variance={track.variance.costs} variancePercent={track.variancePercentage.costs} baseline={track.baseline?.costs ?? null} />
-                  <FinancialMeasureCell measure="profit" current={track.monthlyMedianProfit} variance={track.variance.profit} variancePercent={track.variancePercentage.profit} baseline={track.baseline?.profit ?? null} emphasis />
-                  <td className="px-4 py-3 tabular-nums">{track.baseline ? money(track.baseline.revenue) : "Not applicable"}</td>
-                  <td className="px-4 py-3"><OwnBaselineCell summary={track.ownBaseline} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <IndicatorTrackComparison
+          monitoringLabel="Monitoring"
+          caption={`Overall monitoring · monthly medians vs ITT baseline · ${data.selectedPeriod.label}`}
+          measures={overallMonitoringMeasures(data.financialPerformance)}
+        />
       </section>
 
       <section className="space-y-3" aria-labelledby="financial-performance-over-time-heading">
@@ -311,35 +291,62 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
   );
 }
 
-function OwnBaselineCell({
-  summary,
-}: {
-  summary: {
-    comparableCount: number;
-    atOrAboveCount: number;
-    declinedCount: number;
-    atOrAboveShare: number | null;
-    medianProfitChange: number | null;
-    missingBaselineCount: number;
-  };
-}) {
-  if (summary.comparableCount === 0) {
-    return <p className="text-sm text-slate-500">No own baselines to compare</p>;
-  }
-  const shareTone = (summary.atOrAboveShare ?? 0) >= 50 ? "text-emerald-800" : "text-amber-800";
-  return (
-    <div className="min-w-[220px] space-y-1">
-      <p className={`font-medium tabular-nums ${shareTone}`}>
-        {summary.atOrAboveCount}/{summary.comparableCount} at or above ({percentage(summary.atOrAboveShare)})
-      </p>
-      <p className="text-xs tabular-nums text-slate-600">
-        {summary.declinedCount} below · median change {money(summary.medianProfitChange)}
-      </p>
-      {summary.missingBaselineCount > 0 ? (
-        <p className="text-xs text-slate-500">{summary.missingBaselineCount} without an imported baseline</p>
-      ) : null}
-    </div>
-  );
+function overallMonitoringMeasures(tracks: MelReportingDataset["financialPerformance"]) {
+  const order = ["all", "foundation", "acceleration"];
+  const ordered = [...tracks].sort((left, right) => order.indexOf(left.track) - order.indexOf(right.track));
+  const label = (track: string) =>
+    track === "all" ? "Overall" : track === "acceleration" ? "Accelerator" : track === "foundation" ? "Foundation" : track;
+  const rows = (
+    baseline: (track: (typeof ordered)[number]) => number | null,
+    monitoring: (track: (typeof ordered)[number]) => number | null,
+    changePercent: (track: (typeof ordered)[number]) => number | null
+  ): IndicatorTrackRow[] =>
+    ordered.map((track) => ({
+      key: track.track,
+      label: label(track.track),
+      n: track.enterpriseCount,
+      baseline: baseline(track),
+      monitoring: monitoring(track),
+      changePercent: changePercent(track),
+    }));
+  const ownBaseline = ordered
+    .filter((track) => track.ownBaseline.comparableCount > 0)
+    .map(
+      (track) =>
+        `${label(track.track)}: ${track.ownBaseline.atOrAboveCount}/${track.ownBaseline.comparableCount} at or above their own opening profit baseline`
+    )
+    .join(". ");
+
+  return [
+    {
+      key: "revenue" as const,
+      label: "Revenue",
+      rows: rows(
+        (track) => track.baseline?.revenue ?? null,
+        (track) => track.monthlyMedianRevenue,
+        (track) => track.variancePercentage.revenue
+      ),
+    },
+    {
+      key: "costs" as const,
+      label: "Costs",
+      rows: rows(
+        (track) => track.baseline?.costs ?? null,
+        (track) => track.monthlyMedianCosts,
+        (track) => track.variancePercentage.costs
+      ),
+    },
+    {
+      key: "profit" as const,
+      label: "Profit",
+      note: ownBaseline || null,
+      rows: rows(
+        (track) => track.baseline?.profit ?? null,
+        (track) => track.monthlyMedianProfit,
+        (track) => track.variancePercentage.profit
+      ),
+    },
+  ];
 }
 
 function MonthlyMedianRevenueMetric({
@@ -484,50 +491,6 @@ function TrafficBadge({ status }: { status: "green" | "amber" | "red" | "not_ava
 function scalar(value: string | string[] | undefined) { return typeof value === "string" && value ? value : null; }
 function positiveNumber(value: string | string[] | undefined) { const parsed = Number(scalar(value)); return Number.isInteger(parsed) && parsed > 0 ? parsed : null; }
 function money(value: number | null) { return value === null ? "Not available" : new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(value); }
-function varianceTone(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
-  if (current === null || baseline === null) return "text-slate-800";
-  return changeTone(measure, current - baseline);
-}
-function changeTone(measure: "revenue" | "costs" | "profit", change: number | null) {
-  if (change === null || change === 0) return "text-slate-800";
-  const improved = measure === "costs" ? change < 0 : change > 0;
-  return improved ? "font-medium text-emerald-700" : "font-medium text-red-700";
-}
-function FinancialMeasureCell({
-  measure,
-  current,
-  variance,
-  variancePercent,
-  baseline,
-  emphasis = false,
-}: {
-  measure: "revenue" | "costs" | "profit";
-  current: number | null;
-  variance: number | null;
-  variancePercent: number | null;
-  baseline: number | null;
-  emphasis?: boolean;
-}) {
-  const tone = varianceTone(measure, current, baseline);
-  const showDelta = baseline !== null && current !== null && variance !== null;
-  return (
-    <td className={`px-4 py-3 tabular-nums ${tone} ${emphasis ? "font-medium" : ""}`}>
-      <div>{money(current)}</div>
-      {showDelta ? (
-        <div className={`text-xs ${changeTone(measure, variance)}`}>
-          {signedMoney(variance)} ({percentage(variancePercent)})
-        </div>
-      ) : null}
-    </td>
-  );
-}
-function signedMoney(value: number | null) {
-  if (value === null) return "Not available";
-  const formatted = new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", notation: "compact", maximumFractionDigits: 1 }).format(Math.abs(value));
-  if (value > 0) return `+${formatted}`;
-  if (value < 0) return `-${formatted}`;
-  return formatted;
-}
 function percentage(value: number | null) {
   if (value === null) return "Not available";
   if (value > 0 && value < 0.1) return `${value.toFixed(2)}%`;

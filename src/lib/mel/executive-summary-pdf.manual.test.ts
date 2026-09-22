@@ -66,29 +66,25 @@ function fixture(): MelExecutiveSummaryPdfInput {
       { type: "repayable_grant", label: "Repayable grant", enterpriseCount: 4, amount: 15000000, percentage: 30 },
       { type: "other", label: "Other", enterpriseCount: 2, amount: 5000000, percentage: 10 },
     ],
-    financialPerformance: [
-      {
-        track: "foundation",
-        enterpriseCount: 80,
-        monthlyMedianRevenue: 70000,
-        monthlyMedianCosts: 35000,
-        monthlyMedianProfit: 35000,
-        baseline: { revenue: 200000, costs: 120000, profit: 80000 },
-        variance: { revenue: -130000, costs: -85000, profit: -45000 },
-        variancePercentage: { revenue: -65, costs: -70.8, profit: -56.3 },
-        ownBaseline: {
-          comparableCount: 70,
-          improvedCount: 30,
-          declinedCount: 35,
-          unchangedCount: 5,
-          atOrAboveCount: 35,
-          missingBaselineCount: 10,
-          missingProfitCount: 0,
-          atOrAboveShare: 50,
-          medianProfitChange: 5000,
+    wasteReporting: {
+      indicatorId: 12,
+      reportingEnterprises: 8,
+      totalBaselineKilograms: 0,
+      totalTargetKilograms: 100000,
+      totalActualKilograms: 25000,
+      totalAchievementPercent: 25,
+      trafficLight: "amber",
+      byStream: [
+        {
+          stream: "plastic",
+          label: "Plastic",
+          baselineKilograms: 0,
+          targetKilograms: 40000,
+          actualSumKilograms: 10000,
+          achievementPercent: 25,
         },
-      },
-    ],
+      ],
+    },
     panelAnalysis: {
       ...panel,
       source: "workbook",
@@ -117,6 +113,31 @@ function fixture(): MelExecutiveSummaryPdfInput {
         monitoring: { revenue: 150000, costs: 90000, profit: 60000 },
         changePercent: { revenue: 25, costs: 12.5, profit: 50 },
       },
+      disaggregations: [
+        {
+          dimension: "Track",
+          groups: [
+            {
+              key: "overall",
+              label: "Overall",
+              n: 147,
+              baseline: { revenue: 120000, costs: 80000, profit: 40000 },
+              monitoring: { revenue: 150000, costs: 90000, profit: 60000 },
+              change: { revenue: 30000, costs: 10000, profit: 20000 },
+              changePercent: { revenue: 25, costs: 12.5, profit: 50 },
+            },
+            {
+              key: "foundation",
+              label: "Foundation",
+              n: 90,
+              baseline: { revenue: 100000, costs: 70000, profit: 30000 },
+              monitoring: { revenue: 120000, costs: 75000, profit: 45000 },
+              change: { revenue: 20000, costs: 5000, profit: 15000 },
+              changePercent: { revenue: 20, costs: 7.1, profit: 50 },
+            },
+          ],
+        },
+      ],
     },
   };
 }

@@ -1,10 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { MelPanelAnalysis } from "@/lib/mel/panel-analysis";
+import { CaretUpDown, Check } from "@phosphor-icons/react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { MelPanelAnalysis, PanelTrendPoint } from "@/lib/mel/panel-analysis";
 import type { MelReportingDataset } from "@/lib/mel/reporting-data";
 import { PANEL_MIN_DISAGGREGATION_N } from "@/lib/mel/panel-analysis-core";
+import { IndicatorTrackComparison, type IndicatorTrackRow } from "@/components/mel/reporting/IndicatorTrackComparison";
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Props = {
   panel: MelPanelAnalysis;
@@ -20,12 +26,12 @@ const MEASURES = [
 export function PanelAnalysisSection({ panel, filters }: Props) {
   const router = useRouter();
   const monitoringShort = shortPeriodLabel(panel.monitoringPeriodLabel);
-  const chartData = MEASURES.map((measure) => ({
-    measure: measure.label,
-    Baseline: panel.baseline[measure.key],
-    [monitoringShort]: panel.monitoring[measure.key],
+  const trackGroups = panel.disaggregations.find((item) => item.dimension === "Track")?.groups ?? [];
+  const indicatorMeasures = MEASURES.map((measure) => ({
+    key: measure.key,
+    label: measure.label,
+    rows: indicatorRows(panel, trackGroups, measure.key),
   }));
-  const hasValues = chartData.some((row) => row.Baseline !== null || row[monitoringShort] !== null);
 
   const pushParams = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams();
@@ -58,11 +64,12 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
         <h2 id="panel-analysis-heading" className="text-lg font-semibold text-slate-900">Panel analysis (matched enterprises)</h2>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">
-          Compare opening baselines with {monitoringShort} monitoring for the same enterprises, matched by Enterprise ID.
-          Main results use only IDs present at both time points with non-zero monitoring financials (all-zero rows are non-response and excluded). Match rate is measured against unique baseline IDs.
+          Each approved monitoring quarter is matched back to the same enterprise baseline, through the quarter selected above, until the programme ends.
+          The trend is the median monthly revenue, costs, and profit of enterprises that reported in that quarter with a baseline. All-zero rows are non-response and are left out.
+          Track, county, sector, owner, and enterprise filters apply to every point.
           {panel.source === "system"
-            ? " Live panel uses approved monitoring (quarterly ÷ 3). Dashboard track, county, sector, and owner filters apply."
-            : " Workbook panel uses Dickson’s Baseline / Monitoring sheets (monthly values, not ÷ 3). Demographics are joined from programme records."}
+            ? " Live figures use approved monitoring (quarterly ÷ 3)."
+            : " The workbook is one monitoring round (monthly values, not ÷ 3). Switch to the live system panel to follow later quarters as they are approved."}
         </p>
       </div>
       <div className="space-y-5 px-4 pb-5 sm:px-5">
@@ -86,19 +93,11 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
               <option value="system">Live system panel</option>
             </select>
           </label>
-          <label className="block space-y-1.5 text-sm font-medium text-slate-700">
-            <span>Enterprise (panel only)</span>
-            <select
-              className="h-10 w-full rounded-md border border-slate-300 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40"
-              value={filters.panelBusinessId ?? ""}
-              onChange={(event) => handleEnterpriseChange(event.target.value)}
-            >
-              <option value="">All matched enterprises (median)</option>
-              {panel.enterpriseOptions.map((option) => (
-                <option key={option.businessId} value={String(option.businessId)}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+          <EnterpriseFilter
+            value={filters.panelBusinessId}
+            options={panel.enterpriseOptions}
+            onChange={handleEnterpriseChange}
+          />
         </div>
 
         <p className="text-xs text-slate-500">Source: {sourceLabel}</p>
@@ -143,63 +142,19 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
 
         <p className="text-sm font-medium text-slate-800">{panel.summaryLabel}</p>
 
+        <PanelProgressChart trend={panel.trend} sourceLabel={sourceLabel} />
+
         {panel.viewMode === "empty" ? (
           <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-600">
             {panel.summaryLabel}
           </p>
         ) : (
           <>
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-600">
-                  <tr>
-                    <th className="px-3 py-2.5 font-medium">Measure</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Baseline (monthly)</th>
-                    <th className="px-3 py-2.5 text-right font-medium">{monitoringShort} (monthly)</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Change</th>
-                    <th className="px-3 py-2.5 text-right font-medium">% change</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {MEASURES.map((measure) => (
-                    <tr key={measure.key}>
-                      <td className="px-3 py-2.5 font-medium text-slate-900">{measure.label}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{money(panel.baseline[measure.key])}</td>
-                      <td className={`px-3 py-2.5 text-right tabular-nums ${varianceClass(measure.key, panel.monitoring[measure.key], panel.baseline[measure.key])}`}>
-                        {money(panel.monitoring[measure.key])}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right tabular-nums ${changeClass(measure.key, panel.change[measure.key])}`}>
-                        {signedMoney(panel.change[measure.key])}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right tabular-nums ${changeClass(measure.key, panel.change[measure.key])}`}>
-                        {formatPercent(panel.changePercent[measure.key])}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <TrackOverallPanelTable
-              groups={panel.disaggregations.find((item) => item.dimension === "Track")?.groups ?? []}
-              monitoringShort={monitoringShort}
+            <IndicatorTrackComparison
+              monitoringLabel="Monitoring"
+              caption={`Matched panel · monthly medians · baseline vs ${monitoringShort} · ${panel.summaryLabel}`}
+              measures={indicatorMeasures}
             />
-
-            {hasValues ? (
-              <div className="h-80 w-full" role="img" aria-label="Panel analysis baseline versus monitoring">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="measure" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={compactKes} tick={{ fontSize: 11 }} width={72} />
-                    <Tooltip formatter={(value) => formatKes(Number(value))} />
-                    <Legend />
-                    <Bar dataKey="Baseline" fill="#64748b" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey={monitoringShort} fill="#2563eb" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : null}
 
             <ComparisonTable
               title="Unpaired monitoring vs matched panel"
@@ -256,59 +211,94 @@ export function PanelAnalysisSection({ panel, filters }: Props) {
   );
 }
 
-function TrackOverallPanelTable({
-  groups,
-  monitoringShort,
-}: {
-  groups: Array<{
-    key: string;
-    label: string;
-    n: number;
-    baseline: { revenue: number | null; costs: number | null; profit: number | null };
-    monitoring: { revenue: number | null; costs: number | null; profit: number | null };
-    changePercent: { revenue: number | null; costs: number | null; profit: number | null };
-  }>;
-  monitoringShort: string;
-}) {
-  if (!groups.length) return null;
+function PanelProgressChart({ trend, sourceLabel }: { trend: PanelTrendPoint[]; sourceLabel: string }) {
+  const hasValues = trend.some((point) => point.revenue !== null || point.costs !== null || point.profit !== null);
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <p className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-        Overall &amp; track (matched panel medians)
-        <span className="ml-2 font-normal normal-case text-slate-500">
-          Overall = all matched enterprises; Foundation / Accelerator from enterprise track
-        </span>
-      </p>
-      <table className="w-full min-w-[960px] text-left text-sm">
-        <thead className="bg-slate-50 text-xs text-slate-600">
-          <tr>
-            <th className="px-3 py-2 font-medium">Track</th>
-            <th className="px-3 py-2 text-right font-medium">n</th>
-            <th className="px-3 py-2 text-right font-medium">Baseline revenue</th>
-            <th className="px-3 py-2 text-right font-medium">{monitoringShort} revenue</th>
-            <th className="px-3 py-2 text-right font-medium">Δ revenue %</th>
-            <th className="px-3 py-2 text-right font-medium">Baseline profit</th>
-            <th className="px-3 py-2 text-right font-medium">{monitoringShort} profit</th>
-            <th className="px-3 py-2 text-right font-medium">Δ profit %</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {groups.map((group) => (
-            <tr key={group.key} className={group.key === "overall" ? "bg-slate-50/80 font-medium" : undefined}>
-              <td className="px-3 py-2 text-slate-900">{group.label}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{group.n}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{money(group.baseline.revenue)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{money(group.monitoring.revenue)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{formatPercent(group.changePercent.revenue)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{money(group.baseline.profit)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{money(group.monitoring.profit)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{formatPercent(group.changePercent.profit)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <section className="space-y-3" aria-labelledby="panel-progress-heading">
+      <div>
+        <h3 id="panel-progress-heading" className="text-sm font-semibold text-slate-900">Progress from baseline</h3>
+        <p className="mt-0.5 text-xs text-slate-600">
+          Median KES per month. Each later point is the enterprises matched in that quarter. Source: {sourceLabel}.
+        </p>
+      </div>
+      {!hasValues ? (
+        <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-600">
+          No matched baseline or monitoring values for the current filters.
+        </p>
+      ) : (
+        <div className="h-80 w-full" role="img" aria-label="Revenue, costs, and profit from baseline through each monitoring quarter">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trend} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+              <YAxis
+                tickFormatter={compactKes}
+                tick={{ fontSize: 11 }}
+                width={72}
+                label={{ value: "KES / month", angle: -90, position: "insideLeft", offset: 4, style: { fontSize: 11, fill: "#64748b" } }}
+              />
+              <Tooltip formatter={(value) => formatKes(Number(value))} />
+              <Legend />
+              <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
+              <Line type="monotone" dataKey="costs" name="Costs" stroke="#f97316" strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
+              <Line type="monotone" dataKey="profit" name="Profit" stroke="#64748b" strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      {trend.length > 0 ? (
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-600">
+              <tr>
+                <th className="px-3 py-2.5 font-medium">Period</th>
+                <th className="px-3 py-2.5 text-right font-medium">n matched</th>
+                <th className="px-3 py-2.5 text-right font-medium">Revenue</th>
+                <th className="px-3 py-2.5 text-right font-medium">Costs</th>
+                <th className="px-3 py-2.5 text-right font-medium">Profit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {trend.map((point) => (
+                <tr key={point.key} className={point.key === "baseline" ? "bg-slate-50/80" : undefined}>
+                  <td className="px-3 py-2.5 font-medium text-slate-900">{point.label}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{point.n}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{money(point.revenue)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{money(point.costs)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{money(point.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
   );
+}
+
+function indicatorRows(
+  panel: MelPanelAnalysis,
+  groups: MelPanelAnalysis["disaggregations"][number]["groups"],
+  measure: "revenue" | "costs" | "profit"
+): IndicatorTrackRow[] {
+  if (panel.viewMode === "single" || groups.length === 0) {
+    return [{
+      key: "selected",
+      label: panel.viewMode === "single" ? "Selected enterprise" : "Overall",
+      n: panel.viewMode === "single" ? 1 : panel.coverage.matched,
+      baseline: panel.baseline[measure],
+      monitoring: panel.monitoring[measure],
+      changePercent: panel.changePercent[measure],
+    }];
+  }
+  return groups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    n: group.n,
+    baseline: group.baseline[measure],
+    monitoring: group.monitoring[measure],
+    changePercent: group.changePercent[measure],
+  }));
 }
 
 function ComparisonTable({
@@ -396,6 +386,73 @@ function DisaggregationTable({
   );
 }
 
+function EnterpriseFilter({
+  value,
+  options,
+  onChange,
+}: {
+  value: number | null;
+  options: Array<{ businessId: number; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.businessId === value);
+
+  return (
+    <div className="space-y-1.5 text-sm font-medium text-slate-700">
+      <span id="panel-enterprise-label">Enterprise (panel only)</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-labelledby="panel-enterprise-label"
+            className="h-10 w-full justify-between px-3 font-normal"
+          >
+            <span className="truncate text-left">{selected?.label ?? "All matched enterprises (median)"}</span>
+            <CaretUpDown className="ml-2 size-4 shrink-0 text-slate-500" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0" align="end">
+          <Command>
+            <CommandInput placeholder="Search by name or ID…" />
+            <CommandList>
+              <CommandEmpty>No matching enterprises.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value="all matched enterprises median"
+                  onSelect={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`size-4 shrink-0 ${value === null ? "opacity-100" : "opacity-0"}`} />
+                  <span className="truncate">All matched enterprises (median)</span>
+                </CommandItem>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.businessId}
+                    value={`${option.businessId} ${option.label}`}
+                    onSelect={() => {
+                      onChange(String(option.businessId));
+                      setOpen(false);
+                    }}
+                  >
+                    <Check className={`size-4 shrink-0 ${value === option.businessId ? "opacity-100" : "opacity-0"}`} />
+                    <span className="truncate">{option.label}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 function CoverageStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
@@ -410,35 +467,9 @@ function shortPeriodLabel(label: string) {
   return match ? match[1].trim() : label;
 }
 
-function varianceClass(measure: "revenue" | "costs" | "profit", current: number | null, baseline: number | null) {
-  if (current === null || baseline === null || current === baseline) return "";
-  const improved = measure === "costs" ? current < baseline : current > baseline;
-  return improved ? "font-medium text-emerald-700" : "font-medium text-red-700";
-}
-
-function changeClass(measure: "revenue" | "costs" | "profit", change: number | null) {
-  if (change === null || change === 0) return "";
-  const improved = measure === "costs" ? change < 0 : change > 0;
-  return improved ? "font-medium text-emerald-700" : "font-medium text-red-700";
-}
-
 function money(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(value);
-}
-
-function signedMoney(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const formatted = new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Math.abs(value));
-  if (value > 0) return `+${formatted}`;
-  if (value < 0) return `-${formatted}`;
-  return formatted;
-}
-
-function formatPercent(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return "—";
-  if (value > 0 && value < 0.1) return `${value.toFixed(2)}%`;
-  return `${value.toFixed(1)}%`;
 }
 
 function formatKes(value: number) {
@@ -449,3 +480,10 @@ function formatKes(value: number) {
 function compactKes(value: number) {
   return new Intl.NumberFormat("en-KE", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
+
+function formatPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "—";
+  if (value > 0 && value < 0.1) return `${value.toFixed(2)}%`;
+  return `${value.toFixed(1)}%`;
+}
+
