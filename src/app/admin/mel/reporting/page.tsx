@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, ArrowSquareOut, ArrowUp, ChartLineUp, CheckCircle, CurrencyCircleDollar, DownloadSimple, Factory, Minus, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
+import { ArrowDown, ArrowSquareOut, ArrowUp, CheckCircle, CurrencyCircleDollar, DownloadSimple, Factory, Minus, UsersThree, Warning } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +65,7 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
 
       <ReportingFilters dataset={data} />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Executive reporting summary">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Executive reporting summary">
         <Metric
           icon={Factory}
           label="Enterprises reporting"
@@ -80,60 +80,6 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           baselineLabel={data.summary.monthlyMedianRevenueBaselineLabel}
         />
         <CumulativeJobsMetric summary={data.summary} />
-        <FinanceAccessedMetric
-          actual={data.summary.externalFinanceAccessed}
-          target={data.summary.externalFinanceTarget}
-          achievement={data.summary.externalFinanceAchievement}
-        />
-      </section>
-
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="funding-breakdown-heading">
-        <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="funding-breakdown-heading" className="text-base font-semibold text-slate-900">Finance accessed by funding type</h2>
-            <p className="mt-0.5 text-sm text-slate-600">Cumulative approved funding through {data.selectedPeriod.label}, only where enterprises confirmed linkage by the BIRE PROJECT. Loan, repayable grant, and other count toward the {money(data.summary.externalFinanceTarget)} external funding target. BIRE matching grant is excluded from that target.</p>
-          </div>
-          <div className="text-sm text-slate-700 sm:text-right">
-            <p>Actual vs target <span className="ml-1 font-semibold tabular-nums text-slate-900">{money(data.summary.externalFinanceAccessed)} / {money(data.summary.externalFinanceTarget)}</span></p>
-            <p className="mt-0.5 text-xs text-slate-500">Achievement {percentage(data.summary.externalFinanceAchievement)} · all types {money(data.summary.financeAccessed)}</p>
-          </div>
-        </div>
-        {data.summary.financeAccessed > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="text-xs text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Funding type</th>
-                  <th className="px-4 py-3 text-right font-medium">Enterprises</th>
-                  <th className="px-4 py-3 text-right font-medium">Cumulative amount</th>
-                  <th className="px-4 py-3 font-medium">Share of funding</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.financeBreakdown.map((item) => (
-                  <tr key={item.type} className={item.amount === 0 ? "text-slate-500" : "text-slate-800"}>
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {item.label}
-                      {item.type === "matching_grant" ? <span className="ml-2 text-xs font-normal text-slate-500">excluded from target</span> : null}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{item.enterpriseCount.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">{money(item.amount)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
-                          <div className="h-full rounded-full bg-brand-blue" style={{ width: `${Math.min(100, item.percentage)}%` }} />
-                        </div>
-                        <span className="min-w-12 tabular-nums">{percentage(item.percentage)}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="px-4 py-6 text-sm text-slate-600">No approved finance has been recorded for the selected filters.</p>
-        )}
       </section>
 
       <WasteRecycledSection
@@ -209,7 +155,6 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
           <CardContent className="space-y-2 text-sm text-slate-600">
             <p>Each point is the official cumulative result available through that quarter, using the same formula as the ITT table below.</p>
             <p>When Track is All, enterprise indicators keep Foundation and Acceleration separate. Programme-wide indicators remain Overall.</p>
-            <p>Finance accessed on this dashboard is external funding (loan, repayable grant, and other) against the Ksh 130M target. BIRE matching grant is listed in the breakdown but excluded from that KPI.</p>
             <p>Waste collected and recycled (OP3.3): baseline is monthly median kg (quarterly ÷ 3) from each enterprise&apos;s earliest report; actual is total kg collected in the quarter ÷ 3; % change vs baseline.</p>
             <p>LT1 (revenue increase) is the only visualization with baseline lines; other indicators show observed approved results only.</p>
             <p>Revenue vs ITT baseline can be negative while vs own baseline is mostly positive: many firms can beat their own opening profit while the cohort median is still below the programme revenue bar.</p>
@@ -446,33 +391,6 @@ function CumulativeJobsMetric({
           <dd className="font-medium tabular-nums text-slate-800">{jobs.refugee.toLocaleString()}</dd>
         </div>
       </dl>
-    </div>
-  );
-}
-
-function FinanceAccessedMetric({ actual, target, achievement }: { actual: number; target: number; achievement: number | null }) {
-  const progress = Math.min(100, Math.max(0, achievement ?? 0));
-  return (
-    <div className="rounded-lg border border-brand-blue/15 bg-brand-blue/5 p-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-        <ChartLineUp className="size-4 text-brand-blue" weight="duotone" />
-        Finance accessed
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{money(actual)}</p>
-      <dl className="mt-2 grid grid-cols-2 gap-x-3 text-xs">
-        <div>
-          <dt className="text-slate-500">Target</dt>
-          <dd className="mt-0.5 font-medium tabular-nums text-slate-800">{money(target)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Achievement</dt>
-          <dd className="mt-0.5 font-medium tabular-nums text-slate-800">{percentage(achievement)}</dd>
-        </div>
-      </dl>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
-        <div className="h-full rounded-full bg-brand-blue" style={{ width: `${progress}%` }} />
-      </div>
-      <p className="mt-1 text-xs text-slate-600">External funding: loan, repayable grant, and other</p>
     </div>
   );
 }

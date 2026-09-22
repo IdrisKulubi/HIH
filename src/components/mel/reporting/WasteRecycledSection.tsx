@@ -26,8 +26,7 @@ export function WasteRecycledSection({
           <p className="mt-0.5 max-w-2xl text-sm text-slate-600">
             Baseline is the monthly median kg per stream from each enterprise&apos;s earliest approved monitoring
             report (quarterly ÷ 3). Actual is total kg collected in {periodLabel} by reporting enterprises, divided
-            by 3 for a monthly figure. % change is
-            (actual − baseline) ÷ baseline × 100. Matches{" "}
+            by 3 for a monthly figure. Matches{" "}
             <span className="font-medium text-slate-800">OP3.3-WASTE-RECYCLED</span>.
           </p>
         </div>
@@ -37,7 +36,7 @@ export function WasteRecycledSection({
           </p>
           <p className="mt-0.5 text-xs text-slate-600">Monthly collected waste (all streams, quarterly ÷ 3)</p>
           <p className="mt-1 text-xs text-slate-600">
-            {formatPercent(waste.totalChangePercent)} vs baseline · Baseline {formatKg(waste.totalBaselineKilograms)}
+            Baseline {formatKg(waste.totalBaselineKilograms)}
           </p>
           <p className="mt-0.5 text-xs text-slate-600">
             {waste.reportingEnterprises} enterprise{waste.reportingEnterprises === 1 ? "" : "s"} reporting waste
@@ -65,7 +64,6 @@ export function WasteRecycledSection({
               <th className="px-4 py-3 font-medium">Waste stream</th>
               <th className="px-4 py-3 text-right font-medium">Baseline monthly median (kg)</th>
               <th className="px-4 py-3 text-right font-medium">Actual monthly collected (kg)</th>
-              <th className="px-4 py-3 text-right font-medium">% change</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -80,9 +78,6 @@ export function WasteRecycledSection({
                 <td className="px-4 py-3 text-right tabular-nums">
                   {row.actualMonthlyKilograms !== null ? formatKg(row.actualMonthlyKilograms) : "—"}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium">
-                  {formatPercent(row.changePercent)}
-                </td>
               </tr>
             ))}
           </tbody>
@@ -95,9 +90,6 @@ export function WasteRecycledSection({
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
                 {formatKg(waste.totalActualMonthlyKilograms)}
               </td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
-                {formatPercent(waste.totalChangePercent)}
-              </td>
             </tr>
           </tfoot>
         </table>
@@ -108,11 +100,6 @@ export function WasteRecycledSection({
 
 function formatKg(value: number) {
   return `${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value)} kg`;
-}
-
-function formatPercent(value: number | null) {
-  if (value === null) return "—";
-  return `${value.toFixed(1)}%`;
 }
 
 function TrafficBadge({ status }: { status: "green" | "amber" | "red" | "not_available" }) {

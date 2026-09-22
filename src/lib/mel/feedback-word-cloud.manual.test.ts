@@ -13,12 +13,17 @@ function testBuildWordCloudTerms() {
   const empty = buildWordCloudTerms([]);
   assert.equal(empty.length, 0);
 
-  const negative = buildWordCloudTerms(
-    ["None observed", "Delayed payments from buyers", "None"],
-    { dropNoneOnly: true }
-  );
+  const negative = buildWordCloudTerms(["None observed", "Delayed payments from buyers", "None"]);
+  assert.ok(negative.some((term) => term.text === "none"));
   assert.equal(negative.some((term) => term.text === "none observed"), false);
   assert.ok(negative.some((term) => term.text.includes("delayed payments")));
+
+  const noneOnly = buildWordCloudTerms(["None", "None observed", "N/A", "No negative impact"]);
+  assert.deepEqual(noneOnly, [{ text: "none", value: 4 }]);
+
+  const filler = buildWordCloudTerms(["In addition, leadership and record keeping"]);
+  assert.equal(filler.some((term) => term.text === "in addition"), false);
+  assert.ok(filler.some((term) => term.text.includes("leadership")));
 }
 
 function testBuildFeedbackWordClouds() {
@@ -31,6 +36,7 @@ function testBuildFeedbackWordClouds() {
   assert.ok(clouds.positiveEffects.some((term) => term.text.includes("market access")));
   assert.ok(clouds.enterpriseChallenges.some((term) => term.text === "access to finance"));
   assert.ok(clouds.supportNeeded.some((term) => term.text === "training"));
+  assert.ok(clouds.negativeEffects.some((term) => term.text === "none"));
   assert.equal(clouds.negativeEffects.some((term) => term.text === "none observed"), false);
   assert.ok(clouds.negativeEffects.some((term) => term.text === "increased workload"));
 }

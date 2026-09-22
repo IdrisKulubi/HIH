@@ -18,7 +18,7 @@ type WordCloudChartProps = {
 export function WordCloudChart({ terms, emptyLabel = "No responses yet for this period", ariaLabel }: WordCloudChartProps) {
   if (terms.length === 0) {
     return (
-      <p className="flex min-h-[180px] items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50/80 px-4 text-center text-sm text-slate-500">
+      <p className="flex h-36 items-center justify-center overflow-hidden rounded-md border border-dashed border-slate-200 bg-slate-50/80 px-4 text-center text-sm text-slate-500">
         {emptyLabel}
       </p>
     );
@@ -29,26 +29,29 @@ export function WordCloudChart({ terms, emptyLabel = "No responses yet for this 
 
   return (
     <div
-      className="flex min-h-[180px] flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-md border border-slate-200 bg-slate-50/60 p-4"
-      role="img"
+      className="h-36 overflow-y-auto overscroll-y-contain rounded-md border border-slate-200 bg-slate-50/60"
+      role="region"
       aria-label={ariaLabel}
+      tabIndex={0}
     >
-      {terms.map((term, index) => (
-        <span
-          key={term.text}
-          className={`font-semibold leading-snug ${PALETTE[index % PALETTE.length]}`}
-          style={{ fontSize: `${fontSize(term.value, min, max)}px` }}
-        >
-          {term.text}
-        </span>
-      ))}
+      <div className="flex min-h-full flex-wrap content-start items-center justify-center gap-x-2 gap-y-1 p-3">
+        {terms.map((term, index) => (
+          <span
+            key={term.text}
+            className={`font-semibold leading-snug ${PALETTE[index % PALETTE.length]}`}
+            style={{ fontSize: `${fontSize(term.value, min, max)}px` }}
+          >
+            {term.text}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function fontSize(value: number, min: number, max: number): number {
-  const minPx = 12;
-  const maxPx = 28;
+  const minPx = 11;
+  const maxPx = 20;
   if (max === min) return 18;
   const ratio = (value - min) / (max - min);
   return Math.round(minPx + ratio * (maxPx - minPx));
