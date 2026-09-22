@@ -1171,7 +1171,7 @@ type ApprovedSubmissionForRecord = {
   id: number;
   businessId: number;
   reportingPeriodId: number;
-  visitDate: (typeof melMonitoringSubmissions.$inferSelect)["visitDate"];
+  visitDate: string | Date | null;
   approvedAt: (typeof melMonitoringSubmissions.$inferSelect)["approvedAt"] | string | null;
   response: {
     revenue: string | number | null;
