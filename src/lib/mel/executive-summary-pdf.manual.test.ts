@@ -70,7 +70,7 @@ function fixture(): MelExecutiveSummaryPdfInput {
       indicatorId: 12,
       reportingEnterprises: 8,
       totalBaselineKilograms: 8000,
-      totalActualMonthlyMedianKilograms: 10000,
+      totalActualMonthlyKilograms: 10000,
       totalChangePercent: 25,
       trafficLight: "amber",
       byStream: [
@@ -78,7 +78,7 @@ function fixture(): MelExecutiveSummaryPdfInput {
           stream: "plastic",
           label: "Plastic",
           baselineMonthlyMedianKilograms: 8000,
-          actualMonthlyMedianKilograms: 10000,
+          actualMonthlyKilograms: 10000,
           changePercent: 25,
         },
       ],

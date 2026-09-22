@@ -316,14 +316,14 @@ export type MelWasteReportingSummary = {
   indicatorId: number | null;
   reportingEnterprises: number;
   totalBaselineKilograms: number;
-  totalActualMonthlyMedianKilograms: number;
+  totalActualMonthlyKilograms: number;
   totalChangePercent: number | null;
   trafficLight: IndicatorCalculation["trafficLight"] | null;
   byStream: Array<{
     stream: string;
     label: string;
     baselineMonthlyMedianKilograms: number | null;
-    actualMonthlyMedianKilograms: number | null;
+    actualMonthlyKilograms: number | null;
     changePercent: number | null;
   }>;
 };
@@ -1492,23 +1492,23 @@ function buildWasteReportingSummary(
     const baselineMonthlyMedianKilograms = monthlyMedian(baselinePeriodRecords, (record) =>
       wasteStreamKilograms(record, stream)
     );
-    const actualMonthlyMedianKilograms = monthlyMedian(latestPeriodRecords, (record) =>
+    const actualMonthlyKilograms = monthlyCollectedTotal(latestPeriodRecords, (record) =>
       wasteStreamKilograms(record, stream)
     );
     const changePercent =
       baselineMonthlyMedianKilograms === null ||
-      actualMonthlyMedianKilograms === null ||
+      actualMonthlyKilograms === null ||
       baselineMonthlyMedianKilograms === 0
         ? null
         : safePercentage(
-            actualMonthlyMedianKilograms - baselineMonthlyMedianKilograms,
+            actualMonthlyKilograms - baselineMonthlyMedianKilograms,
             baselineMonthlyMedianKilograms
           );
     return {
       stream,
       label: stream.replaceAll("_", " "),
       baselineMonthlyMedianKilograms,
-      actualMonthlyMedianKilograms,
+      actualMonthlyKilograms,
       changePercent,
     };
   });
@@ -1517,14 +1517,14 @@ function buildWasteReportingSummary(
     (sum, row) => sum + (row.baselineMonthlyMedianKilograms ?? 0),
     0
   );
-  const totalActualMonthlyMedianKilograms = byStream.reduce(
-    (sum, row) => sum + (row.actualMonthlyMedianKilograms ?? 0),
+  const totalActualMonthlyKilograms = byStream.reduce(
+    (sum, row) => sum + (row.actualMonthlyKilograms ?? 0),
     0
   );
   const totalChangePercent =
     totalBaselineKilograms > 0
       ? safePercentage(
-          totalActualMonthlyMedianKilograms - totalBaselineKilograms,
+          totalActualMonthlyKilograms - totalBaselineKilograms,
           totalBaselineKilograms
         )
       : null;
@@ -1541,7 +1541,7 @@ function buildWasteReportingSummary(
     indicatorId: definition?.id ?? null,
     reportingEnterprises,
     totalBaselineKilograms,
-    totalActualMonthlyMedianKilograms,
+    totalActualMonthlyKilograms,
     totalChangePercent,
     trafficLight,
     byStream,
@@ -1621,6 +1621,16 @@ function monthlyMedian<T>(values: T[], selector: (value: T) => number | null): n
   });
   const quarterlyMedian = median(quarterlyValues);
   return quarterlyMedian === null ? null : quarterlyMedian / 3;
+}
+
+/** Sum of quarterly collected values for the period, converted to monthly (÷ 3). */
+function monthlyCollectedTotal<T>(values: T[], selector: (value: T) => number | null): number | null {
+  const monthlyValues = values.flatMap((value) => {
+    const selected = selector(value);
+    return selected === null ? [] : [selected / 3];
+  });
+  if (monthlyValues.length === 0) return null;
+  return monthlyValues.reduce((sum, kg) => sum + kg, 0);
 }
 
 function periodMedians(
