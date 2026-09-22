@@ -4,7 +4,9 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { pushKeepingScroll } from "@/components/mel/reporting/keep-scroll";
-import { OWNER_YOUTH_FILTER_VALUE, type MelReportingDataset } from "@/lib/mel/reporting-data";
+import type { MelReportingDataset } from "@/lib/mel/reporting-data";
+
+const OWNER_YOUTH_FILTER_VALUE = "youth";
 
 export function ReportingFilters({ dataset }: { dataset: MelReportingDataset }) {
   const router = useRouter();
