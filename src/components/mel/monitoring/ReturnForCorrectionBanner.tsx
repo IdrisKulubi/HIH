@@ -23,9 +23,9 @@ export function ReturnForCorrectionBanner({ feedback }: { feedback: MelReturnFee
       </p>
       {feedback.stage === "mel" && /jobs|financial/i.test(feedback.reason) ? (
         <p className="mt-2 text-sm text-red-900/90">
-          If MEL asked why Jobs or Financials documents were not attached, explain that in the{" "}
-          <span className="font-medium">Collector comment</span> field at the bottom of the form. You do not need to
-          upload every evidence file again to resubmit this correction.
+          Attach the missing supporting evidence for the sections mentioned in the review comments, and use the{" "}
+          <span className="font-medium">Collector comment</span> field to explain any remaining context before you
+          resubmit.
         </p>
       ) : null}
       <div className="mt-4 rounded-md border border-red-100 bg-white/80 p-4">

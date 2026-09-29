@@ -86,7 +86,7 @@ function testNormalizationAndBranches() {
   }, false);
   assert.deepEqual(monitoringSubmissionIssues(
     finance,
-    new Set(["linked_to_finance_provider"]),
+    new Set(["linked_to_finance_provider", "profitability", "jobs"]),
     new Set(),
     false,
     false

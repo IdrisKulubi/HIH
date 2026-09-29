@@ -740,7 +740,8 @@ export async function saveMelMonitoringAction(
           programmeYear: period.programmeYear,
           sequence: period.sequence,
         },
-        submission.status
+        submission.status,
+        { enforcingSubmit: true }
       );
       if (issues.length > 0) return errorResponse(issues.join(" • "));
     }

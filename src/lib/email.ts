@@ -28,6 +28,14 @@ import {
   type MelReportApprovedEmailProps,
 } from '@/components/emails/mel-report-approved-email';
 import {
+  MelCollectionReminderEmail,
+  type MelCollectionReminderEmailProps,
+} from '@/components/emails/mel-collection-reminder-email';
+import {
+  MelProfitabilityFeedbackEmail,
+  type MelProfitabilityFeedbackEmailProps,
+} from '@/components/emails/mel-profitability-feedback-email';
+import {
   MentorshipAssignmentEmail,
   type MentorshipAssignmentEmailProps,
 } from '@/components/emails/mentorship-assignment-email';
@@ -191,6 +199,61 @@ export async function sendMelReportApprovedEmail(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Email delivery failed";
     console.error("Failed to send MEL report approved email:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function renderMelProfitabilityFeedbackHtml(
+  props: MelProfitabilityFeedbackEmailProps
+): Promise<string> {
+  return render(MelProfitabilityFeedbackEmail(props));
+}
+
+export async function sendMelProfitabilityFeedbackEmail(
+  props: MelProfitabilityFeedbackEmailProps & { to: string; subject: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping profitability feedback email");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  try {
+    await sendEmail({
+      to: props.to.trim().toLowerCase(),
+      subject: props.subject,
+      react: MelProfitabilityFeedbackEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send profitability feedback email:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendMelCollectionReminderEmail(
+  props: MelCollectionReminderEmailProps & { collectorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping MEL collection reminder");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  const subject =
+    props.kind === "deadline"
+      ? `Monitoring collection closes on ${props.collectionCloseDate} — BIRE Programme`
+      : `Monitoring data collection is open until ${props.collectionCloseDate} — BIRE Programme`;
+
+  try {
+    await sendEmail({
+      to: props.collectorEmail.trim().toLowerCase(),
+      react: MelCollectionReminderEmail(props),
+      subject,
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send MEL collection reminder:", error);
     return { success: false, error: message };
   }
 }

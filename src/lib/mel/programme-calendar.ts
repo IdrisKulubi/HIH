@@ -212,12 +212,6 @@ export const MEL_PROGRAMME_REPORTING_PERIODS: MelSeedReportingPeriod[] = [
 /** First BDS monitoring window in Year 1 (Jun–Aug 2026). */
 export const MEL_Y1_FIRST_MONITORING_SEQUENCE = 2;
 
-/**
- * Temporary grace period: first BDS collection (Y1 Jun–Aug) allows submit without evidence.
- * Remove the period code from this list when evidence becomes mandatory again.
- */
-export const MEL_EVIDENCE_OPTIONAL_PERIOD_CODES = ["Y1-MQ1"] as const;
-
 export type MelReportingPeriodRef = {
   code: string;
   label?: string;
@@ -235,6 +229,7 @@ export function programmeYearFromPeriodCode(code: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** Pre-delivery periods only; all standard monitoring quarters require evidence on submit. */
 export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | string): boolean {
   const ref = typeof period === "string" ? { code: period } : period;
   const code = ref.code.trim();
@@ -244,19 +239,7 @@ export function isMelEvidenceOptionalPeriod(period: MelReportingPeriodRef | stri
   if (ref.label && /pre-delivery/i.test(ref.label)) {
     return true;
   }
-  if ((MEL_EVIDENCE_OPTIONAL_PERIOD_CODES as readonly string[]).includes(code)) {
-    return true;
-  }
-  if (ref.label && /first bds collection/i.test(ref.label)) {
-    return true;
-  }
-  const monitoringQuarter = monitoringQuarterFromPeriodCode(code);
-  const programmeYear = ref.programmeYear ?? programmeYearFromPeriodCode(code) ?? undefined;
-  if (programmeYear === 1 && monitoringQuarter === 1) {
-    return true;
-  }
-  // Y1 first BDS monitoring window (Jun–Aug) when DB sequence is aligned to the calendar seed.
-  return ref.programmeYear === 1 && ref.sequence === MEL_Y1_FIRST_MONITORING_SEQUENCE;
+  return false;
 }
 
 const CORRECTION_SUBMISSION_STATUSES = new Set([
@@ -266,15 +249,23 @@ const CORRECTION_SUBMISSION_STATUSES = new Set([
   "reopened",
 ]);
 
+export type MelEvidenceSubmissionOptions = {
+  /** Apply full evidence rules (submit validation and the monitoring form UI). */
+  enforcingSubmit?: boolean;
+};
+
 /**
- * Drafts, pre-delivery / first BDS grace periods, and returned reports may submit
- * without every supporting file. MEL review enforces completeness; returns ask for
- * narrative corrections (e.g. collector comment) without blocking resubmit on evidence.
+ * Draft saves skip evidence checks. Submit and resubmit require supporting files for
+ * every applicable question unless the reporting period is pre-delivery only.
  */
 export function isMelEvidenceOptionalForSubmission(
   period: MelReportingPeriodRef | string,
-  submissionStatus: string
+  submissionStatus: string,
+  options?: MelEvidenceSubmissionOptions
 ): boolean {
+  if (options?.enforcingSubmit) {
+    return isMelEvidenceOptionalPeriod(period);
+  }
   if (submissionStatus === "draft") return true;
   if (CORRECTION_SUBMISSION_STATUSES.has(submissionStatus)) return true;
   return isMelEvidenceOptionalPeriod(period);

@@ -46,10 +46,9 @@ export function QuarterlyMonitoringForm({ detail }: { detail: MelMonitoringDetai
     (detail.actor.canAccessAllEnterprises || detail.submission.collectorId === detail.actor.id);
   const locked = !canEdit;
   const isApproved = detail.submission.status === "approved";
-  const evidenceOptional = isMelEvidenceOptionalForSubmission(
-    detail.period,
-    detail.submission.status
-  );
+  const evidenceOptional = isMelEvidenceOptionalForSubmission(detail.period, detail.submission.status, {
+    enforcingSubmit: true,
+  });
   const response = detail.response;
   const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
   const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);

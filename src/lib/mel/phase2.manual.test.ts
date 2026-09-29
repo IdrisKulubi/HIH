@@ -17,6 +17,10 @@ import {
   type MelMonitoringDraft,
 } from "./monitoring-validation";
 
+function completeEvidence(extra: string[] = []): Set<string> {
+  return new Set(["jobs", "profitability", ...extra]);
+}
+
 function completeDraft(): MelMonitoringDraft {
   return {
     visitDate: "2026-07-31",
@@ -100,14 +104,14 @@ function testJobValidation() {
 function testSubmissionValidation() {
   const valid = completeDraft();
   assert.deepEqual(
-    monitoringSubmissionIssues(valid, new Set(["jobs"]), new Set(), false, false),
+    monitoringSubmissionIssues(valid, completeEvidence(), new Set(), false, false),
     []
   );
 
   const technology = { ...valid, technologyAdopted: true, technologyDetails: null };
   const technologyIssues = monitoringSubmissionIssues(
     technology,
-    new Set(["jobs"]),
+    completeEvidence(),
     new Set(),
     false,
     false
@@ -120,7 +124,7 @@ function testSubmissionValidation() {
     linkedToFinanceProvider: true,
     financeEntries: [{ financeType: "other" as const, otherDescription: null, amount: null }],
   };
-  const financeIssues = monitoringSubmissionIssues(finance, new Set(["jobs"]), new Set(), false, false);
+  const financeIssues = monitoringSubmissionIssues(finance, completeEvidence(["linked_to_finance_provider"]), new Set(), false, false);
   assert.ok(financeIssues.some((issue) => issue.includes("Enter the amount")));
   assert.ok(financeIssues.some((issue) => issue.includes("other finance type")));
 
@@ -128,7 +132,7 @@ function testSubmissionValidation() {
   assert.deepEqual(
     monitoringSubmissionIssues(
       approvedSkip,
-      new Set(["jobs"]),
+      completeEvidence(),
       new Set(["business_plan_improved"]),
       false,
       false
@@ -144,7 +148,7 @@ function testSubmissionValidation() {
 
   const loss = { ...valid, revenue: 100, costs: 200 };
   assert.equal(
-    monitoringSubmissionIssues(loss, new Set(["jobs"]), new Set(), false, false)
+    monitoringSubmissionIssues(loss, completeEvidence(), new Set(), false, false)
       .some((issue) => issue.includes("reported loss")),
     false,
     "A loss no longer requires a material-change explanation"
@@ -160,9 +164,9 @@ function testZeroJobsValidation() {
     indirectJobs: { total: 0, male: null, female: null, youth: null, plwd: null, refugee: null },
   };
   assert.deepEqual(
-    monitoringSubmissionIssues(zeroJobs, new Set(), new Set(), false, false),
+    monitoringSubmissionIssues(zeroJobs, new Set(["profitability"]), new Set(), false, false),
     [],
-    "Zero jobs with no evidence should pass when totals are 0"
+    "Zero jobs still require profitability evidence when revenue and costs are recorded"
   );
 
   const partialZero = {
@@ -172,7 +176,7 @@ function testZeroJobsValidation() {
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   assert.deepEqual(
-    monitoringSubmissionIssues(partialZero, new Set(), new Set(), false, false),
+    monitoringSubmissionIssues(partialZero, new Set(["profitability"]), new Set(), false, false),
     [],
     "Zero total with null breakdown dimensions should pass after normalization"
   );
@@ -185,8 +189,8 @@ function testZeroJobsValidation() {
   };
   const jobsIssues = monitoringSubmissionIssues(jobsWithoutEvidence, new Set(), new Set(), false, false);
   assert.ok(
-    !jobsIssues.some((issue) => issue.includes("Evidence is required for jobs")),
-    "Jobs evidence is not required while jobs supporting files remain optional"
+    jobsIssues.some((issue) => issue.includes("Evidence is required for jobs")),
+    "Jobs evidence is required when job totals are greater than 0"
   );
 
   const incompleteJobs = {
@@ -196,7 +200,7 @@ function testZeroJobsValidation() {
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
   assert.ok(
-    monitoringSubmissionIssues(incompleteJobs, new Set(["jobs"]), new Set(), false, false).some(
+    monitoringSubmissionIssues(incompleteJobs, completeEvidence(), new Set(), false, false).some(
       (issue) =>
         issue.includes("Direct jobs (quality)") &&
         (issue.includes("breakdown is required") || issue.includes("enter male"))
@@ -216,7 +220,7 @@ function testZeroJobsValidation() {
   );
 }
 
-function testOptionalEvidenceForY1Mq1() {
+function testMandatoryEvidenceOnSubmit() {
   const valid = completeDraft();
   const withYesAndJobs = {
     ...valid,
@@ -227,27 +231,27 @@ function testOptionalEvidenceForY1Mq1() {
     indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
   };
 
-  assert.deepEqual(
-    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ1"),
-    [],
-    "Y1-MQ1 allows submit without evidence when other fields are complete"
-  );
-
-  assert.deepEqual(
-    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, {
-      code: "Y1-LEGACY-MONITORING",
-      programmeYear: 1,
-      sequence: 2,
-    }),
-    [],
-    "Y1 first monitoring quarter allows submit without evidence even when the period code differs"
-  );
-
   assert.ok(
-    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ2").some(
-      (issue) => issue.includes("Evidence is required")
+    monitoringSubmissionIssues(withYesAndJobs, new Set(), new Set(), false, false, false, "Y1-MQ1", "draft", {
+      enforcingSubmit: true,
+    }).some((issue) => issue.includes("Evidence is required")),
+    "Y1-MQ1 submit requires supporting evidence"
+  );
+
+  assert.deepEqual(
+    monitoringSubmissionIssues(
+      withYesAndJobs,
+      completeEvidence(["technology_adopted"]),
+      new Set(),
+      false,
+      false,
+      false,
+      "Y1-MQ1",
+      "draft",
+      { enforcingSubmit: true }
     ),
-    "Later periods still require evidence after first submit"
+    [],
+    "Y1-MQ1 submit passes when required evidence is attached"
   );
 
   assert.deepEqual(
@@ -262,7 +266,22 @@ function testOptionalEvidenceForY1Mq1() {
       "draft"
     ),
     [],
-    "Draft reports may submit without evidence in any collection period"
+    "Draft validation may still skip evidence checks until submit"
+  );
+
+  assert.ok(
+    monitoringSubmissionIssues(
+      withYesAndJobs,
+      new Set(),
+      new Set(),
+      false,
+      false,
+      false,
+      "Y1-MQ2",
+      "returned_by_mel",
+      { enforcingSubmit: true }
+    ).some((issue) => issue.includes("Evidence is required")),
+    "Returned reports still require evidence on resubmit"
   );
 
   const preDeliveryReturned = {
@@ -286,10 +305,11 @@ function testOptionalEvidenceForY1Mq1() {
       true,
       false,
       { code: "Y1-PRE", label: "Y1 Pre-delivery (Oct 2025–May 2026)", programmeYear: 1, sequence: 1 },
-      "returned_by_mel"
+      "returned_by_mel",
+      { enforcingSubmit: true }
     ),
     [],
-    "Y1 pre-delivery catch-up returned by MEL may resubmit without per-question evidence files"
+    "Y1 pre-delivery catch-up may still submit without per-question evidence files"
   );
 }
 
@@ -297,7 +317,7 @@ testCalculations();
 testJobValidation();
 testSubmissionValidation();
 testZeroJobsValidation();
-testOptionalEvidenceForY1Mq1();
+testMandatoryEvidenceOnSubmit();
 
 function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
   const valid = completeDraft();
@@ -310,7 +330,7 @@ function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
   );
   assert.equal(missingIndirect.indirectJobs.total, 0);
   assert.deepEqual(
-    monitoringSubmissionIssues(missingIndirect, new Set(), new Set(), false, false, false, "Y1-MQ2"),
+    monitoringSubmissionIssues(missingIndirect, completeEvidence(), new Set(), false, false, false, "Y1-MQ2"),
     [],
     "Unset indirect jobs should default to zero"
   );
@@ -329,7 +349,7 @@ function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
   );
   const issues = monitoringSubmissionIssues(
     withTechnology,
-    new Set(),
+    new Set(["profitability"]),
     satisfied,
     false,
     false,
@@ -344,28 +364,24 @@ function testIndirectDefaultAndPriorOneTimeEvidenceSkip() {
 
 testIndirectDefaultAndPriorOneTimeEvidenceSkip();
 
-function testFirstBdsEvidenceGraceByPeriodCode() {
-  assert.equal(isMelEvidenceOptionalPeriod("Y1-MQ1"), true);
+function testEvidenceOptionalPeriods() {
+  assert.equal(isMelEvidenceOptionalPeriod("Y1-MQ1"), false);
   assert.equal(
-    isMelEvidenceOptionalPeriod({ code: "Y1-LEGACY", programmeYear: 1, sequence: 1 }),
+    isMelEvidenceOptionalPeriod({ code: "Y1-LEGACY", programmeYear: 1, sequence: 2 }),
     false
-  );
-  assert.equal(
-    isMelEvidenceOptionalPeriod({ code: "Y1-MQ1", programmeYear: 1, sequence: 1 }),
-    true,
-    "MQ1 in code should allow optional evidence even when DB sequence is 1"
   );
   assert.equal(isMelEvidenceOptionalPeriod({ code: "Y1-PRE", programmeYear: 1, sequence: 1 }), true);
   assert.equal(
     isMelEvidenceOptionalForSubmission(
       { code: "Y1-MQ2", programmeYear: 1, sequence: 3 },
-      "returned_by_mel"
+      "returned_by_mel",
+      { enforcingSubmit: true }
     ),
-    true,
-    "Returned reports may resubmit without blocking on every evidence file"
+    false,
+    "Returned monitoring reports require evidence again on resubmit"
   );
 }
 
-testFirstBdsEvidenceGraceByPeriodCode();
+testEvidenceOptionalPeriods();
 
 console.log("MEL Phase 2 tests passed.");

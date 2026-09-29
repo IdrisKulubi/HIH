@@ -12,6 +12,13 @@ import { IndicatorExplorer } from "@/components/mel/reporting/IndicatorExplorer"
 import { FeedbackAccountabilitySection } from "@/components/mel/reporting/FeedbackAccountabilitySection";
 import { WasteRecycledSection } from "@/components/mel/reporting/WasteRecycledSection";
 import { PanelAnalysisSection } from "@/components/mel/reporting/PanelAnalysisSection";
+import { ProfitabilityFeedbackPanel } from "@/components/mel/reporting/ProfitabilityFeedbackPanel";
+import { requireMelViewer } from "@/lib/mel/access";
+import { isProfitabilityFeedbackProductionEnabled } from "@/lib/mel/profitability-feedback";
+import {
+  buildProfitabilityFeedbackSummary,
+  loadProfitabilityFeedbackOwnerContacts,
+} from "@/lib/mel/notifications/dispatch-profitability-feedback";
 import { ProfitabilityMeasureChart } from "@/components/mel/reporting/ProfitabilityMeasureChart";
 import { IndicatorTrackComparison, type IndicatorTrackRow } from "@/components/mel/reporting/IndicatorTrackComparison";
 
@@ -31,6 +38,14 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
   const result = await getMelReportingDashboard(filters);
   if (!result.success || !result.data) return <LoadError message={result.error ?? "Unable to load reporting dashboard."} />;
   const data = result.data;
+  const melActor = await requireMelViewer();
+  const ownerContacts = await loadProfitabilityFeedbackOwnerContacts(
+    data.panelAnalysis.matchedEnterprises.map((enterprise) => enterprise.businessId)
+  );
+  const profitabilityFeedbackSummary = buildProfitabilityFeedbackSummary(
+    data.panelAnalysis.matchedEnterprises,
+    ownerContacts
+  );
   const exportQuery = new URLSearchParams({ periodId: String(data.selectedPeriod.id) });
   if (data.filters.track) exportQuery.set("track", data.filters.track);
   if (data.filters.county) exportQuery.set("county", data.filters.county);
@@ -126,6 +141,15 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
       </section>
 
       <PanelAnalysisSection panel={data.panelAnalysis} filters={data.filters} />
+
+      <ProfitabilityFeedbackPanel
+        canManage={melActor.canManage}
+        periodId={data.selectedPeriod.id}
+        periodLabel={data.selectedPeriod.label}
+        filters={data.filters}
+        summary={profitabilityFeedbackSummary}
+        productionEnabled={isProfitabilityFeedbackProductionEnabled()}
+      />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">

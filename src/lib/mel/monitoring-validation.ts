@@ -161,15 +161,17 @@ export function monitoringSubmissionIssues(
   wasteEligible: boolean,
   financialExplanationRequired = false,
   reportingPeriod?: { code: string; label?: string; programmeYear?: number; sequence?: number } | string,
-  submissionStatus?: string
+  submissionStatus?: string,
+  options?: { enforcingSubmit?: boolean }
 ): string[] {
   const issues: string[] = [];
   const draft = normalizeMonitoringDraft(input, wasteEligible, includeRefugee);
   const periodRef =
     typeof reportingPeriod === "string" ? { code: reportingPeriod } : reportingPeriod;
+  const enforcingSubmit = options?.enforcingSubmit ?? false;
   const evidenceOptional = periodRef
-    ? isMelEvidenceOptionalForSubmission(periodRef, submissionStatus ?? "")
-    : submissionStatus === "draft";
+    ? isMelEvidenceOptionalForSubmission(periodRef, submissionStatus ?? "", { enforcingSubmit })
+    : !enforcingSubmit && submissionStatus === "draft";
   if (!draft.visitDate) issues.push("Visit date is required");
 
   const requiredBooleanFields: Array<[keyof MelMonitoringDraft, string, string?]> = [
@@ -245,6 +247,9 @@ export function monitoringSubmissionIssues(
   }
 
   if (!evidenceOptional) {
+    if (draft.revenue !== null && draft.costs !== null && !evidenceQuestionCodes.has("profitability")) {
+      issues.push("Evidence is required for profitability");
+    }
     for (const code of EVIDENCE_REQUIRED_WHEN_TRUE) {
       const question = MONITORING_QUESTIONS[code as keyof typeof MONITORING_QUESTIONS];
       if (!question.field || approvedOneTimeCodes.has(code)) continue;

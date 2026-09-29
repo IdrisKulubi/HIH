@@ -10,11 +10,36 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { MelReportingDataset } from "./reporting-data";
+import {
+  externalFinanceAchievement,
+  type FundingTypeBreakdown,
+} from "./reporting-finance";
+
+/** Executive summary PDF shows repayable grant and other only (no loans or matching grant). */
+function financeRowsForExecutiveSummary(breakdown: FundingTypeBreakdown[]) {
+  return breakdown.filter(
+    (item) => (item.type === "repayable_grant" || item.type === "other") && item.amount > 0
+  );
+}
+
+function externalFinanceTotalsForExecutiveSummary(breakdown: FundingTypeBreakdown[], target: number) {
+  const rows = financeRowsForExecutiveSummary(breakdown);
+  const accessed = rows.reduce((sum, item) => sum + item.amount, 0);
+  return {
+    rows,
+    accessed,
+    achievement: externalFinanceAchievement(accessed, target),
+  };
+}
 
 const BRAND_BLUE = "#1da1db";
+const BASELINE_BAR = "#1e3a8a";
+const MONITORING_BAR = "#22c55e";
 const SLATE_900 = "#0f172a";
 const SLATE_600 = "#475569";
 const SLATE_200 = "#e2e8f0";
+
+type PanelMeasureKey = "revenue" | "costs" | "profit";
 
 const styles = StyleSheet.create({
   page: {
@@ -123,6 +148,40 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
+  measureChartCard: {
+    borderWidth: 1,
+    borderColor: SLATE_200,
+    borderRadius: 4,
+    padding: 8,
+    marginBottom: 6,
+    backgroundColor: "#fafafa",
+  },
+  measureChartTitle: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 6,
+  },
+  measureChartRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  measureChartLabel: {
+    width: 62,
+    fontSize: 7,
+    color: SLATE_600,
+  },
+  measureChartValue: {
+    width: 58,
+    fontSize: 7,
+    textAlign: "right",
+    color: SLATE_900,
+  },
+  measureChartHint: {
+    fontSize: 7,
+    color: SLATE_600,
+    marginTop: 2,
+  },
 });
 
 export type MelExecutiveSummaryPdfInput = Pick<
@@ -174,28 +233,81 @@ function FinanceShareBar({ percentage }: { percentage: number }) {
   );
 }
 
-function GroupedMeasureBars({
+function measureBarWidth(value: number | null, max: number, trackWidth: number) {
+  if (value === null || !Number.isFinite(value) || max <= 0) return 0;
+  return (Math.abs(value) / max) * trackWidth;
+}
+
+function PanelMeasureTrackBar({
+  value,
+  max,
+  color,
+  trackWidth = 200,
+}: {
+  value: number | null;
+  max: number;
+  color: string;
+  trackWidth?: number;
+}) {
+  const fill = measureBarWidth(value, max, trackWidth);
+  return (
+    <Svg width={trackWidth} height={12}>
+      <Rect x={0} y={0} width={trackWidth} height={12} fill="#f1f5f9" rx={2} />
+      <Rect x={0} y={0} width={fill} height={12} fill={color} rx={2} />
+    </Svg>
+  );
+}
+
+function panelComparisonHint(
+  measure: PanelMeasureKey,
+  baseline: number | null,
+  monitoring: number | null,
+  changePercent: number | null
+) {
+  if (baseline === null || monitoring === null) return "No baseline or monitoring median for this measure.";
+  if (baseline === monitoring) return "Monitoring median equals baseline.";
+  const delta = changePercent !== null && Number.isFinite(changePercent) ? ` (${changePercent > 0 ? "+" : ""}${changePercent.toFixed(1)}%)` : "";
+  const higher = monitoring > baseline;
+  if (measure === "costs") {
+    return higher
+      ? `Monitoring costs are above baseline${delta}.`
+      : `Monitoring costs are below baseline${delta}.`;
+  }
+  return higher
+    ? `Monitoring median is above baseline${delta}.`
+    : `Monitoring median is below baseline${delta}.`;
+}
+
+function PanelMeasureComparisonChart({
+  label,
+  measure,
   baseline,
   monitoring,
-  maxValue,
+  changePercent,
 }: {
+  label: string;
+  measure: PanelMeasureKey;
   baseline: number | null;
   monitoring: number | null;
-  maxValue: number;
+  changePercent: number | null;
 }) {
-  const barMaxWidth = 48;
-  const height = 36;
-  const scale = (value: number | null) => {
-    if (value === null || !Number.isFinite(value) || maxValue <= 0) return 0;
-    return (Math.abs(value) / maxValue) * barMaxWidth;
-  };
-  const bW = scale(baseline);
-  const mW = scale(monitoring);
+  const max = Math.max(Math.abs(baseline ?? 0), Math.abs(monitoring ?? 0), 1);
+  const trackWidth = 200;
   return (
-    <Svg width={barMaxWidth * 2 + 12} height={height}>
-      <Rect x={0} y={4} width={bW} height={10} fill="#64748b" />
-      <Rect x={barMaxWidth + 12} y={20} width={mW} height={10} fill={BRAND_BLUE} />
-    </Svg>
+    <View style={styles.measureChartCard}>
+      <Text style={styles.measureChartTitle}>{label} · median KES / month</Text>
+      <View style={styles.measureChartRow}>
+        <Text style={styles.measureChartLabel}>Baseline</Text>
+        <PanelMeasureTrackBar value={baseline} max={max} color={BASELINE_BAR} trackWidth={trackWidth} />
+        <Text style={styles.measureChartValue}>{money(baseline)}</Text>
+      </View>
+      <View style={styles.measureChartRow}>
+        <Text style={styles.measureChartLabel}>Monitoring</Text>
+        <PanelMeasureTrackBar value={monitoring} max={max} color={MONITORING_BAR} trackWidth={trackWidth} />
+        <Text style={styles.measureChartValue}>{money(monitoring)}</Text>
+      </View>
+      <Text style={styles.measureChartHint}>{panelComparisonHint(measure, baseline, monitoring, changePercent)}</Text>
+    </View>
   );
 }
 
@@ -207,24 +319,19 @@ export function MelExecutiveSummaryPdfDocument({
   exportedAt: Date;
 }) {
   const { summary, panelAnalysis, wasteReporting } = data;
+  const externalFinance = externalFinanceTotalsForExecutiveSummary(
+    data.financeBreakdown,
+    summary.externalFinanceTarget
+  );
   const generated = exportedAt.toLocaleDateString("en-KE", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  const panelMax = Math.max(
-    panelAnalysis.baseline.revenue ?? 0,
-    panelAnalysis.monitoring.revenue ?? 0,
-    panelAnalysis.baseline.costs ?? 0,
-    panelAnalysis.monitoring.costs ?? 0,
-    panelAnalysis.baseline.profit ?? 0,
-    panelAnalysis.monitoring.profit ?? 0,
-    1
-  );
-  const measures = [
-    { key: "revenue" as const, label: "Revenue" },
-    { key: "costs" as const, label: "Costs" },
-    { key: "profit" as const, label: "Profit" },
+  const measures: Array<{ key: PanelMeasureKey; label: string }> = [
+    { key: "revenue", label: "Revenue" },
+    { key: "costs", label: "Costs" },
+    { key: "profit", label: "Profit" },
   ];
   const trackGroups = panelAnalysis.disaggregations.find((item) => item.dimension === "Track")?.groups ?? [];
   const jobs = summary.jobDisaggregation;
@@ -306,7 +413,7 @@ export function MelExecutiveSummaryPdfDocument({
             <Text style={styles.kpiLabel}>Monthly collected waste (all streams)</Text>
             <Text style={styles.kpiValue}>{kilograms(wasteReporting.totalActualMonthlyKilograms)}</Text>
             <Text style={styles.kpiDetail}>
-              {percent(wasteReporting.totalChangePercent)} vs baseline {kilograms(wasteReporting.totalBaselineKilograms)}
+              Baseline {kilograms(wasteReporting.totalBaselineKilograms)}
               {" · "}
               {wasteReporting.reportingEnterprises.toLocaleString()} enterprise
               {wasteReporting.reportingEnterprises === 1 ? "" : "s"}
@@ -317,33 +424,31 @@ export function MelExecutiveSummaryPdfDocument({
           <Text style={styles.cellWide}>Waste stream</Text>
           <Text style={styles.cellRight}>Baseline (monthly median)</Text>
           <Text style={styles.cellRight}>Actual (÷ 3)</Text>
-          <Text style={styles.cellRight}>% change</Text>
         </View>
         {wasteReporting.byStream.map((row) => (
           <View key={row.stream} style={styles.tableRow}>
             <Text style={styles.cellWide}>{row.label}</Text>
             <Text style={styles.cellRight}>{kilograms(row.baselineMonthlyMedianKilograms)}</Text>
             <Text style={styles.cellRight}>{kilograms(row.actualMonthlyKilograms)}</Text>
-            <Text style={styles.cellRight}>{percent(row.changePercent)}</Text>
           </View>
         ))}
         <View style={styles.tableRow}>
           <Text style={[styles.cellWide, { fontFamily: "Helvetica-Bold" }]}>Total</Text>
           <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalBaselineKilograms)}</Text>
           <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{kilograms(wasteReporting.totalActualMonthlyKilograms)}</Text>
-          <Text style={[styles.cellRight, { fontFamily: "Helvetica-Bold" }]}>{percent(wasteReporting.totalChangePercent)}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>External finance</Text>
         <Text style={styles.note}>
-          Loan, repayable grant, and other count toward the external funding target. BIRE matching grant is excluded.
+          Repayable grant and other count toward the external funding target. Loans and BIRE matching grant are
+          excluded from this summary.
         </Text>
         <View style={styles.kpiRow}>
           <View style={styles.kpiTile}>
             <Text style={styles.kpiLabel}>External finance accessed</Text>
-            <Text style={styles.kpiValue}>{money(summary.externalFinanceAccessed)}</Text>
+            <Text style={styles.kpiValue}>{money(externalFinance.accessed)}</Text>
             <Text style={styles.kpiDetail}>
-              Target {money(summary.externalFinanceTarget)} ({percent(summary.externalFinanceAchievement)})
+              Target {money(summary.externalFinanceTarget)} ({percent(externalFinance.achievement)})
             </Text>
           </View>
         </View>
@@ -353,20 +458,26 @@ export function MelExecutiveSummaryPdfDocument({
           <Text style={styles.cellRight}>Amount (KES)</Text>
           <Text style={styles.cell}>Share</Text>
         </View>
-        {data.financeBreakdown.map((item) => (
+        {externalFinance.rows.map((item) => {
+          const sharePercent =
+            externalFinance.accessed > 0 ? (item.amount / externalFinance.accessed) * 100 : 0;
+          return (
           <View key={item.type} style={styles.tableRow}>
-            <Text style={styles.cellWide}>
-              {item.label}
-              {item.type === "matching_grant" ? " (excluded from target)" : ""}
-            </Text>
+            <Text style={styles.cellWide}>{item.label}</Text>
             <Text style={styles.cellRight}>{item.enterpriseCount.toLocaleString()}</Text>
             <Text style={styles.cellRight}>{money(item.amount)}</Text>
             <View style={styles.cell}>
-              <FinanceShareBar percentage={item.percentage} />
-              <Text style={{ fontSize: 7 }}>{percent(item.percentage)}</Text>
+              <FinanceShareBar percentage={sharePercent} />
+              <Text style={{ fontSize: 7 }}>{percent(sharePercent)}</Text>
             </View>
           </View>
-        ))}
+          );
+        })}
+        {externalFinance.rows.length === 0 ? (
+          <View style={styles.tableRow}>
+            <Text style={styles.cellWide}>No repayable grant or other finance recorded for the current filters.</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Panel analysis (matched enterprises)</Text>
         <Text style={styles.note}>
@@ -396,7 +507,6 @@ export function MelExecutiveSummaryPdfDocument({
           <Text style={styles.cellRight}>Baseline</Text>
           <Text style={styles.cellRight}>Monitoring</Text>
           <Text style={styles.cellRight}>Δ%</Text>
-          <Text style={styles.cell}>Chart</Text>
         </View>
         {measures.map((measure) => (
           <View key={measure.key} style={styles.tableRow}>
@@ -404,16 +514,24 @@ export function MelExecutiveSummaryPdfDocument({
             <Text style={styles.cellRight}>{money(panelAnalysis.baseline[measure.key])}</Text>
             <Text style={styles.cellRight}>{money(panelAnalysis.monitoring[measure.key])}</Text>
             <Text style={styles.cellRight}>{percent(panelAnalysis.changePercent[measure.key])}</Text>
-            <View style={styles.cell}>
-              <GroupedMeasureBars
-                baseline={panelAnalysis.baseline[measure.key]}
-                monitoring={panelAnalysis.monitoring[measure.key]}
-                maxValue={panelMax}
-              />
-            </View>
           </View>
         ))}
-        <Text style={styles.chartCaption}>Grey = baseline median · Blue = monitoring median</Text>
+
+        <Text style={[styles.sectionTitle, { fontSize: 10, marginTop: 8 }]}>Baseline vs monitoring (matched panel)</Text>
+        <Text style={styles.chartCaption}>
+          Same scale within each measure: dark blue = baseline median, green = monitoring median (aligned with the MEL
+          reporting dashboard).
+        </Text>
+        {measures.map((measure) => (
+          <PanelMeasureComparisonChart
+            key={`chart-${measure.key}`}
+            label={measure.label}
+            measure={measure.key}
+            baseline={panelAnalysis.baseline[measure.key]}
+            monitoring={panelAnalysis.monitoring[measure.key]}
+            changePercent={panelAnalysis.changePercent[measure.key]}
+          />
+        ))}
 
         <Text style={styles.sectionTitle}>Panel by overall &amp; track</Text>
         {trackGroups.length === 0 ? (
