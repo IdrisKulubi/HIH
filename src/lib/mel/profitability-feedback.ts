@@ -188,6 +188,11 @@ export function profitabilityFeedbackEventKey(periodId: number, businessId: numb
   return `mel-profitability-feedback:${periodId}:${businessId}`;
 }
 
+/** Staff must complete a trial send for this period before bulk owner emails. */
+export function profitabilityFeedbackTrialGateKey(periodId: number, staffUserId: string): string {
+  return `mel-profitability-feedback-trial-gate:${periodId}:${staffUserId}`;
+}
+
 export function isProfitabilityFeedbackProductionEnabled(): boolean {
   return process.env.MEL_PROFITABILITY_FEEDBACK_ENABLED === "true";
 }

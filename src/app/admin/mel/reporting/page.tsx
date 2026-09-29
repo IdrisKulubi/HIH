@@ -17,6 +17,7 @@ import { requireMelViewer } from "@/lib/mel/access";
 import { isProfitabilityFeedbackProductionEnabled } from "@/lib/mel/profitability-feedback";
 import {
   buildProfitabilityFeedbackSummary,
+  hasProfitabilityFeedbackTrialGate,
   loadProfitabilityFeedbackOwnerContacts,
 } from "@/lib/mel/notifications/dispatch-profitability-feedback";
 import { ProfitabilityMeasureChart } from "@/components/mel/reporting/ProfitabilityMeasureChart";
@@ -46,6 +47,9 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
     data.panelAnalysis.matchedEnterprises,
     ownerContacts
   );
+  const profitabilityTrialCompleted = melActor.canManage
+    ? await hasProfitabilityFeedbackTrialGate(data.selectedPeriod.id, melActor.id)
+    : false;
   const exportQuery = new URLSearchParams({ periodId: String(data.selectedPeriod.id) });
   if (data.filters.track) exportQuery.set("track", data.filters.track);
   if (data.filters.county) exportQuery.set("county", data.filters.county);
@@ -144,11 +148,11 @@ export default async function MelReportingPage({ searchParams }: { searchParams:
 
       <ProfitabilityFeedbackPanel
         canManage={melActor.canManage}
-        periodId={data.selectedPeriod.id}
         periodLabel={data.selectedPeriod.label}
         filters={data.filters}
         summary={profitabilityFeedbackSummary}
         productionEnabled={isProfitabilityFeedbackProductionEnabled()}
+        trialCompleted={profitabilityTrialCompleted}
       />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-background" aria-labelledby="approved-reports-export-heading">

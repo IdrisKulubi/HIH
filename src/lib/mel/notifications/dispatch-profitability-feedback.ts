@@ -6,6 +6,7 @@ import {
   buildEnterpriseProfitabilityFeedback,
   isProfitabilityFeedbackProductionEnabled,
   profitabilityFeedbackEventKey,
+  profitabilityFeedbackTrialGateKey,
 } from "@/lib/mel/profitability-feedback";
 import { recordMelOperationalEvent } from "@/lib/mel/operations";
 import type { PanelMatchedEnterprise } from "@/lib/mel/panel-analysis-core";
@@ -260,6 +261,27 @@ export async function dispatchProfitabilityFeedbackTrial(input: {
     errors: outcome === "failed" ? ["Trial email could not be delivered."] : [],
   };
 
+  if (result.sent > 0) {
+    const gateKey = profitabilityFeedbackTrialGateKey(context.periodId, input.staffUserId);
+    await db
+      .insert(melNotificationOutbox)
+      .values({
+        eventKey: gateKey,
+        recipientId: input.staffUserId,
+        eventType: "profitability_feedback_trial_gate",
+        title: "Profitability feedback trial completed",
+        body: `Trial send for ${context.periodLabel} before owner bulk delivery.`,
+        href: "/admin/mel/reporting",
+        status: "sent",
+        attempts: 1,
+        sentAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: melNotificationOutbox.eventKey,
+        set: { status: "sent", sentAt: new Date(), updatedAt: new Date() },
+      });
+  }
+
   await recordMelOperationalEvent({
     severity: result.failed > 0 ? "warning" : "info",
     eventType: "profitability_feedback_trial",
@@ -270,19 +292,43 @@ export async function dispatchProfitabilityFeedbackTrial(input: {
   return result;
 }
 
+export async function hasProfitabilityFeedbackTrialGate(
+  periodId: number,
+  staffUserId: string
+): Promise<boolean> {
+  const gateKey = profitabilityFeedbackTrialGateKey(periodId, staffUserId);
+  const row = await db.query.melNotificationOutbox.findFirst({
+    where: eq(melNotificationOutbox.eventKey, gateKey),
+    columns: { status: true },
+  });
+  return row?.status === "sent";
+}
+
 export async function dispatchProfitabilityFeedbackProduction(
-  filters: MelDashboardFilters
+  filters: MelDashboardFilters,
+  staffUserId: string
 ): Promise<ProfitabilityFeedbackSendResult> {
   if (!isProfitabilityFeedbackProductionEnabled()) {
     return {
       sent: 0,
       skipped: 0,
       failed: 0,
-      errors: ["Bulk send is disabled. Set MEL_PROFITABILITY_FEEDBACK_ENABLED=true to enable."],
+      errors: ["Sending to owners is not available in this environment yet. Contact your programme administrator."],
     };
   }
 
   const context = await getProfitabilityFeedbackContext(filters);
+  const trialOk = await hasProfitabilityFeedbackTrialGate(context.periodId, staffUserId);
+  if (!trialOk) {
+    return {
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [
+        "Please send a trial email to your own inbox first, review it, then use Send to all matched owners.",
+      ],
+    };
+  }
   const result: ProfitabilityFeedbackSendResult = { sent: 0, skipped: 0, failed: 0, errors: [] };
 
   for (const enterprise of context.matched) {

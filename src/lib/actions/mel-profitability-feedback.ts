@@ -73,14 +73,14 @@ export async function sendMelProfitabilityFeedbackBulkAction(
   filters: MelDashboardFilters
 ): Promise<ActionResponse<{ sent: number; skipped: number; failed: number }>> {
   try {
-    await requireMelManager();
+    const actor = await requireMelManager();
     await requireMelRolloutFeature("reporting");
-    const result = await dispatchProfitabilityFeedbackProduction(filters);
+    const result = await dispatchProfitabilityFeedbackProduction(filters, actor.id);
     revalidatePath("/admin/mel/reporting");
     if (!isProfitabilityFeedbackProductionEnabled()) {
-      return errorResponse(result.errors[0] ?? "Bulk send is disabled.");
+      return errorResponse(result.errors[0] ?? "Bulk send is not available.");
     }
-    if (result.failed > 0 && result.sent === 0) {
+    if (result.sent === 0 && result.errors.length > 0) {
       return errorResponse(result.errors[0] ?? "No emails were delivered.");
     }
     return successResponse(
