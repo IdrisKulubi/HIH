@@ -170,7 +170,11 @@ export const MelProfitabilityFeedbackEmail = ({
               </Section>
             ) : null}
 
-            <Text className="text-sm text-slate-600 mt-6 mb-0">
+            <Text className="text-sm text-slate-600 mt-5 mb-0 leading-[22px]">
+              Kindly contact your EDO or Mentor for advice and support.
+            </Text>
+
+            <Text className="text-sm text-slate-600 mt-4 mb-0">
               <a href={portalUrl} className="text-brand-blue font-medium">
                 Visit the BIRE programme portal
               </a>
