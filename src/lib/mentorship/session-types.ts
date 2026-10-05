@@ -7,9 +7,9 @@ export function defaultMentorshipSessionType(
   return "virtual";
 }
 
-/** Sessions 2–6 can be logged as virtual or physical. Session 1 is always virtual. */
+/** All six mentorship sessions can be logged as virtual or physical. */
 export function canChooseMentorshipSessionType(sessionNumber: number) {
-  return sessionNumber >= 2;
+  return sessionNumber >= 1 && sessionNumber <= 6;
 }
 
 export function parseMentorshipSessionType(value: unknown): MentorshipSessionKind | null {
@@ -22,13 +22,11 @@ export function resolveMentorshipSessionType(input: {
   currentType: string;
   requestedType?: string | null;
 }): MentorshipSessionKind {
-  if (input.sessionNumber === 1) return "virtual";
-
   if (canChooseMentorshipSessionType(input.sessionNumber)) {
     return (
       parseMentorshipSessionType(input.requestedType) ??
       parseMentorshipSessionType(input.currentType) ??
-      "virtual"
+      defaultMentorshipSessionType(input.sessionNumber)
     );
   }
 

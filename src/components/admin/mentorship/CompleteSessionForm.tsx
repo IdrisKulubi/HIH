@@ -23,7 +23,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { MentorshipEvidenceField } from "@/components/admin/mentorship/MentorshipEvidenceField";
 import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
 import {
-  canChooseMentorshipSessionType,
   resolveMentorshipSessionType,
   type MentorshipSessionKind,
 } from "@/lib/mentorship/session-types";
@@ -109,7 +108,6 @@ export function CompleteSessionForm({
   const initialDuration = splitDurationMinutes(durationMinutes);
   const [evidence, setEvidence] = useState<MentorshipEvidenceFile[]>(resolvedEvidenceFiles);
   const [chosenType, setChosenType] = useState<MentorshipSessionKind>(initialSessionType);
-  const canChooseType = canChooseMentorshipSessionType(sessionNumber);
   const resolvedPrevious = previousSession
     ? {
         ...previousSession,
@@ -175,35 +173,33 @@ export function CompleteSessionForm({
       <p className="text-xs text-muted-foreground">
         Session {sessionNumber} · {chosenType} · {physicalHint}
       </p>
-      {canChooseType ? (
-        <div className="space-y-2">
-          <Label>How was this session held?</Label>
-          <RadioGroup
-            value={chosenType}
-            onValueChange={(value) => {
-              if (value === "physical" || value === "virtual") setChosenType(value);
-            }}
-            disabled={pending}
-            className="grid grid-cols-2 gap-2"
+      <div className="space-y-2">
+        <Label>How was this session held?</Label>
+        <RadioGroup
+          value={chosenType}
+          onValueChange={(value) => {
+            if (value === "physical" || value === "virtual") setChosenType(value);
+          }}
+          disabled={pending}
+          className="grid grid-cols-2 gap-2"
+        >
+          <label
+            className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
           >
-            <label
-              className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
-            >
-              <RadioGroupItem value="virtual" id={`session-type-virtual-${sessionId}`} />
-              Virtual
-            </label>
-            <label
-              className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
-            >
-              <RadioGroupItem value="physical" id={`session-type-physical-${sessionId}`} />
-              Physical
-            </label>
-          </RadioGroup>
-          <p className="text-xs text-muted-foreground">
-            Virtual needs a date and duration. Physical also needs notes and evidence.
-          </p>
-        </div>
-      ) : null}
+            <RadioGroupItem value="virtual" id={`session-type-virtual-${sessionId}`} />
+            Virtual
+          </label>
+          <label
+            className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm has-[:disabled]:opacity-50"
+          >
+            <RadioGroupItem value="physical" id={`session-type-physical-${sessionId}`} />
+            Physical
+          </label>
+        </RadioGroup>
+        <p className="text-xs text-muted-foreground">
+          Virtual needs a date and duration. Physical also needs notes and evidence.
+        </p>
+      </div>
       {scheduledDate ? (
         <p className="text-xs text-muted-foreground">
           Scheduled: {new Date(scheduledDate).toLocaleDateString()}
