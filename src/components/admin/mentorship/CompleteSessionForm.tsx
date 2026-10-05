@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MentorshipEvidenceField } from "@/components/admin/mentorship/MentorshipEvidenceField";
 import { MentorshipEvidenceLinks } from "@/components/admin/mentorship/MentorshipEvidenceLinks";
+import { mentorshipPendingLabel } from "@/lib/mentorship/session-approval";
 import {
   resolveMentorshipSessionType,
   type MentorshipSessionKind,
@@ -77,12 +78,14 @@ export function CompleteSessionForm({
   photographicEvidenceUrl,
   evidenceFiles,
   diagnosticNotes,
+  edoApprovedById,
   previousSession,
 }: {
   sessionId: number;
   sessionNumber: number;
   sessionType: "physical" | "virtual";
   status: string;
+  edoApprovedById?: string | null;
   scheduledDate?: Date | string | null;
   completedDate?: Date | string | null;
   durationMinutes?: number | null;
@@ -133,9 +136,10 @@ export function CompleteSessionForm({
   }
 
   if (status === "pending_approval") {
+    const pendingLabel = mentorshipPendingLabel({ status, edoApprovedById });
     return (
       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-        <p className="text-sm font-medium text-amber-900">Awaiting REDO approval</p>
+        <p className="text-sm font-medium text-amber-900">{pendingLabel}</p>
         <SessionSummary
           completedDate={completedDate}
           durationMinutes={durationMinutes}

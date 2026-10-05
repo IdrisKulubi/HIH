@@ -21,6 +21,7 @@ export default async function BdsCnaPage() {
     preScreeningMyDrafts: 0,
     a2fDdAwaiting: 0,
     melReturnedToMe: 0,
+    mentorshipSessionsPending: 0,
   };
 
   return (

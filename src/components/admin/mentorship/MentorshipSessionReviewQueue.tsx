@@ -71,11 +71,19 @@ function SessionField({ label, value }: { label: string; value: string | null | 
 
 export function MentorshipSessionReviewQueue({
   rows,
+  reviewerRole = "redo",
   showSectionHeader = true,
 }: {
   rows: MentorshipSessionReviewRow[];
+  reviewerRole?: "bds_edo" | "redo";
   showSectionHeader?: boolean;
 }) {
+  const isEdoReviewer = reviewerRole === "bds_edo";
+  const approveLabel = isEdoReviewer ? "Approve and send to REDO" : "Give final approval";
+  const approveBusyLabel = isEdoReviewer ? "Sending…" : "Approving…";
+  const approveSuccess = isEdoReviewer
+    ? "Session sent to REDO for final approval"
+    : "Session approved";
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [queueRows, setQueueRows] = useState(rows);
@@ -123,7 +131,7 @@ export function MentorshipSessionReviewQueue({
       }
 
       removeFromQueue(row.sessionId);
-      toast.success("Session approved");
+      toast.success(approveSuccess);
       if (reviewing?.sessionId === row.sessionId) setReviewing(null);
       router.refresh();
     });
@@ -158,7 +166,9 @@ export function MentorshipSessionReviewQueue({
           <div>
             <h2 className="text-lg font-semibold text-slate-950">Pending sessions</h2>
             <p className="text-sm text-slate-600">
-              Review logged sessions, confirm the details, then approve or return them to the mentor.
+              {isEdoReviewer
+                ? "Review logged sessions for your enterprises, then approve for REDO or return to the mentor with a reason."
+                : "Sessions listed here were approved by an EDO. Give final approval or return to the mentor with a reason."}
             </p>
           </div>
         ) : null}
@@ -244,7 +254,7 @@ export function MentorshipSessionReviewQueue({
                           disabled={busy}
                         >
                           <Check className="mr-1 size-4" />
-                          {busy ? "Approving…" : "Approve"}
+                          {busy ? approveBusyLabel : approveLabel}
                         </Button>
                         <Button
                           type="button"
@@ -275,8 +285,15 @@ export function MentorshipSessionReviewQueue({
                   Session {reviewing.sessionNumber} · {reviewing.sessionType}
                 </SheetTitle>
                 <SheetDescription>
-                  Confirm the session details before approving or returning to the mentor.
+                  {isEdoReviewer
+                    ? "Confirm the session details. Approving sends the session to REDO; returning sends it back to the mentor."
+                    : "The EDO has already approved this session. Final approval completes it; returning sends it back to the mentor."}
                 </SheetDescription>
+                {reviewing.edoApprovedAt && !isEdoReviewer ? (
+                  <p className="text-xs text-slate-500">
+                    EDO approved {formatDateTime(reviewing.edoApprovedAt)}
+                  </p>
+                ) : null}
               </SheetHeader>
 
               <div className="space-y-5 px-1 py-4">
@@ -349,7 +366,7 @@ export function MentorshipSessionReviewQueue({
                   onClick={() => reviewApprove(reviewing)}
                   disabled={pending && activeSessionId === reviewing.sessionId}
                 >
-                  Approve session
+                  {approveLabel}
                 </Button>
               </SheetFooter>
             </>

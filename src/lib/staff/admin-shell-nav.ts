@@ -51,6 +51,7 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
   bds_edo: [
     "/a2f",
     "/admin/cdp",
+    "/admin/mentorship/approvals",
     "/admin/mel/monitoring",
   ],
   redo: [

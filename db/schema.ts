@@ -885,6 +885,8 @@ export const mentorshipSessions = pgTable(
       .default([]),
     approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     approvedAt: timestamp('approved_at'),
+    edoApprovedById: text('edo_approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    edoApprovedAt: timestamp('edo_approved_at'),
     rejectionReason: text('rejection_reason'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),

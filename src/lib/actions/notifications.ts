@@ -21,7 +21,7 @@ import {
 } from "@/db/schema";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
-import { and, desc, eq, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 export type NotificationTone = "info" | "warning" | "success" | "danger";
@@ -205,7 +205,13 @@ async function getRedoNotifications(userId: string): Promise<TopbarNotification[
         eq(dueDiligenceRecords.validatorReviewerId, userId)
       )
     ),
-    countRows(mentorshipSessions, eq(mentorshipSessions.status, "pending_approval")),
+    countRows(
+      mentorshipSessions,
+      and(
+        eq(mentorshipSessions.status, "pending_approval"),
+        isNotNull(mentorshipSessions.edoApprovedById)
+      )
+    ),
   ]);
 
   return [

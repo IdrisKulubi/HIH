@@ -184,6 +184,14 @@ export function BdsEdoHub({
             countLabel="returned"
             primary={summary.melReturnedToMe > 0}
           />
+          <HubQueueRow
+            title="Mentorship session approvals"
+            description="First-stage review of mentor session logs before REDO final sign-off"
+            href="/admin/mentorship/approvals"
+            count={summary.mentorshipSessionsPending}
+            countLabel="pending"
+            primary={summary.mentorshipSessionsPending > 0}
+          />
         </div>
       </section>
 
