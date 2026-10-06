@@ -72,6 +72,14 @@ export function BdsEdoHub({
               </Link>
             </Button>
           ) : null}
+          {summary.mentorshipSessionsPending > 0 ? (
+            <Button asChild className="bg-emerald-700 hover:bg-emerald-800">
+              <Link href="/admin/mentorship/approvals">
+                Review mentor sessions ({summary.mentorshipSessionsPending})
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -191,6 +199,7 @@ export function BdsEdoHub({
             count={summary.mentorshipSessionsPending}
             countLabel="pending"
             primary={summary.mentorshipSessionsPending > 0}
+            ctaLabel={summary.mentorshipSessionsPending > 0 ? "Review sessions" : "Open"}
           />
         </div>
       </section>
