@@ -23,11 +23,14 @@ import { WizardStepValidationAlert } from "@/components/a2f/WizardStepValidation
 import {
     type MgSupportingDocumentRow,
     countMandatoryMgDocumentsEnclosed,
-    defaultMgSupportingDocuments,
-    parseMgSupportingDocuments,
-    resolveMgDocumentSources,
     serializeMgSupportingDocuments,
 } from "@/lib/mg-supporting-documents";
+import {
+    EMPTY_MATCHING_GRANT_APPLICATION,
+    hydrateMatchingGrantApplication,
+    resolveMatchingGrantDocumentRows,
+    type MatchingGrantApplicationView,
+} from "@/lib/matching-grant-application-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,7 +46,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-    ArrowLeft, ArrowRight, Calculator, FloppyDisk,
+    ArrowLeft, ArrowRight, Calculator, FloppyDisk, DownloadSimple,
     PaperPlaneTilt, ClipboardText, Buildings, User, UsersThree, Handshake, Coins, ShieldCheck, Check,
     Plus, Trash,
 } from "@phosphor-icons/react";
@@ -65,13 +68,6 @@ import {
     type OtherOwner,
     type ProgrammeEngagement,
     type MatchingGrantBusinessOverview,
-    EMPTY_ENTERPRISE_IDENTIFICATION,
-    EMPTY_LEAD_ENTREPRENEUR,
-    EMPTY_PROGRAMME_ENGAGEMENT,
-    EMPTY_BUSINESS_OVERVIEW,
-    EMPTY_FINANCIAL_OVERVIEW,
-    EMPTY_OTHER_FUNDING,
-    EMPTY_GOVERNANCE_COMPLIANCE,
     type MatchingGrantFinancialOverview,
     type MatchingGrantOtherFunding,
     type MatchingGrantGovernanceCompliance,
@@ -80,115 +76,23 @@ import {
     type MatchingGrantJobRow,
     MATCHING_GRANT_CAPEX_CATEGORIES,
     emptyOwnerRow,
-    emptyOwners,
     filterFilledOtherOwners,
     emptyBudgetRow,
-    emptyBudgetRows,
     emptyMilestoneRow,
-    emptyMilestones,
     emptyJobRow,
-    emptyJobs,
     filterFilledBudgetItems,
     filterFilledMilestones,
     filterFilledJobs,
-    seedFromPipeline,
-    mergeMgRecordOverSeed,
     serializeEnterpriseIdentification,
-    parseEnterpriseIdentification,
-    parseLeadEntrepreneur,
-    parseOtherOwners,
-    parseProgrammeEngagement,
-    parseBusinessOverview,
-    parseFinancialOverview,
-    parseOtherFunding,
-    parseGovernanceCompliance,
-    parseBudgetItems,
-    parseMilestones,
-    parseJobCreationPlan,
-    validateBudgetUseOfFunds,
     resolveAnnualRevenueForEligibility,
 } from "@/lib/matching-grant-form-types";
 import { MG_NA_GUIDANCE } from "@/lib/matching-grant-validation";
 import { useSession } from "next-auth/react";
 import { isMatchingGrantReadOnlyRole } from "@/lib/a2f-nav";
 
-type FormState = {
-    status: "draft" | "submitted" | "returned_for_correction";
-    enterprise: EnterpriseIdentification;
-    lead: LeadEntrepreneur;
-    otherOwners: OtherOwner[];
-    programme: ProgrammeEngagement;
-    business: MatchingGrantBusinessOverview;
-    totalProjectAmount: number;
-    bireGrantAmount: number;
-    enterpriseContributionAmount: number;
-    preferredCoInvestmentPct: number;
-    coInvestmentSource: string;
-    coInvestmentJustification: string;
-    projectTitle: string;
-    fundingNeed: string;
-    withoutGrantImpact: string;
-    capexOnlyConfirmed: boolean;
-    financial: MatchingGrantFinancialOverview;
-    projectedMonthlyRevenue: string;
-    projectedAnnualRevenue: string;
-    projectedGrowthRate: string;
-    projectionAssumptions: string;
-    employmentTerms: string;
-    inclusionStrategy: string;
-    environmentalImpact: string;
-    environmentalIndicators: string;
-    communityImpact: string;
-    innovationElement: string;
-    otherFunding: MatchingGrantOtherFunding;
-    governance: MatchingGrantGovernanceCompliance;
-    useOfFundsAcknowledged: boolean;
-    declarationName: string;
-    declarationAccepted: boolean;
-    budgetItems: MatchingGrantBudgetItem[];
-    milestones: MatchingGrantMilestoneRow[];
-    jobs: MatchingGrantJobRow[];
-    documents: MgSupportingDocumentRow[];
-};
+type FormState = MatchingGrantApplicationView;
 
-const EMPTY_FORM: FormState = {
-    status: "draft",
-    totalProjectAmount: 0,
-    bireGrantAmount: 0,
-    enterpriseContributionAmount: 0,
-    preferredCoInvestmentPct: 0,
-    coInvestmentSource: "",
-    coInvestmentJustification: "",
-    projectTitle: "",
-    fundingNeed: "",
-    withoutGrantImpact: "",
-    capexOnlyConfirmed: false,
-    enterprise: { ...EMPTY_ENTERPRISE_IDENTIFICATION },
-    lead: { ...EMPTY_LEAD_ENTREPRENEUR },
-    otherOwners: emptyOwners(),
-    programme: { ...EMPTY_PROGRAMME_ENGAGEMENT },
-    business: { ...EMPTY_BUSINESS_OVERVIEW },
-    financial: { ...EMPTY_FINANCIAL_OVERVIEW },
-    projectedMonthlyRevenue: "",
-    projectedAnnualRevenue: "",
-    projectedGrowthRate: "",
-    projectionAssumptions: "",
-    employmentTerms: "",
-    inclusionStrategy: "",
-    environmentalImpact: "",
-    environmentalIndicators: "",
-    communityImpact: "",
-    innovationElement: "",
-    otherFunding: { ...EMPTY_OTHER_FUNDING },
-    governance: { ...EMPTY_GOVERNANCE_COMPLIANCE },
-    useOfFundsAcknowledged: false,
-    declarationName: "",
-    declarationAccepted: false,
-    budgetItems: emptyBudgetRows(),
-    milestones: emptyMilestones(),
-    jobs: emptyJobs(),
-    documents: defaultMgSupportingDocuments(),
-};
+const EMPTY_FORM = EMPTY_MATCHING_GRANT_APPLICATION;
 
 function numberValue(value: string) {
     return Number(value || 0);
@@ -255,76 +159,6 @@ function toInput(data: FormState): MatchingGrantApplicationInput {
     };
 }
 
-function buildIdentityBase(entry: unknown, record: unknown): Pick<FormState,
-    "enterprise" | "lead" | "otherOwners" | "programme" | "business" | "financial"
-    | "otherFunding" | "governance" | "declarationName" | "useOfFundsAcknowledged"
-> {
-    const seed = seedFromPipeline(entry);
-    const merged = mergeMgRecordOverSeed(seed, record as Record<string, unknown> | null);
-    return {
-        enterprise: merged.enterprise,
-        lead: merged.lead,
-        otherOwners: merged.owners,
-        programme: merged.programme,
-        business: merged.business,
-        financial: merged.financial,
-        otherFunding: merged.otherFunding,
-        governance: merged.governance,
-        declarationName: merged.declarationName,
-        useOfFundsAcknowledged: merged.useOfFundsAcknowledged,
-    };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function fromRecord(record: any, fallback: FormState): FormState {
-    if (!record) return fallback;
-    const enterpriseRaw = (record.enterpriseIdentification ?? {}) as Record<string, unknown>;
-    const financialOverview = record.financialOverview ?? {};
-    const projections = record.financialProjections ?? {};
-    const impact = record.impact ?? {};
-    const declaration = record.declaration ?? {};
-
-    return {
-        ...fallback,
-        enterprise: parseEnterpriseIdentification(enterpriseRaw),
-        lead: parseLeadEntrepreneur(record.leadEntrepreneur),
-        otherOwners: parseOtherOwners(enterpriseRaw.otherOwners),
-        programme: parseProgrammeEngagement(record.programmeEngagement),
-        business: parseBusinessOverview(record.businessOverview),
-        financial: parseFinancialOverview(financialOverview),
-        otherFunding: parseOtherFunding(record.otherFunding),
-        governance: parseGovernanceCompliance(record.governanceCompliance),
-        useOfFundsAcknowledged: Boolean(declaration.useOfFundsAcknowledged ?? fallback.useOfFundsAcknowledged),
-        status: record.status ?? "draft",
-        totalProjectAmount: Number(record.totalProjectAmount ?? 0),
-        bireGrantAmount: Number(record.bireGrantAmount ?? 0),
-        enterpriseContributionAmount: Number(record.enterpriseContributionAmount ?? 0),
-        preferredCoInvestmentPct: Number(record.preferredCoInvestmentPct ?? 0),
-        coInvestmentSource: record.coInvestmentSource ?? "",
-        coInvestmentJustification: record.coInvestmentJustification ?? "",
-        projectTitle: record.projectTitle ?? "",
-        fundingNeed: record.fundingNeed ?? "",
-        withoutGrantImpact: record.withoutGrantImpact ?? "",
-        capexOnlyConfirmed: Boolean(record.capexOnlyConfirmed),
-        projectedMonthlyRevenue: String(projections.projectedMonthlyRevenue ?? ""),
-        projectedAnnualRevenue: String(projections.projectedAnnualRevenue ?? ""),
-        projectedGrowthRate: String(projections.projectedGrowthRate ?? ""),
-        projectionAssumptions: String(projections.assumptions ?? ""),
-        employmentTerms: String(impact.employmentTerms ?? ""),
-        inclusionStrategy: String(impact.inclusionStrategy ?? ""),
-        environmentalImpact: String(impact.environmentalImpact ?? ""),
-        environmentalIndicators: String(impact.environmentalIndicators ?? ""),
-        communityImpact: String(impact.communityImpact ?? ""),
-        innovationElement: String(impact.innovationElement ?? ""),
-        declarationName: String(declaration.applicantName ?? fallback.declarationName),
-        declarationAccepted: Boolean(declaration.accepted),
-        budgetItems: parseBudgetItems(record.budgetItems),
-        milestones: parseMilestones(record.implementationMilestones),
-        jobs: parseJobCreationPlan(record.jobCreationPlan),
-        documents: parseMgSupportingDocuments(record.supportingDocuments),
-    };
-}
-
 function RequiredFieldsNotice() {
     return (
         <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
@@ -365,6 +199,7 @@ export function MatchingGrantApplicationWizard({
         session?.user?.role === "a2f_officer" || session?.user?.role === "admin";
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
     const [activeStep, setActiveStep] = useState(0);
     const [completedSteps, setCompletedSteps] = useState<number[]>([]);
     const [showStepValidation, setShowStepValidation] = useState(false);
@@ -389,28 +224,14 @@ export function MatchingGrantApplicationWizard({
 
         if (entryRes.success && entryRes.data) {
             setEntry(entryRes.data);
-            const biz = entryRes.data.application?.business;
-            const identityBase = buildIdentityBase(entryRes.data, appRes.success ? appRes.data : null);
-            const seeded: FormState = {
-                ...EMPTY_FORM,
-                ...identityBase,
-                environmentalImpact: biz?.environmentalImpactDescription ?? "",
-                innovationElement: biz?.technologyIntegrationDescription ?? biz?.businessModelInnovation ?? "",
-            };
-            const baseForm = fromRecord(appRes.success ? appRes.data : null, seeded);
             const record = appRes.success ? appRes.data : null;
             setReturnReason(
                 typeof record?.returnReason === "string" ? record.returnReason : null
             );
             const documents = docSourcesRes.success && docSourcesRes.data
-                ? resolveMgDocumentSources({
-                    business: docSourcesRes.data.business,
-                    kycDocuments: docSourcesRes.data.kycDocuments,
-                    cdpEvidence: docSourcesRes.data.cdpEvidence,
-                    savedRows: parseMgSupportingDocuments(docSourcesRes.data.savedSupportingDocuments),
-                })
-                : baseForm.documents;
-            setForm({ ...baseForm, documents });
+                ? resolveMatchingGrantDocumentRows(docSourcesRes.data)
+                : null;
+            setForm(hydrateMatchingGrantApplication(entryRes.data, record, documents));
         } else {
             toast.error("Pipeline entry not found");
         }
@@ -656,6 +477,32 @@ export function MatchingGrantApplicationWizard({
         }
     }
 
+    async function handleDownloadPdf() {
+        setDownloadingPdf(true);
+        try {
+            const response = await fetch(`/api/a2f/${a2fId}/matching-grant/pdf`);
+            if (!response.ok) {
+                const body = await response.json().catch(() => null) as { error?: string } | null;
+                toast.error(body?.error ?? "Could not download the application PDF");
+                return;
+            }
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const matched = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/);
+            link.href = objectUrl;
+            link.download = matched?.[1] || "access-to-finance-application.pdf";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+        } catch {
+            toast.error("Could not download the application PDF");
+        } finally {
+            setDownloadingPdf(false);
+        }
+    }
+
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-8 max-w-6xl space-y-4">
@@ -670,33 +517,46 @@ export function MatchingGrantApplicationWizard({
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-6xl pb-28">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-3 mb-6">
                 <Button variant="ghost" size="sm" asChild className="gap-1.5">
                     <Link href={mode === "applicant" ? "/access-to-finance" : `/a2f/${a2fId}`}>
                         <ArrowLeft className="size-4" /> {mode === "applicant" ? "Access to Finance" : "Entry Overview"}
                     </Link>
                 </Button>
-                <Separator orientation="vertical" className="h-5" />
-                <div className="flex-1 min-w-0">
+                <Separator orientation="vertical" className="h-5 hidden sm:block" />
+                <div className="flex-1 min-w-[12rem]">
                     <h1 className="text-xl font-bold truncate">Matching Grant Application</h1>
                     <p className="text-sm text-muted-foreground truncate">{biz?.name}</p>
                 </div>
-                <Badge
-                    className={
-                        form.status === "submitted"
-                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            : form.status === "returned_for_correction"
-                              ? "bg-amber-100 text-amber-800 border-amber-200"
-                              : "bg-slate-100 text-slate-700 border-slate-200"
-                    }
-                >
-                    {form.status === "returned_for_correction" ? "Returned for correction" : form.status}
-                </Badge>
-                {readOnly && (
-                    <Badge variant="outline" className="text-xs">
-                        {applicantLocked ? "Submitted" : "Read-only"}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                        className={
+                            form.status === "submitted"
+                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                : form.status === "returned_for_correction"
+                                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                        }
+                    >
+                        {form.status === "returned_for_correction" ? "Returned for correction" : form.status}
                     </Badge>
-                )}
+                    {readOnly && (
+                        <Badge variant="outline" className="text-xs">
+                            {applicantLocked ? "Submitted" : "Read-only"}
+                        </Badge>
+                    )}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleDownloadPdf}
+                        disabled={downloadingPdf}
+                    >
+                        <DownloadSimple className="size-4" />
+                        {downloadingPdf ? "Preparing PDF…" : "Download PDF"}
+                    </Button>
+                </div>
             </div>
 
             {returnedForCorrection && (
