@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
-import {
-    buildMatchingGrantPdfModel,
-    explainMatchingGrantPdfFailure,
-    renderMatchingGrantApplicationPdf,
-} from "./matching-grant-application-pdf";
+import { buildMatchingGrantPdfModel, renderMatchingGrantApplicationPdf } from "./matching-grant-application-pdf";
 import { hydrateMatchingGrantApplication } from "./matching-grant-application-view";
 
 const entry = {
@@ -109,6 +105,7 @@ assert.equal(model.bireShare, "70%");
 assert.equal(model.enterpriseShare, "30%");
 assert.equal(model.fileName, "Green-At-Mind-Ltd-access-to-finance-application.pdf");
 assert.equal(findAnswer("Enterprise name"), "Green At Mind Ltd");
+assert.equal(findAnswer("Education"), "Not filled");
 assert.equal(findAnswer("Why is this funding needed now?"), "The dryer is needed before the next harvest.");
 assert.equal(findAnswer("CAPEX category"), "Productive equipment");
 assert.equal(findAnswer("Investment item"), "Solar dryer");
@@ -134,9 +131,15 @@ async function tests() {
         track: "acceleration",
         generatedAt: new Date("2026-10-09T12:00:00.000Z"),
     });
-    assert.ok(difficultModel.adjustments.some((item) => item.includes("Annual revenue 2025")));
-    assert.ok(difficultModel.adjustments.some((item) => item.includes("Business description")));
-    assert.match(explainMatchingGrantPdfFailure(new Error("unsupported number: -1.6897464143597548e+22"), difficultModel.adjustments), /Annual revenue 2025/);
+    const revenueAnswer = difficultModel.sections
+        .flatMap((block) => block.fields)
+        .find((item) => item.question === "Annual revenue 2025 (KES)")?.answer;
+    const descriptionAnswer = difficultModel.sections
+        .flatMap((block) => block.fields)
+        .find((item) => item.question === "Business description")?.answer;
+    assert.match(revenueAnswer ?? "", /^KES /);
+    assert.match(descriptionAnswer ?? "", /Fresh vegetables/);
+    assert.equal(descriptionAnswer?.includes("\u{1F33F}"), false);
     const difficultPdf = await renderMatchingGrantApplicationPdf(difficultModel);
     assert.equal(difficultPdf.subarray(0, 4).toString("utf8"), "%PDF");
 

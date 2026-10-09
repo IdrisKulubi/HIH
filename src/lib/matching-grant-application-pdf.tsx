@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import {
     MATCHING_GRANT_CAPEX_CATEGORIES,
     filterFilledBudgetItems,
@@ -174,7 +174,6 @@ export interface MatchingGrantPdfModel {
     updatedAt: string | null;
     returnReason: string | null;
     fileName: string;
-    adjustments: string[];
     sections: MatchingGrantPdfSection[];
 }
 
@@ -187,42 +186,30 @@ export interface MatchingGrantPdfContext {
     generatedAt?: Date;
 }
 
+const NOT_FILLED = "Not filled";
 const MAX_PRINTABLE_AMOUNT = 1_000_000_000_000;
-const UNUSUAL_CHARACTERS = /[^\n\r\t\x20-\x7E\u00A0-\u00FF]/;
 
-function preparePdfText(value: string | null | undefined): { text: string; problem?: string } {
+function preparePdfText(value: string | null | undefined): string {
     const trimmed = (value ?? "").trim();
-    if (!trimmed) return { text: "Not answered" };
+    if (!trimmed) return NOT_FILLED;
 
-    const normalized = trimmed
+    const printable = trimmed
         .replace(/[\u2018\u2019\u2032]/g, "'")
         .replace(/[\u201C\u201D]/g, "\"")
         .replace(/[\u2013\u2014\u2212]/g, "-")
         .replace(/\u2026/g, "...")
         .replace(/[\u00A0\u202F\u2007\u2009]/g, " ")
-        .replace(/[\u200B-\u200D\uFEFF]/g, "");
-    const hadUnusualCharacters = UNUSUAL_CHARACTERS.test(normalized);
-    const printable = normalized
-        .replace(new RegExp(UNUSUAL_CHARACTERS.source, "g"), "")
+        .replace(/[^\n\x20-\x7E]/g, "")
         .replace(/[^\S\n]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
         .trim()
-        .replace(/\S{48}/g, (token) => `${token} `);
+        .replace(/\S{40}/g, (token) => `${token} `);
 
-    if (!printable) {
-        return {
-            text: "Not answered. The original answer used symbols that cannot be printed in this PDF. Re-enter it in plain text, or type None if it does not apply.",
-            problem: "unusual symbols were removed and nothing readable was left",
-        };
-    }
-    if (hadUnusualCharacters) {
-        return { text: printable, problem: "unusual symbols were removed" };
-    }
-    return { text: printable };
+    return printable || NOT_FILLED;
 }
 
 function answered(value: string | null | undefined): string {
-    return preparePdfText(value).text;
+    return preparePdfText(value);
 }
 
 function formatAmount(value: number): string {
@@ -235,46 +222,30 @@ function formatAmount(value: number): string {
     return negative ? `-${amount}` : amount;
 }
 
-function kes(value: number | null | undefined): { text: string; problem?: string } {
-    if (value == null || !Number.isFinite(value)) return { text: "Not answered" };
-    if (Math.abs(value) > MAX_PRINTABLE_AMOUNT) {
-        return {
-            text: "Not a valid amount. Enter a normal figure in Kenyan shillings, or None if this does not apply.",
-            problem: "the number is too large to print",
-        };
-    }
-    return { text: `KES ${formatAmount(value)}` };
+function kes(value: number | null | undefined): string {
+    if (value == null || !Number.isFinite(value)) return NOT_FILLED;
+    if (Math.abs(value) > MAX_PRINTABLE_AMOUNT) return `KES ${value.toExponential(2)}`;
+    return `KES ${formatAmount(value)}`;
 }
 
 function share(part: number, total: number): string {
     if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return "0%";
-    if (Math.abs(part) > MAX_PRINTABLE_AMOUNT || Math.abs(total) > MAX_PRINTABLE_AMOUNT) {
-        return "Not a valid percentage";
-    }
     const pct = Math.round((part / total) * 1000) / 10;
-    if (!Number.isFinite(pct) || Math.abs(pct) > 1000) return "Not a valid percentage";
+    if (!Number.isFinite(pct)) return NOT_FILLED;
+    if (Math.abs(pct) > 1000) return `${pct.toExponential(2)}%`;
     return `${pct}%`;
 }
 
-function countAnswer(value: number | null): { text: string; problem?: string } {
-    if (value == null || !Number.isFinite(value)) return { text: "Not answered" };
-    if (Math.abs(value) > 1_000_000) {
-        return {
-            text: "Not a valid count. Enter a normal number, or None if this does not apply.",
-            problem: "the number is too large to print",
-        };
-    }
-    return { text: String(value) };
+function countAnswer(value: number | null): string {
+    if (value == null || !Number.isFinite(value)) return NOT_FILLED;
+    if (Math.abs(value) > 1_000_000) return value.toExponential(2);
+    return String(value);
 }
 
-function percentAnswer(value: number): { text: string; problem?: string } {
-    if (!Number.isFinite(value) || Math.abs(value) > 1000) {
-        return {
-            text: "Not a valid percentage. Enter a number from 0 to 100.",
-            problem: "the percentage is not a usable number",
-        };
-    }
-    return { text: `${value}%` };
+function percentAnswer(value: number): string {
+    if (!Number.isFinite(value)) return NOT_FILLED;
+    if (Math.abs(value) > 1000) return `${value.toExponential(2)}%`;
+    return `${value}%`;
 }
 
 function formatStamp(value: unknown): string | null {
@@ -338,40 +309,22 @@ export function buildMatchingGrantPdfModel(
     const jobs = filterFilledJobs(view.jobs);
     const documents = countMandatoryMgDocumentsEnclosed(view.documents);
     const acceptedAt = formatStamp(context.declarationAcceptedAt);
-    const adjustments: string[] = [];
-    const money = (question: string, value: number | null | undefined) => {
-        const formatted = kes(value);
-        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
-        return formatted.text;
-    };
-    const count = (question: string, value: number | null) => {
-        const formatted = countAnswer(value);
-        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
-        return formatted.text;
-    };
-    const percent = (question: string, value: number) => {
-        const formatted = percentAnswer(value);
-        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
-        return formatted.text;
-    };
-    const textAnswer = (question: string, value: string | null | undefined) => {
-        const prepared = preparePdfText(value);
-        if (prepared.problem) adjustments.push(`${question} (${prepared.problem})`);
-        return prepared.text;
-    };
+    const money = (_question: string, value: number | null | undefined) => kes(value);
+    const count = (_question: string, value: number | null) => countAnswer(value);
+    const percent = (_question: string, value: number) => percentAnswer(value);
+    const textAnswer = (_question: string, value: string | null | undefined) => preparePdfText(value);
 
     return {
-        enterpriseName: preparePdfText(enterpriseName).text,
+        enterpriseName: preparePdfText(enterpriseName) === NOT_FILLED ? "Enterprise" : preparePdfText(enterpriseName),
         statusLabel: statusLabel(view.status),
         trackLabel: context.track === "acceleration" ? "Accelerator" : "Foundation",
-        annualRevenue: revenue > 0 && revenue <= MAX_PRINTABLE_AMOUNT ? `KES ${formatAmount(revenue)}` : revenue > MAX_PRINTABLE_AMOUNT ? "Not a valid amount" : "Not set",
+        annualRevenue: revenue > 0 ? kes(revenue) : NOT_FILLED,
         bireShare: share(view.bireGrantAmount, view.totalProjectAmount),
         enterpriseShare: share(view.enterpriseContributionAmount, view.totalProjectAmount),
         generatedAt: formatStamp(generatedAt) ?? generatedAt.toISOString(),
         updatedAt: formatStamp(context.updatedAt),
         returnReason: context.returnReason?.trim() ? context.returnReason.trim() : null,
         fileName: matchingGrantPdfFileName(enterpriseName),
-        adjustments,
         sections: [
             section("1. Enterprise identification", [
                 field("Enterprise name", textAnswer("Enterprise name", view.enterprise.name)),
@@ -413,7 +366,7 @@ export function buildMatchingGrantPdfModel(
                         field("Category", textAnswer(`Owner / partner ${index + 1} category`, row.category)),
                     ],
                 })),
-                "No other owners or partners were added."
+                NOT_FILLED
             ),
             section("4. Programme engagement", [
                 field("BIRE client ID", textAnswer("BIRE client ID", view.programme.bireClientId)),
@@ -521,7 +474,7 @@ export function buildMatchingGrantPdfModel(
                         ),
                     ],
                 })),
-                budget.length === 0 ? "No budget lines were added." : undefined
+                budget.length === 0 ? NOT_FILLED : undefined
             ),
             section(
                 "11. Implementation milestones",
@@ -535,7 +488,7 @@ export function buildMatchingGrantPdfModel(
                         field("Verification method", textAnswer(`Milestone ${index + 1} verification`, row.verificationMethod)),
                     ],
                 })),
-                "No implementation milestones were added."
+                NOT_FILLED
             ),
             section(
                 "12. Job creation plan",
@@ -550,7 +503,7 @@ export function buildMatchingGrantPdfModel(
                         field("Total", count(`Job row ${index + 1} total`, (row.women || 0) + (row.youth || 0) + (row.pwd || 0))),
                     ],
                 })),
-                "No job creation rows were added."
+                NOT_FILLED
             ),
             section("13. Supporting documents", [
                 field("Mandatory documents enclosed", `${documents.enclosed} of ${documents.total}`),
@@ -572,7 +525,7 @@ export function buildMatchingGrantPdfModel(
 
 function documentAnswer(row: MatchingGrantApplicationView["documents"][number]): string {
     const requirement = row.mandatory === "Yes" ? "Mandatory" : row.mandatory;
-    if (!row.url.trim()) return `Not attached (${requirement})`;
+    if (!row.url.trim()) return NOT_FILLED;
     const name = row.fileName?.trim() || "File attached";
     const lines = [`Attached - ${name} (${requirement})`];
     if (row.sourceLabel?.trim()) lines.push(row.sourceLabel.trim());
@@ -631,16 +584,7 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
                 {model.returnReason ? (
                     <View style={styles.notice}>
                         <Text style={styles.noticeLabel}>Returned for correction</Text>
-                        <Text>{preparePdfText(model.returnReason).text}</Text>
-                    </View>
-                ) : null}
-
-                {model.adjustments.length > 0 ? (
-                    <View style={styles.notice}>
-                        <Text style={styles.noticeLabel}>Some answers could not be printed as entered</Text>
-                        <Text>
-                            {`The rest of this application is included. Correct these answers, using a normal value or None where a question does not apply, then download again if you need them in full: ${model.adjustments.join("; ")}.`}
-                        </Text>
+                        <Text>{preparePdfText(model.returnReason)}</Text>
                     </View>
                 ) : null}
 
@@ -668,7 +612,7 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
                     style={styles.footer}
                     fixed
                     render={({ pageNumber, totalPages }) =>
-                        `BIRE Programme · Access to Finance · Matching Grant application · Page ${pageNumber} of ${totalPages}`
+                        `BIRE Programme - Access to Finance - Matching Grant application - Page ${pageNumber} of ${totalPages}`
                     }
                 />
             </Page>
@@ -676,19 +620,23 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
     );
 }
 
-export function explainMatchingGrantPdfFailure(error: unknown, adjustments: string[] = []): string {
-    const listed = adjustments.slice(0, 6).join("; ");
-    const correction = listed
-        ? ` Correct these answers, using a normal value or None where a question does not apply, then download again: ${listed}.`
-        : " If a step is marked in red, open it and replace any oversized number, long unbroken web link, or unusual symbol. Use None where a question does not apply, then download again.";
-    const message = error instanceof Error ? error.message : "";
-    if (/unsupported number/i.test(message)) {
-        return `The PDF could not be created because an answer contains a value the document cannot print.${correction}`;
-    }
-    return `The PDF could not be created.${correction}`;
+let hyphenationReady = false;
+
+function ensurePdfHyphenation() {
+    if (hyphenationReady) return;
+    Font.registerHyphenationCallback((word) => {
+        if (word.length <= 24) return [word];
+        const parts: string[] = [];
+        for (let index = 0; index < word.length; index += 24) {
+            parts.push(word.slice(index, index + 24));
+        }
+        return parts;
+    });
+    hyphenationReady = true;
 }
 
 export async function renderMatchingGrantApplicationPdf(model: MatchingGrantPdfModel): Promise<Buffer> {
+    ensurePdfHyphenation();
     const buffer = await renderToBuffer(<MatchingGrantApplicationPdfDocument model={model} />);
     return Buffer.from(buffer);
 }

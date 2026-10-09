@@ -484,8 +484,8 @@ export function MatchingGrantApplicationWizard({
             if (!response.ok) {
                 const body = await response.json().catch(() => null) as { error?: string } | null;
                 toast.error("Could not download the PDF", {
-                    description: body?.error ?? "If a step is marked in red, open it and correct the highlighted answers. Use None where a question does not apply, then try again.",
-                    duration: 12000,
+                    description: body?.error ?? "Try the download again.",
+                    duration: 8000,
                 });
                 return;
             }
@@ -501,7 +501,7 @@ export function MatchingGrantApplicationWizard({
             URL.revokeObjectURL(objectUrl);
         } catch {
             toast.error("Could not download the PDF", {
-                description: "Check your connection and try again. If a step is marked in red, correct those answers first.",
+                description: "Check your connection and try again.",
                 duration: 8000,
             });
         } finally {

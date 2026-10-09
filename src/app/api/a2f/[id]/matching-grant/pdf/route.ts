@@ -11,7 +11,6 @@ import {
 import { getA2fPipelineEntry } from "@/lib/actions/a2f-pipeline";
 import {
     buildMatchingGrantPdfModel,
-    explainMatchingGrantPdfFailure,
     renderMatchingGrantApplicationPdf,
 } from "@/lib/matching-grant-application-pdf";
 import {
@@ -86,16 +85,7 @@ export async function GET(
             updatedAt: record?.updatedAt,
             declarationAcceptedAt: declaration.acceptedAt,
         });
-        let pdf: Buffer;
-        try {
-            pdf = await renderMatchingGrantApplicationPdf(model);
-        } catch (error) {
-            console.error("Matching Grant application PDF failed", error);
-            return Response.json(
-                { error: explainMatchingGrantPdfFailure(error, model.adjustments) },
-                { status: 422 }
-            );
-        }
+        const pdf = await renderMatchingGrantApplicationPdf(model);
 
         return new Response(new Uint8Array(pdf), {
             headers: {
@@ -106,6 +96,6 @@ export async function GET(
         });
     } catch (error) {
         console.error("Matching Grant application PDF failed", error);
-        return Response.json({ error: explainMatchingGrantPdfFailure(error) }, { status: 500 });
+        return Response.json({ error: "Could not download the PDF. Try again." }, { status: 500 });
     }
 }
