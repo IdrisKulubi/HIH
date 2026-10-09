@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverExternalPackages: ['@neondatabase/serverless'],
+  serverExternalPackages: ['@neondatabase/serverless', 'pdfkit'],
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',

@@ -1,5 +1,4 @@
-import React from "react";
-import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import PDFDocument from "pdfkit";
 import {
     MATCHING_GRANT_CAPEX_CATEGORIES,
     filterFilledBudgetItems,
@@ -10,141 +9,6 @@ import {
 } from "@/lib/matching-grant-form-types";
 import { countMandatoryMgDocumentsEnclosed } from "@/lib/mg-supporting-documents";
 import { type MatchingGrantApplicationView } from "@/lib/matching-grant-application-view";
-
-const GREEN = "#0f5c45";
-const GREEN_SOFT = "#e7f3ee";
-const SLATE_900 = "#0f172a";
-const SLATE_600 = "#475569";
-const SLATE_200 = "#e2e8f0";
-
-const styles = StyleSheet.create({
-    page: {
-        paddingTop: 36,
-        paddingBottom: 52,
-        paddingHorizontal: 36,
-        fontSize: 9,
-        fontFamily: "Helvetica",
-        color: SLATE_900,
-        lineHeight: 1.4,
-    },
-    banner: {
-        backgroundColor: GREEN,
-        borderRadius: 4,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-        marginBottom: 14,
-    },
-    kicker: {
-        fontSize: 8,
-        color: "#d1fae5",
-        fontFamily: "Helvetica-Bold",
-        textTransform: "uppercase",
-        marginBottom: 3,
-    },
-    title: {
-        fontSize: 16,
-        fontFamily: "Helvetica-Bold",
-        color: "#ffffff",
-    },
-    subtitle: {
-        fontSize: 10,
-        color: "#d1fae5",
-        marginTop: 2,
-    },
-    enterprise: {
-        fontSize: 13,
-        fontFamily: "Helvetica-Bold",
-        marginBottom: 2,
-    },
-    meta: {
-        fontSize: 8,
-        color: SLATE_600,
-        marginBottom: 8,
-    },
-    metricRow: {
-        flexDirection: "row",
-        marginBottom: 12,
-    },
-    metric: {
-        width: 124,
-        marginRight: 8,
-        backgroundColor: GREEN_SOFT,
-        borderRadius: 4,
-        paddingVertical: 6,
-        paddingHorizontal: 8,
-    },
-    metricLabel: {
-        fontSize: 7,
-        color: SLATE_600,
-        marginBottom: 2,
-    },
-    metricValue: {
-        fontSize: 9,
-        fontFamily: "Helvetica-Bold",
-    },
-    notice: {
-        borderWidth: 1,
-        borderColor: "#fcd34d",
-        backgroundColor: "#fffbeb",
-        borderRadius: 4,
-        padding: 8,
-        marginBottom: 10,
-    },
-    noticeLabel: {
-        fontSize: 8,
-        fontFamily: "Helvetica-Bold",
-        marginBottom: 2,
-    },
-    section: {
-        marginBottom: 8,
-    },
-    sectionTitle: {
-        fontSize: 11,
-        fontFamily: "Helvetica-Bold",
-        color: GREEN,
-        borderBottomWidth: 1,
-        borderBottomColor: SLATE_200,
-        paddingBottom: 3,
-        marginTop: 8,
-        marginBottom: 6,
-    },
-    group: {
-        marginBottom: 6,
-        paddingLeft: 6,
-        borderLeftWidth: 2,
-        borderLeftColor: "#b7d9cc",
-    },
-    groupTitle: {
-        fontSize: 9,
-        fontFamily: "Helvetica-Bold",
-        marginBottom: 3,
-    },
-    qa: {
-        marginBottom: 5,
-    },
-    question: {
-        fontSize: 8,
-        fontFamily: "Helvetica-Bold",
-        color: SLATE_600,
-        marginBottom: 1,
-    },
-    answer: {
-        fontSize: 9,
-        color: SLATE_900,
-    },
-    footer: {
-        position: "absolute",
-        bottom: 22,
-        left: 36,
-        right: 36,
-        fontSize: 7,
-        color: SLATE_600,
-        textAlign: "center",
-        borderTopWidth: 1,
-        borderTopColor: SLATE_200,
-        paddingTop: 6,
-    },
-});
 
 export interface MatchingGrantPdfField {
     question: string;
@@ -321,8 +185,11 @@ export function buildMatchingGrantPdfModel(
         annualRevenue: revenue > 0 ? kes(revenue) : NOT_FILLED,
         bireShare: share(view.bireGrantAmount, view.totalProjectAmount),
         enterpriseShare: share(view.enterpriseContributionAmount, view.totalProjectAmount),
-        generatedAt: formatStamp(generatedAt) ?? generatedAt.toISOString(),
-        updatedAt: formatStamp(context.updatedAt),
+        generatedAt: preparePdfText(formatStamp(generatedAt) ?? generatedAt.toISOString()),
+        updatedAt: (() => {
+            const stamp = formatStamp(context.updatedAt);
+            return stamp ? preparePdfText(stamp) : null;
+        })(),
         returnReason: context.returnReason?.trim() ? context.returnReason.trim() : null,
         fileName: matchingGrantPdfFileName(enterpriseName),
         sections: [
@@ -525,118 +392,106 @@ export function buildMatchingGrantPdfModel(
 
 function documentAnswer(row: MatchingGrantApplicationView["documents"][number]): string {
     const requirement = row.mandatory === "Yes" ? "Mandatory" : row.mandatory;
-    if (!row.url.trim()) return NOT_FILLED;
+    const url = typeof row.url === "string" ? row.url.trim() : "";
+    if (!url) return NOT_FILLED;
     const name = row.fileName?.trim() || "File attached";
     const lines = [`Attached - ${name} (${requirement})`];
     if (row.sourceLabel?.trim()) lines.push(row.sourceLabel.trim());
-    lines.push(row.url.trim());
+    lines.push(url);
     return lines.join("\n");
 }
 
-function QuestionAnswer({ question, answer }: MatchingGrantPdfField) {
-    return (
-        <View style={styles.qa}>
-            <Text style={styles.question}>{question}</Text>
-            <Text style={styles.answer}>{answer}</Text>
-        </View>
-    );
-}
+const PAGE_MARGIN = 48;
+const CONTENT_WIDTH = 499;
 
-export function MatchingGrantApplicationPdfDocument({ model }: { model: MatchingGrantPdfModel }) {
-    return (
-        <Document
-            title={`Access to Finance application - ${model.enterpriseName}`}
-            author="BIRE Programme"
-            subject="Matching Grant application questions and answers"
-        >
-            <Page size="A4" style={styles.page}>
-                <View style={styles.banner}>
-                    <Text style={styles.kicker}>BIRE Innovation Fund</Text>
-                    <Text style={styles.title}>Access to Finance</Text>
-                    <Text style={styles.subtitle}>Matching Grant application - questions and answers</Text>
-                </View>
-
-                <Text style={styles.enterprise}>{model.enterpriseName}</Text>
-                <Text style={styles.meta}>
-                    {`Status: ${model.statusLabel}  ·  Downloaded ${model.generatedAt}`}
-                    {model.updatedAt ? `  ·  Last updated ${model.updatedAt}` : ""}
-                </Text>
-
-                <View style={styles.metricRow}>
-                    <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Track</Text>
-                        <Text style={styles.metricValue}>{model.trackLabel}</Text>
-                    </View>
-                    <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Annual revenue</Text>
-                        <Text style={styles.metricValue}>{model.annualRevenue}</Text>
-                    </View>
-                    <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>BIRE share</Text>
-                        <Text style={styles.metricValue}>{model.bireShare}</Text>
-                    </View>
-                    <View style={styles.metric}>
-                        <Text style={styles.metricLabel}>Enterprise share</Text>
-                        <Text style={styles.metricValue}>{model.enterpriseShare}</Text>
-                    </View>
-                </View>
-
-                {model.returnReason ? (
-                    <View style={styles.notice}>
-                        <Text style={styles.noticeLabel}>Returned for correction</Text>
-                        <Text>{preparePdfText(model.returnReason)}</Text>
-                    </View>
-                ) : null}
-
-                {model.sections.map((block) => (
-                    <View key={block.title} style={styles.section}>
-                        <Text style={styles.sectionTitle}>{block.title}</Text>
-                        {block.fields.map((item) => (
-                            <QuestionAnswer key={`${block.title}-${item.question}`} {...item} />
-                        ))}
-                        {block.groups.map((group) => (
-                            <View key={`${block.title}-${group.title}`} style={styles.group}>
-                                <Text style={styles.groupTitle}>{group.title}</Text>
-                                {group.fields.map((item) => (
-                                    <QuestionAnswer key={`${group.title}-${item.question}`} {...item} />
-                                ))}
-                            </View>
-                        ))}
-                        {block.groups.length === 0 && block.emptyMessage ? (
-                            <Text style={styles.answer}>{block.emptyMessage}</Text>
-                        ) : null}
-                    </View>
-                ))}
-
-                <Text
-                    style={styles.footer}
-                    fixed
-                    render={({ pageNumber, totalPages }) =>
-                        `BIRE Programme - Access to Finance - Matching Grant application - Page ${pageNumber} of ${totalPages}`
-                    }
-                />
-            </Page>
-        </Document>
-    );
-}
-
-let hyphenationReady = false;
-
-function ensurePdfHyphenation() {
-    if (hyphenationReady) return;
-    Font.registerHyphenationCallback((word) => {
-        if (word.length <= 24) return [word];
-        const parts: string[] = [];
-        for (let index = 0; index < word.length; index += 24) {
-            parts.push(word.slice(index, index + 24));
-        }
-        return parts;
+function writeLine(doc: PDFDocument, text: string, options: { size: number; font: string; color: string; gap?: number }) {
+    doc.font(options.font).fontSize(options.size).fillColor(options.color).text(preparePdfText(text), {
+        width: CONTENT_WIDTH,
     });
-    hyphenationReady = true;
+    if (options.gap) doc.moveDown(options.gap);
 }
 
 export async function renderMatchingGrantApplicationPdf(model: MatchingGrantPdfModel): Promise<Buffer> {
-    ensurePdfHyphenation();
-    const buffer = await renderToBuffer(<MatchingGrantApplicationPdfDocument model={model} />);
-    return Buffer.from(buffer);
+    const doc = new PDFDocument({
+        size: "A4",
+        margin: PAGE_MARGIN,
+        bufferPages: true,
+        info: {
+            Title: `Access to Finance application - ${model.enterpriseName}`,
+            Author: "BIRE Programme",
+            Subject: "Matching Grant application questions and answers",
+        },
+    });
+    const chunks: Buffer[] = [];
+    const finished = new Promise<Buffer>((resolve, reject) => {
+        doc.on("data", (chunk) => chunks.push(chunk));
+        doc.on("end", () => resolve(Buffer.concat(chunks)));
+        doc.on("error", reject);
+    });
+
+    doc.rect(PAGE_MARGIN, 36, CONTENT_WIDTH, 58).fill("#0f5c45");
+    doc.fillColor("#d1fae5").font("Helvetica-Bold").fontSize(8).text("BIRE INNOVATION FUND", PAGE_MARGIN + 12, 46, {
+        width: CONTENT_WIDTH - 24,
+        lineBreak: false,
+    });
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(16).text("Access to Finance", PAGE_MARGIN + 12, 58, {
+        width: CONTENT_WIDTH - 24,
+        lineBreak: false,
+    });
+    doc.fillColor("#d1fae5").font("Helvetica").fontSize(9).text("Matching Grant application - questions and answers", PAGE_MARGIN + 12, 78, {
+        width: CONTENT_WIDTH - 24,
+        lineBreak: false,
+    });
+    doc.y = 108;
+    doc.fillColor("#0f172a");
+
+    writeLine(doc, model.enterpriseName, { size: 13, font: "Helvetica-Bold", color: "#0f172a", gap: 0.15 });
+    writeLine(
+        doc,
+        `Status: ${model.statusLabel}    Downloaded ${model.generatedAt}${model.updatedAt ? `    Last updated ${model.updatedAt}` : ""}`,
+        { size: 8, font: "Helvetica", color: "#475569", gap: 0.4 }
+    );
+    writeLine(
+        doc,
+        `Track: ${model.trackLabel}    Annual revenue: ${model.annualRevenue}    BIRE share: ${model.bireShare}    Enterprise share: ${model.enterpriseShare}`,
+        { size: 9, font: "Helvetica-Bold", color: "#0f172a", gap: 0.6 }
+    );
+
+    if (model.returnReason) {
+        writeLine(doc, "Returned for correction", { size: 9, font: "Helvetica-Bold", color: "#92400e", gap: 0.1 });
+        writeLine(doc, model.returnReason, { size: 9, font: "Helvetica", color: "#0f172a", gap: 0.5 });
+    }
+
+    for (const block of model.sections) {
+        writeLine(doc, block.title, { size: 12, font: "Helvetica-Bold", color: "#0f5c45", gap: 0.25 });
+        for (const item of block.fields) {
+            writeLine(doc, item.question, { size: 8, font: "Helvetica-Bold", color: "#475569" });
+            writeLine(doc, item.answer, { size: 10, font: "Helvetica", color: "#0f172a", gap: 0.35 });
+        }
+        for (const group of block.groups) {
+            writeLine(doc, group.title, { size: 10, font: "Helvetica-Bold", color: "#0f172a", gap: 0.1 });
+            for (const item of group.fields) {
+                writeLine(doc, item.question, { size: 8, font: "Helvetica-Bold", color: "#475569" });
+                writeLine(doc, item.answer, { size: 10, font: "Helvetica", color: "#0f172a", gap: 0.3 });
+            }
+        }
+        if (block.groups.length === 0 && block.emptyMessage) {
+            writeLine(doc, block.emptyMessage, { size: 10, font: "Helvetica", color: "#0f172a", gap: 0.3 });
+        }
+    }
+
+    const range = doc.bufferedPageRange();
+    for (let index = 0; index < range.count; index += 1) {
+        doc.switchToPage(range.start + index);
+        doc.font("Helvetica").fontSize(8).fillColor("#475569").text(
+            `BIRE Programme - Access to Finance - Page ${index + 1} of ${range.count}`,
+            PAGE_MARGIN,
+            doc.page.height - 36,
+            { width: CONTENT_WIDTH, align: "center", lineBreak: false }
+        );
+    }
+
+    doc.end();
+    return finished;
 }
+
