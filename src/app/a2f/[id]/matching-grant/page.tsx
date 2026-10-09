@@ -483,7 +483,10 @@ export function MatchingGrantApplicationWizard({
             const response = await fetch(`/api/a2f/${a2fId}/matching-grant/pdf`);
             if (!response.ok) {
                 const body = await response.json().catch(() => null) as { error?: string } | null;
-                toast.error(body?.error ?? "Could not download the application PDF");
+                toast.error("Could not download the PDF", {
+                    description: body?.error ?? "If a step is marked in red, open it and correct the highlighted answers. Use None where a question does not apply, then try again.",
+                    duration: 12000,
+                });
                 return;
             }
             const blob = await response.blob();
@@ -497,7 +500,10 @@ export function MatchingGrantApplicationWizard({
             link.remove();
             URL.revokeObjectURL(objectUrl);
         } catch {
-            toast.error("Could not download the application PDF");
+            toast.error("Could not download the PDF", {
+                description: "Check your connection and try again. If a step is marked in red, correct those answers first.",
+                duration: 8000,
+            });
         } finally {
             setDownloadingPdf(false);
         }

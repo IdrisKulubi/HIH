@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { buildMatchingGrantPdfModel, renderMatchingGrantApplicationPdf } from "./matching-grant-application-pdf";
+import {
+    buildMatchingGrantPdfModel,
+    explainMatchingGrantPdfFailure,
+    renderMatchingGrantApplicationPdf,
+} from "./matching-grant-application-pdf";
 import { hydrateMatchingGrantApplication } from "./matching-grant-application-view";
 
 const entry = {
@@ -116,7 +120,27 @@ async function tests() {
     const pdf = await renderMatchingGrantApplicationPdf(model);
     assert.ok(pdf.length > 1000);
     assert.equal(pdf.subarray(0, 4).toString("utf8"), "%PDF");
-    console.log("matching grant application pdf ok", pdf.length);
+
+    const difficult = hydrateMatchingGrantApplication(entry, {
+        ...record,
+        financialOverview: { annualRevenue2025: -1.6897464143597548e22, employeeCount: 8 },
+        businessOverview: { businessDescription: "Fresh vegetables grown in the highlands" },
+    }, view.documents.map((row, index) => index === 0
+        ? { ...row, url: `https://files.example.com/${"a".repeat(280)}`, fileName: "national-id.pdf", confirmed: true }
+        : row));
+    difficult.business.businessDescription = "Fresh vegetables \u{1F33F} grown in the highlands";
+    const difficultModel = buildMatchingGrantPdfModel(difficult, {
+        pipelineRevenue: 2100000,
+        track: "acceleration",
+        generatedAt: new Date("2026-10-09T12:00:00.000Z"),
+    });
+    assert.ok(difficultModel.adjustments.some((item) => item.includes("Annual revenue 2025")));
+    assert.ok(difficultModel.adjustments.some((item) => item.includes("Business description")));
+    assert.match(explainMatchingGrantPdfFailure(new Error("unsupported number: -1.6897464143597548e+22"), difficultModel.adjustments), /Annual revenue 2025/);
+    const difficultPdf = await renderMatchingGrantApplicationPdf(difficultModel);
+    assert.equal(difficultPdf.subarray(0, 4).toString("utf8"), "%PDF");
+
+    console.log("matching grant application pdf ok", pdf.length, difficultPdf.length);
 }
 
 tests();

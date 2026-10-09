@@ -39,7 +39,6 @@ const styles = StyleSheet.create({
         color: "#d1fae5",
         fontFamily: "Helvetica-Bold",
         textTransform: "uppercase",
-        letterSpacing: 0.6,
         marginBottom: 3,
     },
     title: {
@@ -64,11 +63,11 @@ const styles = StyleSheet.create({
     },
     metricRow: {
         flexDirection: "row",
-        gap: 6,
         marginBottom: 12,
     },
     metric: {
-        flex: 1,
+        width: 124,
+        marginRight: 8,
         backgroundColor: GREEN_SOFT,
         borderRadius: 4,
         paddingVertical: 6,
@@ -175,6 +174,7 @@ export interface MatchingGrantPdfModel {
     updatedAt: string | null;
     returnReason: string | null;
     fileName: string;
+    adjustments: string[];
     sections: MatchingGrantPdfSection[];
 }
 
@@ -187,23 +187,94 @@ export interface MatchingGrantPdfContext {
     generatedAt?: Date;
 }
 
-function answered(value: string | null | undefined): string {
+const MAX_PRINTABLE_AMOUNT = 1_000_000_000_000;
+const UNUSUAL_CHARACTERS = /[^\n\r\t\x20-\x7E\u00A0-\u00FF]/;
+
+function preparePdfText(value: string | null | undefined): { text: string; problem?: string } {
     const trimmed = (value ?? "").trim();
-    return trimmed.length > 0 ? trimmed : "Not answered";
+    if (!trimmed) return { text: "Not answered" };
+
+    const normalized = trimmed
+        .replace(/[\u2018\u2019\u2032]/g, "'")
+        .replace(/[\u201C\u201D]/g, "\"")
+        .replace(/[\u2013\u2014\u2212]/g, "-")
+        .replace(/\u2026/g, "...")
+        .replace(/[\u00A0\u202F\u2007\u2009]/g, " ")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const hadUnusualCharacters = UNUSUAL_CHARACTERS.test(normalized);
+    const printable = normalized
+        .replace(new RegExp(UNUSUAL_CHARACTERS.source, "g"), "")
+        .replace(/[^\S\n]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+        .replace(/\S{48}/g, (token) => `${token} `);
+
+    if (!printable) {
+        return {
+            text: "Not answered. The original answer used symbols that cannot be printed in this PDF. Re-enter it in plain text, or type None if it does not apply.",
+            problem: "unusual symbols were removed and nothing readable was left",
+        };
+    }
+    if (hadUnusualCharacters) {
+        return { text: printable, problem: "unusual symbols were removed" };
+    }
+    return { text: printable };
 }
 
-function kes(value: number | null | undefined): string {
-    if (value == null || !Number.isFinite(value)) return "Not answered";
-    return `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 2 }).format(value)}`;
+function answered(value: string | null | undefined): string {
+    return preparePdfText(value).text;
 }
 
-function yesNo(value: boolean): string {
-    return value ? "Yes" : "No";
+function formatAmount(value: number): string {
+    const negative = value < 0;
+    const absolute = Math.abs(value);
+    const rounded = Math.round(absolute * 100) / 100;
+    const [whole, fraction] = rounded.toFixed(2).split(".");
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const amount = fraction === "00" ? grouped : `${grouped}.${fraction}`;
+    return negative ? `-${amount}` : amount;
+}
+
+function kes(value: number | null | undefined): { text: string; problem?: string } {
+    if (value == null || !Number.isFinite(value)) return { text: "Not answered" };
+    if (Math.abs(value) > MAX_PRINTABLE_AMOUNT) {
+        return {
+            text: "Not a valid amount. Enter a normal figure in Kenyan shillings, or None if this does not apply.",
+            problem: "the number is too large to print",
+        };
+    }
+    return { text: `KES ${formatAmount(value)}` };
 }
 
 function share(part: number, total: number): string {
-    const pct = total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
+    if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return "0%";
+    if (Math.abs(part) > MAX_PRINTABLE_AMOUNT || Math.abs(total) > MAX_PRINTABLE_AMOUNT) {
+        return "Not a valid percentage";
+    }
+    const pct = Math.round((part / total) * 1000) / 10;
+    if (!Number.isFinite(pct) || Math.abs(pct) > 1000) return "Not a valid percentage";
     return `${pct}%`;
+}
+
+function countAnswer(value: number | null): { text: string; problem?: string } {
+    if (value == null || !Number.isFinite(value)) return { text: "Not answered" };
+    if (Math.abs(value) > 1_000_000) {
+        return {
+            text: "Not a valid count. Enter a normal number, or None if this does not apply.",
+            problem: "the number is too large to print",
+        };
+    }
+    return { text: String(value) };
+}
+
+function percentAnswer(value: number): { text: string; problem?: string } {
+    if (!Number.isFinite(value) || Math.abs(value) > 1000) {
+        return {
+            text: "Not a valid percentage. Enter a number from 0 to 100.",
+            problem: "the percentage is not a usable number",
+        };
+    }
+    return { text: `${value}%` };
 }
 
 function formatStamp(value: unknown): string | null {
@@ -267,45 +338,67 @@ export function buildMatchingGrantPdfModel(
     const jobs = filterFilledJobs(view.jobs);
     const documents = countMandatoryMgDocumentsEnclosed(view.documents);
     const acceptedAt = formatStamp(context.declarationAcceptedAt);
+    const adjustments: string[] = [];
+    const money = (question: string, value: number | null | undefined) => {
+        const formatted = kes(value);
+        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
+        return formatted.text;
+    };
+    const count = (question: string, value: number | null) => {
+        const formatted = countAnswer(value);
+        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
+        return formatted.text;
+    };
+    const percent = (question: string, value: number) => {
+        const formatted = percentAnswer(value);
+        if (formatted.problem) adjustments.push(`${question} (${formatted.problem})`);
+        return formatted.text;
+    };
+    const textAnswer = (question: string, value: string | null | undefined) => {
+        const prepared = preparePdfText(value);
+        if (prepared.problem) adjustments.push(`${question} (${prepared.problem})`);
+        return prepared.text;
+    };
 
     return {
-        enterpriseName,
+        enterpriseName: preparePdfText(enterpriseName).text,
         statusLabel: statusLabel(view.status),
         trackLabel: context.track === "acceleration" ? "Accelerator" : "Foundation",
-        annualRevenue: revenue > 0 ? kes(revenue) : "Not set",
+        annualRevenue: revenue > 0 && revenue <= MAX_PRINTABLE_AMOUNT ? `KES ${formatAmount(revenue)}` : revenue > MAX_PRINTABLE_AMOUNT ? "Not a valid amount" : "Not set",
         bireShare: share(view.bireGrantAmount, view.totalProjectAmount),
         enterpriseShare: share(view.enterpriseContributionAmount, view.totalProjectAmount),
         generatedAt: formatStamp(generatedAt) ?? generatedAt.toISOString(),
         updatedAt: formatStamp(context.updatedAt),
         returnReason: context.returnReason?.trim() ? context.returnReason.trim() : null,
         fileName: matchingGrantPdfFileName(enterpriseName),
+        adjustments,
         sections: [
             section("1. Enterprise identification", [
-                field("Enterprise name", answered(view.enterprise.name)),
-                field("Trading name", answered(view.enterprise.tradingName)),
-                field("Registration number", answered(view.enterprise.registrationNumber)),
-                field("Legal structure", answered(view.enterprise.legalStructure)),
-                field("Registration date", answered(view.enterprise.registrationDate)),
-                field("Year operations started", answered(view.enterprise.yearOperationsStarted)),
-                field("Sector", answered(view.enterprise.sector)),
-                field("County", answered(view.enterprise.county)),
-                field("Sub-county / ward", answered(view.enterprise.subCountyWard)),
-                field("GPS / pin location", answered(view.enterprise.gpsLocation)),
-                field("Physical address", answered(view.enterprise.physicalAddress)),
-                field("Postal address", answered(view.enterprise.postalAddress)),
-                field("Ownership structure", answered(view.enterprise.ownershipStructure)),
+                field("Enterprise name", textAnswer("Enterprise name", view.enterprise.name)),
+                field("Trading name", textAnswer("Trading name", view.enterprise.tradingName)),
+                field("Registration number", textAnswer("Registration number", view.enterprise.registrationNumber)),
+                field("Legal structure", textAnswer("Legal structure", view.enterprise.legalStructure)),
+                field("Registration date", textAnswer("Registration date", view.enterprise.registrationDate)),
+                field("Year operations started", textAnswer("Year operations started", view.enterprise.yearOperationsStarted)),
+                field("Sector", textAnswer("Sector", view.enterprise.sector)),
+                field("County", textAnswer("County", view.enterprise.county)),
+                field("Sub-county / ward", textAnswer("Sub-county / ward", view.enterprise.subCountyWard)),
+                field("GPS / pin location", textAnswer("GPS / pin location", view.enterprise.gpsLocation)),
+                field("Physical address", textAnswer("Physical address", view.enterprise.physicalAddress)),
+                field("Postal address", textAnswer("Postal address", view.enterprise.postalAddress)),
+                field("Ownership structure", textAnswer("Ownership structure", view.enterprise.ownershipStructure)),
             ]),
             section("2. Lead entrepreneur", [
-                field("Full name", answered(view.lead.name)),
-                field("ID / passport number", answered(view.lead.idNumber)),
-                field("Gender", answered(view.lead.gender)),
-                field("Date of birth", answered(view.lead.dateOfBirth)),
-                field("Applicant category", answered(view.lead.applicantCategory)),
-                field("Role in enterprise", answered(view.lead.role)),
-                field("Phone", answered(view.lead.phone)),
-                field("Email", answered(view.lead.email)),
-                field("Education", answered(view.lead.education)),
-                field("Relevant experience", answered(view.lead.experience)),
+                field("Full name", textAnswer("Full name", view.lead.name)),
+                field("ID / passport number", textAnswer("ID / passport number", view.lead.idNumber)),
+                field("Gender", textAnswer("Gender", view.lead.gender)),
+                field("Date of birth", textAnswer("Date of birth", view.lead.dateOfBirth)),
+                field("Applicant category", textAnswer("Applicant category", view.lead.applicantCategory)),
+                field("Role in enterprise", textAnswer("Role in enterprise", view.lead.role)),
+                field("Phone", textAnswer("Phone", view.lead.phone)),
+                field("Email", textAnswer("Email", view.lead.email)),
+                field("Education", textAnswer("Education", view.lead.education)),
+                field("Relevant experience", textAnswer("Relevant experience", view.lead.experience)),
             ]),
             section(
                 "3. Other owners or partners",
@@ -313,117 +406,117 @@ export function buildMatchingGrantPdfModel(
                 owners.map((row, index) => ({
                     title: `Owner / partner ${index + 1}`,
                     fields: [
-                        field("Name", answered(row.name)),
-                        field("Role", answered(row.role)),
-                        field("Ownership %", `${row.ownershipPct}%`),
-                        field("Gender", answered(row.gender)),
-                        field("Category", answered(row.category)),
+                        field("Name", textAnswer(`Owner / partner ${index + 1} name`, row.name)),
+                        field("Role", textAnswer(`Owner / partner ${index + 1} role`, row.role)),
+                        field("Ownership %", percent(`Owner / partner ${index + 1} ownership`, row.ownershipPct)),
+                        field("Gender", textAnswer(`Owner / partner ${index + 1} gender`, row.gender)),
+                        field("Category", textAnswer(`Owner / partner ${index + 1} category`, row.category)),
                     ],
                 })),
                 "No other owners or partners were added."
             ),
             section("4. Programme engagement", [
-                field("BIRE client ID", answered(view.programme.bireClientId)),
-                field("Regional hub", answered(view.programme.regionalHub)),
-                field("TA lead", answered(view.programme.taLead)),
-                field("Date joined programme", answered(view.programme.dateJoined)),
-                field("Duration in TA support (months)", answered(view.programme.taDurationMonths)),
-                field("Key TA milestones achieved", answered(view.programme.taMilestones)),
-                field("Programme support received", answered(view.programme.supportReceived)),
+                field("BIRE client ID", textAnswer("BIRE client ID", view.programme.bireClientId)),
+                field("Regional hub", textAnswer("Regional hub", view.programme.regionalHub)),
+                field("TA lead", textAnswer("TA lead", view.programme.taLead)),
+                field("Date joined programme", textAnswer("Date joined programme", view.programme.dateJoined)),
+                field("Duration in TA support (months)", textAnswer("Duration in TA support (months)", view.programme.taDurationMonths)),
+                field("Key TA milestones achieved", textAnswer("Key TA milestones achieved", view.programme.taMilestones)),
+                field("Programme support received", textAnswer("Programme support received", view.programme.supportReceived)),
             ]),
             section("5. Financial overview", [
-                field("Annual revenue 2025 (KES)", kes(view.financial.annualRevenue2025)),
-                field("Annual revenue 2024 (KES)", kes(view.financial.annualRevenue2024)),
-                field("Annual revenue 2023 (KES)", kes(view.financial.annualRevenue2023)),
-                field("Average monthly revenue (KES)", kes(view.financial.monthlyRevenue)),
-                field("Monthly operating costs (KES)", kes(view.financial.monthlyOperatingCosts)),
-                field("Profitability", answered(view.financial.profitability)),
-                field("Full-time employees", view.financial.employeeCount == null ? "Not answered" : String(view.financial.employeeCount)),
-                field("Casual / contract workers", view.financial.casualWorkers == null ? "Not answered" : String(view.financial.casualWorkers)),
-                field("Financial recordkeeping status", answered(view.financial.recordkeepingStatus)),
-                field("Revenue streams", answered(view.financial.revenueStreams)),
-                field("Financial obligations", answered(view.financial.financialObligations)),
-                field("Additional financial notes", answered(view.financial.narrative)),
+                field("Annual revenue 2025 (KES)", money("Annual revenue 2025", view.financial.annualRevenue2025)),
+                field("Annual revenue 2024 (KES)", money("Annual revenue 2024", view.financial.annualRevenue2024)),
+                field("Annual revenue 2023 (KES)", money("Annual revenue 2023", view.financial.annualRevenue2023)),
+                field("Average monthly revenue (KES)", money("Average monthly revenue", view.financial.monthlyRevenue)),
+                field("Monthly operating costs (KES)", money("Monthly operating costs", view.financial.monthlyOperatingCosts)),
+                field("Profitability", textAnswer("Profitability", view.financial.profitability)),
+                field("Full-time employees", count("Full-time employees", view.financial.employeeCount)),
+                field("Casual / contract workers", count("Casual / contract workers", view.financial.casualWorkers)),
+                field("Financial recordkeeping status", textAnswer("Financial recordkeeping status", view.financial.recordkeepingStatus)),
+                field("Revenue streams", textAnswer("Revenue streams", view.financial.revenueStreams)),
+                field("Financial obligations", textAnswer("Financial obligations", view.financial.financialObligations)),
+                field("Additional financial notes", textAnswer("Additional financial notes", view.financial.narrative)),
             ]),
             section("6. Grant request and co-investment", [
-                field("Project title", answered(view.projectTitle)),
-                field("Total project investment (KES)", kes(view.totalProjectAmount)),
-                field("BIRE grant amount (KES)", kes(view.bireGrantAmount)),
-                field("Enterprise contribution (KES)", kes(view.enterpriseContributionAmount)),
-                field("Preferred co-investment percentage", `${view.preferredCoInvestmentPct}%`),
-                field("Co-investment source", answered(view.coInvestmentSource)),
-                field("Why is this funding needed now?", answered(view.fundingNeed)),
-                field("What would happen without this grant?", answered(view.withoutGrantImpact)),
-                field("Co-investment notes / justification", answered(view.coInvestmentJustification)),
+                field("Project title", textAnswer("Project title", view.projectTitle)),
+                field("Total project investment (KES)", money("Total project investment", view.totalProjectAmount)),
+                field("BIRE grant amount (KES)", money("BIRE grant amount", view.bireGrantAmount)),
+                field("Enterprise contribution (KES)", money("Enterprise contribution", view.enterpriseContributionAmount)),
+                field("Preferred co-investment percentage", percent("Preferred co-investment percentage", view.preferredCoInvestmentPct)),
+                field("Co-investment source", textAnswer("Co-investment source", view.coInvestmentSource)),
+                field("Why is this funding needed now?", textAnswer("Why is this funding needed now?", view.fundingNeed)),
+                field("What would happen without this grant?", textAnswer("What would happen without this grant?", view.withoutGrantImpact)),
+                field("Co-investment notes / justification", textAnswer("Co-investment notes / justification", view.coInvestmentJustification)),
                 field(
                     "CAPEX-only confirmation",
                     view.capexOnlyConfirmed
-                        ? "Yes — the request is for CAPEX only (productive equipment, technology adoption, climate-resilient infrastructure, or operational upgrades)."
+                        ? "Yes - the request is for CAPEX only (productive equipment, technology adoption, climate-resilient infrastructure, or operational upgrades)."
                         : "No"
                 ),
             ]),
             section("7. Other funding and leverage", [
-                field("Other grants", answered(view.otherFunding.otherGrants)),
-                field("Loans", answered(view.otherFunding.loans)),
-                field("Investors", answered(view.otherFunding.investors)),
-                field("Own savings", answered(view.otherFunding.ownSavings)),
-                field("Future investment / lender leverage", answered(view.otherFunding.leveragePotential)),
-                field("Summary / additional notes", answered(view.otherFunding.description)),
+                field("Other grants", textAnswer("Other grants", view.otherFunding.otherGrants)),
+                field("Loans", textAnswer("Loans", view.otherFunding.loans)),
+                field("Investors", textAnswer("Investors", view.otherFunding.investors)),
+                field("Own savings", textAnswer("Own savings", view.otherFunding.ownSavings)),
+                field("Future investment / lender leverage", textAnswer("Future investment / lender leverage", view.otherFunding.leveragePotential)),
+                field("Summary / additional notes", textAnswer("Summary / additional notes", view.otherFunding.description)),
             ]),
             section("8. Governance and compliance", [
-                field("Registration status", answered(view.governance.registrationStatus)),
-                field("KRA PIN", answered(view.governance.kraPin)),
-                field("Sector licenses / permits", answered(view.governance.licensesPermits)),
-                field("Tax compliance", answered(view.governance.taxCompliance)),
-                field("Litigation or disputes", answered(view.governance.litigationDisputes)),
-                field("Previous grant / programme funding", answered(view.governance.previousProgrammeFunding)),
-                field("Key risks", answered(view.governance.risks)),
-                field("Mitigation plan", answered(view.governance.mitigationPlan)),
-                field("Compliance gaps", answered(view.governance.complianceGaps)),
-                field("Additional notes", answered(view.governance.notes)),
+                field("Registration status", textAnswer("Registration status", view.governance.registrationStatus)),
+                field("KRA PIN", textAnswer("KRA PIN", view.governance.kraPin)),
+                field("Sector licenses / permits", textAnswer("Sector licenses / permits", view.governance.licensesPermits)),
+                field("Tax compliance", textAnswer("Tax compliance", view.governance.taxCompliance)),
+                field("Litigation or disputes", textAnswer("Litigation or disputes", view.governance.litigationDisputes)),
+                field("Previous grant / programme funding", textAnswer("Previous grant / programme funding", view.governance.previousProgrammeFunding)),
+                field("Key risks", textAnswer("Key risks", view.governance.risks)),
+                field("Mitigation plan", textAnswer("Mitigation plan", view.governance.mitigationPlan)),
+                field("Compliance gaps", textAnswer("Compliance gaps", view.governance.complianceGaps)),
+                field("Additional notes", textAnswer("Additional notes", view.governance.notes)),
             ]),
             section("9. Business, financial and impact overview", [
-                field("Business description", answered(view.business.businessDescription)),
-                field("Problem solved", answered(view.business.problemSolved)),
-                field("Value chain node", answered(view.business.valueChainNode)),
-                field("Products / services", answered(view.business.productsServices)),
-                field("Target market and estimated size", answered(view.business.targetMarket)),
-                field("Target customers", answered(view.business.targetCustomers)),
-                field("Marketing and sales strategy", answered(view.business.marketingSalesStrategy)),
-                field("Competitive advantages", answered(view.business.competitiveAdvantages)),
-                field("Projected monthly revenue after investment", answered(view.projectedMonthlyRevenue)),
-                field("Projected annual revenue after investment", answered(view.projectedAnnualRevenue)),
-                field("Projected revenue growth rate", answered(view.projectedGrowthRate)),
-                field("Projection assumptions", answered(view.projectionAssumptions)),
-                field("Employment terms", answered(view.employmentTerms)),
-                field("Inclusion strategy", answered(view.inclusionStrategy)),
-                field("Environmental / climate impact", answered(view.environmentalImpact)),
-                field("Environmental outcome indicators", answered(view.environmentalIndicators)),
-                field("Value chain / community impact", answered(view.communityImpact)),
-                field("Innovation element", answered(view.innovationElement)),
+                field("Business description", textAnswer("Business description", view.business.businessDescription)),
+                field("Problem solved", textAnswer("Problem solved", view.business.problemSolved)),
+                field("Value chain node", textAnswer("Value chain node", view.business.valueChainNode)),
+                field("Products / services", textAnswer("Products / services", view.business.productsServices)),
+                field("Target market and estimated size", textAnswer("Target market and estimated size", view.business.targetMarket)),
+                field("Target customers", textAnswer("Target customers", view.business.targetCustomers)),
+                field("Marketing and sales strategy", textAnswer("Marketing and sales strategy", view.business.marketingSalesStrategy)),
+                field("Competitive advantages", textAnswer("Competitive advantages", view.business.competitiveAdvantages)),
+                field("Projected monthly revenue after investment", textAnswer("Projected monthly revenue after investment", view.projectedMonthlyRevenue)),
+                field("Projected annual revenue after investment", textAnswer("Projected annual revenue after investment", view.projectedAnnualRevenue)),
+                field("Projected revenue growth rate", textAnswer("Projected revenue growth rate", view.projectedGrowthRate)),
+                field("Projection assumptions", textAnswer("Projection assumptions", view.projectionAssumptions)),
+                field("Employment terms", textAnswer("Employment terms", view.employmentTerms)),
+                field("Inclusion strategy", textAnswer("Inclusion strategy", view.inclusionStrategy)),
+                field("Environmental / climate impact", textAnswer("Environmental / climate impact", view.environmentalImpact)),
+                field("Environmental outcome indicators", textAnswer("Environmental outcome indicators", view.environmentalIndicators)),
+                field("Value chain / community impact", textAnswer("Value chain / community impact", view.communityImpact)),
+                field("Innovation element", textAnswer("Innovation element", view.innovationElement)),
             ]),
             section(
-                "10. Eligible use of funds — detailed budget",
+                "10. Eligible use of funds - detailed budget",
                 [
                     field(
                         "Use-of-funds confirmation",
                         view.useOfFundsAcknowledged
-                            ? "Yes — the budget excludes personal expenses, loan repayments, and routine overhead costs not linked to the approved CAPEX investment."
+                            ? "Yes - the budget excludes personal expenses, loan repayments, and routine overhead costs not linked to the approved CAPEX investment."
                             : "No"
                     ),
                 ],
                 budget.map((row, index) => ({
                     title: `Budget line ${index + 1}`,
                     fields: [
-                        field("Investment item", answered(row.item)),
+                        field("Investment item", textAnswer(`Budget line ${index + 1} item`, row.item)),
                         field("CAPEX category", capexCategoryLabel(row.category)),
-                        field("Total cost", kes(row.totalCost)),
-                        field("BIRE grant", kes(row.bireGrant)),
-                        field("Enterprise contribution", kes(row.enterpriseContribution)),
+                        field("Total cost", money(`Budget line ${index + 1} total cost`, row.totalCost)),
+                        field("BIRE grant", money(`Budget line ${index + 1} BIRE grant`, row.bireGrant)),
+                        field("Enterprise contribution", money(`Budget line ${index + 1} enterprise contribution`, row.enterpriseContribution)),
                         field(
                             "Confirmed CAPEX-eligible item",
                             row.confirmedEligible
-                                ? "Yes — not a personal expense, loan repayment, or unrelated overhead."
+                                ? "Yes - not a personal expense, loan repayment, or unrelated overhead."
                                 : "No"
                         ),
                     ],
@@ -436,10 +529,10 @@ export function buildMatchingGrantPdfModel(
                 milestones.map((row, index) => ({
                     title: `Milestone ${index + 1}`,
                     fields: [
-                        field("Activity / milestone", answered(row.activity)),
-                        field("Expected completion", answered(row.completionDate)),
-                        field("Disbursement tranche", answered(row.tranche)),
-                        field("Verification method", answered(row.verificationMethod)),
+                        field("Activity / milestone", textAnswer(`Milestone ${index + 1} activity`, row.activity)),
+                        field("Expected completion", textAnswer(`Milestone ${index + 1} completion`, row.completionDate)),
+                        field("Disbursement tranche", textAnswer(`Milestone ${index + 1} tranche`, row.tranche)),
+                        field("Verification method", textAnswer(`Milestone ${index + 1} verification`, row.verificationMethod)),
                     ],
                 })),
                 "No implementation milestones were added."
@@ -450,25 +543,25 @@ export function buildMatchingGrantPdfModel(
                 jobs.map((row, index) => ({
                     title: `Job row ${index + 1}`,
                     fields: [
-                        field("Role / job type", answered(row.role)),
-                        field("Women", String(row.women || 0)),
-                        field("Youth", String(row.youth || 0)),
-                        field("PWD", String(row.pwd || 0)),
-                        field("Total", String((row.women || 0) + (row.youth || 0) + (row.pwd || 0))),
+                        field("Role / job type", textAnswer(`Job row ${index + 1} role`, row.role)),
+                        field("Women", count(`Job row ${index + 1} women`, row.women)),
+                        field("Youth", count(`Job row ${index + 1} youth`, row.youth)),
+                        field("PWD", count(`Job row ${index + 1} PWD`, row.pwd)),
+                        field("Total", count(`Job row ${index + 1} total`, (row.women || 0) + (row.youth || 0) + (row.pwd || 0))),
                     ],
                 })),
                 "No job creation rows were added."
             ),
             section("13. Supporting documents", [
                 field("Mandatory documents enclosed", `${documents.enclosed} of ${documents.total}`),
-                ...view.documents.map((row) => field(row.document, documentAnswer(row))),
+                ...view.documents.map((row) => field(row.document, textAnswer(row.document, documentAnswer(row)))),
             ]),
             section("14. Declaration", [
-                field("Applicant full name", answered(view.declarationName)),
+                field("Applicant full name", textAnswer("Applicant full name", view.declarationName)),
                 field(
                     "Declaration",
                     view.declarationAccepted
-                        ? "Accepted — the applicant declares that all information is true, complete, and subject to verification."
+                        ? "Accepted - the applicant declares that all information is true, complete, and subject to verification."
                         : "Not accepted"
                 ),
                 ...(acceptedAt ? [field("Declaration accepted at", acceptedAt)] : []),
@@ -481,7 +574,7 @@ function documentAnswer(row: MatchingGrantApplicationView["documents"][number]):
     const requirement = row.mandatory === "Yes" ? "Mandatory" : row.mandatory;
     if (!row.url.trim()) return `Not attached (${requirement})`;
     const name = row.fileName?.trim() || "File attached";
-    const lines = [`Attached — ${name} (${requirement})`];
+    const lines = [`Attached - ${name} (${requirement})`];
     if (row.sourceLabel?.trim()) lines.push(row.sourceLabel.trim());
     lines.push(row.url.trim());
     return lines.join("\n");
@@ -489,7 +582,7 @@ function documentAnswer(row: MatchingGrantApplicationView["documents"][number]):
 
 function QuestionAnswer({ question, answer }: MatchingGrantPdfField) {
     return (
-        <View style={styles.qa} wrap={answer.length < 240 ? false : undefined}>
+        <View style={styles.qa}>
             <Text style={styles.question}>{question}</Text>
             <Text style={styles.answer}>{answer}</Text>
         </View>
@@ -499,7 +592,7 @@ function QuestionAnswer({ question, answer }: MatchingGrantPdfField) {
 export function MatchingGrantApplicationPdfDocument({ model }: { model: MatchingGrantPdfModel }) {
     return (
         <Document
-            title={`Access to Finance application — ${model.enterpriseName}`}
+            title={`Access to Finance application - ${model.enterpriseName}`}
             author="BIRE Programme"
             subject="Matching Grant application questions and answers"
         >
@@ -507,7 +600,7 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
                 <View style={styles.banner}>
                     <Text style={styles.kicker}>BIRE Innovation Fund</Text>
                     <Text style={styles.title}>Access to Finance</Text>
-                    <Text style={styles.subtitle}>Matching Grant application — questions and answers</Text>
+                    <Text style={styles.subtitle}>Matching Grant application - questions and answers</Text>
                 </View>
 
                 <Text style={styles.enterprise}>{model.enterpriseName}</Text>
@@ -538,7 +631,16 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
                 {model.returnReason ? (
                     <View style={styles.notice}>
                         <Text style={styles.noticeLabel}>Returned for correction</Text>
-                        <Text>{model.returnReason}</Text>
+                        <Text>{preparePdfText(model.returnReason).text}</Text>
+                    </View>
+                ) : null}
+
+                {model.adjustments.length > 0 ? (
+                    <View style={styles.notice}>
+                        <Text style={styles.noticeLabel}>Some answers could not be printed as entered</Text>
+                        <Text>
+                            {`The rest of this application is included. Correct these answers, using a normal value or None where a question does not apply, then download again if you need them in full: ${model.adjustments.join("; ")}.`}
+                        </Text>
                     </View>
                 ) : null}
 
@@ -572,6 +674,18 @@ export function MatchingGrantApplicationPdfDocument({ model }: { model: Matching
             </Page>
         </Document>
     );
+}
+
+export function explainMatchingGrantPdfFailure(error: unknown, adjustments: string[] = []): string {
+    const listed = adjustments.slice(0, 6).join("; ");
+    const correction = listed
+        ? ` Correct these answers, using a normal value or None where a question does not apply, then download again: ${listed}.`
+        : " If a step is marked in red, open it and replace any oversized number, long unbroken web link, or unusual symbol. Use None where a question does not apply, then download again.";
+    const message = error instanceof Error ? error.message : "";
+    if (/unsupported number/i.test(message)) {
+        return `The PDF could not be created because an answer contains a value the document cannot print.${correction}`;
+    }
+    return `The PDF could not be created.${correction}`;
 }
 
 export async function renderMatchingGrantApplicationPdf(model: MatchingGrantPdfModel): Promise<Buffer> {
