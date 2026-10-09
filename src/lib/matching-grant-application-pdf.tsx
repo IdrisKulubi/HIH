@@ -404,7 +404,7 @@ function documentAnswer(row: MatchingGrantApplicationView["documents"][number]):
 const PAGE_MARGIN = 48;
 const CONTENT_WIDTH = 499;
 
-function writeLine(doc: PDFDocument, text: string, options: { size: number; font: string; color: string; gap?: number }) {
+function writeLine(doc: InstanceType<typeof PDFDocument>, text: string, options: { size: number; font: string; color: string; gap?: number }) {
     doc.font(options.font).fontSize(options.size).fillColor(options.color).text(preparePdfText(text), {
         width: CONTENT_WIDTH,
     });
