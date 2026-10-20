@@ -22,9 +22,11 @@ import {
     parseGovernanceCompliance,
     resolveAnnualRevenueForEligibility,
     serializeFinancialOverview,
-    validateMatchingGrantSubmitFields,
     type MatchingGrantOfficialUse,
 } from "@/lib/matching-grant-form-types";
+import {
+    validateMatchingGrantSubmitPayload,
+} from "@/lib/matching-grant-validation";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import {
     A2F_STAFF_ROLES,
@@ -37,13 +39,17 @@ import { sendMatchingGrantSubmissionEmail } from "@/lib/email";
 
 const A2F_ROLES = A2F_STAFF_ROLES;
 
-export type MatchingGrantApplicationStatus = "draft" | "submitted";
+export type MatchingGrantApplicationStatus =
+    | "draft"
+    | "submitted"
+    | "returned_for_correction";
 
 export interface MatchingGrantApplicationInput {
     status?: MatchingGrantApplicationStatus;
     totalProjectAmount: number;
     bireGrantAmount: number;
     enterpriseContributionAmount: number;
+    preferredCoInvestmentPct?: number;
     coInvestmentSource?: string;
     coInvestmentJustification?: string;
     projectTitle?: string;
@@ -239,17 +245,36 @@ export async function saveMatchingGrantApplication(
         const validation = validateMatchingGrantApplication(input);
         const track = pipeline.application.track as A2fEnterpriseTrack;
         const fallbackRevenue = Number(pipeline.application.business?.revenueLastYear ?? 0);
-        const submitError = validateMatchingGrantSubmitFields({
-            status: input.status,
-            track,
-            capexOnlyConfirmed: input.capexOnlyConfirmed,
-            enterpriseIdentification: input.enterpriseIdentification,
-            leadEntrepreneur: input.leadEntrepreneur,
-            financialOverview: input.financialOverview,
-            budgetItems: input.budgetItems,
-            declaration: input.declaration,
-            fallbackRevenue,
-        });
+        const submitError = validateMatchingGrantSubmitPayload(
+            {
+                status: input.status,
+                projectTitle: input.projectTitle,
+                totalProjectAmount: input.totalProjectAmount,
+                bireGrantAmount: input.bireGrantAmount,
+                enterpriseContributionAmount: input.enterpriseContributionAmount,
+                preferredCoInvestmentPct: input.preferredCoInvestmentPct,
+                coInvestmentSource: input.coInvestmentSource,
+                coInvestmentJustification: input.coInvestmentJustification,
+                fundingNeed: input.fundingNeed,
+                withoutGrantImpact: input.withoutGrantImpact,
+                capexOnlyConfirmed: input.capexOnlyConfirmed,
+                enterpriseIdentification: input.enterpriseIdentification,
+                leadEntrepreneur: input.leadEntrepreneur,
+                programmeEngagement: input.programmeEngagement,
+                businessOverview: input.businessOverview,
+                financialOverview: input.financialOverview,
+                otherFunding: input.otherFunding,
+                governanceCompliance: input.governanceCompliance,
+                budgetItems: input.budgetItems,
+                implementationMilestones: input.implementationMilestones,
+                financialProjections: input.financialProjections,
+                jobCreationPlan: input.jobCreationPlan,
+                impact: input.impact,
+                supportingDocuments: input.supportingDocuments,
+                declaration: input.declaration,
+            },
+            { track, pipelineRevenue: fallbackRevenue }
+        );
         if (submitError) return errorResponse(submitError);
 
         const parsedFinancial = parseFinancialOverview(input.financialOverview);
@@ -268,6 +293,9 @@ export async function saveMatchingGrantApplication(
             totalProjectAmount: String(input.totalProjectAmount || 0),
             bireGrantAmount: String(input.bireGrantAmount || 0),
             enterpriseContributionAmount: String(input.enterpriseContributionAmount || 0),
+            preferredCoInvestmentPct: input.preferredCoInvestmentPct != null
+                ? String(input.preferredCoInvestmentPct)
+                : null,
             coInvestmentSource: input.coInvestmentSource ?? null,
             coInvestmentJustification: input.coInvestmentJustification ?? null,
             projectTitle: input.projectTitle ?? null,
@@ -301,11 +329,35 @@ export async function saveMatchingGrantApplication(
             );
         }
 
+        const isResubmit =
+            isApplicant &&
+            existing?.status === "returned_for_correction" &&
+            input.status === "submitted";
+
+        if (isApplicant && existing?.status === "returned_for_correction" && input.status !== "submitted") {
+            // Applicants may only save draft edits while correcting; final submit clears the return.
+            // Allow draft saves with status omitted or explicit draft during correction.
+        }
+
         let id: number;
         if (existing) {
+            const updateValues =
+                isResubmit
+                    ? {
+                          ...values,
+                          status: "submitted" as const,
+                          returnReason: null,
+                          returnedAt: null,
+                          returnedById: null,
+                          returnedToEdoId: null,
+                      }
+                    : existing.status === "returned_for_correction" && isApplicant
+                      ? { ...values, status: "returned_for_correction" as const }
+                      : values;
+
             await db
                 .update(a2fMatchingGrantApplications)
-                .set(values)
+                .set(updateValues)
                 .where(eq(a2fMatchingGrantApplications.id, existing.id));
             id = existing.id;
         } else {
@@ -335,7 +387,11 @@ export async function saveMatchingGrantApplication(
         const isFirstSubmit =
             input.status === "submitted" && existing?.status !== "submitted";
 
-        if (isFirstSubmit && isApplicant && pipeline.application?.business?.applicant) {
+        if (
+            (isFirstSubmit || isResubmit) &&
+            isApplicant &&
+            pipeline.application?.business?.applicant
+        ) {
             const applicant = pipeline.application.business.applicant;
             const enterpriseName = pipeline.application.business.name;
             await sendMatchingGrantSubmissionEmail({

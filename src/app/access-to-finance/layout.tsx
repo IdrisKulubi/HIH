@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { Coins, ArrowLeft } from "@phosphor-icons/react/dist/ssr";
+import { ApplicantMatchingGrantGateShell } from "@/components/a2f/ApplicantMatchingGrantGateShell";
 
 export const metadata: Metadata = {
     title: "Access to Finance | BIRE Programme",
@@ -16,7 +17,7 @@ export default async function AccessToFinanceLayout({
     const role = session?.user?.role ?? "";
 
     if (!session?.user) {
-        redirect("/login");
+        redirect("/login?callbackUrl=%2Faccess-to-finance");
     }
 
     if (role !== "applicant" && role !== "admin") {
@@ -40,7 +41,9 @@ export default async function AccessToFinanceLayout({
                     </Link>
                 </div>
             </header>
-            <main className="flex-1">{children}</main>
+            <main className="flex-1">
+                <ApplicantMatchingGrantGateShell>{children}</ApplicantMatchingGrantGateShell>
+            </main>
         </div>
     );
 }

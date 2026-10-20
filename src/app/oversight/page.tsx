@@ -22,6 +22,10 @@ export default async function OversightDashboard() {
     preScreeningMyDrafts: 0,
     a2fDdAwaiting: 0,
     cdpReadyToFinalize: 0,
+    pendingCdpReports: 0,
+    pendingMentorshipSessions: 0,
+    melReviewPending: 0,
+    melReturnedToMe: 0,
   };
 
   return (

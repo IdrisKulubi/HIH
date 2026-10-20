@@ -4,6 +4,7 @@
 
 import type { A2fPipelineStatus } from "@/lib/a2f-constants";
 import { PIPELINE_STAGE_LABELS } from "@/lib/a2f-constants";
+import { getEffectivePipelineStatus } from "@/lib/a2f-pipeline-ui";
 
 export type WorkflowItemStatus = "complete" | "in_progress" | "pending" | "blocked";
 
@@ -302,16 +303,10 @@ export function getPipelineListHint(
         return "Grant ops";
     }
 
-    const status = entry.status ?? "";
-    const isPreScoringStage = [
-        "a2f_pipeline",
-        "due_diligence_initial",
-        "pre_ic_scoring",
-    ].includes(status);
-    if (entry.initialDdComplete && isPreScoringStage) {
-        return "Pre-IC scoring";
-    }
-
+    const status = getEffectivePipelineStatus({
+        status: entry.status ?? "",
+        initialDdComplete: entry.initialDdComplete,
+    });
     const hints: Record<string, string> = {
         a2f_pipeline: "Due diligence",
         due_diligence_initial: "Due diligence",

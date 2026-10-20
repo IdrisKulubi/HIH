@@ -15,12 +15,17 @@ import {
   Target,
   Users,
   ChartBar,
+  ChartLineUp,
   Calculator,
   ChatCircle,
   UserCheck,
   ArrowLeft,
   List,
   CaretDown,
+  MapPin,
+  Table,
+  Gear,
+  ArrowsClockwise,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +43,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { filterNavGroupsForRole, getStaffShellBrand } from "@/lib/staff/admin-shell-nav";
 
 type NavIcon = React.ComponentType<{ className?: string; weight?: "duotone" | "bold" }>;
 
@@ -85,7 +91,28 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/kyc", label: "KYC", icon: ShieldCheck },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },
+      { href: "/admin/cdp/approvals", label: "Report Approvals", icon: CheckCircle },
       { href: "/admin/mentorship", label: "Mentorship", icon: Users },
+      { href: "/admin/mentorship/approvals", label: "Session Approvals", icon: CheckCircle },
+      { href: "/admin/mentorship/approved", label: "Approved Sessions", icon: CheckCircle },
+      { href: "/admin/mentorship/analytics", label: "Mentorship Analytics", icon: ChartLineUp },
+    ],
+  },
+  {
+    label: "MEL",
+    match: (pathname) => pathname.startsWith("/admin/mel"),
+    items: [
+      { href: "/admin/mel", label: "MEL Configuration", icon: Target },
+      { href: "/admin/mel/monitoring", label: "Quarterly Monitoring", icon: ClipboardText },
+      { href: "/admin/mel/review", label: "MEL Review Queue", icon: CheckCircle },
+      { href: "/admin/mel/evidence", label: "Evidence Repository", icon: FileText },
+      { href: "/admin/mel/learning", label: "Learning Actions", icon: ChatCircle },
+      { href: "/admin/mel/reporting", label: "MEL Reporting", icon: ChartLineUp },
+      { href: "/admin/mel/programme-results", label: "Programme Results", icon: Table },
+      { href: "/admin/mel/gis", label: "Enterprise GIS", icon: MapPin },
+      { href: "/admin/mel/instruments", label: "MEL Instruments", icon: ClipboardText },
+      { href: "/admin/mel/imports", label: "MEL Imports", icon: ArrowsClockwise },
+      { href: "/admin/mel/operations", label: "MEL Operations", icon: Gear },
     ],
   },
   {
@@ -98,18 +125,29 @@ const NAV_GROUPS: NavGroup[] = [
       pathname.startsWith("/admin/users") ||
       pathname.startsWith("/admin/feedback") ||
       pathname.startsWith("/admin/export") ||
+      pathname.startsWith("/admin/enterprise-progress") ||
       pathname.startsWith("/admin/support"),
     items: [
+      { href: "/admin/enterprise-progress", label: "Enterprise Progress", icon: ChartLineUp },
       { href: "/admin/analytics", label: "Analytics", icon: ChartBar },
       { href: "/admin/scoring", label: "Scoring", icon: Calculator },
       { href: "/admin/review", label: "Review", icon: ChatCircle },
       { href: "/admin/assignments", label: "Assignments", icon: UserCheck },
+      { href: "/admin/users", label: "User Management", icon: Users },
+      { href: "/admin/feedback", label: "Feedback Emails", icon: ChatCircle },
+      { href: "/admin/export", label: "Export Data", icon: FileText },
     ],
   },
 ];
 
 function isLinkActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
+  if (href === "/admin/cdp") {
+    return pathname === "/admin/cdp" || /^\/admin\/cdp\/\d+/.test(pathname);
+  }
+  if (href === "/admin/mel") {
+    return pathname === "/admin/mel" || pathname.startsWith("/admin/mel/indicators");
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -156,7 +194,15 @@ function NavDropdown({ group, pathname }: { group: NavGroup; pathname: string })
   );
 }
 
-function MobileNav({ pathname }: { pathname: string }) {
+function MobileNav({
+  pathname,
+  navGroups,
+  mobileNavTitle,
+}: {
+  pathname: string;
+  navGroups: NavGroup[];
+  mobileNavTitle: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -168,10 +214,10 @@ function MobileNav({ pathname }: { pathname: string }) {
       </SheetTrigger>
       <SheetContent side="right" className="w-72 overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="text-left text-sm font-semibold text-slate-900">Admin navigation</SheetTitle>
+          <SheetTitle className="text-left text-sm font-semibold text-slate-900">{mobileNavTitle}</SheetTitle>
         </SheetHeader>
         <nav className="mt-6 space-y-6">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue mb-2">
                 {group.label}
@@ -217,23 +263,25 @@ function MobileNav({ pathname }: { pathname: string }) {
   );
 }
 
-export function AdminNavbar() {
+export function AdminNavbar({ role = "admin" }: { role?: string }) {
   const pathname = usePathname();
+  const brand = getStaffShellBrand(role);
+  const navGroups = filterNavGroupsForRole(NAV_GROUPS, role);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
       <div className="container mx-auto flex items-center justify-between gap-4 px-4 py-2.5">
-        <Link href="/admin" className="flex items-center gap-3 min-w-0 shrink">
+        <Link href={brand.homeHref} className="flex items-center gap-3 min-w-0 shrink">
           <div className="min-w-0 hidden sm:block">
             <p className="text-[11px] font-medium uppercase tracking-wider text-brand-blue leading-none">
               BIRE Programme
             </p>
-            <p className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">Admin</p>
+            <p className="text-sm font-semibold text-slate-900 truncate leading-tight mt-0.5">{brand.title}</p>
           </div>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <NavDropdown key={group.label} group={group} pathname={pathname} />
           ))}
         </nav>
@@ -241,13 +289,13 @@ export function AdminNavbar() {
         <div className="flex items-center gap-2 shrink-0">
           <NotificationBell />
           <Link
-            href="/"
+            href={brand.homeHref}
             className="hidden md:flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-blue transition-colors"
           >
             <ArrowLeft weight="bold" className="size-3.5" />
-            Back to site
+            Back to hub
           </Link>
-          <MobileNav pathname={pathname} />
+          <MobileNav pathname={pathname} navGroups={navGroups} mobileNavTitle={brand.mobileNavTitle} />
         </div>
       </div>
       <div className="h-0.5 w-full bg-brand-blue" aria-hidden />

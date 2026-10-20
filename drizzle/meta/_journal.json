@@ -225,6 +225,174 @@
       "when": 1784073600000,
       "tag": "0031_cdp_session_reporting_split",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784246400000,
+      "tag": "0032_cdp_session_rejection_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785456000000,
+      "tag": "0033_mel_phase1_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0034_mel_phase2_monitoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1785628800000,
+      "tag": "0035_mel_phase3_review_dqa",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1785715200000,
+      "tag": "0036_mel_phase4_reporting",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785801600000,
+      "tag": "0037_mel_phase5_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785888000000,
+      "tag": "0038_mg_return_for_correction",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1785974400000,
+      "tag": "0039_mel_monitoring_review_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786060800000,
+      "tag": "0040_mel_enterprise_financial_baselines",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786147200000,
+      "tag": "0041_mel_one_time_achievement_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786233600000,
+      "tag": "0042_retire_op11_jobs_created",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786320000000,
+      "tag": "0043_repair_mel_indicator_result_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786406400000,
+      "tag": "0044_mel_programme_calendar_oct15",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786492800000,
+      "tag": "0045_mel_option_a_monitoring_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786579200000,
+      "tag": "0046_repair_mel_programme_result_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786665600000,
+      "tag": "0048_update_y1_y2_monitoring_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786752000000,
+      "tag": "0049_mel_collection_window_tenth",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786838400000,
+      "tag": "0050_mentorship_session_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788128000000,
+      "tag": "0051_kajabi_user_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788214400000,
+      "tag": "0052_mel_direct_jobs_quality_split",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788300800000,
+      "tag": "0053_mentorship_evidence_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788387200000,
+      "tag": "0054_y1_mq1_collection_close_sep18",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788473600000,
+      "tag": "0055_mel_positive_programme_impacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788560000000,
+      "tag": "0057_mentorship_session1_virtual",
+      "breakpoints": true
     }
   ]
 }

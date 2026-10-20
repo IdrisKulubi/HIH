@@ -16,9 +16,29 @@ import {
   MatchingGrantSubmissionEmailProps,
 } from '@/components/emails/matching-grant-submission-email';
 import {
+  MatchingGrantReturnedToEdoEmail,
+  type MatchingGrantReturnedToEdoEmailProps,
+} from '@/components/emails/matching-grant-returned-to-edo-email';
+import {
   A2fScreeningPassEmail,
   type A2fScreeningPassEmailProps,
 } from '@/components/emails/a2f-screening-pass-email';
+import {
+  MelReportApprovedEmail,
+  type MelReportApprovedEmailProps,
+} from '@/components/emails/mel-report-approved-email';
+import {
+  MelCollectionReminderEmail,
+  type MelCollectionReminderEmailProps,
+} from '@/components/emails/mel-collection-reminder-email';
+import {
+  MelProfitabilityFeedbackEmail,
+  type MelProfitabilityFeedbackEmailProps,
+} from '@/components/emails/mel-profitability-feedback-email';
+import {
+  MentorshipAssignmentEmail,
+  type MentorshipAssignmentEmailProps,
+} from '@/components/emails/mentorship-assignment-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail =
@@ -134,6 +154,110 @@ export async function sendMatchingGrantSubmissionEmail(
   }
 }
 
+export async function sendMatchingGrantReturnedToEdoEmail(
+  props: MatchingGrantReturnedToEdoEmailProps & { edoEmail: string }
+): Promise<{ success: boolean; skipped?: boolean }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping Matching Grant return notification");
+    return { success: false, skipped: true };
+  }
+
+  try {
+    await sendEmail({
+      to: props.edoEmail,
+      subject: "Matching Grant returned for correction — contact applicant",
+      react: MatchingGrantReturnedToEdoEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send Matching Grant return email:", error);
+    return { success: false };
+  }
+}
+
+export async function sendMelReportApprovedEmail(
+  props: MelReportApprovedEmailProps & { collectorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping MEL report approved notification");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  const priorityCount = props.priorities.length;
+  const subject =
+    priorityCount > 0
+      ? `Report verified — ${priorityCount} priority area(s) for next quarter`
+      : "Monitoring report verified — BIRE Programme";
+
+  try {
+    await sendEmail({
+      to: props.collectorEmail.trim().toLowerCase(),
+      subject,
+      react: MelReportApprovedEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send MEL report approved email:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function renderMelProfitabilityFeedbackHtml(
+  props: MelProfitabilityFeedbackEmailProps
+): Promise<string> {
+  return render(MelProfitabilityFeedbackEmail(props));
+}
+
+export async function sendMelProfitabilityFeedbackEmail(
+  props: MelProfitabilityFeedbackEmailProps & { to: string; subject: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping profitability feedback email");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  try {
+    await sendEmail({
+      to: props.to.trim().toLowerCase(),
+      subject: props.subject,
+      react: MelProfitabilityFeedbackEmail(props),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send profitability feedback email:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendMelCollectionReminderEmail(
+  props: MelCollectionReminderEmailProps & { collectorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping MEL collection reminder");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  const subject =
+    props.kind === "deadline"
+      ? `Monitoring collection closes on ${props.collectionCloseDate} — BIRE Programme`
+      : `Monitoring data collection is open until ${props.collectionCloseDate} — BIRE Programme`;
+
+  try {
+    await sendEmail({
+      to: props.collectorEmail.trim().toLowerCase(),
+      react: MelCollectionReminderEmail(props),
+      subject,
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send MEL collection reminder:", error);
+    return { success: false, error: message };
+  }
+}
+
 export async function sendA2fScreeningPassEmail(
   props: A2fScreeningPassEmailProps & { userEmail: string }
 ): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
@@ -150,6 +274,41 @@ export async function sendA2fScreeningPassEmail(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Email delivery failed";
     console.error("Failed to send A2F screening invitation:", error);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendMentorshipAssignmentEmail(
+  props: MentorshipAssignmentEmailProps & { mentorEmail: string }
+): Promise<{ success: boolean; skipped?: boolean; error?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("[EMAIL] RESEND_API_KEY not set; skipping mentorship assignment notification");
+    return { success: false, skipped: true, error: "Email service not configured" };
+  }
+
+  const enterpriseNames = props.enterpriseNames.filter(Boolean);
+  if (enterpriseNames.length === 0) {
+    return { success: false, skipped: true, error: "No enterprises to notify" };
+  }
+
+  const subject =
+    enterpriseNames.length === 1
+      ? `You have been assigned to ${enterpriseNames[0]} — BIRE Mentorship`
+      : `You have been assigned to ${enterpriseNames.length} enterprises — BIRE Mentorship`;
+
+  try {
+    await sendEmail({
+      to: props.mentorEmail.trim().toLowerCase(),
+      subject,
+      react: MentorshipAssignmentEmail({
+        mentorName: props.mentorName,
+        enterpriseNames,
+      }),
+    });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email delivery failed";
+    console.error("Failed to send mentorship assignment email:", error);
     return { success: false, error: message };
   }
 }

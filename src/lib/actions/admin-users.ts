@@ -1,12 +1,14 @@
 "use server";
 
 import db from "@/db/drizzle";
-import { users, userProfiles } from "../../../db/schema";
-import { eq, or, ilike } from "drizzle-orm";
+import { applicants, users, userProfiles } from "../../../db/schema";
+import { and, eq, or, ilike, ne } from "drizzle-orm";
 import { auth } from "@/auth";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 import type { UserListItem, UserManagementRole } from "@/lib/users/roles";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 // Verify admin access
 async function verifyAdminAccess() {
@@ -203,6 +205,77 @@ export async function updateUserRole(
         return {
             success: false,
             error: error instanceof Error ? error.message : "Failed to update role",
+        };
+    }
+}
+
+const updateUserDetailsSchema = z.object({
+    userId: z.string().min(1),
+    firstName: z.string().trim().min(1, "First name is required").max(100),
+    lastName: z.string().trim().min(1, "Last name is required").max(100),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address").max(255),
+});
+
+export async function updateUserDetails(input: {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+}): Promise<{
+    success: boolean;
+    data?: { firstName: string; lastName: string; email: string };
+    error?: string;
+}> {
+    try {
+        await verifyAdminAccess();
+
+        const parsed = updateUserDetailsSchema.safeParse(input);
+        if (!parsed.success) {
+            return {
+                success: false,
+                error: parsed.error.issues[0]?.message ?? "Invalid user details",
+            };
+        }
+
+        const { userId, firstName, lastName, email } = parsed.data;
+        const existingUser = await db.query.users.findFirst({
+            where: and(ilike(users.email, email), ne(users.id, userId)),
+            columns: { id: true },
+        });
+        if (existingUser) {
+            return { success: false, error: "Another user already uses this email address" };
+        }
+
+        const target = await db.query.users.findFirst({
+            where: eq(users.id, userId),
+            columns: { id: true },
+        });
+        if (!target) return { success: false, error: "User not found" };
+
+        const now = new Date();
+        const fullName = `${firstName} ${lastName}`.trim();
+        await db.transaction(async (tx) => {
+            await tx
+                .update(users)
+                .set({ name: fullName, email, updatedAt: now })
+                .where(eq(users.id, userId));
+            await tx
+                .update(userProfiles)
+                .set({ firstName, lastName, email, updatedAt: now })
+                .where(eq(userProfiles.userId, userId));
+            await tx
+                .update(applicants)
+                .set({ firstName, lastName, email, updatedAt: now })
+                .where(eq(applicants.userId, userId));
+        });
+
+        revalidatePath("/admin/users");
+        return { success: true, data: { firstName, lastName, email } };
+    } catch (error) {
+        console.error("Error updating user details:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to update user details",
         };
     }
 }

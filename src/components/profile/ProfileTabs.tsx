@@ -8,6 +8,7 @@ const APPLICANT_TABS = new Set([
     "overview",
     "application",
     "progress",
+    "security",
     "support",
     "contracts",
 ]);

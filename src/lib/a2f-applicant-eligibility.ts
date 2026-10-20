@@ -10,6 +10,7 @@ import { and, eq, desc } from "drizzle-orm";
 import type { A2fEnterpriseTrack } from "@/lib/a2f-constants";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
+import { resolveApplicantApplicationId } from "@/lib/server/applicant-application-link";
 
 export interface ApplicantEligibilityResult {
     eligible: boolean;
@@ -28,8 +29,13 @@ export interface ApplicantEligibilityResult {
 export async function checkApplicantCanStartMatchingGrant(
     userId: string
 ): Promise<ApplicantEligibilityResult> {
+    const applicationId = await resolveApplicantApplicationId(userId);
+    if (!applicationId) {
+        return { eligible: false, reason: "No programme application is linked to your account." };
+    }
+
     const application = await db.query.applications.findFirst({
-        where: eq(applications.userId, userId),
+        where: eq(applications.id, applicationId),
         orderBy: [desc(applications.updatedAt)],
         with: { business: true },
     });

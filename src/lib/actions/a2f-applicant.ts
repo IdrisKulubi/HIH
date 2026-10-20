@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { getApplicantMatchingGrantReturnGate } from "@/lib/matching-grant-return";
 import {
     checkApplicantCanStartMatchingGrant,
     ensureApplicantMatchingGrantPipeline,
@@ -14,7 +15,7 @@ import {
     type MatchingGrantApplicationInput,
 } from "./a2f-matching-grant-applications";
 import db from "@/db/drizzle";
-import { a2fPipeline } from "@/db/schema";
+import { a2fPipeline, applications } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ActionResponse, errorResponse, successResponse } from "./types";
 
@@ -22,6 +23,14 @@ export async function getApplicantA2fHomePath(): Promise<string> {
     const session = await auth();
     if (!session?.user?.id) return "/login";
     return resolveApplicantA2fHomePath(session.user.id);
+}
+
+export async function getApplicantMatchingGrantReturnGateAction() {
+    const session = await auth();
+    if (!session?.user?.id || session.user.role !== "applicant") {
+        return successResponse({ needsReapplication: false });
+    }
+    return successResponse(await getApplicantMatchingGrantReturnGate(session.user.id));
 }
 
 /** True when the applicant has a submitted Matching Grant application on their pipeline. */
@@ -133,5 +142,13 @@ export async function saveApplicantMatchingGrantApplication(
     }
     const ownership = await assertApplicantOwnsPipeline(session.user.id, a2fId);
     if (!ownership.ok) return errorResponse(ownership.error);
+
+    // Finalize legacy email-based ownership only after the authenticated user
+    // has been matched to one unambiguous, invited pipeline application.
+    await db
+        .update(applications)
+        .set({ userId: session.user.id, updatedAt: new Date() })
+        .where(eq(applications.id, ownership.applicationId));
+
     return saveMatchingGrantApplication(a2fId, input);
 }

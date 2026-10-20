@@ -27,6 +27,7 @@ import {
 import type { PreScreeningOutcome } from "@/lib/a2f-pre-screening-outcome";
 import { PIPELINE_STAGE_LABELS, type A2fPipelineStatus } from "@/lib/a2f-constants";
 import { CommitteeScoreOverridePanel } from "@/components/a2f/committee/CommitteeScoreOverridePanel";
+import { ExcelExportButton, type ExcelExportColumn } from "@/components/shared/ExcelExportButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,6 +103,40 @@ function DdReportBadge({ status }: { status: "complete" | "pending" | "not_appli
   }
   return <Badge variant="outline">Not due</Badge>;
 }
+
+type PreScreeningExportRow = {
+  applicationId: number;
+  enterprise: string;
+  applicant: string;
+  track: string;
+  ddStatus: string;
+  ddScore: number | null;
+  reviewer: string;
+  screeningStatus: string;
+  originalOutcome: string;
+  originalScore: number | null;
+  effectiveOutcome: string;
+  inviteStatus: string;
+  applicationFormStatus: string;
+  assessedAt: string;
+};
+
+const PRE_SCREENING_EXPORT_COLUMNS: ExcelExportColumn<PreScreeningExportRow>[] = [
+  { key: "applicationId", header: "Application ID", width: 16 },
+  { key: "enterprise", header: "Enterprise", width: 28 },
+  { key: "applicant", header: "Applicant", width: 24 },
+  { key: "track", header: "Track", width: 16 },
+  { key: "ddStatus", header: "DD Status", width: 16 },
+  { key: "ddScore", header: "DD Score (%)", width: 15 },
+  { key: "reviewer", header: "Reviewer", width: 22 },
+  { key: "screeningStatus", header: "Screening Status", width: 18 },
+  { key: "originalOutcome", header: "Original Outcome", width: 18 },
+  { key: "originalScore", header: "Original Score", width: 15 },
+  { key: "effectiveOutcome", header: "Effective Outcome", width: 18 },
+  { key: "inviteStatus", header: "Invite Status", width: 16 },
+  { key: "applicationFormStatus", header: "Application Form Status", width: 23 },
+  { key: "assessedAt", header: "Assessed", width: 16 },
+];
 
 function StatCard({
   label,
@@ -550,6 +585,29 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
       return matchesQuery && matchesStatus;
     });
   }, [query, rows, status]);
+  const exportRows = useMemo<PreScreeningExportRow[]>(
+    () =>
+      filtered.map((row) => ({
+        applicationId: row.applicationId,
+        enterprise: row.businessName,
+        applicant: row.applicantName,
+        track: titleCase(row.track),
+        ddStatus: titleCase(row.ddStatus ?? "not started"),
+        ddScore: row.ddScore,
+        reviewer: row.reviewerName ?? "Unassigned",
+        screeningStatus: titleCase(row.status),
+        originalOutcome: titleCase(row.originalOutcome),
+        originalScore: row.originalScore,
+        effectiveOutcome: titleCase(row.effectiveOutcome),
+        inviteStatus: titleCase(row.invitationStatus ?? "not applicable"),
+        applicationFormStatus:
+          row.applicationFormStatus === "filled" ? "Filled" : "Not filled",
+        assessedAt: row.assessedAt
+          ? format(new Date(row.assessedAt), "dd MMM yyyy")
+          : "",
+      })),
+    [filtered]
+  );
 
   return (
     <Card>
@@ -560,7 +618,7 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
             Admin sends the A2F application invite after Pass screening and approved DD.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <MagnifyingGlass className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
             <Input
@@ -581,10 +639,17 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
               <SelectItem value="stop">Stopped</SelectItem>
             </SelectContent>
           </Select>
+          <ExcelExportButton
+            rows={exportRows}
+            columns={PRE_SCREENING_EXPORT_COLUMNS}
+            fileName="a2f-screening-and-invite-register.xlsx"
+            sheetName="Screening register"
+            label="Export Excel"
+          />
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] text-sm">
+        <table className="w-full min-w-[1260px] text-sm">
           <thead>
             <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-2 py-3">Enterprise</th>
@@ -594,6 +659,7 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
               <th className="px-2 py-3">Original</th>
               <th className="px-2 py-3">Effective</th>
               <th className="px-2 py-3">Invite</th>
+              <th className="px-2 py-3">Application form</th>
               <th className="px-2 py-3">Assessed</th>
               <th className="px-2 py-3 text-right">Actions</th>
             </tr>
@@ -624,6 +690,18 @@ function PreScreeningTable({ rows }: { rows: AdminA2fPreScreeningRow[] }) {
                   {row.invitationStatus === "failed" && row.invitationError && (
                     <p className="mt-1 max-w-[180px] text-xs text-red-700">{row.invitationError}</p>
                   )}
+                </td>
+                <td className="px-2 py-3">
+                  <Badge
+                    variant="outline"
+                    className={
+                      row.applicationFormStatus === "filled"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {row.applicationFormStatus === "filled" ? "Filled" : "Not filled"}
+                  </Badge>
                 </td>
                 <td className="px-2 py-3">
                   {row.assessedAt ? format(new Date(row.assessedAt), "dd MMM yyyy") : "-"}

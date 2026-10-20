@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { AdminRoleGuard } from "@/components/admin/AdminRoleGuard";
 import { AdminNavbar } from "@/components/admin/AdminNavbar";
+import { getStaffShellBrand } from "@/lib/staff/admin-shell-nav";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | BIRE Programme",
@@ -25,16 +26,18 @@ export default async function AdminLayout({
     redirect(isReviewer ? "/reviewer" : "/");
   }
 
+  const brand = getStaffShellBrand(userRole);
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-foreground">
       <AdminRoleGuard />
-      <AdminNavbar />
+      <AdminNavbar role={userRole} />
 
       <main className="flex-1">{children}</main>
 
       <footer className="border-t py-4 bg-background">
         <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
-          BIRE Programme Admin Panel © {new Date().getFullYear()}
+          {brand.footerLabel} © {new Date().getFullYear()}
         </div>
       </footer>
     </div>

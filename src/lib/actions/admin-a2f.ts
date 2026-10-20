@@ -49,6 +49,7 @@ export interface AdminA2fPreScreeningRow {
   hardStopReasons: string[];
   invitationStatus: string | null;
   invitationError: string | null;
+  applicationFormStatus: "filled" | "not_filled";
   canSendInvite: boolean;
   inviteBlockedReason: string | null;
 }
@@ -168,6 +169,24 @@ export async function getAdminA2fDashboardData(): Promise<
           .where(inArray(a2fPreScreeningAttempts.applicationId, applicationIds))
           .orderBy(desc(a2fPreScreeningAttempts.createdAt))
       : [];
+    const applicationForms = applicationIds.length
+      ? await db
+          .select({
+            applicationId: a2fPipeline.applicationId,
+            status: a2fMatchingGrantApplications.status,
+          })
+          .from(a2fPipeline)
+          .innerJoin(
+            a2fMatchingGrantApplications,
+            eq(a2fMatchingGrantApplications.a2fId, a2fPipeline.id)
+          )
+          .where(inArray(a2fPipeline.applicationId, applicationIds))
+      : [];
+    const submittedApplicationIds = new Set(
+      applicationForms
+        .filter((row) => row.status === "submitted")
+        .map((row) => row.applicationId)
+    );
     const attemptIds = attempts.map((row) => row.id);
     const preOverrides = attemptIds.length
       ? await db
@@ -265,6 +284,9 @@ export async function getAdminA2fDashboardData(): Promise<
         hardStopReasons: submitted?.hardStopReasons ?? [],
         invitationStatus: submitted?.invitationStatus ?? null,
         invitationError: submitted?.invitationError ?? null,
+        applicationFormStatus: submittedApplicationIds.has(candidate.applicationId)
+          ? "filled"
+          : "not_filled",
         canSendInvite,
         inviteBlockedReason,
       };
@@ -528,7 +550,7 @@ export async function getAdminA2fDashboardData(): Promise<
   }
 }
 
-async function sendInvitation(attemptId: number, applicationId: number) {
+async function sendInvitation(attemptId: number, applicationId: number, a2fId: number) {
   const [application] = await db
     .select({
       applicantEmail: applicants.email,
@@ -547,7 +569,7 @@ async function sendInvitation(attemptId: number, applicationId: number) {
     applicantName:
       `${application.applicantFirstName} ${application.applicantLastName}`.trim(),
     businessName: application.businessName,
-    applicationUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org"}/access-to-finance`,
+    applicationUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org"}/access-to-finance/application/${a2fId}`,
   });
   await db
     .update(a2fPreScreeningAttempts)
@@ -611,7 +633,7 @@ export async function sendA2fApplicationInvite(
       return successResponse({ emailStatus: "sent", a2fId });
     }
 
-    const emailStatus = await sendInvitation(attempt.id, attempt.applicationId);
+    const emailStatus = await sendInvitation(attempt.id, attempt.applicationId, a2fId);
 
     revalidatePath("/admin/a2f");
     revalidatePath("/a2f");

@@ -1,0 +1,86 @@
+import { FINANCE_TYPE_LABELS, FINANCE_TYPES, type MonitoringFinanceType } from "./monitoring-question-catalog";
+
+export const FUNDING_TYPE_LABELS = FINANCE_TYPE_LABELS;
+export type FundingType = MonitoringFinanceType;
+
+/** Programme target for external funding accessed by MSEs (loan, repayable grant, other). */
+export const EXTERNAL_FUNDING_TARGET_KES = 130_000_000;
+
+export const EXTERNAL_FUNDING_TYPES = ["loan", "repayable_grant", "other"] as const satisfies readonly FundingType[];
+
+export type FundingTypeBreakdown = {
+  type: FundingType;
+  label: string;
+  amount: number;
+  enterpriseCount: number;
+  percentage: number;
+};
+
+type FundingRecord = {
+  businessId: number;
+  linkedToFinanceProvider?: boolean | null;
+  financeValue: number | null;
+  financeEntries: Array<{
+    financeType: string;
+    amount: number;
+  }>;
+};
+
+/** Finance amounts count only when the enterprise confirmed BIRE-facilitated linkage. */
+export function countsTowardBireFinanceAccess(record: Pick<FundingRecord, "linkedToFinanceProvider">): boolean {
+  return record.linkedToFinanceProvider === true;
+}
+
+const FUNDING_TYPES = [...FINANCE_TYPES];
+
+export function buildFundingTypeBreakdown(records: FundingRecord[]): FundingTypeBreakdown[] {
+  const amounts = new Map<FundingType, number>(FUNDING_TYPES.map((type) => [type, 0]));
+  const enterprises = new Map<FundingType, Set<number>>(
+    FUNDING_TYPES.map((type) => [type, new Set<number>()])
+  );
+
+  for (const record of records) {
+    if (!countsTowardBireFinanceAccess(record)) continue;
+    const entries = record.financeEntries.length > 0
+      ? record.financeEntries
+      : record.financeValue && record.financeValue > 0
+        ? [{ financeType: "other", amount: record.financeValue }]
+        : [];
+
+    for (const entry of entries) {
+      const type = isFundingType(entry.financeType) ? entry.financeType : "other";
+      const amount = Number.isFinite(entry.amount) && entry.amount >= 0 ? entry.amount : 0;
+      amounts.set(type, (amounts.get(type) ?? 0) + amount);
+      if (amount > 0) enterprises.get(type)?.add(record.businessId);
+    }
+  }
+
+  const total = FUNDING_TYPES.reduce((sum, type) => sum + (amounts.get(type) ?? 0), 0);
+  return FUNDING_TYPES.map((type) => {
+    const amount = amounts.get(type) ?? 0;
+    return {
+      type,
+      label: FUNDING_TYPE_LABELS[type],
+      amount,
+      enterpriseCount: enterprises.get(type)?.size ?? 0,
+      percentage: total > 0 ? (amount / total) * 100 : 0,
+    };
+  });
+}
+
+export function sumExternalFinance(breakdown: FundingTypeBreakdown[]): number {
+  const external = new Set<string>(EXTERNAL_FUNDING_TYPES);
+  return breakdown.reduce((sum, item) => (external.has(item.type) ? sum + item.amount : sum), 0);
+}
+
+export function externalFinanceAchievement(
+  actual: number,
+  target = EXTERNAL_FUNDING_TARGET_KES
+): number | null {
+  if (!Number.isFinite(actual) || !Number.isFinite(target) || target === 0) return null;
+  return (actual / target) * 100;
+}
+
+function isFundingType(value: string): value is FundingType {
+  return value in FUNDING_TYPE_LABELS;
+}

@@ -34,6 +34,7 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { RevenueGateActions } from "@/components/a2f/RevenueGateActions";
+import { MatchingGrantSendBackDialog } from "@/components/a2f/MatchingGrantSendBackDialog";
 
 interface CriterionConfig {
     key: string;
@@ -618,7 +619,7 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
     const { id } = use(params);
     const a2fId = Number(id);
     const { data: session } = useSession();
-    const canEdit = canWriteA2fStaff(session?.user?.role);
+    const canWriteScores = canWriteA2fStaff(session?.user?.role);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [entry, setEntry] = useState<any>(null);
@@ -670,6 +671,9 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
 
     const sections = SCORING_SECTIONS;
     const biz = entry?.application?.business;
+    const mgApp = entry?.matchingGrantApplications?.[0];
+    const mgStatus = mgApp?.status as string | undefined;
+    const canEdit = canWriteScores && mgStatus === "submitted";
     const enterpriseTrack = normalizeTrack(entry?.application?.track);
     const annualRevenue = Number(biz?.revenueLastYear ?? 0);
     const revenueDetail = useMemo(
@@ -741,15 +745,35 @@ export default function ScoringPage({ params }: { params: Promise<{ id: string }
 
     return (
         <div className="pb-24 space-y-6">
-            <div>
-                <h2 className="text-lg font-bold flex items-center gap-2">
-                    <ChartLine weight="duotone" className="size-5 text-violet-600" />
-                    Pre-IC Scoring
-                </h2>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                    {biz?.name} · 100-point Matching Grant rubric with revenue hard gate
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                        <ChartLine weight="duotone" className="size-5 text-violet-600" />
+                        Pre-IC Scoring
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {biz?.name} · 100-point Matching Grant rubric with revenue hard gate
+                    </p>
+                </div>
+                {canWriteScores && mgStatus === "submitted" ? (
+                    <MatchingGrantSendBackDialog a2fId={a2fId} onReturned={loadData} />
+                ) : null}
             </div>
+
+            {mgStatus === "returned_for_correction" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                    <p className="font-semibold">Application returned — awaiting applicant resubmission</p>
+                    <p className="mt-1 text-amber-800">
+                        Scoring is paused until the enterprise corrects and resubmits the Matching Grant form.
+                    </p>
+                    {mgApp?.returnReason ? (
+                        <p className="mt-2 text-xs text-amber-800/90">
+                            <span className="font-medium">Return reason: </span>
+                            {mgApp.returnReason}
+                        </p>
+                    ) : null}
+                </div>
+            )}
 
             {submitted && (
                 <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 flex items-center gap-3">

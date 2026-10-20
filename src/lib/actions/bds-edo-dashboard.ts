@@ -9,7 +9,9 @@ import {
 } from "@/db/schema";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
+import { countMelReturnedToCollector } from "@/lib/mel/hub-counts";
 import { countA2fCasesAwaitingInitialDd } from "@/lib/server/a2f-dd-queue";
+import { countMentorshipSessionsPendingApproval } from "./mentorship";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 const BDS_EDO_HUB_ROLES = ["bds_edo", "admin"] as const;
@@ -19,6 +21,8 @@ export interface BdsEdoDashboardSummary {
   preScreeningNotScreened: number;
   preScreeningMyDrafts: number;
   a2fDdAwaiting: number;
+  melReturnedToMe: number;
+  mentorshipSessionsPending: number;
 }
 
 async function countPreScreeningNotScreened() {
@@ -64,17 +68,25 @@ export async function getBdsEdoDashboardSummary(
       return errorResponse("Unauthorized");
     }
 
-    const [preScreeningNotScreened, preScreeningMyDrafts, a2fDdAwaiting] = await Promise.all([
-      countPreScreeningNotScreened(),
-      countPreScreeningMyDrafts(userId),
-      countA2fCasesAwaitingInitialDd(),
-    ]);
+    const [preScreeningNotScreened, preScreeningMyDrafts, a2fDdAwaiting, melReturnedToMe, mentorshipPending] =
+      await Promise.all([
+        countPreScreeningNotScreened(),
+        countPreScreeningMyDrafts(userId),
+        countA2fCasesAwaitingInitialDd(),
+        countMelReturnedToCollector(userId),
+        role === "bds_edo" ? countMentorshipSessionsPendingApproval() : Promise.resolve({ success: true, data: 0 }),
+      ]);
 
     return successResponse({
       cnaCandidates,
       preScreeningNotScreened,
       preScreeningMyDrafts,
       a2fDdAwaiting,
+      melReturnedToMe,
+      mentorshipSessionsPending:
+        mentorshipPending.success && typeof mentorshipPending.data === "number"
+          ? mentorshipPending.data
+          : 0,
     });
   } catch (error) {
     console.error("Failed to load BA / EDO dashboard summary:", error);

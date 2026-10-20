@@ -7,8 +7,33 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ExcelExportButton, type ExcelExportColumn } from "@/components/shared/ExcelExportButton";
 import { cn } from "@/lib/utils";
 import { ArrowRight, CheckCircle2, Clock3, FilePlus2, ListChecks, Search } from "lucide-react";
+
+type CdpQueueExportRow = {
+  enterprise: string;
+  applicant: string;
+  email: string;
+  sector: string;
+  cnaStatus: string;
+  cnaRolesSubmitted: string;
+  cdpStatus: string;
+  planId: number | null;
+  nextAction: string;
+};
+
+const CDP_QUEUE_EXPORT_COLUMNS: ExcelExportColumn<CdpQueueExportRow>[] = [
+  { key: "enterprise", header: "Enterprise", width: 28 },
+  { key: "applicant", header: "Applicant", width: 24 },
+  { key: "email", header: "Email", width: 30 },
+  { key: "sector", header: "Sector", width: 24 },
+  { key: "cnaStatus", header: "CNA Status", width: 20 },
+  { key: "cnaRolesSubmitted", header: "CNA Roles Submitted", width: 22 },
+  { key: "cdpStatus", header: "CDP Status", width: 20 },
+  { key: "planId", header: "Plan ID", width: 12 },
+  { key: "nextAction", header: "Next Action", width: 22 },
+];
 
 function formatSectorLabel(sector: string) {
   return sector.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -82,6 +107,21 @@ export function CdpWorkflowQueue({ rows }: { rows: CdpWorkflowRow[] }) {
         .includes(q);
     });
   }, [filter, query, rows]);
+  const exportRows = useMemo<CdpQueueExportRow[]>(
+    () =>
+      filtered.map((row) => ({
+        enterprise: row.businessName,
+        applicant: row.applicantName,
+        email: row.applicantEmail,
+        sector: formatSectorLabel(row.sector),
+        cnaStatus: row.cnaStatusLabel,
+        cnaRolesSubmitted: `${row.submittedRoleCount}/${row.requiredRoleCount}`,
+        cdpStatus: row.cdpStatusLabel,
+        planId: row.planId,
+        nextAction: row.actionLabel,
+      })),
+    [filtered]
+  );
 
   return (
     <div className="space-y-5">
@@ -138,6 +178,13 @@ export function CdpWorkflowQueue({ rows }: { rows: CdpWorkflowRow[] }) {
                 <span className="ml-1 text-xs opacity-80">{item.count}</span>
               </Button>
             ))}
+            <ExcelExportButton
+              rows={exportRows}
+              columns={CDP_QUEUE_EXPORT_COLUMNS}
+              fileName={`cdp-work-queue-${new Date().toISOString().slice(0, 10)}`}
+              sheetName="CDP Work Queue"
+              label="Export view"
+            />
           </div>
         </div>
       </div>

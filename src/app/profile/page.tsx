@@ -34,14 +34,17 @@ import {
   Globe,
   ChevronRight,
   Sparkles,
-  LayoutDashboard
+  LayoutDashboard,
+  ShieldCheck,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { UserSupportTickets } from "@/components/support/UserSupportTickets";
 import { PasswordChangeForm } from "@/components/auth/PasswordChangeForm";
-import { ShieldCheck } from "lucide-react";
+import { currentUserHasPassword } from "@/lib/actions/password.actions";
 import { ApplicantContractsTab } from "@/components/application/ApplicantContractsTab";
+import { ApplicantMatchingGrantGateShell } from "@/components/a2f/ApplicantMatchingGrantGateShell";
 
 // Helper function to get status color
 function getStatusColor(status: string) {
@@ -109,9 +112,10 @@ export default async function ProfilePage() {
     redirect('/login');
   }
 
-  const [userProfile, applicationResult] = await Promise.all([
+  const [userProfile, applicationResult, hasPassword] = await Promise.all([
     getCurrentUserProfile(),
-    getUserApplication()
+    getUserApplication(),
+    currentUserHasPassword(),
   ]);
 
   if (!userProfile) {
@@ -138,6 +142,7 @@ export default async function ProfilePage() {
   const completionPercentage = Math.round((completedFields.length / profileFields.length) * 100);
 
   return (
+    <ApplicantMatchingGrantGateShell>
     <div className="min-h-screen bg-slate-50/50 pb-20">
       {/* Modern Gradient Header */}
       <div className="relative h-[280px] bg-brand-blue overflow-hidden">
@@ -189,6 +194,12 @@ export default async function ProfilePage() {
                 <Calendar className="w-3.5 h-3.5" />
                 Joined {format(new Date(userProfile.createdAt), "MMM yyyy")}
               </Badge>
+              <Button asChild variant="outline" size="sm" className="rounded-full">
+                <Link href="/dashboard/learning">
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  Learning
+                </Link>
+              </Button>
             </div>
           </div>
 
@@ -229,15 +240,13 @@ export default async function ProfilePage() {
                   </TabsTrigger>
                 </>
               )}
-              {isReviewer && (
-                <TabsTrigger
-                  value="security"
-                  className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
-                >
-                  <ShieldCheck className="w-4 h-4 mr-2" />
-                  Security
-                </TabsTrigger>
-              )}
+              <TabsTrigger
+                value="security"
+                className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
+              >
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Security
+              </TabsTrigger>
               <TabsTrigger
                 value="support"
                 className="rounded-xl px-6 py-2.5 text-sm font-medium data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-200"
@@ -259,6 +268,22 @@ export default async function ProfilePage() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6 focus-visible:outline-none">
+            <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-6 sm:p-8 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="p-2 bg-blue-600 text-white rounded-lg shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Enterprise Learning (LMS)</h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Open the Kajabi learning portal and track Registered / Completed status.
+                  </p>
+                </div>
+              </div>
+              <Button asChild className="bg-brand-blue hover:bg-brand-blue-dark shrink-0">
+                <Link href="/dashboard/learning">Go to Learning</Link>
+              </Button>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column - Personal Details */}
               <div className="lg:col-span-2 space-y-6">
@@ -307,6 +332,29 @@ export default async function ProfilePage() {
                       <p className="text-slate-600 leading-relaxed">{userProfile.bio}</p>
                     </div>
                   )}
+                </div>
+
+                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="p-2 bg-slate-100 text-slate-700 rounded-lg shrink-0">
+                        <KeyRound className="w-5 h-5" />
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">Password</h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                          {hasPassword
+                            ? "Update the password you use to sign in."
+                            : "Create a password so you can also sign in with your email."}
+                        </p>
+                      </div>
+                    </div>
+                    <Button asChild variant="outline" className="shrink-0">
+                      <Link href="/profile?tab=security">
+                        {hasPassword ? "Change password" : "Set password"}
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Application Snapshot Card */}
@@ -600,14 +648,11 @@ export default async function ProfilePage() {
             <UserSupportTickets />
           </TabsContent>
 
-          {/* Security Tab - Reviewers Only */}
-          {isReviewer && (
-            <TabsContent value="security" className="focus-visible:outline-none">
-              <div className="max-w-2xl mx-auto">
-                <PasswordChangeForm />
-              </div>
-            </TabsContent>
-          )}
+          <TabsContent value="security" className="focus-visible:outline-none">
+            <div className="max-w-2xl mx-auto">
+              <PasswordChangeForm hasPassword={hasPassword} />
+            </div>
+          </TabsContent>
 
           {/* Offers & Contracts Tab - Applicants only */}
           {!isReviewer && (
@@ -633,5 +678,6 @@ export default async function ProfilePage() {
         </Suspense>
       </div>
     </div>
+    </ApplicantMatchingGrantGateShell>
   );
-} 
+}

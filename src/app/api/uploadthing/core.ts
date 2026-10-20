@@ -16,6 +16,17 @@ const authenticateUploadRequest = async () => {
   return { id: session.user.id, role: session.user.role };
 };
 
+const authenticatePhase2AdminUpload = async () => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new UploadThingError("Unauthorized");
+  }
+  if (!["admin", "oversight", "mentor"].includes(session.user.role ?? "")) {
+    throw new UploadThingError("Admin access required");
+  }
+  return { userId: session.user.id };
+};
+
 const authenticateA2fUploadRequest = async () => {
   const session = await auth();
   if (!session?.user?.id) {
@@ -81,11 +92,64 @@ const cdpEvidenceUploader = f({
   .onUploadComplete(async ({ metadata, file }) => {
     return {
       uploadedBy: metadata.userId,
+      fileKey: file.key,
       fileName: file.name,
       fileUrl: file.url,
       fileType: file.type ?? "application/octet-stream",
     };
   });
+
+const melEvidenceUploader = f({
+  pdf: { maxFileSize: "16MB", maxFileCount: 6 },
+  image: { maxFileSize: "8MB", maxFileCount: 10 },
+  "application/msword": { maxFileSize: "16MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+    maxFileSize: "16MB",
+    maxFileCount: 6,
+  },
+  "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+    maxFileSize: "16MB",
+    maxFileCount: 6,
+  },
+  "text/csv": { maxFileSize: "8MB", maxFileCount: 6 },
+})
+  .middleware(async () => {
+    const user = await authenticateUploadRequest();
+    if (!user.role || !["admin", "redo", "bds_edo"].includes(user.role)) {
+      throw new UploadThingError("Enterprise monitoring access required");
+    }
+    return { userId: user.id };
+  })
+  .onUploadComplete(async ({ metadata, file }) => ({
+    uploadedBy: metadata.userId,
+    fileKey: file.key,
+    fileName: file.name,
+    fileUrl: file.url,
+    fileType: file.type ?? "application/octet-stream",
+    fileSize: file.size,
+  }));
+
+const mentorshipEvidenceUploader = f({
+  pdf: { maxFileSize: "16MB", maxFileCount: 8 },
+  image: { maxFileSize: "8MB", maxFileCount: 8 },
+})
+  .middleware(async () => {
+    try {
+      const user = await authenticatePhase2AdminUpload();
+      return { userId: user.userId };
+    } catch (error) {
+      console.error("Mentorship evidence upload middleware error:", error);
+      throw new UploadThingError("Unauthorized");
+    }
+  })
+  .onUploadComplete(async ({ metadata, file }) => ({
+    uploadedBy: metadata.userId,
+    fileKey: file.key,
+    fileName: file.name,
+    fileUrl: file.url,
+    fileType: file.type ?? "application/octet-stream",
+  }));
 
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
@@ -113,6 +177,8 @@ export const ourFileRouter = {
   registrationCertificateUploader: documentUploader,
   kycDocumentUploader: documentUploader,
   cdpEvidenceUploader,
+  melEvidenceUploader,
+  mentorshipEvidenceUploader,
   signedContractUploader: f({
     pdf: { maxFileSize: "16MB", maxFileCount: 1 },
     image: { maxFileSize: "8MB", maxFileCount: 1 },

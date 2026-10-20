@@ -18,7 +18,7 @@ interface AuthCardProps {
 export function AuthCard({ callbackUrl, defaultTab = "signin" }: AuthCardProps) {
   const { data: session } = useSession();
   if (session) {
-    redirect(getRoleHomePath(session.user.role));
+    redirect(callbackUrl || getRoleHomePath(session.user.role));
   }
   return (
     <div className="w-full max-w-lg">
@@ -98,7 +98,7 @@ export function AuthCard({ callbackUrl, defaultTab = "signin" }: AuthCardProps) 
                     <span className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase font-semibold tracking-wider">
-                    <span className="bg-white px-2 text-gray-500 rounded px-2">
+                    <span className="rounded bg-white px-2 text-gray-500">
                       Or continue with
                     </span>
                   </div>

@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { CdpEvidenceFile, CdpPlanFull } from "@/lib/actions/cdp";
-import { updateCdpSessionReport, updateCdpSupportSession } from "@/lib/actions/cdp";
+import {
+  deleteCdpSessionReport,
+  updateCdpSessionReport,
+  updateCdpSupportSession,
+} from "@/lib/actions/cdp";
 import { CDP_FOCUS_AREAS, CDP_FOCUS_CODES } from "@/lib/cdp/focus-areas";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { useUploadThing } from "@/utils/uploadthing";
@@ -18,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Loader2, UploadCloud } from "lucide-react";
+import { FileText, Loader2, RefreshCw, Trash2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 
 type CdpSession = CdpPlanFull["supportSessions"][number];
@@ -82,10 +86,12 @@ export function CdpSessionEditSheet({
 }) {
   const [pending, start] = useTransition();
   const [evidenceFiles, setEvidenceFiles] = useState<CdpEvidenceFile[]>([]);
+  const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     setEvidenceFiles(((session?.evidenceFiles as CdpEvidenceFile[] | null) ?? []));
+    setReplacementIndex(null);
   }, [session]);
 
   const { startUpload, isUploading } = useUploadThing("cdpEvidenceUploader", {
@@ -96,6 +102,7 @@ export function CdpSessionEditSheet({
         const url = file.serverData?.fileUrl ?? file.ufsUrl;
         if (!url) return files;
         files.push({
+          key: file.serverData?.fileKey ?? file.key,
           url,
           name: file.serverData?.fileName ?? file.name ?? "evidence",
           type: file.serverData?.fileType ?? file.type ?? "application/octet-stream",
@@ -104,11 +111,23 @@ export function CdpSessionEditSheet({
         });
         return files;
       }, []);
-      setEvidenceFiles((current) => [...current, ...uploaded]);
+      setEvidenceFiles((current) => {
+        if (replacementIndex === null || uploaded.length === 0) {
+          return [...current, ...uploaded];
+        }
+
+        return current.map((file, index) =>
+          index === replacementIndex ? uploaded[0] : file
+        );
+      });
+      setReplacementIndex(null);
       setUploadProgress(0);
-      if (uploaded.length > 0) toast.success("Evidence uploaded");
+      if (uploaded.length > 0) {
+        toast.success(replacementIndex === null ? "Evidence uploaded" : "Document replaced");
+      }
     },
     onUploadError: (error) => {
+      setReplacementIndex(null);
       setUploadProgress(0);
       toast.error(error.message || "Evidence upload failed");
     },
@@ -161,25 +180,82 @@ export function CdpSessionEditSheet({
         return;
       }
 
-      toast.success(mode === "planning" ? "Session plan updated" : "Session report submitted for review");
+      toast.success(
+        mode === "planning"
+          ? "Session plan updated"
+          : session.approvalStatus === "rejected"
+            ? "Session report resubmitted for review"
+            : "Session report submitted for review"
+      );
       onOpenChange(false);
       onSaved();
     });
   };
 
   const isPlanning = mode === "planning";
+  const isReturned = !isPlanning && session?.approvalStatus === "rejected";
+  const isApproved = !isPlanning && session?.approvalStatus === "approved";
+  const hasReportContent =
+    !isPlanning &&
+    Boolean(
+      session?.durationHours ||
+        session?.keyActionsAgreed ||
+        session?.challengesRaised ||
+        session?.nextSteps ||
+        session?.followUpDate ||
+        session?.evidenceNotes ||
+        session?.evidenceUrls?.length ||
+        session?.evidenceFiles?.length
+    );
+
+  const handleDeleteReport = () => {
+    if (!session) return;
+    if (
+      !window.confirm(
+        "Delete this entire report and its evidence? The planned session will remain."
+      )
+    ) {
+      return;
+    }
+
+    start(async () => {
+      const result = await deleteCdpSessionReport({
+        planId,
+        sessionId: session.id,
+      });
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to delete report");
+        return;
+      }
+
+      toast.success("Session report deleted");
+      onOpenChange(false);
+      onSaved();
+    });
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader className="border-b px-6 py-5">
           <SheetTitle>
-            {isPlanning ? "Edit session plan" : "Complete session report"} {session?.sessionNumber ?? ""}
+            {isPlanning
+              ? "Edit session plan"
+              : isApproved
+                ? "View session report"
+                : isReturned
+                  ? "Edit returned report"
+                  : "Complete session report"}{" "}
+            {session?.sessionNumber ?? ""}
           </SheetTitle>
           <SheetDescription>
             {isPlanning
               ? "Set what will happen before the advisory session starts."
-              : "Record the completed session outcomes and supporting evidence."}
+              : isApproved
+                ? "This report has been approved and is locked for audit."
+                : isReturned
+                  ? "Update the report based on the return reason, then resubmit for review."
+                  : "Record the completed session outcomes and supporting evidence."}
           </SheetDescription>
         </SheetHeader>
 
@@ -191,6 +267,22 @@ export function CdpSessionEditSheet({
               submitEdit(new FormData(event.currentTarget));
             }}
           >
+            {isReturned ? (
+              <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+                <p className="font-medium">This report was returned</p>
+                {session.rejectionReason?.trim() ? (
+                  <p className="mt-2 whitespace-pre-wrap leading-relaxed">{session.rejectionReason.trim()}</p>
+                ) : null}
+                <p className="mt-2 text-xs text-rose-800">Update the report and submit again.</p>
+              </div>
+            ) : null}
+            {isApproved ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                <p className="font-medium">This report is approved</p>
+                <p className="mt-2 text-xs text-emerald-800">Approved reports are locked and cannot be edited.</p>
+              </div>
+            ) : null}
+            <fieldset disabled={isApproved} className="space-y-6 disabled:opacity-80">
             {isPlanning ? (
               <section className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
@@ -245,7 +337,7 @@ export function CdpSessionEditSheet({
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label>BDS objective</Label>
-                  <Textarea name="supportType" rows={3} defaultValue={session.supportType ?? ""} required />
+                  <Textarea name="supportType" rows={3} maxLength={8000} defaultValue={session.supportType ?? ""} required />
                 </div>
               </section>
             ) : (
@@ -312,32 +404,88 @@ export function CdpSessionEditSheet({
                     <p className="text-xs font-medium">Evidence attached to this report</p>
                     <div className="mt-2 space-y-2">
                       {evidenceFiles.map((file, index) => (
-                        <a
+                        <div
                           key={`${file.url}-${index}`}
-                          href={getDocumentViewerHref(file.url, file.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex min-w-0 items-center gap-2 text-sm text-sky-700 hover:underline"
+                          className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5"
                         >
-                          <FileText className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{file.name}</span>
-                        </a>
+                          <a
+                            href={getDocumentViewerHref(file.url, file.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-w-0 flex-1 items-center gap-2 text-sm text-sky-700 hover:underline"
+                          >
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                          </a>
+                          <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-muted">
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Replace
+                            <input
+                              type="file"
+                              className="sr-only"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                              disabled={isUploading || pending}
+                              onChange={(event) => {
+                                const file = event.currentTarget.files?.[0];
+                                event.currentTarget.value = "";
+                                if (!file) return;
+                                setReplacementIndex(index);
+                                void startUpload([file]);
+                              }}
+                            />
+                          </label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-destructive hover:text-destructive"
+                            disabled={isUploading || pending}
+                            aria-label={`Remove ${file.name}`}
+                            onClick={() =>
+                              setEvidenceFiles((current) =>
+                                current.filter((_, fileIndex) => fileIndex !== index)
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Remove</span>
+                          </Button>
+                        </div>
                       ))}
                     </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Attachment changes are applied when you submit the report.
+                    </p>
                   </div>
                 ) : null}
               </section>
             )}
 
+            </fieldset>
+
             <SheetFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex w-full flex-wrap justify-end gap-2">
+                {hasReportContent && !isApproved ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="mr-auto"
+                    onClick={handleDeleteReport}
+                    disabled={disabled || pending || isUploading}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete report
+                  </Button>
+                ) : null}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-                  Cancel
+                  {isApproved ? "Close" : "Cancel"}
                 </Button>
-                <Button type="submit" disabled={disabled || pending || isUploading}>
-                  {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isPlanning ? "Save plan" : "Submit report"}
-                </Button>
+                {!isApproved ? (
+                  <Button type="submit" disabled={disabled || pending || isUploading}>
+                    {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
+                  </Button>
+                ) : null}
               </div>
             </SheetFooter>
           </form>

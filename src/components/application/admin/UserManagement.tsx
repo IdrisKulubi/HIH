@@ -35,9 +35,11 @@ import {
     Shield,
     Spinner,
     User,
-    EnvelopeSimple
+    EnvelopeSimple,
+    PencilSimple,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { UserEditSheet } from "./UserEditSheet";
 
 const ROLES = [
     { value: "applicant", label: "Applicant", color: "bg-gray-100 text-gray-700" },
@@ -64,6 +66,7 @@ export function UserManagement() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+    const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
 
     // Add user form state
     const [newUserEmail, setNewUserEmail] = useState("");
@@ -174,7 +177,7 @@ export function UserManagement() {
                             User Management
                         </CardTitle>
                         <CardDescription>
-                            Search users, add new admins, and manage roles
+                            Search users, update contact details, add staff, and manage roles
                         </CardDescription>
                     </div>
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -286,24 +289,34 @@ export function UserManagement() {
                             {users.map((user) => (
                                 <div
                                     key={user.id}
-                                    className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                                    className="flex flex-col gap-3 p-4 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex min-w-0 items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
                                             <User className="h-5 w-5 text-gray-500" />
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900">
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium text-gray-900">
                                                 {user.firstName} {user.lastName}
                                             </p>
-                                            <div className="flex items-center gap-1 text-sm text-gray-500">
-                                                <EnvelopeSimple className="h-3.5 w-3.5" />
-                                                {user.email}
+                                            <div className="flex min-w-0 items-center gap-1 text-sm text-gray-500">
+                                                <EnvelopeSimple className="h-3.5 w-3.5 shrink-0" />
+                                                <span className="truncate">{user.email}</span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                         {getRoleBadge(user.role)}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5"
+                                            onClick={() => setEditingUser(user)}
+                                        >
+                                            <PencilSimple className="size-4" />
+                                            Edit
+                                        </Button>
                                         <Select
                                             value={user.role}
                                             onValueChange={(value) => handleRoleChange(user.id, value)}
@@ -338,6 +351,17 @@ export function UserManagement() {
                     </p>
                 )}
             </CardContent>
+            <UserEditSheet
+                key={editingUser?.id ?? "closed-user-editor"}
+                user={editingUser}
+                open={Boolean(editingUser)}
+                onOpenChange={(open) => {
+                    if (!open) setEditingUser(null);
+                }}
+                onSaved={() => {
+                    void performSearch(searchQuery);
+                }}
+            />
         </Card>
     );
 }

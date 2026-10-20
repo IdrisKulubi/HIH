@@ -8,6 +8,8 @@ import {
   cnaQuestionBank,
   cnaQuestionResponses,
   cnaRoleReviews,
+  mentors,
+  mentorshipMatches,
   type CnaAssessment,
   type CnaQuestion,
   type CnaQuestionResponse,
@@ -79,6 +81,19 @@ function roleHome(role: CnaReviewerRole) {
   }
 }
 
+async function mentorAssignedBusinessIds(userId: string): Promise<Set<number>> {
+  const mentor = await db.query.mentors.findFirst({
+    where: eq(mentors.userId, userId),
+    columns: { id: true },
+  });
+  if (!mentor) return new Set();
+  const matches = await db.query.mentorshipMatches.findMany({
+    where: eq(mentorshipMatches.mentorId, mentor.id),
+    columns: { businessId: true },
+  });
+  return new Set(matches.map((match) => match.businessId));
+}
+
 function revalidateRoleCnaPaths(businessId: number) {
   for (const role of CNA_REVIEWER_ROLES) {
     revalidatePath(roleHome(role));
@@ -119,7 +134,12 @@ export async function listBusinessesForCnaRole(): Promise<ActionResponse<Busines
     const actor = await requireCnaRole();
     if (!actor.ok) return errorResponse(actor.error);
 
-    return successResponse(await listQualifiedCnaBusinessRows());
+    let rows = await listQualifiedCnaBusinessRows();
+    if (actor.role === "mentor") {
+      const assigned = await mentorAssignedBusinessIds(actor.userId);
+      rows = rows.filter((row) => assigned.has(row.businessId));
+    }
+    return successResponse(rows);
   } catch (e) {
     console.error("listBusinessesForCnaRole", e);
     return errorResponse("Failed to load businesses");
@@ -208,6 +228,13 @@ export async function getCnaRoleWorkspace(
 
     if (!(await isBusinessInQualifiedCnaCohort(businessId))) {
       return errorResponse("CNA is only available for businesses that passed final due diligence.");
+    }
+
+    if (!actor.isAdmin && actor.role === "mentor") {
+      const assigned = await mentorAssignedBusinessIds(actor.userId);
+      if (!assigned.has(businessId)) {
+        return errorResponse("You can only open CNA for enterprises assigned to you in mentorship.");
+      }
     }
 
     const business = await db.query.businesses.findFirst({

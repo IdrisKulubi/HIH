@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, useActionState, useEffect } from "react";
-import { updateReviewerPassword } from "@/lib/actions/password.actions";
+import { updatePassword } from "@/lib/actions/password.actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ShieldCheck, ShieldAlert, Check, X, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
-export function PasswordChangeForm() {
-    const [state, action, isPending] = useActionState(updateReviewerPassword, null);
+export function PasswordChangeForm({ hasPassword = true }: { hasPassword?: boolean }) {
+    const [state, action, isPending] = useActionState(updatePassword, null);
     const [showCurrent, setShowCurrent] = useState(false);
     const [showNew, setShowNew] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
     const [newPassword, setNewPassword] = useState("");
 
     const requirements = [
@@ -31,8 +33,8 @@ export function PasswordChangeForm() {
         if (state?.success) {
             toast.success(state.message);
             // reset form or redirect if needed
-            const form = document.getElementById("password-form") as HTMLFormElement;
-            form.reset();
+            const form = document.getElementById("password-form") as HTMLFormElement | null;
+            form?.reset();
             setNewPassword("");
         } else if (state?.success === false) {
             toast.error(state.message);
@@ -44,42 +46,57 @@ export function PasswordChangeForm() {
             <CardHeader className="bg-slate-50/50 border-b border-slate-100">
                 <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-blue-600" />
-                    Security Settings
+                    {hasPassword ? "Change password" : "Set a password"}
                 </CardTitle>
                 <CardDescription>
-                    Change your password to keep your reviewer account secure.
+                    {hasPassword
+                        ? "Update the password you use to sign in to your account."
+                        : "Create a password so you can also sign in with your email."}
                 </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
                 <form id="password-form" action={action} className="space-y-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <div className="relative">
-                            <Input
-                                id="currentPassword"
-                                name="currentPassword"
-                                type={showCurrent ? "text" : "password"}
-                                className="pr-10"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowCurrent(!showCurrent)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                                {showCurrent ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
+                    {hasPassword && (
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <Label htmlFor="currentPassword">Current password</Label>
+                                <Link
+                                    href="/forgot-password"
+                                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                                >
+                                    Forgot password?
+                                </Link>
+                            </div>
+                            <div className="relative">
+                                <Input
+                                    id="currentPassword"
+                                    name="currentPassword"
+                                    type={showCurrent ? "text" : "password"}
+                                    autoComplete="current-password"
+                                    className="pr-10"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurrent(!showCurrent)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    aria-label={showCurrent ? "Hide current password" : "Show current password"}
+                                >
+                                    {showCurrent ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="newPassword">New Password</Label>
+                            <Label htmlFor="newPassword">New password</Label>
                             <div className="relative">
                                 <Input
                                     id="newPassword"
                                     name="newPassword"
                                     type={showNew ? "text" : "password"}
+                                    autoComplete="new-password"
                                     className="pr-10"
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
@@ -89,6 +106,7 @@ export function PasswordChangeForm() {
                                     type="button"
                                     onClick={() => setShowNew(!showNew)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    aria-label={showNew ? "Hide new password" : "Show new password"}
                                 >
                                     {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -131,13 +149,25 @@ export function PasswordChangeForm() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                            <Input
-                                id="confirmPassword"
-                                name="confirmPassword"
-                                type="password"
-                                required
-                            />
+                            <Label htmlFor="confirmPassword">Confirm new password</Label>
+                            <div className="relative">
+                                <Input
+                                    id="confirmPassword"
+                                    name="confirmPassword"
+                                    type={showConfirm ? "text" : "password"}
+                                    autoComplete="new-password"
+                                    className="pr-10"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm(!showConfirm)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
+                                >
+                                    {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -152,7 +182,7 @@ export function PasswordChangeForm() {
                                 Updating Password...
                             </>
                         ) : (
-                            "Update Password"
+                            hasPassword ? "Update password" : "Set password"
                         )}
                     </Button>
                 </form>
@@ -160,7 +190,7 @@ export function PasswordChangeForm() {
             <CardFooter className="bg-slate-50/30 border-t border-slate-100 p-4">
                 <p className="text-xs text-slate-500 flex items-center gap-2">
                     <ShieldAlert className="h-3 w-3" />
-                    We recommend using a unique password that you don&apos;t use for other site.
+                    Use a unique password that you do not reuse on other sites.
                 </p>
             </CardFooter>
         </Card>
