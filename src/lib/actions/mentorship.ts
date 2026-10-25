@@ -75,6 +75,56 @@ async function activeCollectorByBusinessId(
   return map;
 }
 
+export type MentorshipAssignedEdo = {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string | null;
+};
+
+async function activeEdoByBusinessId(
+  businessIds: number[]
+): Promise<Map<number, MentorshipAssignedEdo>> {
+  if (businessIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      businessId: melEnterpriseAssignments.businessId,
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      phoneNumber: users.phoneNumber,
+      profileFirstName: userProfiles.firstName,
+      profileLastName: userProfiles.lastName,
+      profileEmail: userProfiles.email,
+      profilePhone: userProfiles.phoneNumber,
+    })
+    .from(melEnterpriseAssignments)
+    .innerJoin(users, eq(users.id, melEnterpriseAssignments.collectorId))
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
+    .where(
+      and(
+        eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo"),
+        inArray(melEnterpriseAssignments.businessId, businessIds)
+      )
+    );
+
+  const map = new Map<number, MentorshipAssignedEdo>();
+  for (const row of rows) {
+    const displayName =
+      row.name?.trim() ||
+      `${row.profileFirstName} ${row.profileLastName}`.trim() ||
+      row.email;
+    map.set(row.businessId, {
+      id: row.userId,
+      name: displayName,
+      email: row.profileEmail || row.email,
+      phoneNumber: row.profilePhone ?? row.phoneNumber ?? null,
+    });
+  }
+  return map;
+}
+
 function isMentorRole(role?: string | null) {
   return role === "mentor";
 }
@@ -1024,6 +1074,7 @@ export type MyMentorshipMatchRow = {
   businessName: string;
   applicantName: string;
   enterprise: MentorEnterpriseBrief | null;
+  edo: MentorshipAssignedEdo | null;
   sessions: Array<{
     id: number;
     sessionNumber: number;
@@ -1067,7 +1118,11 @@ export async function listMyMentorshipMatches(): Promise<
       },
     });
 
-    const briefs = await loadMentorEnterpriseBriefs(matches.map((match) => match.businessId));
+    const businessIds = matches.map((match) => match.businessId);
+    const [briefs, edoByBusiness] = await Promise.all([
+      loadMentorEnterpriseBriefs(businessIds),
+      activeEdoByBusinessId(businessIds),
+    ]);
 
     const data: MyMentorshipMatchRow[] = matches.map((match) => ({
       id: match.id,
@@ -1076,6 +1131,7 @@ export async function listMyMentorshipMatches(): Promise<
       businessName: match.business.name,
       applicantName: `${match.business.applicant.firstName} ${match.business.applicant.lastName}`.trim(),
       enterprise: briefs.get(match.businessId) ?? null,
+      edo: edoByBusiness.get(match.businessId) ?? null,
       sessions: match.sessions.map((s) => ({
         id: s.id,
         sessionNumber: s.sessionNumber,

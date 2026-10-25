@@ -25,6 +25,49 @@ function defaultMatchId(matches: MyMentorshipMatchRow[]): number | null {
   return active?.id ?? matches[0].id;
 }
 
+function AssignedEdoPanel({ edo }: { edo: MyMentorshipMatchRow["edo"] }) {
+  if (!edo) {
+    return (
+      <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        No EDO assigned yet for this enterprise.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+      <h3 className="text-sm font-semibold text-slate-900">Assigned EDO</h3>
+      <p className="mt-0.5 text-xs text-slate-600">
+        Your programme contact for this client (Business Development / EDO).
+      </p>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-medium text-slate-500">Name</dt>
+          <dd className="mt-0.5 text-sm text-slate-900">{edo.name}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-medium text-slate-500">Email</dt>
+          <dd className="mt-0.5 text-sm text-slate-900">
+            <a href={`mailto:${edo.email}`} className="text-emerald-800 hover:underline">
+              {edo.email}
+            </a>
+          </dd>
+        </div>
+        {edo.phoneNumber ? (
+          <div>
+            <dt className="text-xs font-medium text-slate-500">Phone</dt>
+            <dd className="mt-0.5 text-sm text-slate-900">
+              <a href={`tel:${edo.phoneNumber}`} className="text-emerald-800 hover:underline">
+                {edo.phoneNumber}
+              </a>
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
 function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
   return (
     <section className="rounded-lg border bg-card p-4 space-y-4 shadow-sm">
@@ -37,6 +80,8 @@ function MatchSection({ match }: { match: MyMentorshipMatchRow }) {
           {match.status}
         </span>
       </div>
+
+      <AssignedEdoPanel edo={match.edo} />
 
       <MentorEnterpriseBriefPanel businessId={match.businessId} enterprise={match.enterprise} />
 
