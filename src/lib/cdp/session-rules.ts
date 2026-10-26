@@ -71,3 +71,45 @@ export function validatePreviousSessionGate(
 
   return null;
 }
+
+type SessionWithActionItems = {
+  sessionNumber: number;
+  keyActionsAgreed?: string | null;
+  actionItems?: CdpSessionActionItem[];
+};
+
+/** Same-session check: non-empty key agreed milestones require structured action items. */
+export function validateSessionKeyActionsNeedActionItems(
+  session: SessionWithActionItems,
+  keyActionsAgreedOverride?: string | null
+) {
+  const keyText = (keyActionsAgreedOverride ?? session.keyActionsAgreed)?.trim();
+  if (!keyText) return null;
+
+  const items = session.actionItems ?? [];
+  if (items.length === 0) {
+    return `Session ${session.sessionNumber} has key agreed milestones but no structured action items. Add action items in Session action items, then mark them done or waived before submitting.`;
+  }
+
+  return null;
+}
+
+/** Before approval: milestones need structured items and none may stay open or blocked. */
+export function validateSessionActionItemsForApproval(session: SessionWithActionItems) {
+  const structuredGate = validateSessionKeyActionsNeedActionItems(session);
+  if (structuredGate) {
+    return structuredGate.replace("before submitting.", "before approval.");
+  }
+
+  const keyText = session.keyActionsAgreed?.trim();
+  if (!keyText) return null;
+
+  const openItems = (session.actionItems ?? []).filter(
+    (item) => item.status === "open" || item.status === "blocked"
+  );
+  if (openItems.length > 0) {
+    return `Session ${session.sessionNumber} still has open action items. Mark them done or waived in Session action items before approval.`;
+  }
+
+  return null;
+}

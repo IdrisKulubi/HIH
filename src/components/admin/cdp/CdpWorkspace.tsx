@@ -46,6 +46,7 @@ import {
   type PipelineCompleteness,
 } from "@/lib/cdp/pipeline";
 import { CDP_KR_WEIGHT_SUM_TOLERANCE } from "@/lib/cdp/constants";
+import { validatePreviousSessionGate } from "@/lib/cdp/session-rules";
 import {
   krFinalScoreRatio,
   krWeightedScore,
@@ -168,6 +169,21 @@ function sessionReportProgressLabel(
   if (status === "approved") return "Report complete";
   if (sessionHasDraftReportContent(session)) return "Pending review";
   return "Awaiting report";
+}
+
+function cdpReportingSequenceWarnings(sessions: CdpPlanFull["supportSessions"]) {
+  const messages: string[] = [];
+  for (const row of sessions) {
+    if (row.sessionNumber <= 1) continue;
+    const previous = sessions.find(
+      (session) =>
+        session.focusCode === row.focusCode && session.sessionNumber === row.sessionNumber - 1
+    );
+    if (!previous || previous.approvalStatus !== "approved") continue;
+    const gate = validatePreviousSessionGate(row.sessionNumber, previous);
+    if (gate) messages.push(gate);
+  }
+  return [...new Set(messages)];
 }
 
 function SessionReturnedCallout({ reason }: { reason: string | null | undefined }) {
@@ -2340,6 +2356,8 @@ function CdpSessionsPanel({
   const reportReadyCount = plan.supportSessions.filter(
     (session) => session.approvalStatus !== "approved" && reportStarted(session)
   ).length;
+  const reportingSequenceWarnings =
+    mode === "reporting" ? cdpReportingSequenceWarnings(plan.supportSessions) : [];
 
   const submitAdd = (formData: FormData) => {
     const rawCodes = String(formData.get("focusCodes") ?? "")
@@ -2442,6 +2460,20 @@ function CdpSessionsPanel({
           </Button>
         ) : null}
       </div>
+      {mode === "reporting" && reportingSequenceWarnings.length > 0 ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Session reporting blocked</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
+            {reportingSequenceWarnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-900/80">
+            Use Session action items below to add follow-ups for the earlier session and mark them done
+            or waived.
+          </p>
+        </div>
+      ) : null}
       {mode === "planning" && showAdd ? (
         <form
           className="grid gap-3 rounded-md border p-4 sm:grid-cols-2"
@@ -2681,6 +2713,7 @@ function CdpSessionsPanel({
       <CdpSessionEditSheet
         planId={plan.id}
         session={editingSession ?? null}
+        supportSessions={plan.supportSessions}
         mode={mode}
         currentUserId={currentUserId}
         open={Boolean(editingSession)}
