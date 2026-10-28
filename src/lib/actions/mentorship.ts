@@ -906,7 +906,8 @@ export async function returnMentorshipSession(
     const authSession = await auth();
     const role = authSession?.user?.role ?? null;
     const userId = authSession?.user?.id;
-    if (!userId || !isMentorshipSessionApprover(role)) {
+    const isAdminReturner = isPhase2Admin(role);
+    if (!userId || (!isMentorshipSessionApprover(role) && !isAdminReturner)) {
       return errorResponse("Unauthorized");
     }
 
@@ -920,30 +921,37 @@ export async function returnMentorshipSession(
       with: { match: true },
     });
     if (!row?.match) return errorResponse("Session not found");
-    if (row.status !== "pending_approval") {
-      return errorResponse("Only sessions awaiting approval can be returned.");
-    }
 
-    if (isMentorshipEdoReviewer(role)) {
-      if (row.edoApprovedById) {
-        return errorResponse("This session is already with REDO for final approval.");
-      }
-      const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
-      if (
-        !sessionVisibleToEdoReviewer(
-          { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
-          userId
-        )
-      ) {
-        return errorResponse("You are not assigned to review this enterprise.");
-      }
-    } else if (isMentorshipRedoReviewer(role)) {
-      if (!row.edoApprovedById) {
-        return errorResponse("EDO must review this session before REDO can return it.");
+    if (isAdminReturner) {
+      if (row.status !== "pending_approval" && row.status !== "completed") {
+        return errorResponse("Only submitted or approved sessions can be returned.");
       }
     } else {
-      return errorResponse("Unauthorized");
+      if (row.status !== "pending_approval") {
+        return errorResponse("Only sessions awaiting approval can be returned.");
+      }
+
+      if (isMentorshipEdoReviewer(role)) {
+        if (row.edoApprovedById) {
+          return errorResponse("This session is already with REDO for final approval.");
+        }
+        const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
+        if (
+          !sessionVisibleToEdoReviewer(
+            { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
+            collectorByBusiness,
+            userId
+          )
+        ) {
+          return errorResponse("You are not assigned to review this enterprise.");
+        }
+      } else if (isMentorshipRedoReviewer(role)) {
+        if (!row.edoApprovedById) {
+          return errorResponse("EDO must review this session before REDO can return it.");
+        }
+      } else {
+        return errorResponse("Unauthorized");
+      }
     }
 
     await db
@@ -964,6 +972,117 @@ export async function returnMentorshipSession(
   } catch (e) {
     console.error("returnMentorshipSession", e);
     return errorResponse("Failed to return session");
+  }
+}
+
+export type MentorshipSubmittedSessionRow = {
+  sessionId: number;
+  matchId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  mentorName: string;
+  mentorEmail: string;
+  sessionNumber: number;
+  sessionType: "physical" | "virtual";
+  status: "pending_approval" | "completed";
+  scheduledDate: string;
+  completedDate: string | null;
+  durationMinutes: number;
+  durationLabel: string;
+  diagnosticNotes: string | null;
+  photographicEvidenceUrl: string | null;
+  evidenceFiles: MentorshipEvidenceFile[];
+  hasEvidence: boolean;
+  submittedAt: string;
+  edoApprovedAt: string | null;
+  approvedAt: string | null;
+};
+
+export async function searchSubmittedMentorshipSessions(
+  query: string
+): Promise<ActionResponse<MentorshipSubmittedSessionRow[]>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return successResponse([]);
+    }
+
+    const rows = await db.query.mentorshipSessions.findMany({
+      where: inArray(mentorshipSessions.status, ["pending_approval", "completed"]),
+      orderBy: (s, { desc: orderDesc }) => [orderDesc(s.updatedAt)],
+      with: {
+        match: {
+          with: {
+            business: { with: { applicant: true } },
+            mentor: { with: { user: true } },
+          },
+        },
+      },
+      limit: 200,
+    });
+
+    const q = trimmed.toLowerCase();
+    const data: MentorshipSubmittedSessionRow[] = rows
+      .filter((row) => {
+        if (!row.match?.business || !row.match.mentor?.user) return false;
+        const applicantName =
+          `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim();
+        const haystack = [
+          row.match.business.name,
+          applicantName,
+          row.match.mentor.user.name,
+          row.match.mentor.user.email,
+          `session ${row.sessionNumber}`,
+          String(row.sessionNumber),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 50)
+      .map((row) => {
+        const evidenceFiles = mentorshipEvidenceFilesFromLegacyUrl(
+          row.photographicEvidenceUrl,
+          row.evidenceFiles
+        );
+        return {
+          sessionId: row.id,
+          matchId: row.matchId,
+          businessId: row.match.businessId,
+          businessName: row.match.business.name,
+          applicantName:
+            `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim(),
+          mentorName: row.match.mentor.user.name ?? row.match.mentor.user.email,
+          mentorEmail: row.match.mentor.user.email,
+          sessionNumber: row.sessionNumber,
+          sessionType: row.sessionType,
+          status: row.status as "pending_approval" | "completed",
+          scheduledDate: row.scheduledDate.toISOString(),
+          completedDate: row.completedDate?.toISOString() ?? null,
+          durationMinutes: row.durationMinutes ?? 0,
+          durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
+          diagnosticNotes: row.diagnosticNotes,
+          photographicEvidenceUrl: row.photographicEvidenceUrl,
+          evidenceFiles,
+          hasEvidence: evidenceFiles.length > 0,
+          submittedAt: row.updatedAt.toISOString(),
+          edoApprovedAt: row.edoApprovedAt?.toISOString() ?? null,
+          approvedAt: row.approvedAt?.toISOString() ?? null,
+        };
+      });
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("searchSubmittedMentorshipSessions", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to search submitted sessions");
   }
 }
 

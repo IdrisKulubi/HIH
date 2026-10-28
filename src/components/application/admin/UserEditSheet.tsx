@@ -59,7 +59,9 @@ export function UserEditSheet({
                 <SheetHeader className="border-b px-6 py-5">
                     <SheetTitle>Edit user</SheetTitle>
                     <SheetDescription>
-                        Correct the user&apos;s name or login email. Their role is managed from the user list.
+                        Correct the user&apos;s name or login email. If they only signed in with Google
+                        and have no staff profile yet, saving will create one. Assign their role from
+                        the user list.
                     </SheetDescription>
                 </SheetHeader>
 

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { listMentorsForAdmin, listMentorshipMatchesForBusiness } from "@/lib/actions/mentorship";
 import { CreateMatchForm } from "@/components/admin/mentorship/CreateMatchForm";
 import { CompleteSessionForm } from "@/components/admin/mentorship/CompleteSessionForm";
+import { MentorshipSessionReturnButton } from "@/components/admin/mentorship/MentorshipSessionReturnButton";
 import { resolveMentorshipSessionType } from "@/lib/mentorship/session-types";
 
 export default async function AdminMentorshipMatchesPage({
@@ -110,6 +111,11 @@ export default async function AdminMentorshipMatchesPage({
                         match.sessions.find((p) => p.sessionNumber === s.sessionNumber - 1) ??
                         null
                       }
+                    />
+                    <MentorshipSessionReturnButton
+                      sessionId={s.id}
+                      sessionNumber={s.sessionNumber}
+                      status={s.status}
                     />
                     </div>
                     );
