@@ -52,9 +52,10 @@ function isMentorshipSessionApprover(role?: string | null) {
   return canReviewMentorshipSessions(role);
 }
 
-async function activeCollectorByBusinessId(
+/** Active EDO assignments only; other assignment roles (e.g. MEL collectors) do not gate review. */
+async function activeEdoIdsByBusinessId(
   businessIds: number[]
-): Promise<Map<number, string>> {
+): Promise<Map<number, Set<string>>> {
   if (businessIds.length === 0) return new Map();
   const rows = await db
     .select({
@@ -62,15 +63,19 @@ async function activeCollectorByBusinessId(
       collectorId: melEnterpriseAssignments.collectorId,
     })
     .from(melEnterpriseAssignments)
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
     .where(
       and(
         eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo"),
         inArray(melEnterpriseAssignments.businessId, businessIds)
       )
     );
-  const map = new Map<number, string>();
+  const map = new Map<number, Set<string>>();
   for (const row of rows) {
-    map.set(row.businessId, row.collectorId);
+    const ids = map.get(row.businessId) ?? new Set<string>();
+    ids.add(row.collectorId);
+    map.set(row.businessId, ids);
   }
   return map;
 }
@@ -751,14 +756,14 @@ export async function listMentorshipSessionsPendingApproval(): Promise<
         rows.map((row) => row.match?.businessId).filter((id): id is number => id != null)
       ),
     ];
-    const collectorByBusiness = await activeCollectorByBusinessId(businessIds);
+    const edosByBusiness = await activeEdoIdsByBusinessId(businessIds);
 
     const filtered = rows.filter((row) => {
       if (!row.match?.business) return false;
       if (isMentorshipEdoReviewer(role)) {
         return sessionVisibleToEdoReviewer(
           { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
+          edosByBusiness,
           userId
         );
       }
@@ -853,11 +858,11 @@ export async function approveMentorshipSession(
       if (row.edoApprovedById) {
         return errorResponse("This session has already passed EDO review.");
       }
-      const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
+      const edosByBusiness = await activeEdoIdsByBusinessId([row.match.businessId]);
       if (
         !sessionVisibleToEdoReviewer(
           { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
+          edosByBusiness,
           userId
         )
       ) {
@@ -935,11 +940,11 @@ export async function returnMentorshipSession(
         if (row.edoApprovedById) {
           return errorResponse("This session is already with REDO for final approval.");
         }
-        const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
+        const edosByBusiness = await activeEdoIdsByBusinessId([row.match.businessId]);
         if (
           !sessionVisibleToEdoReviewer(
             { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-            collectorByBusiness,
+            edosByBusiness,
             userId
           )
         ) {
