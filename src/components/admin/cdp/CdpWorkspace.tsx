@@ -2400,7 +2400,7 @@ function CdpSessionsPanel({
   };
 
   const remove = (id: number) => {
-    if (!confirm("Delete this session row?")) return;
+    if (!confirm("Delete this session and any report or evidence attached to it? This cannot be undone.")) return;
     start(async () => {
       const res = await deleteCdpSupportSession(id);
       if (!res.success) toast.error(res.error ?? "Failed");
@@ -2594,7 +2594,7 @@ function CdpSessionsPanel({
                           reportStarted={reportStarted(session)}
                           approvalStatus={session.approvalStatus}
                           canManage
-                          canDelete={session.approvalStatus !== "approved"}
+                          canDelete={isSessionManager || session.approvalStatus !== "approved"}
                           disabled={disabled || pending}
                           onEdit={() => setEditingSessionId(session.id)}
                           onDelete={() => remove(session.id)}
@@ -2698,7 +2698,7 @@ function CdpSessionsPanel({
                     reportStarted={reportStarted(s)}
                     approvalStatus={s.approvalStatus}
                     canManage={canManageSession(s)}
-                    canDelete={s.approvalStatus !== "approved"}
+                    canDelete={isSessionManager || s.approvalStatus !== "approved"}
                     disabled={disabled || pending}
                     onEdit={() => setEditingSessionId(s.id)}
                     onDelete={() => remove(s.id)}

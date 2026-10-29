@@ -1577,11 +1577,12 @@ export async function deleteCdpSupportSession(
       with: { plan: { columns: { businessId: true, id: true } } },
     });
     if (!existing?.plan) return errorResponse("Session not found");
-    if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
+    const isManager = isCdpManager(session.user.role ?? null);
+    if (!isManager && existing.conductedById !== session.user.id) {
       return errorResponse("Only the session creator or a CDP manager can delete this session.");
     }
-    if (existing.approvalStatus === "approved") {
-      return errorResponse("Approved session reports cannot be deleted.");
+    if (existing.approvalStatus === "approved" && !isManager) {
+      return errorResponse("Approved sessions can only be deleted by an EDO or CDP manager.");
     }
 
     await db.delete(cdpBusinessSupportSessions).where(eq(cdpBusinessSupportSessions.id, sessionId));
