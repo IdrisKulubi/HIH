@@ -8,10 +8,7 @@ import {
   updateCdpSupportSession,
 } from "@/lib/actions/cdp";
 import { CDP_FOCUS_AREAS, CDP_FOCUS_CODES } from "@/lib/cdp/focus-areas";
-import {
-  validatePreviousSessionGate,
-  validateSessionKeyActionsNeedActionItems,
-} from "@/lib/cdp/session-rules";
+import { validatePreviousSessionGate } from "@/lib/cdp/session-rules";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { useUploadThing } from "@/utils/uploadthing";
 import { Button } from "@/components/ui/button";
@@ -217,20 +214,8 @@ export function CdpSessionEditSheet({
       ? validatePreviousSessionGate(session.sessionNumber, previousSession ?? null)
       : null;
 
-  const keyActionsStructuredGate =
-    !isPlanning && session
-      ? validateSessionKeyActionsNeedActionItems(
-          {
-            sessionNumber: session.sessionNumber,
-            keyActionsAgreed: session.keyActionsAgreed,
-            actionItems: session.actionItems,
-          },
-          keyActionsAgreedDraft
-        )
-      : null;
-
-  const reportSubmitBlocked = Boolean(previousSessionGate || keyActionsStructuredGate);
-  const reportSubmitBlockReason = previousSessionGate ?? keyActionsStructuredGate;
+  const reportSubmitBlocked = Boolean(previousSessionGate);
+  const reportSubmitBlockReason = previousSessionGate;
   const hasReportContent =
     !isPlanning &&
     Boolean(
@@ -411,12 +396,6 @@ export function CdpSessionEditSheet({
                       value={keyActionsAgreedDraft}
                       onChange={(event) => setKeyActionsAgreedDraft(event.target.value)}
                     />
-                    {keyActionsStructuredGate ? (
-                      <p className="text-xs text-amber-900">
-                        Add matching rows in Session action items on the reporting tab, then mark each
-                        done or waived before you submit or get approval.
-                      </p>
-                    ) : null}
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label>Achievements and observations</Label>

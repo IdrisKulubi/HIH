@@ -52,9 +52,7 @@ import { CDP_FOCUS_CODES, cdpFocusCodeSchema, cdpFocusSummaryInputSchema } from 
 import {
   validatePreviousSessionGate,
   validatePreviousSessionPlanGate,
-  validateSessionActionItemsForApproval,
   validateSessionEvidence,
-  validateSessionKeyActionsNeedActionItems,
 } from "@/lib/cdp/session-rules";
 import {
   assertCdpActivationReadiness,
@@ -1649,16 +1647,6 @@ export async function updateCdpSessionReport(
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
     if (focusGate) return errorResponse(focusGate);
 
-    const keyActionsGate = validateSessionKeyActionsNeedActionItems(
-      {
-        sessionNumber: existing.sessionNumber,
-        keyActionsAgreed: existing.keyActionsAgreed,
-        actionItems: existing.actionItems,
-      },
-      parsed.data.keyActionsAgreed
-    );
-    if (keyActionsGate) return errorResponse(keyActionsGate);
-
     if (existing.sessionNumber > 1) {
       const prev = await db.query.cdpBusinessSupportSessions.findFirst({
         where: and(
@@ -1812,12 +1800,6 @@ export async function approveCdpSupportSession(
     if (!sessionHasReportContent(existing)) {
       return errorResponse("Complete and submit the session report before approving it.");
     }
-    const actionItemsGate = validateSessionActionItemsForApproval({
-      sessionNumber: existing.sessionNumber,
-      keyActionsAgreed: existing.keyActionsAgreed,
-      actionItems: existing.actionItems,
-    });
-    if (actionItemsGate) return errorResponse(actionItemsGate);
     const evidenceGate = validateSessionEvidence({
       sessionNumber: existing.sessionNumber,
       sessionType: existing.sessionType,

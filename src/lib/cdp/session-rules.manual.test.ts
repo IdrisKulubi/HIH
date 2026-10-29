@@ -7,9 +7,7 @@ import type { CdpSessionActionItem } from "@/db/schema";
 import {
   validatePreviousSessionGate,
   validatePreviousSessionPlanGate,
-  validateSessionActionItemsForApproval,
   validateSessionEvidence,
-  validateSessionKeyActionsNeedActionItems,
 } from "./session-rules";
 
 function fakeActionItem(
@@ -93,76 +91,11 @@ function main() {
   assert.equal(validatePreviousSessionGate(2, fakeSession({ approvalStatus: "pending" })), "Session 1 must be approved before logging Session 2.");
   assert.equal(validatePreviousSessionGate(2, fakeSession({ approvalStatus: "approved" })), null);
 
-  const prevWithMilestones = {
-    ...fakeSession({ approvalStatus: "approved", keyActionsAgreed: "Train staff" }),
-    actionItems: [] as CdpSessionActionItem[],
-  };
-  assert.match(
-    validatePreviousSessionGate(2, prevWithMilestones) ?? "",
-    /Session 1 has key actions agreed but no structured action items/
-  );
-
   const prevWithOpenItem = {
     ...fakeSession({ approvalStatus: "approved", keyActionsAgreed: "Train staff" }),
     actionItems: [fakeActionItem({ status: "open" })],
   };
-  assert.match(
-    validatePreviousSessionGate(2, prevWithOpenItem) ?? "",
-    /Session 1 still has open action items/
-  );
-
-  const prevClosed = {
-    ...fakeSession({ approvalStatus: "approved", keyActionsAgreed: "Train staff" }),
-    actionItems: [fakeActionItem({ status: "done" })],
-  };
-  assert.equal(validatePreviousSessionGate(2, prevClosed), null);
-
-  assert.equal(
-    validateSessionKeyActionsNeedActionItems(
-      { sessionNumber: 1, keyActionsAgreed: "Milestone A", actionItems: [] }
-    ),
-    "Session 1 has key agreed milestones but no structured action items. Add action items in Session action items, then mark them done or waived before submitting."
-  );
-  assert.equal(
-    validateSessionKeyActionsNeedActionItems(
-      { sessionNumber: 1, keyActionsAgreed: null, actionItems: [] },
-      "From form"
-    ),
-    "Session 1 has key agreed milestones but no structured action items. Add action items in Session action items, then mark them done or waived before submitting."
-  );
-  assert.equal(
-    validateSessionKeyActionsNeedActionItems({
-      sessionNumber: 1,
-      keyActionsAgreed: "Milestone A",
-      actionItems: [fakeActionItem()],
-    }),
-    null
-  );
-
-  assert.match(
-    validateSessionActionItemsForApproval({
-      sessionNumber: 1,
-      keyActionsAgreed: "Milestone A",
-      actionItems: [],
-    }) ?? "",
-    /before approval/
-  );
-  assert.match(
-    validateSessionActionItemsForApproval({
-      sessionNumber: 1,
-      keyActionsAgreed: "Milestone A",
-      actionItems: [fakeActionItem({ status: "open" })],
-    }) ?? "",
-    /open action items/
-  );
-  assert.equal(
-    validateSessionActionItemsForApproval({
-      sessionNumber: 1,
-      keyActionsAgreed: "Milestone A",
-      actionItems: [fakeActionItem({ status: "waived" })],
-    }),
-    null
-  );
+  assert.equal(validatePreviousSessionGate(2, prevWithOpenItem), null);
 
   console.log("session-rules.manual.test.ts: all assertions passed");
 }
