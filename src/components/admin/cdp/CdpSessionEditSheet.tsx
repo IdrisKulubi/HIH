@@ -419,12 +419,12 @@ export function CdpSessionEditSheet({
                   <Label>Supporting evidence/documents</Label>
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground hover:bg-muted/50">
                     {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <UploadCloud className="h-5 w-5" />}
-                    <span>{isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, photos, assessments, or plans"}</span>
+                    <span>{isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, presentations, photos, assessments, or plans"}</span>
                     <input
                       type="file"
                       multiple
                       className="sr-only"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*"
                       disabled={isUploading || pending}
                       onChange={(event) => {
                         const files = Array.from(event.currentTarget.files ?? []);
@@ -459,7 +459,7 @@ export function CdpSessionEditSheet({
                             <input
                               type="file"
                               className="sr-only"
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*"
                               disabled={isUploading || pending}
                               onChange={(event) => {
                                 const file = event.currentTarget.files?.[0];

@@ -75,6 +75,11 @@ const cdpEvidenceUploader = f({
     maxFileSize: "16MB",
     maxFileCount: 6,
   },
+  "application/vnd.ms-powerpoint": { maxFileSize: "32MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+    maxFileSize: "32MB",
+    maxFileCount: 6,
+  },
   "text/csv": { maxFileSize: "8MB", maxFileCount: 6 },
 })
   .middleware(async () => {
