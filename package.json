@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "npx tsx db/migrate.ts",
+    "test:fieldwork-phase1": "npx tsx src/lib/fieldwork/plan-rules.manual.test.ts",
+    "test:fieldwork-phase2": "npx tsx src/lib/fieldwork/phase2.manual.test.ts",
     "test:cdp": "npx tsx src/lib/cdp/pipeline.manual.test.ts",
     "test:a2f-screening": "npx tsx src/lib/a2f-pre-screening.manual.test.ts",
     "test:a2f-outcomes": "npx tsx src/lib/a2f-pre-screening-outcome.manual.test.ts",

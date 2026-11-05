@@ -83,6 +83,7 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
     "/admin/cdp",
     "/admin/cdp/approvals",
     "/admin/mentorship/approved",
+    "/admin/fieldwork",
     "/admin/mentorship/analytics",
   ],
   mentor: [

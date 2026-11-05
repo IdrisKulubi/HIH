@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard, GraduationCap } from "lucide-react";
+import { User, LogOut, FileText, LogIn, Clock, ShieldCheck, LayoutDashboard, GraduationCap, MapPinned } from "lucide-react";
 import { areApplicationsOpen } from "@/lib/config";
 import { getRoleHomePath } from "@/lib/users/role-home";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -256,6 +256,15 @@ export function Header() {
                         </DropdownMenuItem>
                       )}
 
+                      {["bds_edo", "redo", "admin", "oversight"].includes(session.user.role || "") && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/fieldwork" className="flex items-center">
+                            <MapPinned className="mr-2 h-4 w-4" />
+                            <span>Fieldwork</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
                       <DropdownMenuItem asChild>
                         <Link href="/dashboard/learning" className="flex items-center">
                           <GraduationCap className="mr-2 h-4 w-4" />
@@ -365,6 +374,16 @@ export function Header() {
                       <GraduationCap className="h-4 w-4" />
                       Learning (LMS)
                     </Link>
+                    {["bds_edo", "redo", "admin", "oversight"].includes(session.user.role || "") && (
+                      <Link
+                        href="/fieldwork"
+                        onClick={closeMobileMenu}
+                        className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 px-4 border border-[#005EB8] text-[#005EB8] text-sm font-semibold rounded-xl"
+                      >
+                        <MapPinned className="h-4 w-4" />
+                        Fieldwork
+                      </Link>
+                    )}
                   </div>
                 )}
 
