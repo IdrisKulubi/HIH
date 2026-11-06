@@ -964,6 +964,8 @@ export async function returnMentorshipSession(
       .set({
         status: "scheduled",
         rejectionReason: parsedReason.data,
+        returnedById: userId,
+        returnedAt: new Date(),
         edoApprovedById: null,
         edoApprovedAt: null,
         approvedById: null,
@@ -1167,6 +1169,7 @@ async function loadMentorshipMatchesForBusiness(businessId: number) {
       mentor: { with: { user: true } },
       sessions: {
         orderBy: (s, { asc }) => [asc(s.sessionNumber)],
+        with: { returnedBy: { columns: { name: true, email: true } } },
       },
     },
   });
@@ -1211,6 +1214,8 @@ export type MyMentorshipMatchRow = {
     photographicEvidenceUrl: string | null;
     evidenceFiles: MentorshipEvidenceFile[];
     rejectionReason: string | null;
+    returnedByName: string | null;
+    returnedAt: Date | null;
     edoApprovedById: string | null;
   }>;
 };
@@ -1238,6 +1243,7 @@ export async function listMyMentorshipMatches(): Promise<
         business: { with: { applicant: true } },
         sessions: {
           orderBy: (s, { asc }) => [asc(s.sessionNumber)],
+          with: { returnedBy: { columns: { name: true, email: true } } },
         },
       },
     });
@@ -1271,6 +1277,8 @@ export async function listMyMentorshipMatches(): Promise<
           s.evidenceFiles
         ),
         rejectionReason: s.rejectionReason,
+        returnedByName: s.returnedBy?.name ?? s.returnedBy?.email ?? null,
+        returnedAt: s.returnedAt,
         edoApprovedById: s.edoApprovedById,
       })),
     }));

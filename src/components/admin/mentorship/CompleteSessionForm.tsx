@@ -75,6 +75,8 @@ export function CompleteSessionForm({
   completedDate,
   durationMinutes,
   rejectionReason,
+  returnedByName,
+  returnedAt,
   photographicEvidenceUrl,
   evidenceFiles,
   diagnosticNotes,
@@ -90,6 +92,8 @@ export function CompleteSessionForm({
   completedDate?: Date | string | null;
   durationMinutes?: number | null;
   rejectionReason?: string | null;
+  returnedByName?: string | null;
+  returnedAt?: Date | string | null;
   photographicEvidenceUrl?: string | null;
   evidenceFiles?: MentorshipEvidenceFile[] | null;
   diagnosticNotes?: string | null;
@@ -211,7 +215,11 @@ export function CompleteSessionForm({
       ) : null}
       {rejectionReason ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
-          <p className="font-medium">Returned for edits</p>
+          <p className="font-medium">
+            Returned for edits
+            {returnedByName ? ` by ${returnedByName}` : ""}
+            {returnedAt ? ` on ${new Date(returnedAt).toLocaleDateString()}` : ""}
+          </p>
           <p className="mt-1 whitespace-pre-wrap">{rejectionReason}</p>
         </div>
       ) : null}

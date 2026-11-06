@@ -104,6 +104,8 @@ export default async function AdminMentorshipMatchesPage({
                       completedDate={s.completedDate}
                       durationMinutes={s.durationMinutes}
                       rejectionReason={s.rejectionReason}
+                      returnedByName={s.returnedBy?.name ?? s.returnedBy?.email ?? null}
+                      returnedAt={s.returnedAt}
                       photographicEvidenceUrl={s.photographicEvidenceUrl}
                       evidenceFiles={s.evidenceFiles}
                       diagnosticNotes={s.diagnosticNotes}

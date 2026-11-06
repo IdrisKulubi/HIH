@@ -51,6 +51,63 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function SessionList({ sessions }: { sessions: MentorshipAnalyticsSessionRow[] }) {
+  if (sessions.length === 0) {
+    return <p className="text-sm text-slate-500">No sessions recorded yet.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {sessions.map((session) => (
+        <article
+          key={session.id}
+          className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-slate-900">
+              Session {session.sessionNumber}
+              <span className="ml-2 font-normal capitalize text-slate-500">
+                {session.sessionType}
+              </span>
+            </p>
+            <StatusBadge status={session.status} />
+          </div>
+          <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">Scheduled</dt>
+              <dd>{formatDate(session.scheduledDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Completed</dt>
+              <dd>{formatDate(session.completedDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Duration</dt>
+              <dd>{formatMentorshipDurationMinutes(session.durationMinutes)}</dd>
+            </div>
+          </dl>
+          {session.diagnosticNotes ? (
+            <p className="mt-2 text-xs leading-5 text-slate-700">{session.diagnosticNotes}</p>
+          ) : null}
+          {session.rejectionReason ? (
+            <p className="mt-2 text-xs text-red-700">Returned: {session.rejectionReason}</p>
+          ) : null}
+          {session.evidenceUrl?.trim() ? (
+            <a
+              href={session.evidenceUrl.trim()}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-block text-xs font-medium text-brand-blue hover:underline"
+            >
+              View evidence
+            </a>
+          ) : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function DetailStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2">

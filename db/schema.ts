@@ -913,6 +913,8 @@ export const mentorshipSessions = pgTable(
     edoApprovedById: text('edo_approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     edoApprovedAt: timestamp('edo_approved_at'),
     rejectionReason: text('rejection_reason'),
+    returnedById: text('returned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    returnedAt: timestamp('returned_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -3127,6 +3129,11 @@ export const mentorshipSessionsRelations = relations(mentorshipSessions, ({ one,
   match: one(mentorshipMatches, {
     fields: [mentorshipSessions.matchId],
     references: [mentorshipMatches.id],
+  }),
+  returnedBy: one(users, {
+    fields: [mentorshipSessions.returnedById],
+    references: [users.id],
+    relationName: 'mentorshipSessionReturnedBy',
   }),
   actionItems: many(mentorshipActionItems),
 }));
