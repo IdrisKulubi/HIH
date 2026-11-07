@@ -3,11 +3,28 @@
  */
 import assert from "node:assert/strict";
 import type { CdpBusinessSupportSession } from "@/db/schema";
+import type { CdpSessionActionItem } from "@/db/schema";
 import {
   validatePreviousSessionGate,
   validatePreviousSessionPlanGate,
   validateSessionEvidence,
 } from "./session-rules";
+
+function fakeActionItem(
+  overrides: Partial<CdpSessionActionItem> = {}
+): CdpSessionActionItem {
+  return {
+    id: 1,
+    sessionId: 1,
+    description: "Follow up",
+    status: "open",
+    statusNotes: null,
+    sortOrder: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
 
 function fakeSession(
   overrides: Partial<CdpBusinessSupportSession> = {}
@@ -73,6 +90,12 @@ function main() {
 
   assert.equal(validatePreviousSessionGate(2, fakeSession({ approvalStatus: "pending" })), "Session 1 must be approved before logging Session 2.");
   assert.equal(validatePreviousSessionGate(2, fakeSession({ approvalStatus: "approved" })), null);
+
+  const prevWithOpenItem = {
+    ...fakeSession({ approvalStatus: "approved", keyActionsAgreed: "Train staff" }),
+    actionItems: [fakeActionItem({ status: "open" })],
+  };
+  assert.equal(validatePreviousSessionGate(2, prevWithOpenItem), null);
 
   console.log("session-rules.manual.test.ts: all assertions passed");
 }

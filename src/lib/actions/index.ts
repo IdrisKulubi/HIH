@@ -178,6 +178,7 @@ export {
     listMentorshipSessionsPendingApproval,
     countMentorshipSessionsPendingApproval,
     listApprovedMentorshipSessions,
+    searchSubmittedMentorshipSessions,
     approveMentorshipSession,
     returnMentorshipSession,
     getMentorshipAnalytics,
@@ -188,6 +189,7 @@ export type {
   MentorshipMatchWithSessions,
   MentorshipSessionReviewRow,
   MentorshipApprovedSessionRow,
+  MentorshipSubmittedSessionRow,
   MentorshipAnalytics,
 } from "./mentorship";
 

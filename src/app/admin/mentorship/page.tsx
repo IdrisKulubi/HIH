@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChartLine, FileCheck2 } from "lucide-react";
+import { ChartLine, FileCheck2, RotateCcw } from "lucide-react";
 import { listBusinessesWithApplicantForAdmin } from "@/lib/actions/cna";
 import {
   listMentorsForAdmin,
@@ -26,6 +26,13 @@ export default async function AdminMentorshipPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/mentorship/sessions"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+          >
+            <RotateCcw className="size-4" />
+            Return sessions
+          </Link>
           <Link
             href="/admin/mentorship/approved"
             className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-50"

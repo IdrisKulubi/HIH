@@ -436,6 +436,31 @@ export const cdpSessionActionItemStatusEnum = pgEnum('cdp_session_action_item_st
   'blocked',
 ]);
 
+/** Fieldwork scheduling is intentionally separate from the later visit/report workflow. */
+export const fieldworkPlanStatusEnum = pgEnum('fieldwork_plan_status', [
+  'draft',
+  'submitted',
+  'returned',
+  'approved',
+  'cancelled',
+]);
+export const fieldworkVisitStatusEnum = pgEnum('fieldwork_visit_status', [
+  'scheduled',
+  'checked_in',
+  'checked_out',
+  'cancelled',
+  'completed',
+  'missed',
+]);
+export const fieldworkVerificationStatusEnum = pgEnum('fieldwork_verification_status', ['pending', 'verified', 'needs_review', 'exception_approved']);
+export const fieldworkReportStatusEnum = pgEnum('fieldwork_report_status', ['draft', 'submitted', 'returned', 'approved']);
+export const fieldworkNotificationStatusEnum = pgEnum('fieldwork_notification_status', [
+  'pending',
+  'sent',
+  'failed',
+  'skipped',
+]);
+
 export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
   'limited_company',
   'partnership',
@@ -888,6 +913,8 @@ export const mentorshipSessions = pgTable(
     edoApprovedById: text('edo_approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     edoApprovedAt: timestamp('edo_approved_at'),
     rejectionReason: text('rejection_reason'),
+    returnedById: text('returned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    returnedAt: timestamp('returned_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -1265,6 +1292,210 @@ export const cdpBusinessSupportSessions = pgTable(
       table.focusCode,
       table.sessionNumber
     ),
+  })
+);
+
+/** A fieldwork itinerary submitted by an EDO for REDO approval. */
+export const fieldworkPlans = pgTable(
+  'fieldwork_plans',
+  {
+    id: serial('id').primaryKey(),
+    title: varchar('title', { length: 255 }).notNull(),
+    scheduledStartAt: timestamp('scheduled_start_at').notNull(),
+    scheduledEndAt: timestamp('scheduled_end_at').notNull(),
+    estimatedDurationMinutes: integer('estimated_duration_minutes').notNull(),
+    status: fieldworkPlanStatusEnum('status').default('draft').notNull(),
+    createdById: text('created_by_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+    submittedAt: timestamp('submitted_at'),
+    /** REDO chosen to review this plan; null routes it to the admin fallback queue. */
+    assignedRedoId: text('assigned_redo_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at'),
+    returnReason: text('return_reason'),
+    cancellationReason: text('cancellation_reason'),
+    cancelledAt: timestamp('cancelled_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerStatusIdx: index('fieldwork_plans_owner_status_idx').on(table.createdById, table.status),
+    reviewStatusIdx: index('fieldwork_plans_review_status_idx').on(table.status, table.scheduledStartAt),
+    scheduleIdx: index('fieldwork_plans_schedule_idx').on(table.scheduledStartAt),
+    assignedRedoIdx: index('fieldwork_plans_assigned_redo_status_idx').on(table.assignedRedoId, table.status),
+    reviewedByIdx: index('fieldwork_plans_reviewed_by_idx').on(table.reviewedById),
+    validWindow: check('fieldwork_plans_valid_window_chk', sql`${table.scheduledEndAt} > ${table.scheduledStartAt}`),
+    validDuration: check('fieldwork_plans_valid_duration_chk', sql`${table.estimatedDurationMinutes} > 0`),
+  })
+);
+
+/** One scheduled enterprise visit within a fieldwork plan. */
+export const fieldworkVisits = pgTable(
+  'fieldwork_visits',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'restrict' }),
+    agenda: text('agenda').notNull(),
+    scheduledStartAt: timestamp('scheduled_start_at').notNull(),
+    estimatedDurationMinutes: integer('estimated_duration_minutes').notNull(),
+    status: fieldworkVisitStatusEnum('status').default('scheduled').notNull(),
+    checkedInAt: timestamp('checked_in_at'),
+    checkedOutAt: timestamp('checked_out_at'),
+    checkInLatitude: decimal('check_in_latitude', { precision: 10, scale: 7 }),
+    checkInLongitude: decimal('check_in_longitude', { precision: 10, scale: 7 }),
+    checkInAccuracyMeters: integer('check_in_accuracy_meters'),
+    checkOutLatitude: decimal('check_out_latitude', { precision: 10, scale: 7 }),
+    checkOutLongitude: decimal('check_out_longitude', { precision: 10, scale: 7 }),
+    checkOutAccuracyMeters: integer('check_out_accuracy_meters'),
+    verificationStatus: fieldworkVerificationStatusEnum('verification_status').default('pending').notNull(),
+    verificationNotes: text('verification_notes'),
+    /** granted | denied | unavailable | timeout — why a reading is (or is not) present. */
+    checkInLocationState: varchar('check_in_location_state', { length: 20 }),
+    checkOutLocationState: varchar('check_out_location_state', { length: 20 }),
+    checkInDistanceMeters: integer('check_in_distance_meters'),
+    checkOutDistanceMeters: integer('check_out_distance_meters'),
+    locationConsentAt: timestamp('location_consent_at'),
+    exceptionById: text('exception_by_id').references(() => users.id, { onDelete: 'set null' }),
+    exceptionReason: text('exception_reason'),
+    exceptionAt: timestamp('exception_at'),
+    missedReason: text('missed_reason'),
+    missedRecordedAt: timestamp('missed_recorded_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_visits_plan_id_idx').on(table.planId),
+    businessIdx: index('fieldwork_visits_business_id_idx').on(table.businessId),
+    scheduleIdx: index('fieldwork_visits_scheduled_start_idx').on(table.scheduledStartAt),
+    statusIdx: index('fieldwork_visits_status_idx').on(table.status, table.scheduledStartAt),
+    validDuration: check('fieldwork_visits_valid_duration_chk', sql`${table.estimatedDurationMinutes} > 0`),
+    planBusinessUq: uniqueIndex('fieldwork_visits_plan_business_uq').on(table.planId, table.businessId),
+  })
+);
+
+export const fieldworkReports = pgTable('fieldwork_reports', {
+  id: serial('id').primaryKey(),
+  visitId: integer('visit_id').notNull().unique().references(() => fieldworkVisits.id, { onDelete: 'cascade' }),
+  status: fieldworkReportStatusEnum('status').default('draft').notNull(),
+  activitiesConducted: text('activities_conducted'),
+  findingsAndGaps: text('findings_and_gaps'),
+  enterpriseChallenges: text('enterprise_challenges'),
+  solutionsOffered: text('solutions_offered'),
+  recommendations: text('recommendations'),
+  actionPoints: text('action_points'),
+  edoResponsibleId: text('edo_responsible_id').references(() => users.id, { onDelete: 'set null' }),
+  timeline: text('timeline'),
+  submittedAt: timestamp('submitted_at'),
+  reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  returnReason: text('return_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ statusIdx: index('fieldwork_reports_status_idx').on(table.status, table.submittedAt), edoIdx: index('fieldwork_reports_edo_idx').on(table.edoResponsibleId, table.status) }));
+
+/** Append-only trace of report submissions, reviews and feedback deliveries. */
+export const fieldworkReportEvents = pgTable(
+  'fieldwork_report_events',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => fieldworkReports.id, { onDelete: 'cascade' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    details: jsonb('details').default({}).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ reportIdx: index('fieldwork_report_events_report_idx').on(table.reportId, table.createdAt) })
+);
+
+/** One row per fieldwork export, recording who exported what with which filters. */
+export const fieldworkExportEvents = pgTable(
+  'fieldwork_export_events',
+  {
+    id: serial('id').primaryKey(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    dataset: varchar('dataset', { length: 40 }).notNull(),
+    format: varchar('format', { length: 10 }).notNull(),
+    filters: jsonb('filters').default({}).notNull(),
+    rowCount: integer('row_count').notNull(),
+    includesPreciseLocation: boolean('includes_precise_location').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ createdIdx: index('fieldwork_export_events_created_idx').on(table.createdAt) })
+);
+
+/** Audited, expiring admin exception to the "no new booking with outstanding reports" gate. */
+export const fieldworkGateOverrides = pgTable(
+  'fieldwork_gate_overrides',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    grantedById: text('granted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reason: text('reason').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ userIdx: index('fieldwork_gate_overrides_user_idx').on(table.userId, table.expiresAt) })
+);
+
+/** Staff members taking part in an individual enterprise visit. */
+export const fieldworkVisitStaff = pgTable(
+  'fieldwork_visit_staff',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => fieldworkVisits.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    visitIdx: index('fieldwork_visit_staff_visit_id_idx').on(table.visitId),
+    userIdx: index('fieldwork_visit_staff_user_id_idx').on(table.userId),
+    visitUserUq: uniqueIndex('fieldwork_visit_staff_visit_user_uq').on(table.visitId, table.userId),
+  })
+);
+
+/** Delivery ledger for itinerary emails and later fieldwork reminders. */
+export const fieldworkNotificationDeliveries = pgTable(
+  'fieldwork_notification_deliveries',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    /** Set for per-visit messages such as client feedback, so failures can be retried. */
+    visitId: integer('visit_id').references(() => fieldworkVisits.id, { onDelete: 'set null' }),
+    attempts: integer('attempts').default(0).notNull(),
+    recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+    recipientRole: varchar('recipient_role', { length: 80 }).notNull(),
+    kind: varchar('kind', { length: 80 }).notNull(),
+    status: fieldworkNotificationStatusEnum('status').default('pending').notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    failureReason: text('failure_reason'),
+    sentAt: timestamp('sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_notification_deliveries_plan_id_idx').on(table.planId),
+    statusIdx: index('fieldwork_notification_deliveries_status_idx').on(table.status, table.createdAt),
+    recipientIdx: index('fieldwork_notification_deliveries_recipient_idx').on(table.recipientEmail, table.status, table.createdAt),
+  })
+);
+
+/** Append-only trace for authorisation-sensitive fieldwork changes. */
+export const fieldworkAuditEvents = pgTable(
+  'fieldwork_audit_events',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    visitId: integer('visit_id').references(() => fieldworkVisits.id, { onDelete: 'set null' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    details: jsonb('details').notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_audit_events_plan_id_idx').on(table.planId, table.createdAt),
+    typeIdx: index('fieldwork_audit_events_type_idx').on(table.eventType, table.createdAt),
+    actorIdx: index('fieldwork_audit_events_actor_id_idx').on(table.actorId),
   })
 );
 
@@ -2899,6 +3130,11 @@ export const mentorshipSessionsRelations = relations(mentorshipSessions, ({ one,
     fields: [mentorshipSessions.matchId],
     references: [mentorshipMatches.id],
   }),
+  returnedBy: one(users, {
+    fields: [mentorshipSessions.returnedById],
+    references: [users.id],
+    relationName: 'mentorshipSessionReturnedBy',
+  }),
   actionItems: many(mentorshipActionItems),
 }));
 
@@ -4248,6 +4484,27 @@ export const a2fGrantMilestones = pgTable('a2f_grant_milestones', {
 }));
 
 // --- Relations ---
+
+export const fieldworkPlansRelations = relations(fieldworkPlans, ({ one, many }) => ({
+  createdBy: one(users, { fields: [fieldworkPlans.createdById], references: [users.id], relationName: 'fieldworkPlanCreator' }),
+  reviewedBy: one(users, { fields: [fieldworkPlans.reviewedById], references: [users.id], relationName: 'fieldworkPlanReviewer' }),
+  visits: many(fieldworkVisits),
+}));
+export const fieldworkVisitsRelations = relations(fieldworkVisits, ({ one, many }) => ({
+  plan: one(fieldworkPlans, { fields: [fieldworkVisits.planId], references: [fieldworkPlans.id] }),
+  business: one(businesses, { fields: [fieldworkVisits.businessId], references: [businesses.id] }),
+  staff: many(fieldworkVisitStaff),
+  report: one(fieldworkReports),
+}));
+export const fieldworkReportsRelations = relations(fieldworkReports, ({ one }) => ({
+  visit: one(fieldworkVisits, { fields: [fieldworkReports.visitId], references: [fieldworkVisits.id] }),
+  edoResponsible: one(users, { fields: [fieldworkReports.edoResponsibleId], references: [users.id], relationName: 'fieldworkReportEdo' }),
+  reviewedBy: one(users, { fields: [fieldworkReports.reviewedById], references: [users.id], relationName: 'fieldworkReportReviewer' }),
+}));
+export const fieldworkVisitStaffRelations = relations(fieldworkVisitStaff, ({ one }) => ({
+  visit: one(fieldworkVisits, { fields: [fieldworkVisitStaff.visitId], references: [fieldworkVisits.id] }),
+  user: one(users, { fields: [fieldworkVisitStaff.userId], references: [users.id] }),
+}));
 
 export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
   application: one(applications, {

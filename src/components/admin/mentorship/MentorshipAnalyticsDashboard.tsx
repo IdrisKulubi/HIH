@@ -152,14 +152,14 @@ export function MentorshipAnalyticsDashboard({ data }: { data: MentorshipAnalyti
           value={String(data.pendingQueue.pendingOver7Days)}
         />
         <StatCard
-          label="Currently returned"
+          label="Returned awaiting action"
           value={String(data.returns.currentlyReturned)}
-          detail="Awaiting mentor resubmission"
+          detail="Returned sessions awaiting mentor resubmission"
         />
         <StatCard
-          label="Ever returned"
+          label="Returned sessions with a reason on record"
           value={String(data.returns.everReturned)}
-          detail="Sessions with a return reason on record"
+          detail="Includes returned sessions awaiting resubmission"
         />
       </div>
 

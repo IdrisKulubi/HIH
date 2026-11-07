@@ -224,6 +224,7 @@ export function MentorshipAnalyticsEntityTables({
   const [selectedBusiness, setSelectedBusiness] = useState<MentorshipAnalyticsBusinessRow | null>(
     null
   );
+  const [reportGeneratedAt] = useState(() => new Date());
 
   const filteredMentors = useMemo(() => {
     const q = mentorQuery.trim().toLowerCase();
@@ -324,19 +325,37 @@ export function MentorshipAnalyticsEntityTables({
                     ? ` · ${formatLabel(selectedMentor.expertiseArea)}`
                     : ""}
                 </DialogDescription>
+                <p className="text-xs text-slate-500">
+                  Report generated {reportGeneratedAt.toLocaleString()}
+                </p>
               </DialogHeader>
               <div className="space-y-5 overflow-y-auto px-6 py-4">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <DetailStat label="Status" value={selectedMentor.isActive ? "Active" : "Inactive"} />
-                  <DetailStat label="Enterprises" value={selectedMentor.enterprisesAssigned} />
+                  <DetailStat label="Enterprises" value={selectedMentor.matches.length} />
                   <DetailStat label="Completed" value={selectedMentor.sessionsCompleted} />
                   <DetailStat label="Hours" value={selectedMentor.totalHours} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <DetailStat
+                    label="Virtual completed"
+                    value={selectedMentor.completedSessionTypes.virtual ?? 0}
+                  />
+                  <DetailStat
+                    label="Physical completed"
+                    value={selectedMentor.completedSessionTypes.physical ?? 0}
+                  />
+                  <DetailStat label="Pending submissions" value={selectedMentor.pendingSubmissions} />
+                  <DetailStat
+                    label="Active enterprises"
+                    value={selectedMentor.matches.filter((match) => match.matchStatus === "active").length}
+                  />
                 </div>
                 {selectedMentor.matches.length === 0 ? (
                   <p className="text-sm text-slate-500">This mentor has no matches yet.</p>
                 ) : (
                   selectedMentor.matches.map((match) => (
-                    <section key={match.matchId} className="space-y-3">
+                    <section key={match.matchId} className="rounded-lg border border-slate-200 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <h3 className="text-sm font-semibold text-slate-900">{match.businessName}</h3>
@@ -344,11 +363,14 @@ export function MentorshipAnalyticsEntityTables({
                         </div>
                         <StatusBadge status={match.matchStatus} />
                       </div>
-                      <p className="text-xs text-slate-500">
-                        Started {formatDate(match.startDate)} · {match.sessionsCompleted}/6 completed ·{" "}
-                        {match.totalHours} hr
-                      </p>
-                      <SessionList sessions={match.sessions} />
+                      <p className="mt-2 text-xs text-slate-500">Started {formatDate(match.startDate)}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <DetailStat label="Completed" value={match.sessionsCompleted} />
+                        <DetailStat label="Virtual" value={match.sessions.filter((session) => session.status === "completed" && session.sessionType === "virtual").length} />
+                        <DetailStat label="Physical" value={match.sessions.filter((session) => session.status === "completed" && session.sessionType === "physical").length} />
+                        <DetailStat label="Pending" value={match.pendingCount} />
+                        <DetailStat label="Hours" value={match.totalHours} />
+                      </div>
                     </section>
                   ))
                 )}

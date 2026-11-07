@@ -40,13 +40,13 @@ export function mentorshipPendingLabel(session: {
 
 export function sessionVisibleToEdoReviewer(
   session: Pick<MentorshipSession, "edoApprovedById"> & { businessId: number },
-  collectorByBusiness: Map<number, string>,
+  edosByBusiness: Map<number, Set<string>>,
   edoUserId: string
 ): boolean {
   if (session.edoApprovedById) return false;
-  const collectorId = collectorByBusiness.get(session.businessId);
-  if (!collectorId) return true;
-  return collectorId === edoUserId;
+  const assignedEdoIds = edosByBusiness.get(session.businessId);
+  if (!assignedEdoIds || assignedEdoIds.size === 0) return true;
+  return assignedEdoIds.has(edoUserId);
 }
 
 export function sessionVisibleToRedoReviewer(

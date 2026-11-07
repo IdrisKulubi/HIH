@@ -64,6 +64,7 @@ export type MentorshipAnalyticsMentorRow = {
   isActive: boolean;
   enterprisesAssigned: number;
   sessionsCompleted: number;
+  completedSessionTypes: Record<string, number>;
   totalHours: number;
   pendingSubmissions: number;
   matches: MentorshipAnalyticsMatchRow[];
@@ -207,7 +208,11 @@ export function computeMentorshipAnalytics(data: ExportData): MentorshipAnalytic
 
   const mentorRows = mentors.map((mentor) => {
     const mentorMatches = matches.filter((m) => m.mentorId === mentor.id).map(mapMatch);
-    const sessionsCompleted = mentorMatches.reduce((sum, m) => sum + m.sessionsCompleted, 0);
+    const mentorSessions = matches
+      .filter((m) => m.mentorId === mentor.id)
+      .flatMap((m) => m.sessions);
+    const completedMentorSessions = mentorSessions.filter((s) => s.status === "completed");
+    const sessionsCompleted = completedMentorSessions.length;
     const pendingSubmissions = mentorMatches.reduce((sum, m) => sum + m.pendingCount, 0);
     const totalHours = mentorMatches.reduce((sum, m) => sum + m.totalHours, 0);
     const activeEnterpriseIds = new Set(
@@ -221,6 +226,7 @@ export function computeMentorshipAnalytics(data: ExportData): MentorshipAnalytic
       isActive: mentor.isActive,
       enterprisesAssigned: activeEnterpriseIds.size,
       sessionsCompleted,
+      completedSessionTypes: countBy(completedMentorSessions, (s) => s.sessionType),
       totalHours: Math.round(totalHours * 100) / 100,
       pendingSubmissions,
       matches: mentorMatches.sort((a, b) => b.sessionsCompleted - a.sessionsCompleted),

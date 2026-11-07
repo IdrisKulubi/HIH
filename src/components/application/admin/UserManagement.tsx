@@ -5,8 +5,9 @@ import {
     searchUsers,
     createAdminUser,
     updateUserRole,
+    deleteAdminUser,
 } from "@/lib/actions/admin-users";
-import type { UserListItem, UserManagementRole } from "@/lib/users/roles";
+import type { UserListItem, UserManagementRole, UserSignInMethod } from "@/lib/users/roles";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,16 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +48,7 @@ import {
     User,
     EnvelopeSimple,
     PencilSimple,
+    Trash,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { UserEditSheet } from "./UserEditSheet";
@@ -59,6 +71,24 @@ const ROLES = [
 
 const CREATE_USER_ROLES = ROLES.filter((role) => role.value !== "applicant");
 
+function signInBadge(method: UserSignInMethod) {
+    if (method === "google") {
+        return <Badge className="bg-sky-50 text-sky-800 font-medium">Google</Badge>;
+    }
+    if (method === "password") {
+        return <Badge className="bg-slate-100 text-slate-700 font-medium">Password</Badge>;
+    }
+    if (method === "both") {
+        return <Badge className="bg-violet-50 text-violet-800 font-medium">Google + Password</Badge>;
+    }
+    return <Badge className="bg-orange-50 text-orange-800 font-medium">No sign-in</Badge>;
+}
+
+function displayName(user: UserListItem) {
+    const full = `${user.firstName} ${user.lastName}`.trim();
+    return full || user.name || user.email;
+}
+
 export function UserManagement() {
     const [users, setUsers] = useState<UserListItem[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -67,14 +97,14 @@ export function UserManagement() {
     const [isCreating, setIsCreating] = useState(false);
     const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
     const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
+    const [deletingUser, setDeletingUser] = useState<UserListItem | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    // Add user form state
     const [newUserEmail, setNewUserEmail] = useState("");
     const [newUserFirstName, setNewUserFirstName] = useState("");
     const [newUserLastName, setNewUserLastName] = useState("");
     const [newUserRole, setNewUserRole] = useState<UserManagementRole>("admin");
 
-    // Debounced search function
     const performSearch = useCallback(async (query: string) => {
         setIsLoading(true);
         try {
@@ -91,28 +121,26 @@ export function UserManagement() {
         }
     }, []);
 
-    // Initial load and search effect
     useEffect(() => {
         const timer = setTimeout(() => {
             performSearch(searchQuery);
-        }, 300); // 300ms debounce
+        }, 300);
 
         return () => clearTimeout(timer);
     }, [searchQuery, performSearch]);
 
-    // Handle role change
     const handleRoleChange = async (userId: string, newRole: string) => {
         setUpdatingUserId(userId);
         try {
-            const result = await updateUserRole(
-                userId,
-                newRole as UserManagementRole
-            );
+            const result = await updateUserRole(userId, newRole as UserManagementRole);
             if (result.success) {
                 toast.success("Role updated successfully");
-                // Update local state
                 setUsers((prev) =>
-                    prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+                    prev.map((u) =>
+                        u.id === userId
+                            ? { ...u, role: newRole, hasProfile: true }
+                            : u
+                    )
                 );
             } else {
                 toast.error(result.error || "Failed to update role");
@@ -124,7 +152,6 @@ export function UserManagement() {
         }
     };
 
-    // Handle add user
     const handleAddUser = async () => {
         if (!newUserEmail || !newUserFirstName || !newUserLastName) {
             toast.error("Please fill in all fields");
@@ -146,8 +173,11 @@ export function UserManagement() {
                 setNewUserFirstName("");
                 setNewUserLastName("");
                 setNewUserRole("admin");
-                // Refresh user list
                 performSearch(searchQuery);
+            } else if (result.data?.alreadyExists) {
+                toast.error(result.error || "User already exists");
+                setIsAddDialogOpen(false);
+                setSearchQuery(newUserEmail.trim());
             } else {
                 toast.error(result.error || "Failed to create user");
             }
@@ -158,8 +188,30 @@ export function UserManagement() {
         }
     };
 
-    const getRoleBadge = (role: string) => {
-        const roleConfig = ROLES.find((r) => r.value === role) || ROLES[0];
+    const handleDeleteUser = async () => {
+        if (!deletingUser) return;
+        setIsDeleting(true);
+        try {
+            const result = await deleteAdminUser(deletingUser.id);
+            if (result.success) {
+                toast.success("User deleted");
+                setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
+                setDeletingUser(null);
+            } else {
+                toast.error(result.error || "Failed to delete user");
+            }
+        } catch {
+            toast.error("An error occurred");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const getRoleBadge = (user: UserListItem) => {
+        if (!user.hasProfile || user.role === "none") {
+            return <Badge className="bg-amber-50 text-amber-900 font-medium">No profile</Badge>;
+        }
+        const roleConfig = ROLES.find((r) => r.value === user.role) || ROLES[0];
         return (
             <Badge className={cn("font-medium", roleConfig.color)}>
                 {roleConfig.label}
@@ -177,7 +229,8 @@ export function UserManagement() {
                             User Management
                         </CardTitle>
                         <CardDescription>
-                            Search users, update contact details, add staff, and manage roles
+                            Search all users (including Google sign-ins without a staff profile),
+                            update details, assign roles, or delete
                         </CardDescription>
                     </div>
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -191,7 +244,10 @@ export function UserManagement() {
                             <DialogHeader>
                                 <DialogTitle>Add New User</DialogTitle>
                                 <DialogDescription>
-                                    Create a new user with admin or reviewer access. Default password: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">BIRE@2025</code>
+                                    Create a new user with admin or reviewer access. Default password:{" "}
+                                    <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">
+                                        BIRE@2025
+                                    </code>
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
@@ -263,7 +319,6 @@ export function UserManagement() {
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                {/* Search Input */}
                 <div className="relative">
                     <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -274,16 +329,13 @@ export function UserManagement() {
                     />
                 </div>
 
-                {/* Users List */}
                 <div className="rounded-lg border border-gray-100 overflow-hidden max-h-[400px] overflow-y-auto">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-8">
                             <Spinner className="h-6 w-6 animate-spin text-blue-600" />
                         </div>
                     ) : users.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                            No users found
-                        </div>
+                        <div className="text-center py-8 text-gray-500">No users found</div>
                     ) : (
                         <div className="divide-y divide-gray-100">
                             {users.map((user) => (
@@ -297,16 +349,19 @@ export function UserManagement() {
                                         </div>
                                         <div className="min-w-0">
                                             <p className="truncate font-medium text-gray-900">
-                                                {user.firstName} {user.lastName}
+                                                {displayName(user)}
                                             </p>
                                             <div className="flex min-w-0 items-center gap-1 text-sm text-gray-500">
                                                 <EnvelopeSimple className="h-3.5 w-3.5 shrink-0" />
                                                 <span className="truncate">{user.email}</span>
                                             </div>
+                                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                {getRoleBadge(user)}
+                                                {signInBadge(user.signInMethod)}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                                        {getRoleBadge(user.role)}
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -318,15 +373,27 @@ export function UserManagement() {
                                             Edit
                                         </Button>
                                         <Select
-                                            value={user.role}
-                                            onValueChange={(value) => handleRoleChange(user.id, value)}
+                                            value={
+                                                user.hasProfile && user.role !== "none"
+                                                    ? user.role
+                                                    : undefined
+                                            }
+                                            onValueChange={(value) =>
+                                                handleRoleChange(user.id, value)
+                                            }
                                             disabled={updatingUserId === user.id}
                                         >
                                             <SelectTrigger className="w-[160px] h-9">
                                                 {updatingUserId === user.id ? (
                                                     <Spinner className="h-4 w-4 animate-spin" />
                                                 ) : (
-                                                    <SelectValue placeholder="Change role" />
+                                                    <SelectValue
+                                                        placeholder={
+                                                            user.hasProfile
+                                                                ? "Change role"
+                                                                : "Assign role"
+                                                        }
+                                                    />
                                                 )}
                                             </SelectTrigger>
                                             <SelectContent>
@@ -337,6 +404,16 @@ export function UserManagement() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                                            onClick={() => setDeletingUser(user)}
+                                        >
+                                            <Trash className="size-4" />
+                                            Delete
+                                        </Button>
                                     </div>
                                 </div>
                             ))}
@@ -344,7 +421,6 @@ export function UserManagement() {
                     )}
                 </div>
 
-                {/* Results count */}
                 {!isLoading && users.length > 0 && (
                     <p className="text-sm text-gray-500 text-center">
                         Showing {users.length} user{users.length !== 1 ? "s" : ""}
@@ -362,6 +438,36 @@ export function UserManagement() {
                     void performSearch(searchQuery);
                 }}
             />
+            <AlertDialog
+                open={Boolean(deletingUser)}
+                onOpenChange={(open) => {
+                    if (!open && !isDeleting) setDeletingUser(null);
+                }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {deletingUser
+                                ? `This permanently removes ${displayName(deletingUser)} (${deletingUser.email}) from the system, including any Google or password sign-in.`
+                                : null}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-rose-700 hover:bg-rose-800"
+                            disabled={isDeleting}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                void handleDeleteUser();
+                            }}
+                        >
+                            {isDeleting ? "Deleting…" : "Delete user"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }

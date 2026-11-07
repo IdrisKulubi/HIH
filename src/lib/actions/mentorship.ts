@@ -52,9 +52,10 @@ function isMentorshipSessionApprover(role?: string | null) {
   return canReviewMentorshipSessions(role);
 }
 
-async function activeCollectorByBusinessId(
+/** Active EDO assignments only; other assignment roles (e.g. MEL collectors) do not gate review. */
+async function activeEdoIdsByBusinessId(
   businessIds: number[]
-): Promise<Map<number, string>> {
+): Promise<Map<number, Set<string>>> {
   if (businessIds.length === 0) return new Map();
   const rows = await db
     .select({
@@ -62,15 +63,69 @@ async function activeCollectorByBusinessId(
       collectorId: melEnterpriseAssignments.collectorId,
     })
     .from(melEnterpriseAssignments)
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
     .where(
       and(
         eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo"),
         inArray(melEnterpriseAssignments.businessId, businessIds)
       )
     );
-  const map = new Map<number, string>();
+  const map = new Map<number, Set<string>>();
   for (const row of rows) {
-    map.set(row.businessId, row.collectorId);
+    const ids = map.get(row.businessId) ?? new Set<string>();
+    ids.add(row.collectorId);
+    map.set(row.businessId, ids);
+  }
+  return map;
+}
+
+export type MentorshipAssignedEdo = {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string | null;
+};
+
+async function activeEdoByBusinessId(
+  businessIds: number[]
+): Promise<Map<number, MentorshipAssignedEdo>> {
+  if (businessIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      businessId: melEnterpriseAssignments.businessId,
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      phoneNumber: users.phoneNumber,
+      profileFirstName: userProfiles.firstName,
+      profileLastName: userProfiles.lastName,
+      profileEmail: userProfiles.email,
+      profilePhone: userProfiles.phoneNumber,
+    })
+    .from(melEnterpriseAssignments)
+    .innerJoin(users, eq(users.id, melEnterpriseAssignments.collectorId))
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
+    .where(
+      and(
+        eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, "bds_edo"),
+        inArray(melEnterpriseAssignments.businessId, businessIds)
+      )
+    );
+
+  const map = new Map<number, MentorshipAssignedEdo>();
+  for (const row of rows) {
+    const displayName =
+      row.name?.trim() ||
+      `${row.profileFirstName} ${row.profileLastName}`.trim() ||
+      row.email;
+    map.set(row.businessId, {
+      id: row.userId,
+      name: displayName,
+      email: row.profileEmail || row.email,
+      phoneNumber: row.profilePhone ?? row.phoneNumber ?? null,
+    });
   }
   return map;
 }
@@ -701,14 +756,14 @@ export async function listMentorshipSessionsPendingApproval(): Promise<
         rows.map((row) => row.match?.businessId).filter((id): id is number => id != null)
       ),
     ];
-    const collectorByBusiness = await activeCollectorByBusinessId(businessIds);
+    const edosByBusiness = await activeEdoIdsByBusinessId(businessIds);
 
     const filtered = rows.filter((row) => {
       if (!row.match?.business) return false;
       if (isMentorshipEdoReviewer(role)) {
         return sessionVisibleToEdoReviewer(
           { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
+          edosByBusiness,
           userId
         );
       }
@@ -803,11 +858,11 @@ export async function approveMentorshipSession(
       if (row.edoApprovedById) {
         return errorResponse("This session has already passed EDO review.");
       }
-      const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
+      const edosByBusiness = await activeEdoIdsByBusinessId([row.match.businessId]);
       if (
         !sessionVisibleToEdoReviewer(
           { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
+          edosByBusiness,
           userId
         )
       ) {
@@ -856,7 +911,8 @@ export async function returnMentorshipSession(
     const authSession = await auth();
     const role = authSession?.user?.role ?? null;
     const userId = authSession?.user?.id;
-    if (!userId || !isMentorshipSessionApprover(role)) {
+    const isAdminReturner = isPhase2Admin(role);
+    if (!userId || (!isMentorshipSessionApprover(role) && !isAdminReturner)) {
       return errorResponse("Unauthorized");
     }
 
@@ -870,30 +926,37 @@ export async function returnMentorshipSession(
       with: { match: true },
     });
     if (!row?.match) return errorResponse("Session not found");
-    if (row.status !== "pending_approval") {
-      return errorResponse("Only sessions awaiting approval can be returned.");
-    }
 
-    if (isMentorshipEdoReviewer(role)) {
-      if (row.edoApprovedById) {
-        return errorResponse("This session is already with REDO for final approval.");
-      }
-      const collectorByBusiness = await activeCollectorByBusinessId([row.match.businessId]);
-      if (
-        !sessionVisibleToEdoReviewer(
-          { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
-          collectorByBusiness,
-          userId
-        )
-      ) {
-        return errorResponse("You are not assigned to review this enterprise.");
-      }
-    } else if (isMentorshipRedoReviewer(role)) {
-      if (!row.edoApprovedById) {
-        return errorResponse("EDO must review this session before REDO can return it.");
+    if (isAdminReturner) {
+      if (row.status !== "pending_approval" && row.status !== "completed") {
+        return errorResponse("Only submitted or approved sessions can be returned.");
       }
     } else {
-      return errorResponse("Unauthorized");
+      if (row.status !== "pending_approval") {
+        return errorResponse("Only sessions awaiting approval can be returned.");
+      }
+
+      if (isMentorshipEdoReviewer(role)) {
+        if (row.edoApprovedById) {
+          return errorResponse("This session is already with REDO for final approval.");
+        }
+        const edosByBusiness = await activeEdoIdsByBusinessId([row.match.businessId]);
+        if (
+          !sessionVisibleToEdoReviewer(
+            { edoApprovedById: row.edoApprovedById, businessId: row.match.businessId },
+            edosByBusiness,
+            userId
+          )
+        ) {
+          return errorResponse("You are not assigned to review this enterprise.");
+        }
+      } else if (isMentorshipRedoReviewer(role)) {
+        if (!row.edoApprovedById) {
+          return errorResponse("EDO must review this session before REDO can return it.");
+        }
+      } else {
+        return errorResponse("Unauthorized");
+      }
     }
 
     await db
@@ -901,6 +964,8 @@ export async function returnMentorshipSession(
       .set({
         status: "scheduled",
         rejectionReason: parsedReason.data,
+        returnedById: userId,
+        returnedAt: new Date(),
         edoApprovedById: null,
         edoApprovedAt: null,
         approvedById: null,
@@ -914,6 +979,117 @@ export async function returnMentorshipSession(
   } catch (e) {
     console.error("returnMentorshipSession", e);
     return errorResponse("Failed to return session");
+  }
+}
+
+export type MentorshipSubmittedSessionRow = {
+  sessionId: number;
+  matchId: number;
+  businessId: number;
+  businessName: string;
+  applicantName: string;
+  mentorName: string;
+  mentorEmail: string;
+  sessionNumber: number;
+  sessionType: "physical" | "virtual";
+  status: "pending_approval" | "completed";
+  scheduledDate: string;
+  completedDate: string | null;
+  durationMinutes: number;
+  durationLabel: string;
+  diagnosticNotes: string | null;
+  photographicEvidenceUrl: string | null;
+  evidenceFiles: MentorshipEvidenceFile[];
+  hasEvidence: boolean;
+  submittedAt: string;
+  edoApprovedAt: string | null;
+  approvedAt: string | null;
+};
+
+export async function searchSubmittedMentorshipSessions(
+  query: string
+): Promise<ActionResponse<MentorshipSubmittedSessionRow[]>> {
+  try {
+    const authSession = await auth();
+    if (!authSession?.user?.id || !isPhase2Admin(authSession.user.role ?? null)) {
+      return errorResponse("Unauthorized");
+    }
+
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return successResponse([]);
+    }
+
+    const rows = await db.query.mentorshipSessions.findMany({
+      where: inArray(mentorshipSessions.status, ["pending_approval", "completed"]),
+      orderBy: (s, { desc: orderDesc }) => [orderDesc(s.updatedAt)],
+      with: {
+        match: {
+          with: {
+            business: { with: { applicant: true } },
+            mentor: { with: { user: true } },
+          },
+        },
+      },
+      limit: 200,
+    });
+
+    const q = trimmed.toLowerCase();
+    const data: MentorshipSubmittedSessionRow[] = rows
+      .filter((row) => {
+        if (!row.match?.business || !row.match.mentor?.user) return false;
+        const applicantName =
+          `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim();
+        const haystack = [
+          row.match.business.name,
+          applicantName,
+          row.match.mentor.user.name,
+          row.match.mentor.user.email,
+          `session ${row.sessionNumber}`,
+          String(row.sessionNumber),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 50)
+      .map((row) => {
+        const evidenceFiles = mentorshipEvidenceFilesFromLegacyUrl(
+          row.photographicEvidenceUrl,
+          row.evidenceFiles
+        );
+        return {
+          sessionId: row.id,
+          matchId: row.matchId,
+          businessId: row.match.businessId,
+          businessName: row.match.business.name,
+          applicantName:
+            `${row.match.business.applicant.firstName} ${row.match.business.applicant.lastName}`.trim(),
+          mentorName: row.match.mentor.user.name ?? row.match.mentor.user.email,
+          mentorEmail: row.match.mentor.user.email,
+          sessionNumber: row.sessionNumber,
+          sessionType: row.sessionType,
+          status: row.status as "pending_approval" | "completed",
+          scheduledDate: row.scheduledDate.toISOString(),
+          completedDate: row.completedDate?.toISOString() ?? null,
+          durationMinutes: row.durationMinutes ?? 0,
+          durationLabel: formatMentorshipDurationMinutes(row.durationMinutes),
+          diagnosticNotes: row.diagnosticNotes,
+          photographicEvidenceUrl: row.photographicEvidenceUrl,
+          evidenceFiles,
+          hasEvidence: evidenceFiles.length > 0,
+          submittedAt: row.updatedAt.toISOString(),
+          edoApprovedAt: row.edoApprovedAt?.toISOString() ?? null,
+          approvedAt: row.approvedAt?.toISOString() ?? null,
+        };
+      });
+
+    return successResponse(data);
+  } catch (e) {
+    console.error("searchSubmittedMentorshipSessions", e);
+    if (isPgUndefinedTableError(e)) return errorResponse(MIGRATION_HINT);
+    return errorResponse("Failed to search submitted sessions");
   }
 }
 
@@ -993,6 +1169,7 @@ async function loadMentorshipMatchesForBusiness(businessId: number) {
       mentor: { with: { user: true } },
       sessions: {
         orderBy: (s, { asc }) => [asc(s.sessionNumber)],
+        with: { returnedBy: { columns: { name: true, email: true } } },
       },
     },
   });
@@ -1024,6 +1201,7 @@ export type MyMentorshipMatchRow = {
   businessName: string;
   applicantName: string;
   enterprise: MentorEnterpriseBrief | null;
+  edo: MentorshipAssignedEdo | null;
   sessions: Array<{
     id: number;
     sessionNumber: number;
@@ -1036,6 +1214,8 @@ export type MyMentorshipMatchRow = {
     photographicEvidenceUrl: string | null;
     evidenceFiles: MentorshipEvidenceFile[];
     rejectionReason: string | null;
+    returnedByName: string | null;
+    returnedAt: Date | null;
     edoApprovedById: string | null;
   }>;
 };
@@ -1063,11 +1243,16 @@ export async function listMyMentorshipMatches(): Promise<
         business: { with: { applicant: true } },
         sessions: {
           orderBy: (s, { asc }) => [asc(s.sessionNumber)],
+          with: { returnedBy: { columns: { name: true, email: true } } },
         },
       },
     });
 
-    const briefs = await loadMentorEnterpriseBriefs(matches.map((match) => match.businessId));
+    const businessIds = matches.map((match) => match.businessId);
+    const [briefs, edoByBusiness] = await Promise.all([
+      loadMentorEnterpriseBriefs(businessIds),
+      activeEdoByBusinessId(businessIds),
+    ]);
 
     const data: MyMentorshipMatchRow[] = matches.map((match) => ({
       id: match.id,
@@ -1076,6 +1261,7 @@ export async function listMyMentorshipMatches(): Promise<
       businessName: match.business.name,
       applicantName: `${match.business.applicant.firstName} ${match.business.applicant.lastName}`.trim(),
       enterprise: briefs.get(match.businessId) ?? null,
+      edo: edoByBusiness.get(match.businessId) ?? null,
       sessions: match.sessions.map((s) => ({
         id: s.id,
         sessionNumber: s.sessionNumber,
@@ -1091,6 +1277,8 @@ export async function listMyMentorshipMatches(): Promise<
           s.evidenceFiles
         ),
         rejectionReason: s.rejectionReason,
+        returnedByName: s.returnedBy?.name ?? s.returnedBy?.email ?? null,
+        returnedAt: s.returnedAt,
         edoApprovedById: s.edoApprovedById,
       })),
     }));
