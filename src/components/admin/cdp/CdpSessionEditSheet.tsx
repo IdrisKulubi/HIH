@@ -8,6 +8,7 @@ import {
   updateCdpSupportSession,
 } from "@/lib/actions/cdp";
 import { CDP_FOCUS_AREAS, CDP_FOCUS_CODES } from "@/lib/cdp/focus-areas";
+import { validatePreviousSessionGate } from "@/lib/cdp/session-rules";
 import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { useUploadThing } from "@/utils/uploadthing";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ function parseOptionalNumber(value: FormDataEntryValue | null) {
 export function CdpSessionEditSheet({
   planId,
   session,
+  supportSessions,
   mode,
   currentUserId,
   open,
@@ -77,6 +79,7 @@ export function CdpSessionEditSheet({
 }: {
   planId: number;
   session: CdpSession | null;
+  supportSessions: CdpSession[];
   mode: "planning" | "reporting";
   currentUserId: string;
   open: boolean;
@@ -88,11 +91,21 @@ export function CdpSessionEditSheet({
   const [evidenceFiles, setEvidenceFiles] = useState<CdpEvidenceFile[]>([]);
   const [replacementIndex, setReplacementIndex] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [keyActionsAgreedDraft, setKeyActionsAgreedDraft] = useState("");
 
   useEffect(() => {
     setEvidenceFiles(((session?.evidenceFiles as CdpEvidenceFile[] | null) ?? []));
     setReplacementIndex(null);
+    setKeyActionsAgreedDraft(session?.keyActionsAgreed ?? "");
   }, [session]);
+
+  const previousSession =
+    session && session.sessionNumber > 1
+      ? supportSessions.find(
+          (row) =>
+            row.focusCode === session.focusCode && row.sessionNumber === session.sessionNumber - 1
+        )
+      : undefined;
 
   const { startUpload, isUploading } = useUploadThing("cdpEvidenceUploader", {
     uploadProgressGranularity: "fine",
@@ -194,6 +207,15 @@ export function CdpSessionEditSheet({
 
   const isPlanning = mode === "planning";
   const isReturned = !isPlanning && session?.approvalStatus === "rejected";
+  const isApproved = !isPlanning && session?.approvalStatus === "approved";
+
+  const previousSessionGate =
+    !isPlanning && session && session.sessionNumber > 1
+      ? validatePreviousSessionGate(session.sessionNumber, previousSession ?? null)
+      : null;
+
+  const reportSubmitBlocked = Boolean(previousSessionGate);
+  const reportSubmitBlockReason = previousSessionGate;
   const hasReportContent =
     !isPlanning &&
     Boolean(
@@ -240,17 +262,21 @@ export function CdpSessionEditSheet({
           <SheetTitle>
             {isPlanning
               ? "Edit session plan"
-              : isReturned
-                ? "Edit returned report"
-                : "Complete session report"}{" "}
+              : isApproved
+                ? "View session report"
+                : isReturned
+                  ? "Edit returned report"
+                  : "Complete session report"}{" "}
             {session?.sessionNumber ?? ""}
           </SheetTitle>
           <SheetDescription>
             {isPlanning
               ? "Set what will happen before the advisory session starts."
-              : isReturned
-                ? "Update the report based on the return reason, then resubmit for review."
-                : "Record the completed session outcomes and supporting evidence."}
+              : isApproved
+                ? "This report has been approved and is locked for audit."
+                : isReturned
+                  ? "Update the report based on the return reason, then resubmit for review."
+                  : "Record the completed session outcomes and supporting evidence."}
           </SheetDescription>
         </SheetHeader>
 
@@ -271,6 +297,23 @@ export function CdpSessionEditSheet({
                 <p className="mt-2 text-xs text-rose-800">Update the report and submit again.</p>
               </div>
             ) : null}
+            {isApproved ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                <p className="font-medium">This report is approved</p>
+                <p className="mt-2 text-xs text-emerald-800">Approved reports are locked and cannot be edited.</p>
+              </div>
+            ) : null}
+            {!isPlanning && previousSessionGate ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-950">
+                <p className="font-medium">Previous session must be complete</p>
+                <p className="mt-2 whitespace-pre-wrap leading-relaxed">{previousSessionGate}</p>
+                <p className="mt-2 text-xs text-amber-900/80">
+                  Resolve this in Session action items on the reporting tab, then return to submit this
+                  report.
+                </p>
+              </div>
+            ) : null}
+            <fieldset disabled={isApproved} className="space-y-6 disabled:opacity-80">
             {isPlanning ? (
               <section className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
@@ -325,7 +368,7 @@ export function CdpSessionEditSheet({
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                   <Label>BDS objective</Label>
-                  <Textarea name="supportType" rows={3} defaultValue={session.supportType ?? ""} required />
+                  <Textarea name="supportType" rows={3} maxLength={8000} defaultValue={session.supportType ?? ""} required />
                 </div>
               </section>
             ) : (
@@ -347,7 +390,12 @@ export function CdpSessionEditSheet({
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label>Key agreed milestones</Label>
-                    <Textarea name="keyActionsAgreed" rows={3} defaultValue={session.keyActionsAgreed ?? ""} />
+                    <Textarea
+                      name="keyActionsAgreed"
+                      rows={3}
+                      value={keyActionsAgreedDraft}
+                      onChange={(event) => setKeyActionsAgreedDraft(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
                     <Label>Achievements and observations</Label>
@@ -371,12 +419,12 @@ export function CdpSessionEditSheet({
                   <Label>Supporting evidence/documents</Label>
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground hover:bg-muted/50">
                     {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <UploadCloud className="h-5 w-5" />}
-                    <span>{isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, photos, assessments, or plans"}</span>
+                    <span>{isUploading ? `Uploading ${uploadProgress}%` : "Upload reports, presentations, photos, assessments, or plans"}</span>
                     <input
                       type="file"
                       multiple
                       className="sr-only"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*"
                       disabled={isUploading || pending}
                       onChange={(event) => {
                         const files = Array.from(event.currentTarget.files ?? []);
@@ -411,7 +459,7 @@ export function CdpSessionEditSheet({
                             <input
                               type="file"
                               className="sr-only"
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,image/*"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,image/*"
                               disabled={isUploading || pending}
                               onChange={(event) => {
                                 const file = event.currentTarget.files?.[0];
@@ -449,27 +497,36 @@ export function CdpSessionEditSheet({
               </section>
             )}
 
+            </fieldset>
+
             <SheetFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 py-4">
               <div className="flex w-full flex-wrap justify-end gap-2">
-                {hasReportContent ? (
+                {hasReportContent && !isApproved ? (
                   <Button
                     type="button"
                     variant="destructive"
                     className="mr-auto"
                     onClick={handleDeleteReport}
-                    disabled={disabled || pending || isUploading || session?.approvalStatus === "approved"}
+                    disabled={disabled || pending || isUploading}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete report
                   </Button>
                 ) : null}
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-                  Cancel
+                  {isApproved ? "Close" : "Cancel"}
                 </Button>
-                <Button type="submit" disabled={disabled || pending || isUploading}>
-                  {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
-                </Button>
+                {!isApproved ? (
+                  <span title={reportSubmitBlockReason ?? undefined}>
+                    <Button
+                      type="submit"
+                      disabled={disabled || pending || isUploading || reportSubmitBlocked}
+                    >
+                      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {isPlanning ? "Save plan" : isReturned ? "Resubmit for review" : "Submit report"}
+                    </Button>
+                  </span>
+                ) : null}
               </div>
             </SheetFooter>
           </form>

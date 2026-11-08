@@ -14,7 +14,7 @@ export function getRoleHomePath(role?: string | null) {
     case "technical_reviewer":
       return "/reviewer";
     case "mentor":
-      return "/mentor/cna";
+      return "/mentor";
     case "bds_edo":
       return "/bds/cna";
     case "investment_analyst":

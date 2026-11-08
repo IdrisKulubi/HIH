@@ -16,6 +16,8 @@ export const USER_MANAGEMENT_ROLES = [
 
 export type UserManagementRole = (typeof USER_MANAGEMENT_ROLES)[number];
 
+export type UserSignInMethod = "google" | "password" | "both" | "none";
+
 export interface UserListItem {
   id: string;
   email: string;
@@ -23,5 +25,7 @@ export interface UserListItem {
   firstName: string;
   lastName: string;
   role: string;
+  hasProfile: boolean;
+  signInMethod: UserSignInMethod;
   createdAt: Date;
 }

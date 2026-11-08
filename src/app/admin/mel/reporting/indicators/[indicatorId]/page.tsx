@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Database, Function, Info } from "@phosphor-icons/react/dist/ssr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMelReportingDashboard } from "@/lib/actions/mel-reporting";
+import { MEL_CALCULATION_VERSION } from "@/lib/mel/indicator-engine";
 
 export default async function IndicatorLineagePage({ params, searchParams }: {
   params: Promise<{ indicatorId: string }>;
@@ -12,31 +13,42 @@ export default async function IndicatorLineagePage({ params, searchParams }: {
   const row = result.success ? result.data?.ittRows.find((item) => item.indicatorId === Number(indicatorId)) : null;
   if (!row || !result.data) return <p className="container mx-auto px-4 py-12 text-sm text-red-700">Indicator lineage is unavailable.</p>;
   const calculation = row.calculation;
+  const selectedPeriodId = result.data.selectedPeriod.id;
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
       <header>
-        <Link href={`/admin/mel/reporting?periodId=${result.data.selectedPeriod.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-blue hover:underline"><ArrowLeft className="size-4" /> ITT dashboard</Link>
+        <Link href={`/admin/mel/reporting?periodId=${selectedPeriodId}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-blue hover:underline"><ArrowLeft className="size-4" /> ITT dashboard</Link>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">{row.code}: calculation lineage</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">{row.name}</p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
         <Fact icon={Function} label="Calculation rule" value={calculation.calculationRule} />
         <Fact icon={Database} label="Contributing sources" value={`${calculation.sourceCount} trusted records`} />
-        <Fact icon={Info} label="Definition version" value={`Indicator v${row.indicatorVersion}, calculation v1`} />
+        <Fact icon={Info} label="Definition version" value={`Indicator v${row.indicatorVersion}, calculation v${MEL_CALCULATION_VERSION}`} />
       </div>
       <Card>
         <CardHeader><CardTitle className="text-base">Calculation inputs</CardTitle></CardHeader>
         <CardContent>
           <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Value label="Baseline" value={format(row.baseline)} /><Value label="Target" value={format(row.target)} />
+            <Value label="Baseline" value={format(row.baseline)} />
+            <Value
+              label="Target"
+              value={
+                row.targetBreakdown.length
+                  ? row.targetBreakdown.map((item) => `${item.label}=${format(item.value)}`).join(" · ")
+                  : format(row.target)
+              }
+            />
             <Value label="Numerator" value={format(calculation.numerator)} /><Value label="Denominator" value={format(calculation.denominator)} />
+            {calculation.denominatorBasis ? <Value label="Denominator basis" value={calculation.denominatorBasis.replaceAll("_", " ")} /> : null}
             <Value label="Actual" value={format(calculation.actual)} /><Value label="Achievement" value={calculation.achievementPercentage === null ? "Not available" : `${calculation.achievementPercentage.toFixed(2)}%`} />
             <Value label="Traffic light" value={calculation.trafficLight.replaceAll("_", " ")} /><Value label="Calculation status" value={row.calculatedAt ? `Stored ${row.calculatedAt.toLocaleDateString("en-KE")}` : "Preview only"} />
           </dl>
         </CardContent>
       </Card>
-      <section className="grid gap-5 lg:grid-cols-3">
+      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
         <SourceList title="Approved monitoring submissions" items={calculation.sourceSubmissionIds.map((id) => ({ id, href: `/admin/mel/review/${id}`, label: `Submission ${id}` }))} />
+        <SourceList title="Approved enterprise achievements" items={calculation.sourceAchievementIds.map((id) => ({ id, href: `/admin/mel/reporting?periodId=${selectedPeriodId}`, label: `Achievement ${id}` }))} />
         <SourceList title="Approved programme entries" items={calculation.sourceProgrammeResultIds.map((id) => ({ id, href: "/admin/mel/programme-results", label: `Programme result ${id}` }))} />
         <SourceList title="Validated system records" items={calculation.sourceSystemIds.map((id) => ({ id, href: "/admin/mel/reporting", label: `System record ${id}` }))} />
       </section>

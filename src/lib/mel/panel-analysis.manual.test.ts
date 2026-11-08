@@ -1,0 +1,329 @@
+import assert from "node:assert/strict";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import type { ApprovedMonitoringRecord } from "./indicator-engine";
+import { buildPanelAnalysis, resolveEnterpriseOwnBaseline } from "./panel-analysis";
+import {
+  buildPanelAnalysisFromWorkbook,
+  mergeApprovedReportsIntoWorkbookMonitoring,
+  parsePanelAnalysisWorkbook,
+  resolvePanelWorkbookPath,
+  type ParsedPanelWorkbook,
+} from "./panel-analysis-workbook";
+
+function record(
+  businessId: number,
+  overrides: Partial<ApprovedMonitoringRecord> = {}
+): ApprovedMonitoringRecord {
+  return {
+    submissionId: businessId,
+    businessId,
+    periodId: 99,
+    businessName: `Enterprise ${businessId}`,
+    visitDate: null,
+    approvedAt: null,
+    dimensions: { track: "foundation", ownerGender: "female", ownerYouth: false, ownerPlwd: null, county: "nairobi", sector: "agriculture" },
+    revenue: 300_000,
+    costs: 180_000,
+    profitLoss: 120_000,
+    financialChangeExplanation: null,
+    financialBaselineSnapshot: { revenue: 200_000, costs: 150_000, profit: 50_000 },
+    financialComparisonSnapshot: null,
+    newMarketSegments: null,
+    businessPlanImproved: null,
+    marketResearchCompleted: null,
+    marketIntelligenceAccessed: null,
+    technologyAdopted: null,
+    newProductsDeveloped: null,
+    linkedToFinanceProvider: null,
+    financeValue: null,
+    financeEntries: [],
+    financialPlanCompleted: null,
+    activeInsurance: null,
+    investorReadinessCompleted: null,
+    lifeCycleAssessmentCompleted: null,
+    ecoCertificationActive: null,
+    esgReportCompleted: null,
+    socialSafeguardingGuidelines: null,
+    circularGrowthReported: null,
+    circularGrowthValue: null,
+    strategicPartnerships: null,
+    strategicPartnershipCount: null,
+    strategicPartnershipDetails: null,
+    forumParticipation: null,
+    forumDetails: null,
+    publicPrivatePartnership: null,
+    publicPrivatePartnershipDetails: null,
+    technologyDetails: null,
+    newProductsDetails: null,
+    mainChallenges: null,
+    positiveProgrammeImpacts: null,
+    negativeProgrammeImpacts: null,
+    additionalSupportNeeded: null,
+    collectorComment: null,
+    directQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+    directNonQualityJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+    directJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+    indirectJobs: { total: 0, male: 0, female: 0, youth: 0, plwd: 0, refugee: 0 },
+    waste: [],
+    ...overrides,
+  };
+}
+
+function tests() {
+  const panel = buildPanelAnalysis({
+    records: [
+      record(1, { revenue: 300_000, costs: 150_000, profitLoss: 150_000, financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 } }),
+      record(2, { revenue: 600_000, costs: 300_000, profitLoss: 300_000, financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 } }),
+      record(3, { revenue: 0, costs: 0, profitLoss: 0, financialBaselineSnapshot: { revenue: 50_000, costs: 40_000, profit: 10_000 } }),
+      record(4, {
+        revenue: 90_000,
+        costs: 45_000,
+        profitLoss: 45_000,
+        financialBaselineSnapshot: null,
+      }),
+    ],
+    monitoringPeriodId: 99,
+    monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: "Y1-MQ1",
+    activeBaselinesByBusinessId: new Map([
+      [3, { businessId: 3, monthlyRevenue: 60_000, monthlyCosts: 30_000, monthlyProfit: 30_000 }],
+      [4, { businessId: 4, monthlyRevenue: 90_000, monthlyCosts: 60_000, monthlyProfit: 30_000 }],
+    ]),
+    panelBusinessId: null,
+  });
+
+  assert.equal(panel.coverage.monitoringEligible, 3);
+  assert.equal(panel.coverage.matched, 3);
+  assert.equal(panel.coverage.matchPercentOfBaseline, 75);
+  assert.equal(panel.baseline.revenue, 200_000);
+  assert.equal(panel.monitoring.revenue, 100_000);
+  assert.equal(panel.change.revenue, -100_000);
+  assert.ok(!panel.matchedEnterprises.some((row) => row.businessId === 3));
+
+  const missingNotZero = buildPanelAnalysis({
+    records: [
+      record(10, {
+        revenue: 300_000,
+        costs: 150_000,
+        profitLoss: 150_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: null, profit: 80_000 },
+      }),
+      record(11, {
+        revenue: 600_000,
+        costs: 300_000,
+        profitLoss: 300_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 99,
+    monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: "Y1-MQ1",
+    activeBaselinesByBusinessId: new Map([
+      [10, { businessId: 10, monthlyRevenue: 200_000, monthlyCosts: null, monthlyProfit: 80_000 }],
+      [11, { businessId: 11, monthlyRevenue: 400_000, monthlyCosts: 200_000, monthlyProfit: 200_000 }],
+    ]),
+    panelBusinessId: null,
+  });
+  assert.equal(missingNotZero.baseline.costs, 200_000);
+
+  const single = buildPanelAnalysis({
+    records: [
+      record(2, {
+        revenue: 600_000,
+        costs: 300_000,
+        profitLoss: 300_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 99,
+    monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: "Y1-MQ1",
+    activeBaselinesByBusinessId: new Map(),
+    panelBusinessId: 2,
+  });
+  assert.equal(single.viewMode, "single");
+  assert.equal(single.monitoring.revenue, 200_000);
+  assert.equal(single.baseline.revenue, 400_000);
+
+  const ownBaseline = resolveEnterpriseOwnBaseline(null, { businessId: 4, monthlyRevenue: 10_000, monthlyCosts: 5_000, monthlyProfit: 5_000 });
+  assert.equal(ownBaseline.revenue, 10_000);
+
+  const byTrack = buildPanelAnalysis({
+    records: [
+      record(10, {
+        dimensions: { track: "foundation", ownerGender: "female", ownerYouth: false, ownerPlwd: null, county: "nairobi", sector: "agriculture" },
+        revenue: 300_000,
+        costs: 150_000,
+        profitLoss: 150_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(11, {
+        dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" },
+        revenue: 600_000,
+        costs: 300_000,
+        profitLoss: 300_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 99,
+    monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+    monitoringPeriodCode: "Y1-MQ1",
+    activeBaselinesByBusinessId: new Map(),
+    panelBusinessId: null,
+  });
+  const trackGroups = byTrack.disaggregations.find((item) => item.dimension === "Track")?.groups ?? [];
+  assert.equal(trackGroups[0]?.key, "overall");
+  assert.equal(trackGroups[0]?.n, 2);
+  assert.ok(trackGroups.some((group) => group.key === "foundation" && group.n === 1));
+  assert.ok(trackGroups.some((group) => group.key === "acceleration" && group.n === 1));
+
+  const trendPanel = buildPanelAnalysis({
+    records: [
+      record(1, {
+        periodId: 1,
+        revenue: 300_000,
+        costs: 180_000,
+        profitLoss: 120_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(1, {
+        periodId: 2,
+        submissionId: 11,
+        revenue: 360_000,
+        costs: 150_000,
+        profitLoss: 210_000,
+        financialBaselineSnapshot: { revenue: 200_000, costs: 120_000, profit: 80_000 },
+      }),
+      record(2, {
+        periodId: 2,
+        submissionId: 12,
+        dimensions: { track: "acceleration", ownerGender: "male", ownerYouth: false, ownerPlwd: null, county: "kisumu", sector: "manufacturing" },
+        revenue: 900_000,
+        costs: 450_000,
+        profitLoss: 450_000,
+        financialBaselineSnapshot: { revenue: 400_000, costs: 200_000, profit: 200_000 },
+      }),
+    ],
+    monitoringPeriodId: 2,
+    monitoringPeriodLabel: "Y1 Monitoring Q2 (Sept–Nov 2026)",
+    monitoringPeriodCode: "Y1-MQ2",
+    monitoringPeriods: [
+      { id: 1, code: "Y1-MQ1", label: "Y1 Monitoring Q1 (Jun–Aug 2026)" },
+      { id: 2, code: "Y1-MQ2", label: "Y1 Monitoring Q2 (Sept–Nov 2026)" },
+    ],
+    activeBaselinesByBusinessId: new Map(),
+    panelBusinessId: null,
+  });
+  assert.deepEqual(trendPanel.trend.map((point) => point.label), ["Baseline", "Jun–Aug", "Sept–Nov"]);
+  assert.equal(trendPanel.trend[0]?.n, 2);
+  assert.equal(trendPanel.trend[1]?.n, 1);
+  assert.equal(trendPanel.trend[1]?.revenue, 100_000);
+  assert.equal(trendPanel.trend[2]?.n, 2);
+  assert.equal(trendPanel.trend[2]?.revenue, 210_000);
+
+  const overlayPeriodId = 88001;
+  const overlayParsed: ParsedPanelWorkbook = {
+    baselineRows: [
+      {
+        businessId: 88002,
+        businessName: "Overlay baseline only",
+        track: "foundation",
+        baseline: { revenue: 90_000, costs: 45_000, profit: 45_000 },
+      },
+    ],
+    monitoringRows: [
+      {
+        businessId: 88003,
+        businessName: "Already in workbook",
+        monitoring: { revenue: 10_000, costs: 5_000, profit: 5_000 },
+      },
+    ],
+  };
+  const skipExisting = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88003, { periodId: overlayPeriodId })],
+    overlayPeriodId
+  );
+  assert.equal(skipExisting.addedFromApprovedCount, 0);
+  const addEligible = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88002, { periodId: overlayPeriodId, revenue: 300_000, costs: 150_000, profitLoss: 150_000 })],
+    overlayPeriodId
+  );
+  assert.equal(addEligible.addedFromApprovedCount, 1);
+  assert.equal(addEligible.parsed.monitoringRows.length, 2);
+  const addZero = mergeApprovedReportsIntoWorkbookMonitoring(
+    overlayParsed,
+    [record(88004, { periodId: overlayPeriodId, revenue: 0, costs: 0, profitLoss: 0 })],
+    overlayPeriodId
+  );
+  assert.equal(addZero.addedFromApprovedCount, 1);
+
+  const workbookPath = resolvePanelWorkbookPath();
+  if (existsSync(workbookPath)) {
+    const buffer = readFileSync(workbookPath);
+    const parsed = parsePanelAnalysisWorkbook(buffer);
+    assert.equal(parsed.baselineRows.length, 239);
+    assert.equal(parsed.monitoringRows.length, 151);
+    const uniqueBaseline = new Set(parsed.baselineRows.map((row) => row.businessId));
+    assert.equal(uniqueBaseline.size, 238);
+
+    const workbookPanel = buildPanelAnalysisFromWorkbook({
+      buffer,
+      demographicsById: new Map(),
+      panelBusinessId: null,
+      monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+      monitoringPeriodCode: "Y1-MQ1",
+    });
+    assert.equal(workbookPanel.coverage.baselineUniqueIds, 238);
+    assert.equal(workbookPanel.coverage.monitoringTotal, 151);
+    assert.equal(workbookPanel.coverage.matched, 141);
+    assert.ok(Math.abs((workbookPanel.coverage.matchPercentOfBaseline ?? 0) - 59.2) < 0.5);
+    assert.equal(workbookPanel.dataQuality.duplicateBaselineIds.length, 1);
+    assert.equal(workbookPanel.dataQuality.duplicateBaselineIds[0]?.businessId, "827");
+    assert.deepEqual(workbookPanel.coverage.unmatchedMonitoringIds.sort(), [421, 534, 826, 827, 986]);
+
+    const monitoringIds = new Set(parsed.monitoringRows.map((row) => row.businessId));
+    const duplicateIds = new Set(
+      parsed.baselineRows
+        .map((row) => row.businessId)
+        .filter((id, index, all) => all.indexOf(id) !== index)
+    );
+    const baselineOnlyId = parsed.baselineRows.find(
+      (row) => !monitoringIds.has(row.businessId) && !duplicateIds.has(row.businessId)
+    )?.businessId;
+    if (baselineOnlyId) {
+      const overlayPeriod = 77001;
+      const withOverlay = buildPanelAnalysisFromWorkbook({
+        buffer,
+        demographicsById: new Map(),
+        panelBusinessId: null,
+        monitoringPeriodLabel: "Y1 Monitoring Q1 (Jun–Aug 2026)",
+        monitoringPeriodCode: "Y1-MQ1",
+        approvedOverlayRecords: [
+          record(baselineOnlyId, {
+            periodId: overlayPeriod,
+            revenue: 300_000,
+            costs: 150_000,
+            profitLoss: 150_000,
+          }),
+        ],
+        panelPeriodId: overlayPeriod,
+      });
+      assert.equal(withOverlay.workbookApprovedOverlayCount, 1);
+      assert.equal(withOverlay.coverage.monitoringTotal, workbookPanel.coverage.monitoringTotal + 1);
+      assert.equal(withOverlay.coverage.matched, workbookPanel.coverage.matched + 1);
+    }
+
+    const firstMonitoring = parsed.monitoringRows[0];
+    if (firstMonitoring) {
+      assert.equal(firstMonitoring.monitoring.revenue, firstMonitoring.monitoring.revenue);
+      const quarterlyWouldBe = firstMonitoring.monitoring.revenue !== null ? firstMonitoring.monitoring.revenue / 3 : null;
+      assert.notEqual(workbookPanel.monitoring.revenue, quarterlyWouldBe);
+    }
+  }
+}
+
+tests();
+console.log("Panel analysis tests passed.");

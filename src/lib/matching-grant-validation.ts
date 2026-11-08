@@ -57,6 +57,7 @@ export interface MatchingGrantValidationInput {
     totalProjectAmount: number;
     bireGrantAmount: number;
     enterpriseContributionAmount: number;
+    preferredCoInvestmentPct: number;
     coInvestmentSource: string;
     coInvestmentJustification: string;
     fundingNeed: string;
@@ -374,6 +375,11 @@ function validateGrantRequestStep(input: MatchingGrantValidationInput): string[]
     if (input.totalProjectAmount <= 0) {
         errors.push("Total project investment must be greater than zero.");
     }
+    if (input.preferredCoInvestmentPct <= 0) {
+        errors.push("Preferred co-investment percentage is required.");
+    } else if (input.preferredCoInvestmentPct > 100) {
+        errors.push("Preferred co-investment percentage must be between 1 and 100.");
+    }
     if (!input.capexOnlyConfirmed) {
         errors.push("Confirm CAPEX-only use for this grant request.");
     }
@@ -526,6 +532,7 @@ export function buildValidationInputFromApplicationPayload(input: {
     totalProjectAmount?: number;
     bireGrantAmount?: number;
     enterpriseContributionAmount?: number;
+    preferredCoInvestmentPct?: number;
     coInvestmentSource?: string;
     coInvestmentJustification?: string;
     fundingNeed?: string;
@@ -562,6 +569,7 @@ export function buildValidationInputFromApplicationPayload(input: {
         totalProjectAmount: Number(input.totalProjectAmount ?? 0),
         bireGrantAmount: Number(input.bireGrantAmount ?? 0),
         enterpriseContributionAmount: Number(input.enterpriseContributionAmount ?? 0),
+        preferredCoInvestmentPct: Number(input.preferredCoInvestmentPct ?? 0),
         coInvestmentSource: String(input.coInvestmentSource ?? ""),
         coInvestmentJustification: String(input.coInvestmentJustification ?? ""),
         fundingNeed: String(input.fundingNeed ?? ""),

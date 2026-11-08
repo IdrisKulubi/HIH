@@ -1,4 +1,4 @@
-import type { CdpBusinessSupportSession, CdpSessionActionItem } from "@/db/schema";
+import type { CdpBusinessSupportSession } from "@/db/schema";
 
 export type CdpSessionType = "physical" | "virtual";
 
@@ -38,13 +38,10 @@ export function validatePreviousSessionPlanGate(
   return null;
 }
 
-/** Reporting requires the prior session to be approved with follow-ups closed. */
+/** Reporting requires the prior session to be approved. */
 export function validatePreviousSessionGate(
   sessionNumber: number,
-  previous:
-    | (CdpBusinessSupportSession & { actionItems?: CdpSessionActionItem[] })
-    | null
-    | undefined
+  previous: CdpBusinessSupportSession | null | undefined
 ) {
   if (sessionNumber <= 1) return null;
   if (!previous) {
@@ -52,21 +49,6 @@ export function validatePreviousSessionGate(
   }
   if (previous.approvalStatus !== "approved") {
     return `Session ${sessionNumber - 1} must be approved before logging Session ${sessionNumber}.`;
-  }
-
-  const openItems = (previous.actionItems ?? []).filter(
-    (item) => item.status === "open" || item.status === "blocked"
-  );
-  if (openItems.length > 0) {
-    return `Session ${sessionNumber - 1} still has open action items. Mark them done or waived before logging Session ${sessionNumber}.`;
-  }
-
-  if (
-    (!previous.actionItems || previous.actionItems.length === 0) &&
-    previous.keyActionsAgreed &&
-    previous.keyActionsAgreed.trim().length > 0
-  ) {
-    return `Session ${sessionNumber - 1} has key actions agreed but no structured action items. Add action items and close or waive them before logging Session ${sessionNumber}.`;
   }
 
   return null;

@@ -15,13 +15,20 @@ function fileExtension(fileNameOrUrl: string): string {
 }
 
 const INLINE_IMAGE_EXT = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
+const OFFICE_ONLINE_EXT = new Set(["doc", "docx", "xls", "xlsx", "ppt", "pptx"]);
 
-/**
- * URL to open in a new tab for viewing: avoids UploadThing/CDN attachment downloads where possible.
- * — PDF: proxied with Content-Disposition: inline
- * — DOC/DOCX: Microsoft Office Online viewer (public file URL required)
- * — Images: direct URL (usually displays in-tab)
- */
+export function isAllowedDocumentFileHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "utfs.io" ||
+    host === "ufs.sh" ||
+    host === "uploadthing.com" ||
+    host.endsWith(".utfs.io") ||
+    host.endsWith(".ufs.sh") ||
+    host.endsWith(".uploadthing.com")
+  );
+}
+
 export function getDocumentViewerHref(fileUrl: string, fileName = ""): string {
   if (!fileUrl?.trim()) return fileUrl;
 
@@ -35,7 +42,7 @@ export function getDocumentViewerHref(fileUrl: string, fileName = ""): string {
     return `/api/document-view?url=${encodeURIComponent(fileUrl)}`;
   }
 
-  if (ext === "doc" || ext === "docx") {
+  if (OFFICE_ONLINE_EXT.has(ext)) {
     try {
       const u = new URL(fileUrl);
       if (u.protocol === "https:" || u.protocol === "http:") {
@@ -46,5 +53,5 @@ export function getDocumentViewerHref(fileUrl: string, fileName = ""): string {
     }
   }
 
-  return `/api/document-view?url=${encodeURIComponent(fileUrl)}`;
+  return fileUrl;
 }

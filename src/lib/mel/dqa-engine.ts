@@ -1,8 +1,18 @@
-import { calculateProfitLoss, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
+import { calculateProfitLoss, EMPTY_JOB_BREAKDOWN, jobBreakdownIssues, type JobBreakdown } from "./monitoring-calculations";
+import type { FinancialComparison } from "./financial-baselines";
+import { FINANCE_TYPES } from "./monitoring-question-catalog";
+
+export type DqaCategory =
+  | "completeness"
+  | "consistency"
+  | "plausibility"
+  | "timeliness"
+  | "validity"
+  | "traceability";
 
 export type DqaFinding = {
   ruleCode: string;
-  category: "completeness" | "consistency" | "plausibility" | "timeliness";
+  category: DqaCategory;
   severity: "error" | "warning";
   questionCode?: string;
   message: string;
@@ -21,11 +31,14 @@ export type DqaInput = {
   revenue: number | null;
   costs: number | null;
   storedProfitLoss: number | null;
-  directJobs: JobBreakdown | null;
+  directQualityJobs: JobBreakdown | null;
+  directNonQualityJobs: JobBreakdown | null;
   indirectJobs: JobBreakdown | null;
   financeLinked: boolean | null;
   financeType: string | null;
   financeValue: number | null;
+  financeEntryTypes: string[];
+  waste: Array<{ stream: string; kilograms: number | null }>;
   evidence: Array<{ id: number; questionCode: string; fileKey: string }>;
   priorApproved?: {
     revenue: number | null;
@@ -34,6 +47,7 @@ export type DqaInput = {
     indirectJobsTotal: number;
   } | null;
   duplicateEvidenceKeys?: ReadonlySet<string>;
+  financialComparison?: FinancialComparison | null;
 };
 
 export function runDqa(input: DqaInput): DqaFinding[] {
@@ -83,8 +97,13 @@ export function runDqa(input: DqaInput): DqaFinding[] {
     }
   }
 
-  for (const [type, jobs] of [["direct", input.directJobs], ["indirect", input.indirectJobs]] as const) {
-    if (!jobs) {
+  for (const [type, jobs, optional] of [
+    ["direct quality", input.directQualityJobs, false],
+    ["direct non-quality", input.directNonQualityJobs, true],
+    ["indirect", input.indirectJobs, false],
+  ] as const) {
+    const resolved = jobs ?? (optional ? EMPTY_JOB_BREAKDOWN : null);
+    if (!resolved) {
       findings.push({
         ruleCode: `completeness.${type}_jobs`,
         category: "completeness",
@@ -94,14 +113,14 @@ export function runDqa(input: DqaInput): DqaFinding[] {
       });
       continue;
     }
-    for (const [index, message] of jobBreakdownIssues(`${type} jobs`, jobs).entries()) {
+    for (const [index, message] of jobBreakdownIssues(`${type} jobs`, resolved).entries()) {
       findings.push({
         ruleCode: `consistency.${type}_jobs.${index}`,
         category: "consistency",
         severity: "error",
         questionCode: "jobs",
         message,
-        observedValue: jobs,
+        observedValue: resolved,
       });
     }
   }
@@ -155,6 +174,16 @@ export function runDqa(input: DqaInput): DqaFinding[] {
   }
 
   const prior = input.priorApproved;
+  for (const [index, flag] of (input.financialComparison?.flags ?? []).entries()) {
+    findings.push({
+      ruleCode: `plausibility.financial_baseline.${flag.code}.${flag.source}.${index}`,
+      category: "plausibility",
+      severity: "warning",
+      questionCode: "profitability",
+      message: flag.message,
+      observedValue: input.financialComparison?.currentMonthly,
+    });
+  }
   if (prior && input.revenue !== null && prior.revenue && prior.revenue > 0) {
     const change = Math.abs((input.revenue - prior.revenue) / prior.revenue);
     if (change >= 1) {
@@ -177,7 +206,10 @@ export function runDqa(input: DqaInput): DqaFinding[] {
       });
     }
   }
-  const totalJobs = (input.directJobs?.total ?? 0) + (input.indirectJobs?.total ?? 0);
+  const totalJobs =
+    (input.directQualityJobs?.total ?? 0) +
+    (input.directNonQualityJobs?.total ?? 0) +
+    (input.indirectJobs?.total ?? 0);
   const priorJobs = (prior?.directJobsTotal ?? 0) + (prior?.indirectJobsTotal ?? 0);
   if (totalJobs >= 100 && totalJobs > Math.max(priorJobs * 2, 100)) {
     findings.push({
@@ -203,5 +235,83 @@ export function runDqa(input: DqaInput): DqaFinding[] {
     }
   }
 
+  if (input.revenue !== null && input.revenue < 0) {
+    findings.push({
+      ruleCode: "validity.negative_revenue",
+      category: "validity",
+      severity: "error",
+      questionCode: "profitability",
+      message: "Quarterly revenue must be zero or positive",
+      observedValue: input.revenue,
+    });
+  }
+  if (input.costs !== null && input.costs < 0) {
+    findings.push({
+      ruleCode: "validity.negative_costs",
+      category: "validity",
+      severity: "error",
+      questionCode: "profitability",
+      message: "Quarterly costs must be zero or positive",
+      observedValue: input.costs,
+    });
+  }
+
+  const allowedFinanceTypes = new Set<string>(FINANCE_TYPES);
+  const financeTypesToCheck = input.financeEntryTypes.length
+    ? input.financeEntryTypes
+    : input.financeType
+      ? input.financeType.split(",").map((value) => value.trim()).filter(Boolean)
+      : [];
+  for (const [index, type] of financeTypesToCheck.entries()) {
+    if (!allowedFinanceTypes.has(type)) {
+      findings.push({
+        ruleCode: `validity.finance_type.${index}`,
+        category: "validity",
+        severity: "error",
+        questionCode: "linked_to_finance_provider",
+        message: `Finance type "${type}" is not a permitted monitoring value`,
+        observedValue: type,
+        comparisonValue: [...FINANCE_TYPES],
+      });
+    }
+  }
+
+  for (const [index, row] of input.waste.entries()) {
+    if (row.kilograms !== null && row.kilograms < 0) {
+      findings.push({
+        ruleCode: `validity.negative_waste.${index}`,
+        category: "validity",
+        severity: "error",
+        questionCode: "waste",
+        message: `Waste quantity for ${row.stream} must be zero or more kilograms`,
+        observedValue: row.kilograms,
+      });
+    }
+  }
+
+  const hasFinancialFigures =
+    input.revenue !== null || input.costs !== null || input.storedProfitLoss !== null;
+  const hasProfitabilityEvidence = input.evidence.some((item) => item.questionCode === "profitability");
+  if (hasFinancialFigures && !hasProfitabilityEvidence) {
+    findings.push({
+      ruleCode: "traceability.profitability_evidence",
+      category: "traceability",
+      severity: "warning",
+      questionCode: "profitability",
+      message:
+        "Financial figures are recorded without profitability supporting evidence to trace dashboard values back to a source document",
+    });
+  }
+
   return findings;
+}
+
+export function visibleDqaIssues<T extends { status: string; ruleCode: string }>(
+  stored: T[],
+  currentRuleCodes: ReadonlySet<string>
+): T[] {
+  return stored.filter((issue) => {
+    if (issue.status === "resolved") return false;
+    return currentRuleCodes.has(issue.ruleCode);
+  });
 }

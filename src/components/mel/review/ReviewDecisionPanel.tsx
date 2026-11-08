@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { MelReviewDetail } from "@/lib/actions/mel-review";
 import { decideMelReviewAction, reassignMelRedoReviewerAction } from "@/lib/actions/mel-review";
 import { ActionMessage } from "@/components/admin/mel/ActionMessage";
@@ -14,10 +15,17 @@ const CORRECTION_AREAS = [
 ] as const;
 
 export function ReviewDecisionPanel({ detail }: { detail: MelReviewDetail }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(decideMelReviewAction, null);
   const [selected, setSelected] = useState<string[]>([]);
   const status = detail.submission.status;
   const administrative = status === "approved";
+
+  useEffect(() => {
+    if (state?.success) {
+      router.replace("/admin/mel/review");
+    }
+  }, [router, state]);
   if (administrative && !detail.reviewer.canAdminister) {
     return <p className="text-sm text-slate-600">This approved report is read-only. MEL or an administrator can reopen it with a reason.</p>;
   }
@@ -81,7 +89,14 @@ function RedoReassignmentForm({
   reviewers: MelReviewDetail["redoReviewers"];
   currentId: string | null;
 }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(reassignMelRedoReviewerAction, null);
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh();
+    }
+  }, [router, state]);
   return (
     <form action={action} className="space-y-3 border-t pt-4">
       <p className="text-sm font-medium text-slate-900">REDO assignment</p>

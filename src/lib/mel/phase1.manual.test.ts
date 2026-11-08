@@ -3,6 +3,14 @@ import { canManageMel, canViewMel } from "./roles";
 import { melIndicatorInputSchema, melProgrammeSettingsInputSchema } from "./configuration";
 import { MEL_ITT_SEED, validateMelIttSeed } from "./itt-seed";
 import {
+  collectionWindowAfterReportingEnd,
+  MEL_OP11_MOBILISATION_TARGETS,
+  MEL_PROGRAMME_REPORTING_PERIODS,
+  MEL_PROGRAMME_YEARS,
+  resolveOp11Actual,
+} from "./programme-calendar";
+import { safePercentage } from "./indicator-engine";
+import {
   buildReportingPeriodCode,
   canTransitionMelPeriod,
   dateRangesOverlap,
@@ -11,13 +19,49 @@ import {
 
 function testReportingPeriods() {
   assert.equal(
-    buildReportingPeriodCode({ startDate: "2026-06-01", endDate: "2026-08-31" }),
-    "2026-JUN-AUG"
+    buildReportingPeriodCode({ startDate: "2025-10-15", endDate: "2026-01-14" }),
+    "2025-26-OCT-JAN"
   );
   assert.equal(
     buildReportingPeriodCode({ startDate: "2026-12-01", endDate: "2027-02-28" }),
     "2026-27-DEC-FEB"
   );
+  assert.equal(MEL_PROGRAMME_YEARS[0].startDate, "2025-10-15");
+  assert.equal(MEL_PROGRAMME_YEARS[2].endDate, "2028-10-14");
+  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.length, 11);
+  assert.equal(MEL_PROGRAMME_REPORTING_PERIODS.filter((period) => period.status === "open").length, 1);
+  const y1Mq1 = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-MQ1");
+  assert.ok(y1Mq1);
+  assert.equal(y1Mq1.startDate, "2026-06-01");
+  assert.equal(y1Mq1.endDate, "2026-08-31");
+  assert.equal(y1Mq1.collectionOpenDate, "2026-09-01");
+  assert.equal(y1Mq1.collectionCloseDate, "2026-09-18");
+  assert.equal(y1Mq1.status, "open");
+  assert.equal(y1Mq1.programmeYear, 1);
+  const y1Pre = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-PRE");
+  assert.ok(y1Pre);
+  assert.equal(y1Pre.status, "closed");
+  assert.equal(y1Pre.collectionOpenDate, "2026-06-01");
+  assert.equal(y1Pre.collectionCloseDate, "2026-06-10");
+  const y1Mq2 = MEL_PROGRAMME_REPORTING_PERIODS.find((period) => period.code === "Y1-MQ2");
+  assert.ok(y1Mq2);
+  assert.equal(y1Mq2.collectionOpenDate, "2026-12-01");
+  assert.equal(y1Mq2.collectionCloseDate, "2026-12-10");
+  assert.deepEqual(collectionWindowAfterReportingEnd("2027-02-28"), {
+    collectionOpenDate: "2027-03-01",
+    collectionCloseDate: "2027-03-10",
+  });
+  assert.equal(MEL_OP11_MOBILISATION_TARGETS.overall, 400);
+  assert.equal(MEL_OP11_MOBILISATION_TARGETS.year1 + MEL_OP11_MOBILISATION_TARGETS.year2, 400);
+  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 1, 1), 240);
+  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 425, 1), 240);
+  assert.equal(resolveOp11Actual("OP1.1-CNA-COMPLETED", 1, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-CNA-COMPLETED", 237, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-CDP-IMPLEMENTED", 10, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-CDP-IMPLEMENTED", 237, 1), 235);
+  assert.equal(resolveOp11Actual("OP1.1-ENTERPRISES-MOBILISED", 260, 1), 240);
+  assert.equal(safePercentage(240, 250), 96);
+  assert.equal(safePercentage(235, 250), 94);
   assert.equal(
     dateRangesOverlap(
       { startDate: "2026-06-01", endDate: "2026-08-31" },

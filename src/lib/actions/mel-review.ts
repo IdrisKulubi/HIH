@@ -2,16 +2,21 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { after } from "next/server";
+import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import db from "@/db/drizzle";
 import {
   melAuditEvents,
   melDqaIssues,
   melEnterpriseAchievements,
+  melEnterpriseAssignments,
   melEvidenceReviews,
+  melIndicatorDefinitions,
   melLearningActions,
   melMonitoringEvidence,
+  melMonitoringEvidenceReferences,
+  melMonitoringFinanceEntries,
   melMonitoringJobs,
   melMonitoringResponses,
   melMonitoringSubmissions,
@@ -21,9 +26,12 @@ import {
   melReportingPeriods,
   melReviewDecisions,
   userProfiles,
+  users,
 } from "@/db/schema";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
-import { runDqa, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
+import { runDqa, visibleDqaIssues, type DqaFinding, type DqaInput } from "@/lib/mel/dqa-engine";
+import { EMPTY_JOB_BREAKDOWN } from "@/lib/mel/monitoring-calculations";
+import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 import { requireMelReviewer, type MelReviewer } from "@/lib/mel/review-access";
 import {
   expectedReviewStage,
@@ -31,6 +39,18 @@ import {
   type MelReviewDecision,
   type MelWorkflowStatus,
 } from "@/lib/mel/review-workflow";
+import {
+  buildApprovalPrioritySummaryText,
+  extractApprovalPriorities,
+} from "@/lib/mel/approval-priorities";
+import {
+  ONE_TIME_QUESTION_BY_INDICATOR,
+  type MonitoringQuestionCode,
+} from "@/lib/mel/monitoring-question-catalog";
+import {
+  dispatchMelReportApprovedEmail,
+  resolveEnterpriseMonitoringRecipientIds,
+} from "@/lib/mel/notifications/dispatch-report-approved";
 
 export type MelReviewQueueRow = {
   submissionId: number;
@@ -54,6 +74,9 @@ export type MelReviewQueueRow = {
   verifiedEvidenceCount: number;
   stage: "redo" | "mel";
   assignedRedoId: string | null;
+  edoName: string;
+  redoName: string;
+  collectorName: string;
 };
 
 export type MelReviewQueue = {
@@ -69,6 +92,7 @@ export type MelReviewDetail = {
   period: typeof melReportingPeriods.$inferSelect;
   businessName: string;
   response: typeof melMonitoringResponses.$inferSelect | null;
+  financeEntries: Array<typeof melMonitoringFinanceEntries.$inferSelect>;
   jobs: Array<typeof melMonitoringJobs.$inferSelect>;
   waste: Array<typeof melMonitoringWaste.$inferSelect>;
   evidence: Array<
@@ -76,6 +100,15 @@ export type MelReviewDetail = {
       reviews: Array<typeof melEvidenceReviews.$inferSelect>;
     }
   >;
+  evidenceReferences: Array<{
+    id: number;
+    questionCode: string;
+    sourceEvidence: typeof melMonitoringEvidence.$inferSelect & {
+      reviews: Array<typeof melEvidenceReviews.$inferSelect>;
+    };
+    sourceSubmission: typeof melMonitoringSubmissions.$inferSelect;
+    sourcePeriod: typeof melReportingPeriods.$inferSelect;
+  }>;
   dqaIssues: Array<typeof melDqaIssues.$inferSelect>;
   decisions: Array<typeof melReviewDecisions.$inferSelect>;
   versions: Array<typeof melMonitoringVersions.$inferSelect>;
@@ -87,12 +120,168 @@ export type MelReviewDetail = {
     indirectJobs: number;
   } | null;
   redoReviewers: Array<{ id: string; name: string }>;
+  edoName: string;
+  redoName: string;
+  collectorName: string;
 };
 
 function actionError(error: unknown, fallback: string): ActionResponse<never> {
   if (error instanceof z.ZodError) return errorResponse(error.issues[0]?.message ?? fallback);
   if (error instanceof Error) return errorResponse(error.message);
   return errorResponse(fallback);
+}
+
+function normalizeStaffName(value: string | null | undefined): string | null {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  return trimmed ? trimmed : null;
+}
+
+async function loadMelStaffDisplayNames(userIds: string[]): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      id: users.id,
+      profileName: sql<string | null>`trim(concat_ws(' ', ${userProfiles.firstName}, ${userProfiles.lastName}))`,
+      accountName: users.name,
+      email: users.email,
+    })
+    .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+    .where(inArray(users.id, uniqueIds));
+
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      normalizeStaffName(row.profileName) ??
+        normalizeStaffName(row.accountName) ??
+        row.email,
+    ])
+  );
+}
+
+async function loadActiveEnterpriseStaffNames(
+  businessIds: number[],
+  role: "bds_edo" | "redo"
+): Promise<Map<number, string>> {
+  const uniqueBusinessIds = [...new Set(businessIds.filter((id) => Number.isFinite(id)))];
+  if (uniqueBusinessIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      businessId: melEnterpriseAssignments.businessId,
+      name: sql<string | null>`trim(concat_ws(' ', ${userProfiles.firstName}, ${userProfiles.lastName}))`,
+      accountName: users.name,
+      email: users.email,
+    })
+    .from(melEnterpriseAssignments)
+    .innerJoin(userProfiles, eq(userProfiles.userId, melEnterpriseAssignments.collectorId))
+    .innerJoin(users, eq(users.id, melEnterpriseAssignments.collectorId))
+    .where(
+      and(
+        inArray(melEnterpriseAssignments.businessId, uniqueBusinessIds),
+        eq(melEnterpriseAssignments.isActive, true),
+        eq(userProfiles.role, role)
+      )
+    );
+
+  const byBusiness = new Map<number, string>();
+  for (const row of rows) {
+    if (byBusiness.has(row.businessId)) continue;
+    byBusiness.set(
+      row.businessId,
+      normalizeStaffName(row.name) ?? normalizeStaffName(row.accountName) ?? row.email
+    );
+  }
+  return byBusiness;
+}
+
+async function loadActiveEnterpriseEdoNames(businessIds: number[]): Promise<Map<number, string>> {
+  return loadActiveEnterpriseStaffNames(businessIds, "bds_edo");
+}
+
+async function loadActiveEnterpriseRedoNames(businessIds: number[]): Promise<Map<number, string>> {
+  return loadActiveEnterpriseStaffNames(businessIds, "redo");
+}
+
+async function loadLatestRedoReviewerBySubmission(
+  submissionIds: number[]
+): Promise<Map<number, string>> {
+  const uniqueSubmissionIds = [...new Set(submissionIds.filter((id) => Number.isFinite(id)))];
+  if (uniqueSubmissionIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      submissionId: melReviewDecisions.submissionId,
+      reviewerId: melReviewDecisions.reviewerId,
+    })
+    .from(melReviewDecisions)
+    .where(
+      and(
+        inArray(melReviewDecisions.submissionId, uniqueSubmissionIds),
+        eq(melReviewDecisions.stage, "redo"),
+        isNotNull(melReviewDecisions.reviewerId)
+      )
+    )
+    .orderBy(desc(melReviewDecisions.createdAt));
+
+  const bySubmission = new Map<number, string>();
+  for (const row of rows) {
+    if (!row.reviewerId || bySubmission.has(row.submissionId)) continue;
+    bySubmission.set(row.submissionId, row.reviewerId);
+  }
+  return bySubmission;
+}
+
+function latestRedoReviewerIdFromDecisions(
+  decisions: Array<{ stage: string; reviewerId: string | null }>
+): string | null {
+  for (const decision of decisions) {
+    if (decision.stage === "redo" && decision.reviewerId) {
+      return decision.reviewerId;
+    }
+  }
+  return null;
+}
+
+function resolveEdoName(input: {
+  collectorId: string;
+  collectorRole: string;
+  businessId: number;
+  staffNames: Map<string, string>;
+  enterpriseEdoNames: Map<number, string>;
+}): string {
+  if (input.collectorRole === "bds_edo") {
+    return input.staffNames.get(input.collectorId) ?? "Unknown EDO";
+  }
+  return input.enterpriseEdoNames.get(input.businessId) ?? "Not assigned";
+}
+
+function resolveRedoName(input: {
+  collectorId: string;
+  collectorRole: string;
+  assignedRedoId: string | null;
+  latestRedoReviewerId: string | null;
+  enterpriseRedoName: string | null;
+  staffNames: Map<string, string>;
+}): string {
+  const candidateIds = [input.assignedRedoId, input.latestRedoReviewerId].filter(
+    (value): value is string => Boolean(value)
+  );
+  for (const id of candidateIds) {
+    const name = input.staffNames.get(id);
+    if (name) return name;
+  }
+  if (input.enterpriseRedoName) return input.enterpriseRedoName;
+  if (input.collectorRole === "redo") {
+    return input.staffNames.get(input.collectorId) ?? "Unknown REDO";
+  }
+  return "Unassigned";
+}
+
+function resolveCollectorName(collectorId: string, staffNames: Map<string, string>): string {
+  return staffNames.get(collectorId) ?? "Unknown collector";
 }
 
 function numberOrNull(value: string | number | null | undefined): number | null {
@@ -128,6 +317,7 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           business: true,
           reportingPeriod: true,
           evidence: { with: { reviews: true } },
+          evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
           dqaIssues: true,
         },
         orderBy: [asc(melMonitoringSubmissions.submittedAt)],
@@ -142,7 +332,7 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
         .orderBy(asc(userProfiles.firstName)),
     ]);
 
-    const rows = submissions
+    const queueSubmissions = submissions
       .filter((submission) => isQueueStatus(submission.status))
       .filter((submission) =>
         reviewerCanHandle(
@@ -152,8 +342,22 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           submission.assignedRedoId
         )
       )
-      .filter((submission) => submission.collectorId !== reviewer.id)
-      .map<MelReviewQueueRow>((submission) => {
+      .filter((submission) => submission.collectorId !== reviewer.id);
+
+    const [enterpriseEdoNames, enterpriseRedoNames, latestRedoReviewers] = await Promise.all([
+      loadActiveEnterpriseEdoNames(queueSubmissions.map((submission) => submission.businessId)),
+      loadActiveEnterpriseRedoNames(queueSubmissions.map((submission) => submission.businessId)),
+      loadLatestRedoReviewerBySubmission(queueSubmissions.map((submission) => submission.id)),
+    ]);
+
+    const redoReviewerIds = [...latestRedoReviewers.values()];
+    const staffNames = await loadMelStaffDisplayNames([
+      ...queueSubmissions.map((submission) => submission.collectorId),
+      ...queueSubmissions.map((submission) => submission.assignedRedoId ?? ""),
+      ...redoReviewerIds,
+    ]);
+
+    const rows = queueSubmissions.map<MelReviewQueueRow>((submission) => {
         const snapshot = submission.profileSnapshot;
         const stage = expectedReviewStage(submission.status, submission.collectorRole);
         if (!stage) throw new Error("Invalid review queue status");
@@ -178,12 +382,30 @@ export async function getMelReviewQueue(): Promise<ActionResponse<MelReviewQueue
           dqaErrorCount: submission.dqaIssues.filter(
             (issue) => issue.status === "open" && issue.severity === "error"
           ).length,
-          evidenceCount: submission.evidence.length,
-          verifiedEvidenceCount: submission.evidence.filter((item) =>
-            item.reviews.some((review) => review.status === "verified")
-          ).length,
+          evidenceCount: submission.evidence.length + submission.evidenceReferences.length,
+          verifiedEvidenceCount:
+            submission.evidence.filter((item) => item.reviews.some((review) => review.status === "verified")).length +
+            submission.evidenceReferences.filter((item) =>
+              item.sourceEvidence.reviews.some((review) => review.status === "verified")
+            ).length,
           stage,
           assignedRedoId: submission.assignedRedoId,
+          collectorName: resolveCollectorName(submission.collectorId, staffNames),
+          edoName: resolveEdoName({
+            collectorId: submission.collectorId,
+            collectorRole: submission.collectorRole,
+            businessId: submission.businessId,
+            staffNames,
+            enterpriseEdoNames,
+          }),
+          redoName: resolveRedoName({
+            collectorId: submission.collectorId,
+            collectorRole: submission.collectorRole,
+            assignedRedoId: submission.assignedRedoId,
+            latestRedoReviewerId: latestRedoReviewers.get(submission.id) ?? null,
+            enterpriseRedoName: enterpriseRedoNames.get(submission.businessId) ?? null,
+            staffNames,
+          }),
         };
       });
 
@@ -208,6 +430,7 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         business: true,
         reportingPeriod: true,
         response: true,
+        financeEntries: true,
         jobs: true,
         waste: true,
         evidence: { with: { reviews: true } },
@@ -229,7 +452,38 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
       return errorResponse("You cannot review your own report");
     }
 
-    const [prior, redoReviewers] = await Promise.all([
+    // Flat load — deep nested evidenceReferences→sourceEvidence→submission→period
+    // hits a PostgreSQL LATERAL alias bug in Drizzle's relational query builder.
+    const evidenceReferenceRows = await db.query.melMonitoringEvidenceReferences.findMany({
+      where: eq(melMonitoringEvidenceReferences.submissionId, submission.id),
+      with: { sourceEvidence: { with: { reviews: true } } },
+    });
+    const sourceSubmissionIds = [
+      ...new Set(evidenceReferenceRows.map((row) => row.sourceEvidence.submissionId)),
+    ];
+    const sourceSubmissions = sourceSubmissionIds.length
+      ? await db.query.melMonitoringSubmissions.findMany({
+          where: inArray(melMonitoringSubmissions.id, sourceSubmissionIds),
+          with: { reportingPeriod: true },
+        })
+      : [];
+    const sourceSubmissionById = new Map(sourceSubmissions.map((item) => [item.id, item]));
+    const evidenceReferences = evidenceReferenceRows.flatMap((reference) => {
+      const sourceSubmission = sourceSubmissionById.get(reference.sourceEvidence.submissionId);
+      if (!sourceSubmission) return [];
+      return [
+        {
+          id: reference.id,
+          questionCode: reference.questionCode,
+          sourceEvidence: reference.sourceEvidence,
+          sourceSubmission,
+          sourcePeriod: sourceSubmission.reportingPeriod,
+        },
+      ];
+    });
+
+    const [prior, redoReviewers, liveDqa, enterpriseEdoNames, enterpriseRedoNames] =
+      await Promise.all([
       loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate),
       db
         .select({
@@ -239,7 +493,21 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
         .from(userProfiles)
         .where(eq(userProfiles.role, "redo"))
         .orderBy(asc(userProfiles.firstName)),
+      buildDqaInput(submissionId),
+      loadActiveEnterpriseEdoNames([submission.businessId]),
+      loadActiveEnterpriseRedoNames([submission.businessId]),
     ]);
+    const latestRedoReviewerId = latestRedoReviewerIdFromDecisions(submission.reviewDecisions);
+    const staffNames = await loadMelStaffDisplayNames([
+      submission.collectorId,
+      submission.assignedRedoId ?? "",
+      latestRedoReviewerId ?? "",
+    ]);
+    await reconcileStoredDqaFindings(
+      submissionId,
+      submission.submissionVersion,
+      liveDqa.findings
+    );
     return successResponse({
       reviewer,
       submission,
@@ -249,10 +517,15 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
           ? submission.profileSnapshot.businessName
           : submission.business.name,
       response: submission.response ?? null,
+      financeEntries: submission.financeEntries,
       jobs: submission.jobs,
       waste: submission.waste,
       evidence: submission.evidence.filter((item) => item.status === "active"),
-      dqaIssues: submission.dqaIssues,
+      evidenceReferences,
+      dqaIssues: visibleDqaIssues(
+        submission.dqaIssues,
+        new Set(liveDqa.findings.map((finding) => finding.ruleCode))
+      ),
       decisions: submission.reviewDecisions,
       versions: submission.versions,
       priorApproved: prior
@@ -260,11 +533,27 @@ export async function getMelReviewDetail(submissionId: number): Promise<ActionRe
             periodLabel: prior.periodLabel,
             revenue: prior.response?.revenue ?? null,
             profitLoss: prior.response?.profitLoss ?? null,
-            directJobs: prior.jobs.find((job) => job.jobType === "direct")?.quarterlyTotal ?? 0,
-            indirectJobs: prior.jobs.find((job) => job.jobType === "indirect")?.quarterlyTotal ?? 0,
+            directJobs: sumDirectJobTotals(prior.jobs),
+            indirectJobs: findMonitoringJob(prior.jobs, MEL_JOB_TYPE.indirect)?.quarterlyTotal ?? 0,
           }
         : null,
       redoReviewers,
+      collectorName: resolveCollectorName(submission.collectorId, staffNames),
+      edoName: resolveEdoName({
+        collectorId: submission.collectorId,
+        collectorRole: submission.collectorRole,
+        businessId: submission.businessId,
+        staffNames,
+        enterpriseEdoNames,
+      }),
+      redoName: resolveRedoName({
+        collectorId: submission.collectorId,
+        collectorRole: submission.collectorRole,
+        assignedRedoId: submission.assignedRedoId,
+        latestRedoReviewerId,
+        enterpriseRedoName: enterpriseRedoNames.get(submission.businessId) ?? null,
+        staffNames,
+      }),
     });
   } catch (error) {
     console.error("getMelReviewDetail", error);
@@ -311,13 +600,17 @@ async function buildDqaInput(submissionId: number): Promise<{
     with: {
       reportingPeriod: true,
       response: true,
+      financeEntries: true,
       jobs: true,
+      waste: true,
       evidence: true,
+      evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
     },
   });
   if (!submission) throw new Error("Monitoring report not found");
   const prior = await loadPriorApproved(submission.businessId, submission.reportingPeriod.startDate);
   const activeEvidence = submission.evidence.filter((item) => item.status === "active");
+  const referencedEvidence = submission.evidenceReferences.map((reference) => reference.sourceEvidence);
   const duplicateRows =
     activeEvidence.length === 0
       ? []
@@ -332,9 +625,23 @@ async function buildDqaInput(submissionId: number): Promise<{
             )
           );
   const response = submission.response;
-  const job = (type: "direct" | "indirect") => {
-    const row = submission.jobs.find((item) => item.jobType === type);
-    if (!row || [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some((value) => value === null)) {
+  const job = (
+    type: typeof MEL_JOB_TYPE.directQuality | typeof MEL_JOB_TYPE.directNonQuality | typeof MEL_JOB_TYPE.indirect,
+    options?: { optional?: boolean }
+  ) => {
+    const row = findMonitoringJob(submission.jobs, type);
+    if (!row) {
+      return options?.optional ? EMPTY_JOB_BREAKDOWN : null;
+    }
+    const total = row.quarterlyTotal;
+    if (options?.optional && (total === null || total === 0)) {
+      return EMPTY_JOB_BREAKDOWN;
+    }
+    if (
+      [row.quarterlyTotal, row.male, row.female, row.youth, row.plwd, row.refugee].some(
+        (value) => value === null
+      )
+    ) {
       return null;
     }
     return {
@@ -357,12 +664,22 @@ async function buildDqaInput(submissionId: number): Promise<{
     revenue: numberOrNull(response?.revenue),
     costs: numberOrNull(response?.costs),
     storedProfitLoss: numberOrNull(response?.profitLoss),
-    directJobs: job("direct"),
-    indirectJobs: job("indirect"),
+    directQualityJobs: job(MEL_JOB_TYPE.directQuality),
+    directNonQualityJobs: job(MEL_JOB_TYPE.directNonQuality, { optional: true }),
+    indirectJobs: job(MEL_JOB_TYPE.indirect),
     financeLinked: response?.linkedToFinanceProvider ?? null,
-    financeType: response?.financeType ?? null,
-    financeValue: numberOrNull(response?.financeValue),
-    evidence: activeEvidence.map((item) => ({
+    financeType: submission.financeEntries.length
+      ? submission.financeEntries.map((entry) => entry.financeType).join(",")
+      : response?.financeType ?? null,
+    financeValue: submission.financeEntries.length
+      ? submission.financeEntries.reduce((sum, entry) => sum + (numberOrNull(entry.amount) ?? 0), 0)
+      : numberOrNull(response?.financeValue),
+    financeEntryTypes: submission.financeEntries.map((entry) => entry.financeType),
+    waste: submission.waste.map((row) => ({
+      stream: row.wasteStream,
+      kilograms: numberOrNull(row.kilograms),
+    })),
+    evidence: [...activeEvidence, ...referencedEvidence].map((item) => ({
       id: item.id,
       questionCode: item.questionCode,
       fileKey: item.fileKey,
@@ -371,39 +688,74 @@ async function buildDqaInput(submissionId: number): Promise<{
       ? {
           revenue: numberOrNull(prior.response?.revenue),
           profitLoss: numberOrNull(prior.response?.profitLoss),
-          directJobsTotal: prior.jobs.find((row) => row.jobType === "direct")?.quarterlyTotal ?? 0,
-          indirectJobsTotal: prior.jobs.find((row) => row.jobType === "indirect")?.quarterlyTotal ?? 0,
+          directJobsTotal: sumDirectJobTotals(prior.jobs),
+          indirectJobsTotal: findMonitoringJob(prior.jobs, MEL_JOB_TYPE.indirect)?.quarterlyTotal ?? 0,
         }
       : null,
     duplicateEvidenceKeys: new Set(duplicateRows.map((row) => row.fileKey)),
+    financialComparison: response?.financialComparisonSnapshot as DqaInput["financialComparison"],
   };
   return { submission, input, findings: runDqa(input) };
 }
 
-async function persistDqaFindings(submissionId: number, actorId: string) {
-  const { submission, findings } = await buildDqaInput(submissionId);
+async function reconcileStoredDqaFindings(
+  submissionId: number,
+  submissionVersion: number,
+  findings: DqaFinding[]
+) {
+  const now = new Date();
+  const currentCodes = findings.map((finding) => finding.ruleCode);
+  const staleWhere =
+    currentCodes.length === 0
+      ? and(
+          eq(melDqaIssues.submissionId, submissionId),
+          eq(melDqaIssues.submissionVersion, submissionVersion),
+          eq(melDqaIssues.status, "open")
+        )
+      : and(
+          eq(melDqaIssues.submissionId, submissionId),
+          eq(melDqaIssues.submissionVersion, submissionVersion),
+          eq(melDqaIssues.status, "open"),
+          notInArray(melDqaIssues.ruleCode, currentCodes)
+        );
+
   await db.transaction(async (tx) => {
+    await tx
+      .update(melDqaIssues)
+      .set({
+        status: "resolved",
+        resolutionReason: "Cleared automatically because this check no longer fails on the current report.",
+        resolvedAt: now,
+        updatedAt: now,
+      })
+      .where(staleWhere);
+
     for (const finding of findings) {
       await tx
         .insert(melDqaIssues)
         .values({
           submissionId,
-          submissionVersion: submission.submissionVersion,
+          submissionVersion,
           ...finding,
           observedValue: finding.observedValue ?? null,
           comparisonValue: finding.comparisonValue ?? null,
         })
         .onConflictDoNothing();
     }
-    await tx.insert(melAuditEvents).values({
-      actorId,
-      actorRole: "system_dqa",
-      entityType: "mel_monitoring_submission",
-      entityId: String(submissionId),
-      action: "dqa_run",
-      after: { version: submission.submissionVersion, findingCount: findings.length },
-      correlationId: randomUUID(),
-    });
+  });
+}
+
+async function persistDqaFindings(submissionId: number, actorId: string) {
+  const { submission, findings } = await buildDqaInput(submissionId);
+  await reconcileStoredDqaFindings(submissionId, submission.submissionVersion, findings);
+  await db.insert(melAuditEvents).values({
+    actorId,
+    actorRole: "system_dqa",
+    entityType: "mel_monitoring_submission",
+    entityId: String(submissionId),
+    action: "dqa_run",
+    after: { version: submission.submissionVersion, findingCount: findings.length },
+    correlationId: randomUUID(),
   });
   return findings;
 }
@@ -512,7 +864,14 @@ export async function decideMelReviewAction(
 
     const submission = await db.query.melMonitoringSubmissions.findFirst({
       where: eq(melMonitoringSubmissions.id, submissionId),
-      with: { response: true, jobs: true, waste: true, evidence: { with: { reviews: true } } },
+      with: {
+        response: true,
+        financeEntries: true,
+        jobs: true,
+        waste: true,
+        evidence: { with: { reviews: true } },
+        evidenceReferences: { with: { sourceEvidence: { with: { reviews: true } } } },
+      },
     });
     if (!submission) return errorResponse("Monitoring report not found");
     const transition = resolveReviewTransition({
@@ -547,8 +906,21 @@ export async function decideMelReviewAction(
         if (activeEvidence.some((item) => !item.reviews.some((review) => review.status === "verified"))) {
           return errorResponse("Verify all active evidence before final approval");
         }
+        if (submission.evidenceReferences.some((reference) =>
+          !reference.sourceEvidence.reviews.some((review) => review.status === "verified")
+        )) {
+          return errorResponse("Every reused evidence reference must retain verified prior proof");
+        }
       }
     }
+
+    let approvedNotificationBody =
+      reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`;
+
+    const shouldNotifyCollectors = ["returned", "approved", "reopened"].includes(transition.action);
+    const notificationRecipientIds = shouldNotifyCollectors
+      ? await resolveEnterpriseMonitoringRecipientIds(submission.collectorId, submission.businessId)
+      : [];
 
     await db.transaction(async (tx) => {
       await tx
@@ -558,9 +930,11 @@ export async function decideMelReviewAction(
           version: submission.submissionVersion,
           status: submission.status,
           responseSnapshot: submission.response,
+          financeSnapshot: submission.financeEntries,
           jobsSnapshot: submission.jobs,
           wasteSnapshot: submission.waste,
           evidenceSnapshot: submission.evidence,
+          evidenceReferenceSnapshot: submission.evidenceReferences,
           capturedById: reviewer.id,
         })
         .onConflictDoNothing();
@@ -571,6 +945,10 @@ export async function decideMelReviewAction(
           approvedAt: transition.nextStatus === "approved" ? new Date() : submission.approvedAt,
           approvedById: transition.nextStatus === "approved" ? reviewer.id : submission.approvedById,
           reopenedAt: transition.nextStatus === "reopened" ? new Date() : submission.reopenedAt,
+          ...(transition.stage === "redo" &&
+          (reviewer.role === "redo" || reviewer.role === "admin")
+            ? { assignedRedoId: reviewer.id }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(melMonitoringSubmissions.id, submissionId));
@@ -628,20 +1006,75 @@ export async function decideMelReviewAction(
         after: { status: transition.nextStatus, affectedQuestions },
         correlationId: randomUUID(),
       });
-      await tx
-        .insert(melNotificationOutbox)
-        .values({
-          eventKey: `mel-review:${submissionId}:${submission.submissionVersion}:${transition.action}`,
-          recipientId: ["returned", "approved", "reopened"].includes(transition.action)
-            ? submission.collectorId
-            : null,
-          eventType: `report_${transition.action}`,
-          title: reviewNotificationTitle(transition.action),
-          body: reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`,
-          href: `/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`,
-        })
-        .onConflictDoNothing();
+      if (transition.nextStatus === "approved" && transition.action === "approved") {
+        const [approvedAchievements, openLearningActions] = await Promise.all([
+          tx
+            .select({ code: melIndicatorDefinitions.code })
+            .from(melEnterpriseAchievements)
+            .innerJoin(
+              melIndicatorDefinitions,
+              eq(melIndicatorDefinitions.id, melEnterpriseAchievements.indicatorId)
+            )
+            .where(
+              and(
+                eq(melEnterpriseAchievements.businessId, submission.businessId),
+                eq(melEnterpriseAchievements.status, "approved")
+              )
+            ),
+          tx.query.melLearningActions.findMany({
+            where: and(
+              eq(melLearningActions.submissionId, submissionId),
+              inArray(melLearningActions.status, ["open", "in_progress"])
+            ),
+            columns: { finding: true, agreedAction: true },
+          }),
+        ]);
+        const skipQuestionCodes = approvedAchievements
+          .map(({ code }) => ONE_TIME_QUESTION_BY_INDICATOR[code])
+          .filter((code): code is MonitoringQuestionCode => Boolean(code));
+        const approvalSummary = extractApprovalPriorities({
+          response: (submission.response ?? null) as Record<string, unknown> | null,
+          skipQuestionCodes,
+          reviewerNote: reasonRaw,
+          learningActions: openLearningActions,
+        });
+        approvedNotificationBody = buildApprovalPrioritySummaryText(approvalSummary);
+      }
+
+      if (notificationRecipientIds.length > 0) {
+        const notificationBody =
+          transition.nextStatus === "approved" && transition.action === "approved"
+            ? approvedNotificationBody
+            : reasonRaw || `Report status changed to ${transition.nextStatus.replaceAll("_", " ")}`;
+        for (const recipientId of notificationRecipientIds) {
+          await tx
+            .insert(melNotificationOutbox)
+            .values({
+              eventKey: `mel-review:${submissionId}:${submission.submissionVersion}:${transition.action}:${recipientId}`,
+              recipientId,
+              eventType: `report_${transition.action}`,
+              title: reviewNotificationTitle(transition.action),
+              body: notificationBody,
+              href: `/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`,
+            })
+            .onConflictDoNothing();
+        }
+      }
     });
+
+    if (transition.nextStatus === "approved" && transition.action === "approved") {
+      const approvalEmailInput = {
+        submissionId,
+        submissionVersion: submission.submissionVersion,
+        businessId: submission.businessId,
+        reportingPeriodId: submission.reportingPeriodId,
+        collectorId: submission.collectorId,
+        approvedAt: new Date(),
+        reviewerNote: reasonRaw || undefined,
+        response: (submission.response ?? null) as Record<string, unknown> | null,
+      };
+      after(() => dispatchMelReportApprovedEmail(approvalEmailInput));
+    }
 
     revalidateReviewPaths(submissionId);
     revalidatePath(`/admin/mel/monitoring/${submission.businessId}/${submission.reportingPeriodId}`);

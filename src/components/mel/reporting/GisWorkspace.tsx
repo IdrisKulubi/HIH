@@ -9,8 +9,19 @@ export function GisWorkspace({ points, invalid }: { points: MelMapPoint[]; inval
   const [county, setCounty] = useState("");
   const [sector, setSector] = useState("");
   const [track, setTrack] = useState("");
+  const [queueQuery, setQueueQuery] = useState("");
   const options = useMemo(() => ({ counties: unique(points.map((point) => point.county)), sectors: unique(points.map((point) => point.sector)), tracks: unique(points.map((point) => point.track)) }), [points]);
   const filtered = points.filter((point) => (!county || point.county === county) && (!sector || point.sector === sector) && (!track || point.track === track));
+  const filteredInvalid = useMemo(() => {
+    const query = queueQuery.trim().toLowerCase();
+    if (!query) return invalid;
+    return invalid.filter(
+      (item) =>
+        item.businessName.toLowerCase().includes(query) ||
+        item.reason.toLowerCase().includes(query) ||
+        String(item.businessId).includes(query)
+    );
+  }, [invalid, queueQuery]);
   const clusters = [...filtered.reduce((map, point) => {
     const current = map.get(point.clusterKey) ?? [];
     current.push(point);
@@ -43,7 +54,74 @@ export function GisWorkspace({ points, invalid }: { points: MelMapPoint[]; inval
         </section>
         <section className="rounded-lg border border-slate-200 bg-background"><div className="border-b border-slate-200 px-4 py-3"><h2 className="font-semibold text-slate-900">Visible enterprises</h2><p className="text-xs text-slate-500">Authorized internal summaries only.</p></div><ul className="max-h-[530px] divide-y divide-slate-100 overflow-y-auto">{filtered.map((point) => <li key={point.businessId} className="px-4 py-3"><Link href={`/admin/mel/enterprises/${point.businessId}`} className="font-medium text-brand-blue hover:underline">{point.businessName}</Link><p className="mt-1 text-xs text-slate-500">{point.county ?? "County unavailable"} · {point.sector.replaceAll("_", " ")} · {point.track ?? "track unavailable"}</p><p className="mt-1 text-xs tabular-nums text-slate-400">{point.latitude.toFixed(3)}, {point.longitude.toFixed(3)}</p></li>)}</ul>{filtered.length === 0 ? <p className="px-4 py-10 text-center text-sm text-slate-500">No verified coordinates match these filters.</p> : null}</section>
       </div>
-      <section className="rounded-lg border border-amber-200 bg-amber-50/50"><div className="flex items-center gap-2 border-b border-amber-200 px-4 py-3"><WarningCircle className="size-5 text-amber-700" weight="duotone" /><h2 className="font-semibold text-amber-950">Coordinate validation queue ({invalid.length})</h2></div>{invalid.length ? <ul className="divide-y divide-amber-100">{invalid.map((item) => <li key={item.businessId} className="flex items-center justify-between gap-4 px-4 py-3 text-sm"><span><span className="font-medium text-slate-900">{item.businessName}</span><span className="ml-2 text-slate-600">{item.reason}</span></span>{item.applicationId ? <Link href={`/admin/kyc/${item.applicationId}`} className="font-medium text-brand-blue hover:underline">Review KYC</Link> : <span className="text-xs text-slate-500">No application</span>}</li>)}</ul> : <p className="px-4 py-6 text-sm text-emerald-700"><MapPin className="mr-1 inline size-4" />All verified KYC profiles have valid coordinates.</p>}</section>
+      <section className="overflow-hidden rounded-lg border border-amber-200 bg-amber-50/50">
+        <div className="flex flex-col gap-3 border-b border-amber-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <WarningCircle className="size-5 shrink-0 text-amber-700" weight="duotone" />
+            <div className="min-w-0">
+              <h2 className="font-semibold text-amber-950">
+                Coordinate validation queue
+                <span className="ml-1.5 tabular-nums font-medium text-amber-800">({invalid.length})</span>
+              </h2>
+              <p className="text-xs text-amber-800/80">Enterprises with missing or unverified KYC locations.</p>
+            </div>
+          </div>
+          {invalid.length > 0 ? (
+            <label className="relative w-full sm:max-w-xs">
+              <span className="sr-only">Search validation queue</span>
+              <input
+                type="search"
+                value={queueQuery}
+                onChange={(event) => setQueueQuery(event.target.value)}
+                placeholder="Search enterprise…"
+                className="h-9 w-full rounded-md border border-amber-300 bg-white px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-brand-blue/40"
+              />
+            </label>
+          ) : null}
+        </div>
+        {invalid.length ? (
+          filteredInvalid.length ? (
+            <ul className="max-h-[28rem] divide-y divide-amber-100 overflow-y-auto overscroll-contain">
+              {filteredInvalid.map((item) => (
+                <li
+                  key={item.businessId}
+                  className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm hover:bg-amber-100/40"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-900">{item.businessName}</p>
+                    <p className="mt-0.5 text-xs text-slate-600">{item.reason}</p>
+                  </div>
+                  {item.applicationId ? (
+                    <Link
+                      href={`/admin/kyc/${item.applicationId}`}
+                      className="shrink-0 font-medium text-brand-blue hover:underline"
+                    >
+                      Review KYC
+                    </Link>
+                  ) : (
+                    <span className="shrink-0 text-xs text-slate-500">No application</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-8 text-center text-sm text-slate-600">
+              No enterprises match “{queueQuery.trim()}”.
+            </p>
+          )
+        ) : (
+          <p className="px-4 py-6 text-sm text-emerald-700">
+            <MapPin className="mr-1 inline size-4" />
+            All verified KYC profiles have valid coordinates.
+          </p>
+        )}
+        {invalid.length > 0 && filteredInvalid.length > 0 ? (
+          <div className="border-t border-amber-200 px-4 py-2 text-xs text-amber-900/70">
+            Showing {filteredInvalid.length}
+            {queueQuery.trim() ? ` of ${invalid.length}` : ""} · scroll for more
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

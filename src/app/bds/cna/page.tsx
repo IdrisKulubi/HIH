@@ -20,6 +20,8 @@ export default async function BdsCnaPage() {
     preScreeningNotScreened: 0,
     preScreeningMyDrafts: 0,
     a2fDdAwaiting: 0,
+    melReturnedToMe: 0,
+    mentorshipSessionsPending: 0,
   };
 
   return (

@@ -7,7 +7,21 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
-export async function updateReviewerPassword(prevState: any, formData: FormData) {
+export async function currentUserHasPassword() {
+    const session = await auth();
+    if (!session?.user?.id) {
+        return false;
+    }
+
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id),
+        columns: { password: true },
+    });
+
+    return Boolean(user?.password);
+}
+
+export async function updatePassword(prevState: any, formData: FormData) {
     try {
         const session = await auth();
         if (!session?.user?.id) {
@@ -18,7 +32,7 @@ export async function updateReviewerPassword(prevState: any, formData: FormData)
         const newPassword = formData.get("newPassword") as string;
         const confirmPassword = formData.get("confirmPassword") as string;
 
-        if (!currentPassword || !newPassword || !confirmPassword) {
+        if (!newPassword || !confirmPassword) {
             return { success: false, message: "All fields are required." };
         }
 
@@ -35,19 +49,23 @@ export async function updateReviewerPassword(prevState: any, formData: FormData)
             };
         }
 
-        // Fetch user to verify current password
         const user = await db.query.users.findFirst({
             where: eq(users.id, session.user.id)
         });
 
-        if (!user || !user.password) {
-            return { success: false, message: "User not found or password not set." };
+        if (!user) {
+            return { success: false, message: "User not found." };
         }
 
-        // Verify current password
-        const isValid = await bcrypt.compare(currentPassword, user.password);
-        if (!isValid) {
-            return { success: false, message: "Incorrect current password." };
+        if (user.password) {
+            if (!currentPassword) {
+                return { success: false, message: "Current password is required." };
+            }
+
+            const isValid = await bcrypt.compare(currentPassword, user.password);
+            if (!isValid) {
+                return { success: false, message: "Incorrect current password." };
+            }
         }
 
         // Hash and update

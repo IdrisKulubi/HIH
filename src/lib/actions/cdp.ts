@@ -1343,7 +1343,7 @@ const sessionCreateSchema = z.object({
   focusCodes: z.array(cdpFocusCodeSchema).default([]),
   agenda: z.string().max(8000).optional().nullable(),
   subtopic: z.string().max(8000).optional().nullable(),
-  supportType: z.string().max(500).optional().nullable(),
+  supportType: z.string().max(8000).optional().nullable(),
   durationHours: z.number().min(0).max(24).optional().nullable(),
   keyActionsAgreed: z.string().max(8000).optional().nullable(),
   challengesRaised: z.string().max(8000).optional().nullable(),
@@ -1357,12 +1357,12 @@ const sessionCreateSchema = z.object({
   evidenceFiles: z
     .array(
       z.object({
-        key: z.string().min(1).max(500).optional(),
-        url: z.string().url().max(1000),
+        key: z.string().min(1).max(500).optional().nullable(),
+        url: z.string().trim().url().max(2000),
         name: z.string().min(1).max(500),
-        type: z.string().max(200),
+        type: z.string().max(200).optional().nullable(),
         uploadedById: z.string().max(200).optional().nullable(),
-        uploadedAt: z.string().max(100),
+        uploadedAt: z.string().max(100).optional().nullable(),
       })
     )
     .max(20)
@@ -1371,6 +1371,30 @@ const sessionCreateSchema = z.object({
   /** Logged as structured follow-ups (recommended when key actions are agreed). */
   initialActionDescriptions: z.array(z.string().max(2000)).max(30).optional().nullable(),
 });
+
+function sessionValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Check the session details and try again.";
+
+  const path = issue.path.join(".");
+  const labels: Record<string, string> = {
+    planId: "CDP plan",
+    focusCode: "Focus area",
+    sessionNumber: "Session number",
+    sessionDate: "Session date",
+    focusCodes: "Additional focus codes",
+    agenda: "Topic",
+    subtopic: "Subtopic",
+    supportType: "BDS objective",
+    durationHours: "Duration",
+    followUpDate: "Follow-up date",
+  };
+  const label = path.startsWith("evidenceFiles")
+    ? "Supporting document"
+    : labels[path] ?? path ?? "Session";
+
+  return `${label}: ${issue.message}`;
+}
 
 export async function createCdpSupportSession(
   input: z.infer<typeof sessionCreateSchema>
@@ -1381,7 +1405,7 @@ export async function createCdpSupportSession(
       return errorResponse("Unauthorized");
     }
     const parsed = sessionCreateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session");
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, parsed.data.focusCode);
     if (focusGate) return errorResponse(focusGate);
 
@@ -1399,9 +1423,13 @@ export async function createCdpSupportSession(
       parsed.data.focusCodes.length > 0 ? parsed.data.focusCodes : [parsed.data.focusCode];
     const sessionType = parsed.data.sessionType ?? "virtual";
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((u) => u.trim()).filter(Boolean);
-    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
-      ...file,
+    const evidenceFiles: CdpEvidenceFile[] = (parsed.data.evidenceFiles ?? []).map((file) => ({
+      key: file.key ?? undefined,
+      url: file.url.trim(),
+      name: file.name.trim(),
+      type: file.type?.trim() || "application/octet-stream",
       uploadedById: file.uploadedById ?? session.user!.id,
+      uploadedAt: file.uploadedAt?.trim() || new Date().toISOString(),
     }));
 
     if (n > 1) {
@@ -1480,7 +1508,7 @@ export async function updateCdpSupportSession(
       return errorResponse("Unauthorized");
     }
     const parsed = sessionUpdateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session");
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, parsed.data.focusCode);
     if (focusGate) return errorResponse(focusGate);
 
@@ -1515,10 +1543,14 @@ export async function updateCdpSupportSession(
         sessionType,
         meetingLink: parsed.data.meetingLink?.trim() || null,
         bootcampWeek: parsed.data.bootcampWeek ?? null,
-        approvalStatus: "pending",
-        approvedById: null,
-        approvedAt: null,
-        rejectionReason: null,
+        ...(existing.approvalStatus !== "approved"
+          ? {
+              approvalStatus: "pending" as const,
+              approvedById: null,
+              approvedAt: null,
+              rejectionReason: null,
+            }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(cdpBusinessSupportSessions.id, parsed.data.sessionId));
@@ -1545,11 +1577,12 @@ export async function deleteCdpSupportSession(
       with: { plan: { columns: { businessId: true, id: true } } },
     });
     if (!existing?.plan) return errorResponse("Session not found");
-    if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
+    const isManager = isCdpManager(session.user.role ?? null);
+    if (!isManager && existing.conductedById !== session.user.id) {
       return errorResponse("Only the session creator or a CDP manager can delete this session.");
     }
-    if (existing.approvalStatus === "approved") {
-      return errorResponse("Approved session reports cannot be deleted.");
+    if (existing.approvalStatus === "approved" && !isManager) {
+      return errorResponse("Approved sessions can only be deleted by an EDO or CDP manager.");
     }
 
     await db.delete(cdpBusinessSupportSessions).where(eq(cdpBusinessSupportSessions.id, sessionId));
@@ -1574,7 +1607,14 @@ const sessionReportUpdateSchema = sessionCreateSchema
     evidenceUrls: true,
     evidenceFiles: true,
   })
-  .extend({ sessionId: z.number().int().positive() });
+  .extend({
+    planId: z.coerce.number().int().positive(),
+    sessionId: z.coerce.number().int().positive(),
+    durationHours: z.preprocess(
+      (value) => (value === "" || value == null ? null : value),
+      z.coerce.number().min(0).max(24).nullable()
+    ),
+  });
 
 export async function updateCdpSessionReport(
   input: z.infer<typeof sessionReportUpdateSchema>
@@ -1586,17 +1626,23 @@ export async function updateCdpSessionReport(
     }
 
     const parsed = sessionReportUpdateSchema.safeParse(input);
-    if (!parsed.success) return errorResponse("Invalid session report");
+    if (!parsed.success) return errorResponse(sessionValidationError(parsed.error));
 
     const existing = await db.query.cdpBusinessSupportSessions.findFirst({
       where: eq(cdpBusinessSupportSessions.id, parsed.data.sessionId),
-      with: { plan: { columns: { businessId: true, id: true } } },
+      with: {
+        plan: { columns: { businessId: true, id: true } },
+        actionItems: true,
+      },
     });
     if (!existing?.plan || existing.planId !== parsed.data.planId) {
       return errorResponse("Session not found");
     }
     if (!isCdpManager(session.user.role ?? null) && existing.conductedById !== session.user.id) {
       return errorResponse("Only the session owner or a CDP manager can edit this report.");
+    }
+    if (existing.approvalStatus === "approved") {
+      return errorResponse("Approved session reports cannot be edited.");
     }
 
     const focusGate = await requireCdpFocusEdit(session.user.role ?? null, existing.focusCode);
@@ -1618,9 +1664,13 @@ export async function updateCdpSessionReport(
     }
 
     const evidenceUrls = (parsed.data.evidenceUrls ?? []).map((url) => url.trim()).filter(Boolean);
-    const evidenceFiles = (parsed.data.evidenceFiles ?? []).map((file) => ({
-      ...file,
+    const evidenceFiles: CdpEvidenceFile[] = (parsed.data.evidenceFiles ?? []).map((file) => ({
+      key: file.key ?? undefined,
+      url: file.url.trim(),
+      name: file.name.trim(),
+      type: file.type?.trim() || "application/octet-stream",
       uploadedById: file.uploadedById ?? session.user!.id,
+      uploadedAt: file.uploadedAt?.trim() || new Date().toISOString(),
     }));
     const retainedEvidenceUrls = new Set(evidenceFiles.map((file) => file.url));
     const removedEvidenceFiles = ((existing.evidenceFiles ?? []) as CdpEvidenceFile[]).filter(
@@ -1739,7 +1789,10 @@ export async function approveCdpSupportSession(
 
     const existing = await db.query.cdpBusinessSupportSessions.findFirst({
       where: eq(cdpBusinessSupportSessions.id, sessionId),
-      with: { plan: { columns: { businessId: true, id: true } } },
+      with: {
+        plan: { columns: { businessId: true, id: true } },
+        actionItems: true,
+      },
     });
     if (!existing?.plan) return errorResponse("Session not found");
     if (existing.conductedById === session.user.id) {

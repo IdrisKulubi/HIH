@@ -1,3 +1,5 @@
+import { MEL_OP11_MOBILISATION_TARGETS } from "./programme-calendar";
+
 export type MelSeedBaseline = {
   segmentKey: string;
   value?: number;
@@ -89,9 +91,9 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     resultCode: "LT1",
     resultLevel: "long_term_outcome",
     resultStatement: "Increased commercialization and scale-up of supported MSEs across sectors",
-    name: "Percentage increase in enterprise profitability",
+    name: "Percentage increase in enterprise revenue",
     definition:
-      "Growth in the cohort median monthly-equivalent enterprise profit compared with the approved baseline median.",
+      "Growth in the cohort median monthly-equivalent enterprise revenue compared with the approved ITT baseline median.",
     unit: "percentage",
     sourceType: "derived",
     frequency: "quarterly",
@@ -100,18 +102,20 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     evidenceRequired: false,
     isOneTime: false,
     sortOrder: 20,
-    unresolvedNotes:
-      "The ITT also lists an overall KES endline value of 1,200,000. Keep it as a target note until MEL confirms whether it is a secondary target.",
     baselines: [
-      { segmentKey: "overall", value: 793200 },
-      { segmentKey: "track:foundation", value: 600000 },
-      { segmentKey: "track:acceleration", value: 1800000 },
+      {
+        segmentKey: "overall",
+        valueText: "Track-specific baseline required",
+        notes: "Overall comparison is unavailable. View Foundation and Acceleration separately.",
+      },
+      { segmentKey: "track:foundation", value: 200000, notes: "Validated monthly revenue baseline" },
+      { segmentKey: "track:acceleration", value: 692600, notes: "Validated monthly revenue baseline" },
     ],
     targets: [
-      { programmeYear: 0, value: 50, notes: "Overall growth target; ITT also notes KES 1,200,000." },
-      { programmeYear: 1, valueText: "KES 900,000 median monthly-equivalent profit" },
-      { programmeYear: 2, valueText: "KES 1,000,000 median monthly-equivalent profit" },
-      { programmeYear: 3, valueText: "KES 1,200,000 median monthly-equivalent profit" },
+      { programmeYear: 0, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 1, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 2, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
+      { programmeYear: 3, value: 50, notes: "50% increase in median monthly revenue vs ITT baseline." },
     ],
   },
   {
@@ -242,10 +246,10 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 100,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
   },
   {
@@ -264,10 +268,10 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 110,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
   },
   {
@@ -286,28 +290,11 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     sortOrder: 120,
     baselines: [{ segmentKey: "overall", value: 0 }],
     targets: [
-      { programmeYear: 0, value: 400 },
-      { programmeYear: 1, value: 250 },
-      { programmeYear: 2, value: 150 },
-      { programmeYear: 3, value: 0 },
+      { programmeYear: 0, value: MEL_OP11_MOBILISATION_TARGETS.overall },
+      { programmeYear: 1, value: MEL_OP11_MOBILISATION_TARGETS.year1 },
+      { programmeYear: 2, value: MEL_OP11_MOBILISATION_TARGETS.year2 },
+      { programmeYear: 3, value: MEL_OP11_MOBILISATION_TARGETS.year3 },
     ],
-  },
-  {
-    code: "OP1.1-JOBS-CREATED",
-    resultCode: "OP1.1",
-    resultLevel: "output",
-    resultStatement: "MSEs mobilized",
-    name: "Number of jobs created",
-    definition: "Output-level presentation of the same approved jobs source used by IM-JOBS-CREATED.",
-    unit: "count",
-    sourceType: "derived",
-    frequency: "quarterly",
-    aggregation: "sum",
-    disaggregationDimensions: jobDimensions,
-    evidenceRequired: false,
-    isOneTime: false,
-    sortOrder: 130,
-    targets: [{ programmeYear: 0, value: 6800 }],
   },
   {
     code: "OP1.2-TRAINING-COMPLETION",
@@ -525,7 +512,7 @@ export const MEL_ITT_SEED: MelSeedIndicator[] = [
     resultLevel: "output",
     resultStatement: "Enterprises have increased access to financial services",
     name: "Value of financial services accessed by MSEs",
-    definition: "Approved value of grants, matching grants, loans, or other configured finance accessed.",
+    definition: "Approved value of grants, matching grants, loans, or other finance accessed only where the enterprise confirmed linkage by the BIRE PROJECT.",
     unit: "kes",
     sourceType: "quarterly_enterprise_form",
     frequency: "quarterly",

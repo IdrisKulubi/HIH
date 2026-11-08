@@ -46,6 +46,7 @@ import {
   type PipelineCompleteness,
 } from "@/lib/cdp/pipeline";
 import { CDP_KR_WEIGHT_SUM_TOLERANCE } from "@/lib/cdp/constants";
+import { validatePreviousSessionGate } from "@/lib/cdp/session-rules";
 import {
   krFinalScoreRatio,
   krWeightedScore,
@@ -139,6 +140,50 @@ function sessionApprovalClassName(status: CdpSessionApprovalStatus) {
   if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-800";
   if (status === "rejected") return "border-rose-200 bg-rose-50 text-rose-800";
   return "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+function sessionHasDraftReportContent(session: {
+  durationHours: string | null;
+  keyActionsAgreed: string | null;
+  evidenceNotes: string | null;
+  challengesRaised: string | null;
+  nextSteps: string | null;
+  evidenceUrls: string[] | null;
+  evidenceFiles: unknown;
+}) {
+  return Boolean(
+    session.durationHours ||
+      session.keyActionsAgreed?.trim() ||
+      session.evidenceNotes?.trim() ||
+      session.challengesRaised?.trim() ||
+      session.nextSteps?.trim() ||
+      (session.evidenceUrls ?? []).length > 0 ||
+      (Array.isArray(session.evidenceFiles) && session.evidenceFiles.length > 0)
+  );
+}
+
+function sessionReportProgressLabel(
+  status: CdpSessionApprovalStatus,
+  session: Parameters<typeof sessionHasDraftReportContent>[0]
+) {
+  if (status === "approved") return "Report complete";
+  if (sessionHasDraftReportContent(session)) return "Pending review";
+  return "Awaiting report";
+}
+
+function cdpReportingSequenceWarnings(sessions: CdpPlanFull["supportSessions"]) {
+  const messages: string[] = [];
+  for (const row of sessions) {
+    if (row.sessionNumber <= 1) continue;
+    const previous = sessions.find(
+      (session) =>
+        session.focusCode === row.focusCode && session.sessionNumber === row.sessionNumber - 1
+    );
+    if (!previous || previous.approvalStatus !== "approved") continue;
+    const gate = validatePreviousSessionGate(row.sessionNumber, previous);
+    if (gate) messages.push(gate);
+  }
+  return [...new Set(messages)];
 }
 
 function SessionReturnedCallout({ reason }: { reason: string | null | undefined }) {
@@ -2309,8 +2354,10 @@ function CdpSessionsPanel({
   const approvedSessionCount = plan.supportSessions.filter((session) => session.approvalStatus === "approved").length;
   const evidenceSessionCount = plan.supportSessions.filter(sessionHasEvidence).length;
   const reportReadyCount = plan.supportSessions.filter(
-    (session) => Boolean(session.keyActionsAgreed?.trim()) || Boolean(session.evidenceNotes?.trim())
+    (session) => session.approvalStatus !== "approved" && reportStarted(session)
   ).length;
+  const reportingSequenceWarnings =
+    mode === "reporting" ? cdpReportingSequenceWarnings(plan.supportSessions) : [];
 
   const submitAdd = (formData: FormData) => {
     const rawCodes = String(formData.get("focusCodes") ?? "")
@@ -2353,7 +2400,7 @@ function CdpSessionsPanel({
   };
 
   const remove = (id: number) => {
-    if (!confirm("Delete this session row?")) return;
+    if (!confirm("Delete this session and any report or evidence attached to it? This cannot be undone.")) return;
     start(async () => {
       const res = await deleteCdpSupportSession(id);
       if (!res.success) toast.error(res.error ?? "Failed");
@@ -2413,6 +2460,20 @@ function CdpSessionsPanel({
           </Button>
         ) : null}
       </div>
+      {mode === "reporting" && reportingSequenceWarnings.length > 0 ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Session reporting blocked</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed">
+            {reportingSequenceWarnings.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-900/80">
+            Use Session action items below to add follow-ups for the earlier session and mark them done
+            or waived.
+          </p>
+        </div>
+      ) : null}
       {mode === "planning" && showAdd ? (
         <form
           className="grid gap-3 rounded-md border p-4 sm:grid-cols-2"
@@ -2481,7 +2542,7 @@ function CdpSessionsPanel({
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="supportType">BDS objective</Label>
-            <Textarea id="supportType" name="supportType" rows={3} placeholder="What should the enterprise be able to do after this session?" required />
+            <Textarea id="supportType" name="supportType" rows={3} maxLength={8000} placeholder="What should the enterprise be able to do after this session?" required />
           </div>
           <Button type="submit" disabled={pending}>
             Save session
@@ -2533,7 +2594,7 @@ function CdpSessionsPanel({
                           reportStarted={reportStarted(session)}
                           approvalStatus={session.approvalStatus}
                           canManage
-                          canDelete={session.approvalStatus !== "approved"}
+                          canDelete={isSessionManager || session.approvalStatus !== "approved"}
                           disabled={disabled || pending}
                           onEdit={() => setEditingSessionId(session.id)}
                           onDelete={() => remove(session.id)}
@@ -2597,9 +2658,7 @@ function CdpSessionsPanel({
                         <SessionReturnedCallout reason={s.rejectionReason} />
                       ) : (
                         <p className="text-muted-foreground">
-                          {s.evidenceNotes?.trim() || s.keyActionsAgreed?.trim()
-                            ? "Report started"
-                            : "Awaiting report"}
+                          {sessionReportProgressLabel(s.approvalStatus, s)}
                         </p>
                       )}
                     </div>
@@ -2639,7 +2698,7 @@ function CdpSessionsPanel({
                     reportStarted={reportStarted(s)}
                     approvalStatus={s.approvalStatus}
                     canManage={canManageSession(s)}
-                    canDelete={s.approvalStatus !== "approved"}
+                    canDelete={isSessionManager || s.approvalStatus !== "approved"}
                     disabled={disabled || pending}
                     onEdit={() => setEditingSessionId(s.id)}
                     onDelete={() => remove(s.id)}
@@ -2654,6 +2713,7 @@ function CdpSessionsPanel({
       <CdpSessionEditSheet
         planId={plan.id}
         session={editingSession ?? null}
+        supportSessions={plan.supportSessions}
         mode={mode}
         currentUserId={currentUserId}
         open={Boolean(editingSession)}

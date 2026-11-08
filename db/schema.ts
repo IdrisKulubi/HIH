@@ -184,6 +184,12 @@ export const kycStatusEnum = pgEnum('kyc_status', [
   'rejected'
 ]);
 
+export const kajabiStatusEnum = pgEnum('kajabi_status', [
+  'NOT_STARTED',
+  'REGISTERED',
+  'COMPLETED',
+]);
+
 export const profileLockStatusEnum = pgEnum('profile_lock_status', [
   'unlocked',
   'locked',
@@ -213,6 +219,7 @@ export const kycChangeRequestStatusEnum = pgEnum('kyc_change_request_status', [
 export const sessionTypeEnum = pgEnum('session_type', ['physical', 'virtual']);
 export const sessionStatusEnum = pgEnum('session_status', [
   'scheduled',
+  'pending_approval',
   'completed',
   'missed',
   'rescheduled'
@@ -290,7 +297,18 @@ export const melMonitoringSourceModeEnum = pgEnum('mel_monitoring_source_mode', 
   'catch_up',
 ]);
 
-export const melJobTypeEnum = pgEnum('mel_job_type', ['direct', 'indirect']);
+export const melJobTypeEnum = pgEnum('mel_job_type', [
+  'direct_quality',
+  'direct_non_quality',
+  'indirect',
+  'direct',
+]);
+export const melFinanceTypeEnum = pgEnum('mel_finance_type', [
+  'loan',
+  'matching_grant',
+  'repayable_grant',
+  'other',
+]);
 export const melEvidenceStatusEnum = pgEnum('mel_evidence_status', ['active', 'removed']);
 export const melAchievementStatusEnum = pgEnum('mel_achievement_status', [
   'pending',
@@ -312,6 +330,8 @@ export const melDqaCategoryEnum = pgEnum('mel_dqa_category', [
   'consistency',
   'plausibility',
   'timeliness',
+  'validity',
+  'traceability',
 ]);
 export const melDqaStatusEnum = pgEnum('mel_dqa_status', ['open', 'accepted', 'resolved']);
 export const melEvidenceReviewStatusEnum = pgEnum('mel_evidence_review_status', [
@@ -416,6 +436,31 @@ export const cdpSessionActionItemStatusEnum = pgEnum('cdp_session_action_item_st
   'blocked',
 ]);
 
+/** Fieldwork scheduling is intentionally separate from the later visit/report workflow. */
+export const fieldworkPlanStatusEnum = pgEnum('fieldwork_plan_status', [
+  'draft',
+  'submitted',
+  'returned',
+  'approved',
+  'cancelled',
+]);
+export const fieldworkVisitStatusEnum = pgEnum('fieldwork_visit_status', [
+  'scheduled',
+  'checked_in',
+  'checked_out',
+  'cancelled',
+  'completed',
+  'missed',
+]);
+export const fieldworkVerificationStatusEnum = pgEnum('fieldwork_verification_status', ['pending', 'verified', 'needs_review', 'exception_approved']);
+export const fieldworkReportStatusEnum = pgEnum('fieldwork_report_status', ['draft', 'submitted', 'returned', 'approved']);
+export const fieldworkNotificationStatusEnum = pgEnum('fieldwork_notification_status', [
+  'pending',
+  'sent',
+  'failed',
+  'skipped',
+]);
+
 export const businessRegistrationTypeEnum = pgEnum('business_registration_type', [
   'limited_company',
   'partnership',
@@ -445,6 +490,9 @@ export const users = pgTable(
     isOnline: boolean("is_online").default(false),
     profilePhoto: text("profile_photo"),
     phoneNumber: text("phone_number"),
+    kajabiStatus: kajabiStatusEnum("kajabi_status").default("NOT_STARTED").notNull(),
+    kajabiRegisteredAt: timestamp("kajabi_registered_at"),
+    kajabiCompletedAt: timestamp("kajabi_completed_at"),
   },
   (table) => ({
     emailIdx: index("user_email_idx").on(table.email),
@@ -845,8 +893,28 @@ export const mentorshipSessions = pgTable(
     status: sessionStatusEnum('status').default('scheduled').notNull(),
     scheduledDate: timestamp('scheduled_date').notNull(),
     completedDate: timestamp('completed_date'),
+    durationMinutes: integer('duration_minutes'),
     diagnosticNotes: text('diagnostic_notes'),
     photographicEvidenceUrl: varchar('photographic_evidence_url', { length: 500 }),
+    evidenceFiles: jsonb('evidence_files')
+      .$type<
+        {
+          key?: string;
+          url: string;
+          name: string;
+          type: string;
+          uploadedById: string | null;
+          uploadedAt: string;
+        }[]
+      >()
+      .default([]),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at'),
+    edoApprovedById: text('edo_approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    edoApprovedAt: timestamp('edo_approved_at'),
+    rejectionReason: text('rejection_reason'),
+    returnedById: text('returned_by_id').references(() => users.id, { onDelete: 'set null' }),
+    returnedAt: timestamp('returned_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -1227,6 +1295,210 @@ export const cdpBusinessSupportSessions = pgTable(
   })
 );
 
+/** A fieldwork itinerary submitted by an EDO for REDO approval. */
+export const fieldworkPlans = pgTable(
+  'fieldwork_plans',
+  {
+    id: serial('id').primaryKey(),
+    title: varchar('title', { length: 255 }).notNull(),
+    scheduledStartAt: timestamp('scheduled_start_at').notNull(),
+    scheduledEndAt: timestamp('scheduled_end_at').notNull(),
+    estimatedDurationMinutes: integer('estimated_duration_minutes').notNull(),
+    status: fieldworkPlanStatusEnum('status').default('draft').notNull(),
+    createdById: text('created_by_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+    submittedAt: timestamp('submitted_at'),
+    /** REDO chosen to review this plan; null routes it to the admin fallback queue. */
+    assignedRedoId: text('assigned_redo_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at'),
+    returnReason: text('return_reason'),
+    cancellationReason: text('cancellation_reason'),
+    cancelledAt: timestamp('cancelled_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerStatusIdx: index('fieldwork_plans_owner_status_idx').on(table.createdById, table.status),
+    reviewStatusIdx: index('fieldwork_plans_review_status_idx').on(table.status, table.scheduledStartAt),
+    scheduleIdx: index('fieldwork_plans_schedule_idx').on(table.scheduledStartAt),
+    assignedRedoIdx: index('fieldwork_plans_assigned_redo_status_idx').on(table.assignedRedoId, table.status),
+    reviewedByIdx: index('fieldwork_plans_reviewed_by_idx').on(table.reviewedById),
+    validWindow: check('fieldwork_plans_valid_window_chk', sql`${table.scheduledEndAt} > ${table.scheduledStartAt}`),
+    validDuration: check('fieldwork_plans_valid_duration_chk', sql`${table.estimatedDurationMinutes} > 0`),
+  })
+);
+
+/** One scheduled enterprise visit within a fieldwork plan. */
+export const fieldworkVisits = pgTable(
+  'fieldwork_visits',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'restrict' }),
+    agenda: text('agenda').notNull(),
+    scheduledStartAt: timestamp('scheduled_start_at').notNull(),
+    estimatedDurationMinutes: integer('estimated_duration_minutes').notNull(),
+    status: fieldworkVisitStatusEnum('status').default('scheduled').notNull(),
+    checkedInAt: timestamp('checked_in_at'),
+    checkedOutAt: timestamp('checked_out_at'),
+    checkInLatitude: decimal('check_in_latitude', { precision: 10, scale: 7 }),
+    checkInLongitude: decimal('check_in_longitude', { precision: 10, scale: 7 }),
+    checkInAccuracyMeters: integer('check_in_accuracy_meters'),
+    checkOutLatitude: decimal('check_out_latitude', { precision: 10, scale: 7 }),
+    checkOutLongitude: decimal('check_out_longitude', { precision: 10, scale: 7 }),
+    checkOutAccuracyMeters: integer('check_out_accuracy_meters'),
+    verificationStatus: fieldworkVerificationStatusEnum('verification_status').default('pending').notNull(),
+    verificationNotes: text('verification_notes'),
+    /** granted | denied | unavailable | timeout — why a reading is (or is not) present. */
+    checkInLocationState: varchar('check_in_location_state', { length: 20 }),
+    checkOutLocationState: varchar('check_out_location_state', { length: 20 }),
+    checkInDistanceMeters: integer('check_in_distance_meters'),
+    checkOutDistanceMeters: integer('check_out_distance_meters'),
+    locationConsentAt: timestamp('location_consent_at'),
+    exceptionById: text('exception_by_id').references(() => users.id, { onDelete: 'set null' }),
+    exceptionReason: text('exception_reason'),
+    exceptionAt: timestamp('exception_at'),
+    missedReason: text('missed_reason'),
+    missedRecordedAt: timestamp('missed_recorded_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_visits_plan_id_idx').on(table.planId),
+    businessIdx: index('fieldwork_visits_business_id_idx').on(table.businessId),
+    scheduleIdx: index('fieldwork_visits_scheduled_start_idx').on(table.scheduledStartAt),
+    statusIdx: index('fieldwork_visits_status_idx').on(table.status, table.scheduledStartAt),
+    validDuration: check('fieldwork_visits_valid_duration_chk', sql`${table.estimatedDurationMinutes} > 0`),
+    planBusinessUq: uniqueIndex('fieldwork_visits_plan_business_uq').on(table.planId, table.businessId),
+  })
+);
+
+export const fieldworkReports = pgTable('fieldwork_reports', {
+  id: serial('id').primaryKey(),
+  visitId: integer('visit_id').notNull().unique().references(() => fieldworkVisits.id, { onDelete: 'cascade' }),
+  status: fieldworkReportStatusEnum('status').default('draft').notNull(),
+  activitiesConducted: text('activities_conducted'),
+  findingsAndGaps: text('findings_and_gaps'),
+  enterpriseChallenges: text('enterprise_challenges'),
+  solutionsOffered: text('solutions_offered'),
+  recommendations: text('recommendations'),
+  actionPoints: text('action_points'),
+  edoResponsibleId: text('edo_responsible_id').references(() => users.id, { onDelete: 'set null' }),
+  timeline: text('timeline'),
+  submittedAt: timestamp('submitted_at'),
+  reviewedById: text('reviewed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at'),
+  returnReason: text('return_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({ statusIdx: index('fieldwork_reports_status_idx').on(table.status, table.submittedAt), edoIdx: index('fieldwork_reports_edo_idx').on(table.edoResponsibleId, table.status) }));
+
+/** Append-only trace of report submissions, reviews and feedback deliveries. */
+export const fieldworkReportEvents = pgTable(
+  'fieldwork_report_events',
+  {
+    id: serial('id').primaryKey(),
+    reportId: integer('report_id').notNull().references(() => fieldworkReports.id, { onDelete: 'cascade' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    details: jsonb('details').default({}).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ reportIdx: index('fieldwork_report_events_report_idx').on(table.reportId, table.createdAt) })
+);
+
+/** One row per fieldwork export, recording who exported what with which filters. */
+export const fieldworkExportEvents = pgTable(
+  'fieldwork_export_events',
+  {
+    id: serial('id').primaryKey(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    dataset: varchar('dataset', { length: 40 }).notNull(),
+    format: varchar('format', { length: 10 }).notNull(),
+    filters: jsonb('filters').default({}).notNull(),
+    rowCount: integer('row_count').notNull(),
+    includesPreciseLocation: boolean('includes_precise_location').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ createdIdx: index('fieldwork_export_events_created_idx').on(table.createdAt) })
+);
+
+/** Audited, expiring admin exception to the "no new booking with outstanding reports" gate. */
+export const fieldworkGateOverrides = pgTable(
+  'fieldwork_gate_overrides',
+  {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    grantedById: text('granted_by_id').references(() => users.id, { onDelete: 'set null' }),
+    reason: text('reason').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ userIdx: index('fieldwork_gate_overrides_user_idx').on(table.userId, table.expiresAt) })
+);
+
+/** Staff members taking part in an individual enterprise visit. */
+export const fieldworkVisitStaff = pgTable(
+  'fieldwork_visit_staff',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id').notNull().references(() => fieldworkVisits.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    visitIdx: index('fieldwork_visit_staff_visit_id_idx').on(table.visitId),
+    userIdx: index('fieldwork_visit_staff_user_id_idx').on(table.userId),
+    visitUserUq: uniqueIndex('fieldwork_visit_staff_visit_user_uq').on(table.visitId, table.userId),
+  })
+);
+
+/** Delivery ledger for itinerary emails and later fieldwork reminders. */
+export const fieldworkNotificationDeliveries = pgTable(
+  'fieldwork_notification_deliveries',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    /** Set for per-visit messages such as client feedback, so failures can be retried. */
+    visitId: integer('visit_id').references(() => fieldworkVisits.id, { onDelete: 'set null' }),
+    attempts: integer('attempts').default(0).notNull(),
+    recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+    recipientRole: varchar('recipient_role', { length: 80 }).notNull(),
+    kind: varchar('kind', { length: 80 }).notNull(),
+    status: fieldworkNotificationStatusEnum('status').default('pending').notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    failureReason: text('failure_reason'),
+    sentAt: timestamp('sent_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_notification_deliveries_plan_id_idx').on(table.planId),
+    statusIdx: index('fieldwork_notification_deliveries_status_idx').on(table.status, table.createdAt),
+    recipientIdx: index('fieldwork_notification_deliveries_recipient_idx').on(table.recipientEmail, table.status, table.createdAt),
+  })
+);
+
+/** Append-only trace for authorisation-sensitive fieldwork changes. */
+export const fieldworkAuditEvents = pgTable(
+  'fieldwork_audit_events',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    visitId: integer('visit_id').references(() => fieldworkVisits.id, { onDelete: 'set null' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    details: jsonb('details').notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index('fieldwork_audit_events_plan_id_idx').on(table.planId, table.createdAt),
+    typeIdx: index('fieldwork_audit_events_type_idx').on(table.eventType, table.createdAt),
+    actorIdx: index('fieldwork_audit_events_actor_id_idx').on(table.actorId),
+  })
+);
+
 export const cdpObjectives = pgTable(
   'cdp_objectives',
   {
@@ -1410,6 +1682,19 @@ export const melProgrammeSettings = pgTable(
     redThreshold: decimal('red_threshold', { precision: 5, scale: 2 }).default('50').notNull(),
     greenThreshold: decimal('green_threshold', { precision: 5, scale: 2 }).default('80').notNull(),
     financiallyResilientDefinition: text('financially_resilient_definition'),
+    financialVarianceThresholdPercent: decimal('financial_variance_threshold_percent', { precision: 7, scale: 2 }).default('100').notNull(),
+    monthlyFinancialBaselines: jsonb('monthly_financial_baselines')
+      .$type<{
+        foundation: { revenue: number; costs: number; profit: number };
+        acceleration: { revenue: number; costs: number; profit: number };
+        overall: { revenue: number; costs: number; profit: number };
+      }>()
+      .default({
+        foundation: { revenue: 200000, costs: 124221, profit: 50000 },
+        acceleration: { revenue: 692600, costs: 490500, profit: 150000 },
+        overall: { revenue: 300000, costs: 202530, profit: 66100 },
+      })
+      .notNull(),
     includeRefugeeDisaggregation: boolean('include_refugee_disaggregation').default(false).notNull(),
     updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -1421,6 +1706,58 @@ export const melProgrammeSettings = pgTable(
       'mel_programme_settings_threshold_order_check',
       sql`${table.redThreshold} >= 0 AND ${table.greenThreshold} <= 100 AND ${table.redThreshold} < ${table.greenThreshold}`
     ),
+  })
+);
+
+export const melFinancialBaselineBatches = pgTable(
+  'mel_financial_baseline_batches',
+  {
+    id: serial('id').primaryKey(),
+    sourceName: varchar('source_name', { length: 255 }).notNull(),
+    sourceChecksum: varchar('source_checksum', { length: 64 }).notNull(),
+    effectiveDate: date('effective_date').notNull(),
+    status: varchar('status', { length: 30 }).$type<'validating' | 'needs_review' | 'validated' | 'active' | 'superseded'>().default('validating').notNull(),
+    totalRecords: integer('total_records').default(0).notNull(),
+    validRecords: integer('valid_records').default(0).notNull(),
+    quarantinedRecords: integer('quarantined_records').default(0).notNull(),
+    uploadedById: text('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedById: text('activated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    activatedAt: timestamp('activated_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ checksumUnique: uniqueIndex('mel_financial_baseline_batches_checksum_unique').on(table.sourceChecksum) })
+);
+
+export const melEnterpriseFinancialBaselines = pgTable(
+  'mel_enterprise_financial_baselines',
+  {
+    id: serial('id').primaryKey(),
+    batchId: integer('batch_id').notNull().references(() => melFinancialBaselineBatches.id, { onDelete: 'cascade' }),
+    sourceRow: integer('source_row').notNull(),
+    sourceBusinessId: varchar('source_business_id', { length: 120 }).notNull(),
+    sourceBusinessName: text('source_business_name').notNull(),
+    businessId: integer('business_id').references(() => businesses.id, { onDelete: 'restrict' }),
+    effectiveDate: date('effective_date').notNull(),
+    monthlyRevenue: decimal('monthly_revenue', { precision: 18, scale: 2 }),
+    monthlyCosts: decimal('monthly_costs', { precision: 18, scale: 2 }),
+    monthlyProfit: decimal('monthly_profit', { precision: 18, scale: 2 }),
+    annualRevenue: decimal('annual_revenue', { precision: 18, scale: 2 }),
+    annualCosts: decimal('annual_costs', { precision: 18, scale: 2 }),
+    annualProfit: decimal('annual_profit', { precision: 18, scale: 2 }),
+    rawRow: jsonb('raw_row').$type<Record<string, unknown>>().default({}).notNull(),
+    validationErrors: jsonb('validation_errors').$type<string[]>().default([]).notNull(),
+    validationWarnings: jsonb('validation_warnings').$type<string[]>().default([]).notNull(),
+    status: varchar('status', { length: 30 }).$type<'validated' | 'quarantined' | 'active' | 'superseded'>().default('quarantined').notNull(),
+    resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    batchRowUnique: uniqueIndex('mel_enterprise_financial_baselines_batch_row_unique').on(table.batchId, table.sourceRow),
+    batchStatusIdx: index('mel_enterprise_financial_baselines_batch_status_idx').on(table.batchId, table.status),
+    businessDateIdx: index('mel_enterprise_financial_baselines_business_date_idx').on(table.businessId, table.effectiveDate),
+    activeBusinessUnique: uniqueIndex('mel_enterprise_financial_baselines_one_active_business_idx').on(table.businessId).where(sql`${table.status} = 'active'`),
   })
 );
 
@@ -1617,7 +1954,7 @@ export const melMonitoringSubmissions = pgTable(
     collectorRole: varchar('collector_role', { length: 50 }).notNull(),
     assignedRedoId: text('assigned_redo_id').references(() => users.id, { onDelete: 'set null' }),
     sourceMode: melMonitoringSourceModeEnum('source_mode').default('current').notNull(),
-    visitDate: date('visit_date'),
+    visitDate: date('visit_date', { mode: 'string' }),
     status: melMonitoringStatusEnum('status').default('draft').notNull(),
     submissionVersion: integer('submission_version').default(1).notNull(),
     returnCount: integer('return_count').default(0).notNull(),
@@ -1658,6 +1995,8 @@ export const melMonitoringResponses = pgTable(
     costs: decimal('costs', { precision: 18, scale: 2 }),
     profitLoss: decimal('profit_loss', { precision: 18, scale: 2 }),
     financialChangeExplanation: text('financial_change_explanation'),
+    financialBaselineSnapshot: jsonb('financial_baseline_snapshot').$type<Record<string, unknown> | null>(),
+    financialComparisonSnapshot: jsonb('financial_comparison_snapshot').$type<Record<string, unknown> | null>(),
 
     marketResearchCompleted: boolean('market_research_completed'),
     marketIntelligenceAccessed: boolean('market_intelligence_accessed'),
@@ -1683,6 +2022,7 @@ export const melMonitoringResponses = pgTable(
     circularGrowthValue: decimal('circular_growth_value', { precision: 18, scale: 2 }),
 
     strategicPartnerships: boolean('strategic_partnerships'),
+    strategicPartnershipCount: integer('strategic_partnership_count'),
     strategicPartnershipDetails: text('strategic_partnership_details'),
     forumParticipation: boolean('forum_participation'),
     forumDetails: text('forum_details'),
@@ -1690,6 +2030,7 @@ export const melMonitoringResponses = pgTable(
     publicPrivatePartnershipDetails: text('public_private_partnership_details'),
 
     mainChallenges: text('main_challenges'),
+    positiveProgrammeImpacts: text('positive_programme_impacts'),
     negativeProgrammeImpacts: text('negative_programme_impacts'),
     additionalSupportNeeded: text('additional_support_needed'),
     collectorComment: text('collector_comment'),
@@ -1705,7 +2046,34 @@ export const melMonitoringResponses = pgTable(
         AND (${table.costs} IS NULL OR ${table.costs} >= 0)
         AND (${table.financeValue} IS NULL OR ${table.financeValue} >= 0)
         AND (${table.circularGrowthValue} IS NULL OR ${table.circularGrowthValue} >= 0)
+        AND (${table.strategicPartnershipCount} IS NULL OR ${table.strategicPartnershipCount} >= 0)
         AND (${table.newMarketSegments} IS NULL OR ${table.newMarketSegments} >= 0)`
+    ),
+  })
+);
+
+export const melMonitoringFinanceEntries = pgTable(
+  'mel_monitoring_finance_entries',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    financeType: melFinanceTypeEnum('finance_type').notNull(),
+    otherDescription: text('other_description'),
+    amount: decimal('amount', { precision: 18, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionTypeUnique: uniqueIndex('mel_monitoring_finance_entries_submission_type_unique')
+      .on(table.submissionId, table.financeType),
+    submissionIdx: index('mel_monitoring_finance_entries_submission_idx').on(table.submissionId),
+    nonNegativeAmount: check('mel_monitoring_finance_entries_amount_check', sql`${table.amount} >= 0`),
+    otherDescriptionRule: check(
+      'mel_monitoring_finance_entries_other_description_check',
+      sql`(${table.financeType} = 'other' AND NULLIF(BTRIM(${table.otherDescription}), '') IS NOT NULL)
+        OR (${table.financeType} <> 'other' AND ${table.otherDescription} IS NULL)`
     ),
   })
 );
@@ -1792,6 +2160,28 @@ export const melMonitoringEvidence = pgTable(
   })
 );
 
+export const melMonitoringEvidenceReferences = pgTable(
+  'mel_monitoring_evidence_references',
+  {
+    id: serial('id').primaryKey(),
+    submissionId: integer('submission_id')
+      .notNull()
+      .references(() => melMonitoringSubmissions.id, { onDelete: 'cascade' }),
+    questionCode: varchar('question_code', { length: 100 }).notNull(),
+    sourceEvidenceId: integer('source_evidence_id')
+      .notNull()
+      .references(() => melMonitoringEvidence.id, { onDelete: 'restrict' }),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    submissionQuestionUnique: uniqueIndex('mel_monitoring_evidence_references_submission_question_unique')
+      .on(table.submissionId, table.questionCode),
+    sourceEvidenceIdx: index('mel_monitoring_evidence_references_source_evidence_idx')
+      .on(table.sourceEvidenceId),
+  })
+);
+
 export const melEnterpriseAchievements = pgTable(
   'mel_enterprise_achievements',
   {
@@ -1835,9 +2225,11 @@ export const melMonitoringVersions = pgTable(
     version: integer('version').notNull(),
     status: melMonitoringStatusEnum('status').notNull(),
     responseSnapshot: jsonb('response_snapshot').$type<Record<string, unknown> | null>(),
+    financeSnapshot: jsonb('finance_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     jobsSnapshot: jsonb('jobs_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     wasteSnapshot: jsonb('waste_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     evidenceSnapshot: jsonb('evidence_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    evidenceReferenceSnapshot: jsonb('evidence_reference_snapshot').$type<Array<Record<string, unknown>>>().default([]).notNull(),
     capturedById: text('captured_by_id').references(() => users.id, { onDelete: 'set null' }),
     capturedAt: timestamp('captured_at').defaultNow().notNull(),
   },
@@ -2738,6 +3130,11 @@ export const mentorshipSessionsRelations = relations(mentorshipSessions, ({ one,
     fields: [mentorshipSessions.matchId],
     references: [mentorshipMatches.id],
   }),
+  returnedBy: one(users, {
+    fields: [mentorshipSessions.returnedById],
+    references: [users.id],
+    relationName: 'mentorshipSessionReturnedBy',
+  }),
   actionItems: many(mentorshipActionItems),
 }));
 
@@ -3122,9 +3519,11 @@ export const melMonitoringSubmissionsRelations = relations(
       relationName: 'melSubmissionRedo',
     }),
     response: one(melMonitoringResponses),
+    financeEntries: many(melMonitoringFinanceEntries),
     jobs: many(melMonitoringJobs),
     waste: many(melMonitoringWaste),
     evidence: many(melMonitoringEvidence),
+    evidenceReferences: many(melMonitoringEvidenceReferences),
     achievements: many(melEnterpriseAchievements),
     versions: many(melMonitoringVersions),
     reviewDecisions: many(melReviewDecisions),
@@ -3136,6 +3535,13 @@ export const melMonitoringSubmissionsRelations = relations(
 export const melMonitoringResponsesRelations = relations(melMonitoringResponses, ({ one }) => ({
   submission: one(melMonitoringSubmissions, {
     fields: [melMonitoringResponses.submissionId],
+    references: [melMonitoringSubmissions.id],
+  }),
+}));
+
+export const melMonitoringFinanceEntriesRelations = relations(melMonitoringFinanceEntries, ({ one }) => ({
+  submission: one(melMonitoringSubmissions, {
+    fields: [melMonitoringFinanceEntries.submissionId],
     references: [melMonitoringSubmissions.id],
   }),
 }));
@@ -3164,7 +3570,26 @@ export const melMonitoringEvidenceRelations = relations(melMonitoringEvidence, (
     references: [users.id],
   }),
   reviews: many(melEvidenceReviews),
+  references: many(melMonitoringEvidenceReferences),
 }));
+
+export const melMonitoringEvidenceReferencesRelations = relations(
+  melMonitoringEvidenceReferences,
+  ({ one }) => ({
+    submission: one(melMonitoringSubmissions, {
+      fields: [melMonitoringEvidenceReferences.submissionId],
+      references: [melMonitoringSubmissions.id],
+    }),
+    sourceEvidence: one(melMonitoringEvidence, {
+      fields: [melMonitoringEvidenceReferences.sourceEvidenceId],
+      references: [melMonitoringEvidence.id],
+    }),
+    createdBy: one(users, {
+      fields: [melMonitoringEvidenceReferences.createdById],
+      references: [users.id],
+    }),
+  })
+);
 
 export const melEnterpriseAchievementsRelations = relations(
   melEnterpriseAchievements,
@@ -3742,6 +4167,7 @@ export const a2fMatchingGrantApplications = pgTable('a2f_matching_grant_applicat
   enterpriseContributionAmount: decimal('enterprise_contribution_amount', { precision: 14, scale: 2 }).default('0').notNull(),
   coInvestmentSource: text('co_investment_source'),
   coInvestmentJustification: text('co_investment_justification'),
+  preferredCoInvestmentPct: decimal('preferred_co_investment_pct', { precision: 5, scale: 2 }),
   projectTitle: text('project_title'),
   fundingNeed: text('funding_need'),
   withoutGrantImpact: text('without_grant_impact'),
@@ -4059,6 +4485,27 @@ export const a2fGrantMilestones = pgTable('a2f_grant_milestones', {
 
 // --- Relations ---
 
+export const fieldworkPlansRelations = relations(fieldworkPlans, ({ one, many }) => ({
+  createdBy: one(users, { fields: [fieldworkPlans.createdById], references: [users.id], relationName: 'fieldworkPlanCreator' }),
+  reviewedBy: one(users, { fields: [fieldworkPlans.reviewedById], references: [users.id], relationName: 'fieldworkPlanReviewer' }),
+  visits: many(fieldworkVisits),
+}));
+export const fieldworkVisitsRelations = relations(fieldworkVisits, ({ one, many }) => ({
+  plan: one(fieldworkPlans, { fields: [fieldworkVisits.planId], references: [fieldworkPlans.id] }),
+  business: one(businesses, { fields: [fieldworkVisits.businessId], references: [businesses.id] }),
+  staff: many(fieldworkVisitStaff),
+  report: one(fieldworkReports),
+}));
+export const fieldworkReportsRelations = relations(fieldworkReports, ({ one }) => ({
+  visit: one(fieldworkVisits, { fields: [fieldworkReports.visitId], references: [fieldworkVisits.id] }),
+  edoResponsible: one(users, { fields: [fieldworkReports.edoResponsibleId], references: [users.id], relationName: 'fieldworkReportEdo' }),
+  reviewedBy: one(users, { fields: [fieldworkReports.reviewedById], references: [users.id], relationName: 'fieldworkReportReviewer' }),
+}));
+export const fieldworkVisitStaffRelations = relations(fieldworkVisitStaff, ({ one }) => ({
+  visit: one(fieldworkVisits, { fields: [fieldworkVisitStaff.visitId], references: [fieldworkVisits.id] }),
+  user: one(users, { fields: [fieldworkVisitStaff.userId], references: [users.id] }),
+}));
+
 export const a2fPipelineRelations = relations(a2fPipeline, ({ one, many }) => ({
   application: one(applications, {
     fields: [a2fPipeline.applicationId],
@@ -4368,6 +4815,9 @@ export type NewMelMonitoringSubmission = typeof melMonitoringSubmissions.$inferI
 export type MelMonitoringResponse = typeof melMonitoringResponses.$inferSelect;
 export type NewMelMonitoringResponse = typeof melMonitoringResponses.$inferInsert;
 
+export type MelMonitoringFinanceEntry = typeof melMonitoringFinanceEntries.$inferSelect;
+export type NewMelMonitoringFinanceEntry = typeof melMonitoringFinanceEntries.$inferInsert;
+
 export type MelMonitoringJob = typeof melMonitoringJobs.$inferSelect;
 export type NewMelMonitoringJob = typeof melMonitoringJobs.$inferInsert;
 
@@ -4376,6 +4826,9 @@ export type NewMelMonitoringWaste = typeof melMonitoringWaste.$inferInsert;
 
 export type MelMonitoringEvidence = typeof melMonitoringEvidence.$inferSelect;
 export type NewMelMonitoringEvidence = typeof melMonitoringEvidence.$inferInsert;
+
+export type MelMonitoringEvidenceReference = typeof melMonitoringEvidenceReferences.$inferSelect;
+export type NewMelMonitoringEvidenceReference = typeof melMonitoringEvidenceReferences.$inferInsert;
 
 export type MelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferSelect;
 export type NewMelEnterpriseAchievement = typeof melEnterpriseAchievements.$inferInsert;

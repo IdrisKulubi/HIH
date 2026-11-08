@@ -7,9 +7,11 @@ import {
   applications,
   cdpBusinessSupportSessions,
   dueDiligenceRecords,
+  mentorshipSessions,
 } from "@/db/schema";
 import { and, eq, inArray, lte, notExists, sql } from "drizzle-orm";
 import { a2fScreeningCandidateWhere } from "@/lib/a2f-screening-cohort";
+import { countMelReturnedToCollector, countMelReviewPendingForRedo } from "@/lib/mel/hub-counts";
 import { countA2fCasesAwaitingInitialDd } from "@/lib/server/a2f-dd-queue";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
@@ -24,6 +26,9 @@ export interface OversightDashboardSummary {
   a2fDdAwaiting: number;
   cdpReadyToFinalize: number;
   pendingCdpReports: number;
+  pendingMentorshipSessions: number;
+  melReviewPending: number;
+  melReturnedToMe: number;
 }
 
 async function countPendingApprovals(userId: string) {
@@ -126,7 +131,11 @@ export async function getOversightDashboardSummary(): Promise<
       role as (typeof SCREENING_ROLES)[number]
     );
 
-    const [pendingApprovals, urgentApprovals, preScreeningNotScreened, preScreeningMyDrafts, a2fDdAwaiting, pendingCdpReports] =
+    const includeMelHub = role === "redo" || role === "admin";
+
+    const includeMentorshipApprovals = role === "redo";
+
+    const [pendingApprovals, urgentApprovals, preScreeningNotScreened, preScreeningMyDrafts, a2fDdAwaiting, pendingCdpReports, pendingMentorshipSessions, melReviewPending, melReturnedToMe] =
       await Promise.all([
         countPendingApprovals(userId),
         countUrgentApprovals(userId),
@@ -134,6 +143,15 @@ export async function getOversightDashboardSummary(): Promise<
         includeScreening ? countPreScreeningMyDrafts(userId) : Promise.resolve(0),
         includeScreening ? countA2fCasesAwaitingInitialDd() : Promise.resolve(0),
         countPendingCdpReports(),
+        includeMentorshipApprovals
+          ? db
+              .select({ count: sql<number>`count(*)::int` })
+              .from(mentorshipSessions)
+              .where(eq(mentorshipSessions.status, "pending_approval"))
+              .then((rows) => Number(rows[0]?.count ?? 0))
+          : Promise.resolve(0),
+        includeMelHub ? countMelReviewPendingForRedo() : Promise.resolve(0),
+        includeMelHub ? countMelReturnedToCollector(userId) : Promise.resolve(0),
       ]);
 
     return successResponse({
@@ -145,6 +163,9 @@ export async function getOversightDashboardSummary(): Promise<
       // Full CDP workflow scan is too slow for the hub; open the queue for details.
       cdpReadyToFinalize: 0,
       pendingCdpReports,
+      pendingMentorshipSessions,
+      melReviewPending,
+      melReturnedToMe,
     });
   } catch (error) {
     console.error("Failed to load oversight dashboard summary:", error);

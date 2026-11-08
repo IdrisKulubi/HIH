@@ -158,15 +158,15 @@ export async function returnMatchingGrantForCorrectionAction(input: {
     const applicantName = applicant
       ? `${applicant.firstName} ${applicant.lastName}`.trim()
       : "Applicant";
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org";
 
     await sendMatchingGrantReturnedToEdoEmail({
       edoEmail: assignee.email,
       edoName: displayName(assignee),
       applicantName,
       businessName,
+      applicantEmail: applicant?.email?.trim() || "Not available",
+      applicantPhone: applicant?.phoneNumber?.trim() || "Not available",
       returnReason: value.returnReason,
-      caseUrl: `${baseUrl}/a2f/${value.a2fId}/scoring`,
     });
 
     revalidatePath(`/a2f/${value.a2fId}/scoring`);

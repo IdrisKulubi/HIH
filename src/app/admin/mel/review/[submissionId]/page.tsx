@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ClockCounterClockwise } from "@phosphor-icons/react/dist/ssr";
 import { getMelReviewDetail } from "@/lib/actions/mel-review";
 import type { MelReviewDetail } from "@/lib/actions/mel-review";
@@ -7,6 +7,8 @@ import { DqaReviewPanel } from "@/components/mel/review/DqaReviewPanel";
 import { EvidenceReviewList } from "@/components/mel/review/EvidenceReviewList";
 import { ReviewDecisionPanel } from "@/components/mel/review/ReviewDecisionPanel";
 import { Badge } from "@/components/ui/badge";
+import { financeTypeLabel } from "@/lib/mel/monitoring-question-catalog";
+import { findMonitoringJob, MEL_JOB_TYPE, sumDirectJobTotals } from "@/lib/mel/job-types";
 
 export default async function MelReviewDetailPage({
   params,
@@ -16,11 +18,17 @@ export default async function MelReviewDetailPage({
   const submissionId = Number((await params).submissionId);
   if (!Number.isInteger(submissionId)) notFound();
   const result = await getMelReviewDetail(submissionId);
-  if (!result.success || !result.data) notFound();
+  if (!result.success || !result.data) {
+    if (result.error?.includes("outside your review stage")) {
+      redirect("/admin/mel/review");
+    }
+    notFound();
+  }
   const detail = result.data;
   const snapshot = detail.submission.profileSnapshot;
-  const direct = detail.jobs.find((row) => row.jobType === "direct");
-  const indirect = detail.jobs.find((row) => row.jobType === "indirect");
+  const directQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directQuality);
+  const directNonQuality = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.directNonQuality);
+  const indirect = findMonitoringJob(detail.jobs, MEL_JOB_TYPE.indirect);
 
   return (
     <div className="container mx-auto space-y-6 px-4 py-8">
@@ -33,6 +41,13 @@ export default async function MelReviewDetailPage({
             <p className="text-xs font-semibold uppercase tracking-wider text-brand-blue">{detail.period.label}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{detail.businessName}</h1>
             <p className="mt-1 text-sm text-slate-600">Monitoring report quality and evidence review</p>
+            <p className="mt-2 text-sm text-slate-700">
+              <span className="font-medium text-slate-900">BDS EDO:</span> {detail.edoName}
+              <span className="mx-2 text-slate-300">·</span>
+              <span className="font-medium text-slate-900">REDO:</span> {detail.redoName}
+              <span className="mx-2 text-slate-300">·</span>
+              <span className="font-medium text-slate-900">Submitted by:</span> {detail.collectorName}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{detail.submission.status.replaceAll("_", " ")}</Badge>
@@ -55,6 +70,9 @@ export default async function MelReviewDetailPage({
                 ["County", snapshot.county],
                 ["Location", snapshot.city],
                 ["Visit date", detail.submission.visitDate],
+                ["BDS EDO", detail.edoName],
+                ["REDO reviewer", detail.redoName],
+                ["Submitted by", detail.collectorName],
                 ["Collector role", detail.submission.collectorRole],
               ].map(([label, value]) => <Value key={String(label)} label={String(label)} value={value} />)}
             </dl>
@@ -65,7 +83,7 @@ export default async function MelReviewDetailPage({
               <div className="grid gap-3 sm:grid-cols-3">
                 <Comparison label="Revenue" prior={currency(detail.priorApproved.revenue)} current={currency(detail.response?.revenue)} />
                 <Comparison label="Profit or loss" prior={currency(detail.priorApproved.profitLoss)} current={currency(detail.response?.profitLoss)} />
-                <Comparison label="Jobs" prior={detail.priorApproved.directJobs + detail.priorApproved.indirectJobs} current={(direct?.quarterlyTotal ?? 0) + (indirect?.quarterlyTotal ?? 0)} />
+                <Comparison label="Jobs" prior={detail.priorApproved.directJobs + detail.priorApproved.indirectJobs} current={sumDirectJobTotals(detail.jobs) + (indirect?.quarterlyTotal ?? 0)} />
               </div>
               <p className="mt-3 text-xs text-slate-500">Compared with {detail.priorApproved.periodLabel}.</p>
             </ReviewSection>
@@ -77,11 +95,25 @@ export default async function MelReviewDetailPage({
               <Metric label="Costs" value={currency(detail.response?.costs)} />
               <Metric label="Profit or loss" value={currency(detail.response?.profitLoss)} />
             </div>
+            {detail.response?.financialComparisonSnapshot ? <FinancialComparisonSnapshot snapshot={detail.response.financialComparisonSnapshot} explanation={detail.response.financialChangeExplanation} /> : null}
+            <div className="mt-5 overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-600"><tr><th className="px-3 py-2 text-left">Finance type</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
+                <tbody className="divide-y">
+                  {detail.financeEntries.map((entry) => <tr key={entry.id}><td className="px-3 py-2 font-medium">{financeTypeLabel(entry.financeType)}</td><td className="px-3 py-2">{entry.otherDescription ?? "—"}</td><td className="px-3 py-2 text-right tabular-nums">{currency(entry.amount)}</td></tr>)}
+                  <tr className="bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={2}>Finance total</td><td className="px-3 py-2 text-right tabular-nums">{currency(detail.financeEntries.length ? detail.financeEntries.reduce((sum, entry) => sum + Number(entry.amount), 0) : detail.response?.financeValue)}</td></tr>
+                </tbody>
+              </table>
+            </div>
             <div className="mt-5 overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2 text-left">Jobs</th><th>Total</th><th>Male</th><th>Female</th><th>Youth</th><th>PLWD</th><th>Refugee</th></tr></thead>
                 <tbody className="divide-y">
-                  {([["Direct", direct], ["Indirect", indirect]] as const).map(([label, row]) => (
+                  {([
+                    ["Direct (quality)", directQuality],
+                    ["Direct (non-quality)", directNonQuality],
+                    ["Indirect", indirect],
+                  ] as const).map(([label, row]) => (
                     <tr key={label}><td className="px-3 py-2 font-medium">{label}</td><td className="text-center">{row?.quarterlyTotal ?? "—"}</td><td className="text-center">{row?.male ?? "—"}</td><td className="text-center">{row?.female ?? "—"}</td><td className="text-center">{row?.youth ?? "—"}</td><td className="text-center">{row?.plwd ?? "—"}</td><td className="text-center">{row?.refugee ?? "—"}</td></tr>
                   ))}
                 </tbody>
@@ -95,16 +127,17 @@ export default async function MelReviewDetailPage({
             </dl>
           </ReviewSection>
 
-          <ReviewSection title="Waste collected and recycled">
+          {snapshot.sector === "waste_management" ? <ReviewSection title="Waste collected and recycled">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {detail.waste.map((row) => <Metric key={row.id} label={row.wasteStream.replaceAll("_", " ")} value={`${row.kilograms} kg`} />)}
             </div>
-          </ReviewSection>
+          </ReviewSection> : null}
 
           <DqaReviewPanel submissionId={detail.submission.id} issues={detail.dqaIssues} />
 
           <ReviewSection title="Evidence review">
             <EvidenceReviewList evidence={detail.evidence} />
+            {detail.evidenceReferences.length ? <div className="mt-4 space-y-3"><h3 className="text-sm font-semibold text-slate-900">Reused approved evidence</h3>{detail.evidenceReferences.map((reference) => <div key={reference.id} className="rounded-md border border-emerald-200 bg-emerald-50 p-3"><a href={reference.sourceEvidence.fileUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-blue hover:underline">{reference.sourceEvidence.fileName}</a><p className="mt-1 text-xs text-emerald-900">{reference.questionCode.replaceAll("_", " ")} · approved in {reference.sourcePeriod.label} · source submission #{reference.sourceSubmission.id}</p><p className="mt-1 text-xs text-emerald-800">Verification: {reference.sourceEvidence.reviews.some((review) => review.status === "verified") ? "Verified" : "Verification missing"}</p></div>)}</div> : null}
           </ReviewSection>
 
           <ReviewSection title="Review and version history">
@@ -166,8 +199,7 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["New products developed", response.newProductsDeveloped],
     ["New product details", response.newProductsDetails],
     ["Linked to finance provider", response.linkedToFinanceProvider],
-    ["Finance type", response.financeType],
-    ["Finance value", currency(response.financeValue)],
+    ["Material financial change explanation", response.financialChangeExplanation],
     ["Financial plan completed", response.financialPlanCompleted],
     ["Active insurance", response.activeInsurance],
     ["Investor readiness completed", response.investorReadinessCompleted],
@@ -175,19 +207,29 @@ function responseItems(response: MelReviewDetail["response"]): Array<[string, un
     ["Eco-certification", response.ecoCertificationActive],
     ["ESG report", response.esgReportCompleted],
     ["Social safeguarding guidelines", response.socialSafeguardingGuidelines],
-    ["Circular growth reported", response.circularGrowthReported],
-    ["Circular growth value", currency(response.circularGrowthValue)],
+    ...(response.circularGrowthReported !== null || response.circularGrowthValue !== null
+      ? [["Historical circular-growth response (legacy)", response.circularGrowthReported], ["Historical circular-growth value (legacy)", currency(response.circularGrowthValue)]] as Array<[string, unknown]>
+      : []),
     ["Strategic partnerships", response.strategicPartnerships],
+    ["Strategic partnership count", response.strategicPartnershipCount],
     ["Partnership details", response.strategicPartnershipDetails],
     ["Forum participation", response.forumParticipation],
     ["Forum details", response.forumDetails],
     ["Public-private partnership", response.publicPrivatePartnership],
     ["Public-private partnership details", response.publicPrivatePartnershipDetails],
+    ["Positive programme impacts", response.positiveProgrammeImpacts],
     ["Main challenges", response.mainChallenges],
     ["Negative programme impacts", response.negativeProgrammeImpacts],
     ["Additional support needed", response.additionalSupportNeeded],
     ["Collector comment", response.collectorComment],
   ];
+}
+
+function FinancialComparisonSnapshot({ snapshot, explanation }: { snapshot: Record<string, unknown>; explanation: string | null }) {
+  const current = snapshot.currentMonthly as { revenue?: number; costs?: number; profit?: number } | undefined;
+  const comparators = Array.isArray(snapshot.comparators) ? snapshot.comparators as Array<{ source: string; label: string; values: { revenue: number; costs: number; profit: number } }> : [];
+  const flags = Array.isArray(snapshot.flags) ? snapshot.flags as Array<{ code: string; message: string }> : [];
+  return <div className="mt-4 rounded-md border border-blue-200 bg-blue-50/60 p-4"><h3 className="text-sm font-semibold text-slate-900">Individual baseline comparison (monthly equivalent)</h3><div className="mt-3 grid gap-3 sm:grid-cols-3"><Metric label="Current revenue" value={currency(current?.revenue)} /><Metric label="Current costs" value={currency(current?.costs)} /><Metric label="Current profit/loss" value={currency(current?.profit)} /></div>{comparators.map((item) => <p key={item.source} className="mt-3 text-xs text-slate-700"><span className="font-semibold">{item.label}:</span> revenue {currency(item.values.revenue)}, costs {currency(item.values.costs)}, profit/loss {currency(item.values.profit)}</p>)}{flags.map((flag) => <p key={`${flag.code}-${flag.message}`} className="mt-2 text-xs font-medium text-amber-800">• {flag.message}</p>)}{explanation ? <div className="mt-3 rounded-md bg-white p-3 text-sm"><span className="font-semibold">Collector explanation:</span> {explanation}</div> : null}</div>;
 }
 
 function display(value: unknown) {

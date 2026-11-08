@@ -17,10 +17,11 @@ import {
   kycProfiles,
   melLearningActions,
   melMonitoringSubmissions,
+  mentorshipSessions,
 } from "@/db/schema";
 import { qualifiedDdApplicationsWhere } from "@/lib/due-diligence-qualification";
 import { getEffectiveScreeningForApplication } from "@/lib/server/a2f-effective-screening";
-import { and, desc, eq, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, notExists, or, sql } from "drizzle-orm";
 import { errorResponse, successResponse, type ActionResponse } from "./types";
 
 export type NotificationTone = "info" | "warning" | "success" | "danger";
@@ -31,7 +32,8 @@ export type NotificationGroup =
   | "KYC"
   | "Committee"
   | "Finance"
-  | "MEL";
+  | "MEL"
+  | "Mentorship";
 
 export interface TopbarNotification {
   id: string;
@@ -188,7 +190,7 @@ async function getScreeningNotifications(userId: string): Promise<TopbarNotifica
 }
 
 async function getRedoNotifications(userId: string): Promise<TopbarNotification[]> {
-  const [documentIssues, ddApprovals] = await Promise.all([
+  const [documentIssues, ddApprovals, mentorshipSessionsPending] = await Promise.all([
     countRows(
       a2fDocumentResolutionIssues,
       and(
@@ -201,6 +203,13 @@ async function getRedoNotifications(userId: string): Promise<TopbarNotification[
       and(
         eq(dueDiligenceRecords.ddStatus, "awaiting_approval"),
         eq(dueDiligenceRecords.validatorReviewerId, userId)
+      )
+    ),
+    countRows(
+      mentorshipSessions,
+      and(
+        eq(mentorshipSessions.status, "pending_approval"),
+        isNotNull(mentorshipSessions.edoApprovedById)
       )
     ),
   ]);
@@ -220,6 +229,14 @@ async function getRedoNotifications(userId: string): Promise<TopbarNotification[
       body: `${countLabel(ddApprovals, "DD report")} awaiting your validation.`,
       href: "/admin/due-diligence?status=awaiting_approval",
       group: "Due diligence",
+      tone: "warning",
+    }),
+    ...itemIf(mentorshipSessionsPending, {
+      id: "redo-mentorship-sessions",
+      title: "Mentorship sessions need REDO review",
+      body: `${countLabel(mentorshipSessionsPending, "session")} waiting for approval.`,
+      href: "/admin/mentorship/approvals",
+      group: "Mentorship",
       tone: "warning",
     }),
   ];

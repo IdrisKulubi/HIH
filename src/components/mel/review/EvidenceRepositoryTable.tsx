@@ -33,14 +33,14 @@ export function EvidenceRepositoryTable({ rows }: { rows: EvidenceRow[] }) {
   }, [query, rows, status]);
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
-      <div className="grid gap-3 border-b bg-slate-50 p-4 sm:grid-cols-[1fr_180px]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-background">
+      <div className="grid shrink-0 gap-3 border-b bg-slate-50 p-4 sm:grid-cols-[1fr_180px]">
         <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search enterprise, period, indicator, file" className="bg-background pl-9" /></div>
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="all">All review states</option><option value="pending">Pending</option><option value="verified">Verified</option><option value="rejected">Rejected</option></select>
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Enterprise and period</th><th className="px-4 py-3">Evidence</th><th className="px-4 py-3">Result</th><th className="px-4 py-3">Review</th><th className="px-4 py-3">Report</th></tr></thead>
+          <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 shadow-[0_1px_0_0_rgb(226_232_240)]"><tr><th className="px-4 py-3">Enterprise and period</th><th className="px-4 py-3">Evidence</th><th className="px-4 py-3">Result</th><th className="px-4 py-3">Review</th><th className="px-4 py-3">Report</th></tr></thead>
           <tbody className="divide-y">
             {filtered.map((row) => (
               <tr key={row.id}>
@@ -53,8 +53,8 @@ export function EvidenceRepositoryTable({ rows }: { rows: EvidenceRow[] }) {
             ))}
           </tbody>
         </table>
+        {filtered.length === 0 ? <p className="px-4 py-10 text-center text-sm text-slate-500">No evidence matches these filters.</p> : null}
       </div>
-      {filtered.length === 0 ? <p className="px-4 py-10 text-center text-sm text-slate-500">No evidence matches these filters.</p> : null}
     </div>
   );
 }

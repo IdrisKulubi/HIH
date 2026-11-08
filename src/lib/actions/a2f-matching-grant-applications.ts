@@ -49,6 +49,7 @@ export interface MatchingGrantApplicationInput {
     totalProjectAmount: number;
     bireGrantAmount: number;
     enterpriseContributionAmount: number;
+    preferredCoInvestmentPct?: number;
     coInvestmentSource?: string;
     coInvestmentJustification?: string;
     projectTitle?: string;
@@ -251,6 +252,7 @@ export async function saveMatchingGrantApplication(
                 totalProjectAmount: input.totalProjectAmount,
                 bireGrantAmount: input.bireGrantAmount,
                 enterpriseContributionAmount: input.enterpriseContributionAmount,
+                preferredCoInvestmentPct: input.preferredCoInvestmentPct,
                 coInvestmentSource: input.coInvestmentSource,
                 coInvestmentJustification: input.coInvestmentJustification,
                 fundingNeed: input.fundingNeed,
@@ -291,6 +293,9 @@ export async function saveMatchingGrantApplication(
             totalProjectAmount: String(input.totalProjectAmount || 0),
             bireGrantAmount: String(input.bireGrantAmount || 0),
             enterpriseContributionAmount: String(input.enterpriseContributionAmount || 0),
+            preferredCoInvestmentPct: input.preferredCoInvestmentPct != null
+                ? String(input.preferredCoInvestmentPct)
+                : null,
             coInvestmentSource: input.coInvestmentSource ?? null,
             coInvestmentJustification: input.coInvestmentJustification ?? null,
             projectTitle: input.projectTitle ?? null,

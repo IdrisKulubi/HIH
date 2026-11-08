@@ -170,11 +170,26 @@ export {
     createMentor,
     createMentorFromForm,
     createMentorshipMatch,
+    assignMentorToEnterprises,
     completeMentorshipSession,
     completeMentorshipSessionFromForm,
     listMentorsForAdmin,
     listMentorshipMatchesForBusiness,
+    listMentorshipSessionsPendingApproval,
+    countMentorshipSessionsPendingApproval,
+    listApprovedMentorshipSessions,
+    searchSubmittedMentorshipSessions,
+    approveMentorshipSession,
+    returnMentorshipSession,
+    getMentorshipAnalytics,
 } from "./mentorship";
 
-export type { MentorListRow, MentorshipMatchWithSessions } from "./mentorship";
+export type {
+  MentorListRow,
+  MentorshipMatchWithSessions,
+  MentorshipSessionReviewRow,
+  MentorshipApprovedSessionRow,
+  MentorshipSubmittedSessionRow,
+  MentorshipAnalytics,
+} from "./mentorship";
 

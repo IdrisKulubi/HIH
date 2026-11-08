@@ -16,6 +16,17 @@ const authenticateUploadRequest = async () => {
   return { id: session.user.id, role: session.user.role };
 };
 
+const authenticatePhase2AdminUpload = async () => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new UploadThingError("Unauthorized");
+  }
+  if (!["admin", "oversight", "mentor"].includes(session.user.role ?? "")) {
+    throw new UploadThingError("Admin access required");
+  }
+  return { userId: session.user.id };
+};
+
 const authenticateA2fUploadRequest = async () => {
   const session = await auth();
   if (!session?.user?.id) {
@@ -62,6 +73,11 @@ const cdpEvidenceUploader = f({
   "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 6 },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
     maxFileSize: "16MB",
+    maxFileCount: 6,
+  },
+  "application/vnd.ms-powerpoint": { maxFileSize: "32MB", maxFileCount: 6 },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+    maxFileSize: "32MB",
     maxFileCount: 6,
   },
   "text/csv": { maxFileSize: "8MB", maxFileCount: 6 },
@@ -119,6 +135,27 @@ const melEvidenceUploader = f({
     fileSize: file.size,
   }));
 
+const mentorshipEvidenceUploader = f({
+  pdf: { maxFileSize: "16MB", maxFileCount: 8 },
+  image: { maxFileSize: "8MB", maxFileCount: 8 },
+})
+  .middleware(async () => {
+    try {
+      const user = await authenticatePhase2AdminUpload();
+      return { userId: user.userId };
+    } catch (error) {
+      console.error("Mentorship evidence upload middleware error:", error);
+      throw new UploadThingError("Unauthorized");
+    }
+  })
+  .onUploadComplete(async ({ metadata, file }) => ({
+    uploadedBy: metadata.userId,
+    fileKey: file.key,
+    fileName: file.name,
+    fileUrl: file.url,
+    fileType: file.type ?? "application/octet-stream",
+  }));
+
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     .middleware(async () => {
@@ -146,6 +183,7 @@ export const ourFileRouter = {
   kycDocumentUploader: documentUploader,
   cdpEvidenceUploader,
   melEvidenceUploader,
+  mentorshipEvidenceUploader,
   signedContractUploader: f({
     pdf: { maxFileSize: "16MB", maxFileCount: 1 },
     image: { maxFileSize: "8MB", maxFileCount: 1 },
