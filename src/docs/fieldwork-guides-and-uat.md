@@ -7,7 +7,8 @@
 2. For every enterprise set the agenda, start time (Nairobi time), duration in minutes and the field officer(s). Each visit needs all four.
 3. Save draft. You can Edit a draft or returned plan at any time.
 4. Submit for review and choose your REDO. If you choose none, an administrator reviews it.
-5. When approved, you, your REDO and the ESM recipients receive the itinerary by email. An approved plan cannot be edited. Cancel it with a reason and create a new one if something changes.
+5. When approved, you, your REDO and the ESM recipients receive the itinerary by email.
+6. **Changing a plan.** Draft and returned plans: Edit. Submitted (not yet decided): Withdraw to edit. Approved: Change schedule or details (give a reason). It returns to draft, you edit and resubmit, your REDO approves again, and everyone gets a "revised itinerary" email. This is allowed only while no visit has started. Your REDO or an admin can also use Request changes on an approved plan, which returns it to you with their reason. Once any visit has started, cancel the plan or create a new one for the remaining work.
 
 **On the day** (Fieldwork, then Visit execution)
 1. Open Today. Tap Check in on arrival. Read the privacy notice, tick the box, and tap Share my location. Wait for the accuracy reading (aim for 100 m or better; go outdoors and Try again if it is worse).

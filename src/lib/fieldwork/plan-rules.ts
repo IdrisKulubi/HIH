@@ -12,9 +12,9 @@ export type PlanStatus = "draft" | "submitted" | "returned" | "approved" | "canc
 /** The only permitted plan status transitions. Every action must pass through `canTransition`. */
 export const PLAN_TRANSITIONS: Record<PlanStatus, readonly PlanStatus[]> = {
   draft: ["submitted", "cancelled"],
-  submitted: ["approved", "returned", "cancelled"],
+  submitted: ["approved", "returned", "cancelled", "draft"],
   returned: ["submitted", "cancelled"],
-  approved: ["cancelled"],
+  approved: ["cancelled", "draft", "returned"],
   cancelled: [],
 };
 
@@ -89,4 +89,21 @@ export function canEditPlan(user: { id: string; role?: string | null }, plan: Pl
 
 export function canCancelPlan(user: { id: string; role?: string | null }, plan: PlanRouting) {
   return canTransition(plan.status, "cancelled") && (plan.createdById === user.id || user.role === "admin");
+}
+
+/** The owner (or an admin acting for them) can pull a submitted plan back to draft to edit it. */
+export function canWithdrawPlan(user: { id: string; role?: string | null }, plan: PlanRouting) {
+  return plan.status === "submitted" && (plan.createdById === user.id || user.role === "admin");
+}
+
+/**
+ * Changing an approved plan. The owner reopens it as a draft (to edit and resubmit); the assigned REDO or an
+ * admin who is not the owner sends it back as "returned" with a reason. Either way it needs approval again.
+ */
+export function reopenMode(user: { id: string; role?: string | null }, plan: PlanRouting): "draft" | "returned" | null {
+  if (plan.status !== "approved") return null;
+  if (plan.createdById === user.id) return "draft";
+  if (user.role === "admin") return "returned";
+  if (user.role === "redo" && plan.assignedRedoId === user.id) return "returned";
+  return null;
 }

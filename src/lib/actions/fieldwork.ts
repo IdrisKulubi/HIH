@@ -3,25 +3,26 @@
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
 import { businesses, fieldworkAuditEvents, fieldworkNotificationDeliveries, fieldworkPlans, fieldworkVisitStaff, fieldworkVisits, userProfiles } from "@/db/schema";
+import { FieldworkItineraryEmail } from "@/components/emails/fieldwork-itinerary-email";
 import { sendEmail } from "@/lib/email";
 import { checkFieldworkRateLimit } from "@/lib/fieldwork/rate-limit";
 import { logFieldwork } from "@/lib/fieldwork/log";
 import { getGateStatus } from "@/lib/fieldwork/outstanding";
 import {
-  canCancelPlan, canEditPlan, canReviewPlan, canViewPlan, derivePlanWindow, EDO_ROLES, hasRole, OBSERVER_ROLES, planInputSchema,
-  REVIEWER_ROLES, STAFF_ASSIGNABLE_ROLES, type PlanInput, type PlanStatus,
+  canCancelPlan, canEditPlan, canReviewPlan, canViewPlan, canWithdrawPlan, derivePlanWindow, EDO_ROLES, hasRole, OBSERVER_ROLES, planInputSchema,
+  REVIEWER_ROLES, reopenMode, STAFF_ASSIGNABLE_ROLES, type PlanInput, type PlanStatus,
 } from "@/lib/fieldwork/plan-rules";
 import { and, asc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import React from "react";
 
 const TIME_ZONE = "Africa/Nairobi";
+const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://bire-platform.org";
 const BUSINESS_PAGE_SIZE = 25;
 
 function can(role: string | null | undefined, roles: readonly string[]) { return hasRole(role, roles); }
 function fail(error: string) { return { success: false as const, error }; }
 function refresh() { revalidatePath("/fieldwork"); revalidatePath("/admin/fieldwork"); }
-function formatWhen(date: Date) { return new Intl.DateTimeFormat("en-KE", { timeZone: TIME_ZONE, dateStyle: "medium", timeStyle: "short" }).format(date); }
 
 async function currentUser() {
   const session = await auth();
@@ -59,19 +60,30 @@ async function insertVisits(tx: Tx, planId: number, visits: PlanInput["visits"])
 /** Itinerary email. Never throws: every recipient outcome is logged as sent, failed or skipped. */
 async function sendApprovedItinerary(planId: number, reviewerEmail: string | null) {
   try {
-    const plan = await db.query.fieldworkPlans.findFirst({ where: eq(fieldworkPlans.id, planId), with: { visits: { with: { business: { columns: { name: true } } }, orderBy: (v, { asc }) => [asc(v.scheduledStartAt)] }, createdBy: { columns: { email: true } } } });
+    const plan = await db.query.fieldworkPlans.findFirst({ where: eq(fieldworkPlans.id, planId), with: { visits: { with: { business: { columns: { name: true, county: true, city: true } } }, orderBy: (v, { asc }) => [asc(v.scheduledStartAt)] }, createdBy: { columns: { email: true } } } });
     if (!plan) return;
     const esmEmails = (process.env.FIELDWORK_ESM_RECIPIENTS ?? "").split(",").map((e) => e.trim()).filter(Boolean);
     const recipients = new Map<string, string>();
     for (const [email, role] of [[plan.createdBy?.email, "edo"], [reviewerEmail, "redo"], ...esmEmails.map((e) => [e, "esm"])] as [string | null | undefined, string][]) {
       if (email && !recipients.has(email.toLowerCase())) recipients.set(email.toLowerCase(), role);
     }
-    const itinerary = plan.visits.map((v) => `• ${formatWhen(v.scheduledStartAt)} (${v.estimatedDurationMinutes} min) — ${v.business.name}: ${v.agenda}`).join("\n");
+    const staffRows = await db.query.fieldworkVisitStaff.findMany({ where: inArray(fieldworkVisitStaff.visitId, plan.visits.map((v) => v.id).concat(-1)), columns: { visitId: true, userId: true } });
+    const people = await db.query.userProfiles.findMany({ where: inArray(userProfiles.userId, [...new Set(staffRows.map((s) => s.userId).concat(plan.createdById))]), columns: { userId: true, firstName: true, lastName: true } });
+    const nameOf = new Map(people.map((p) => [p.userId, `${p.firstName} ${p.lastName}`.trim()]));
+    const dateFmt = new Intl.DateTimeFormat("en-KE", { timeZone: TIME_ZONE, weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const timeFmt = new Intl.DateTimeFormat("en-KE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
+    const emailVisits = plan.visits.map((v) => ({
+      dateLabel: dateFmt.format(v.scheduledStartAt), timeLabel: timeFmt.format(v.scheduledStartAt), durationMinutes: v.estimatedDurationMinutes,
+      enterprise: v.business.name, location: [v.business.city, v.business.county?.replace(/_/g, " ")].filter(Boolean).join(", "), agenda: v.agenda,
+      officers: staffRows.filter((s) => s.visitId === v.id).map((s) => nameOf.get(s.userId) ?? "").filter(Boolean),
+    }));
+    const plannedBy = nameOf.get(plan.createdById) ?? "Field officer";
+    const revised = !!(await db.query.fieldworkAuditEvents.findFirst({ where: and(eq(fieldworkAuditEvents.planId, planId), eq(fieldworkAuditEvents.eventType, "plan_reopened")), columns: { id: true } }));
     if (!esmEmails.length) await db.insert(fieldworkNotificationDeliveries).values({ planId, recipientEmail: "esm-group", recipientRole: "esm", kind: "approved_itinerary", status: "skipped", failureReason: "No ESM recipients configured (FIELDWORK_ESM_RECIPIENTS)." });
     for (const [email, role] of recipients) {
       const [delivery] = await db.insert(fieldworkNotificationDeliveries).values({ planId, recipientEmail: email, recipientRole: role, kind: "approved_itinerary" }).returning({ id: fieldworkNotificationDeliveries.id });
       try {
-        await sendEmail({ to: email, subject: `Approved fieldwork itinerary — ${plan.title}`, react: React.createElement("div", null, React.createElement("h1", null, "Fieldwork itinerary approved"), React.createElement("p", null, `Plan: ${plan.title}`), React.createElement("p", null, `Times shown in ${TIME_ZONE}.`), React.createElement("pre", { style: { whiteSpace: "pre-wrap" } }, itinerary)) });
+        await sendEmail({ to: email, subject: `${revised ? "Revised" : "Approved"} fieldwork itinerary — ${plan.title}`, react: React.createElement(FieldworkItineraryEmail, { revised, planTitle: plan.title, audience: role as "edo" | "redo" | "esm", plannedBy, visits: emailVisits, timeZone: TIME_ZONE, planUrl: `${APP_BASE_URL}/fieldwork` }) });
         await db.update(fieldworkNotificationDeliveries).set({ status: "sent", sentAt: new Date(), updatedAt: new Date() }).where(eq(fieldworkNotificationDeliveries.id, delivery.id));
       } catch (error) {
         await db.update(fieldworkNotificationDeliveries).set({ status: "failed", failureReason: error instanceof Error ? error.message : "Email delivery failed", updatedAt: new Date() }).where(eq(fieldworkNotificationDeliveries.id, delivery.id));
@@ -146,6 +158,48 @@ export async function submitFieldworkPlan(planId: number, assignedRedoId?: strin
   refresh(); return { success: true as const };
 }
 
+/** Pulls a submitted plan back to draft so its owner can edit it before the REDO has decided. */
+export async function withdrawFieldworkPlan(planId: number) {
+  const user = await currentUser();
+  if (!user || !can(user.role, EDO_ROLES)) return fail("Only EDOs can withdraw fieldwork plans.");
+  const plan = await db.query.fieldworkPlans.findFirst({ where: eq(fieldworkPlans.id, planId), columns: { createdById: true, assignedRedoId: true, status: true } });
+  if (!plan || !canViewPlan(user, plan)) return fail("Plan not found.");
+  if (!canWithdrawPlan(user, plan)) return fail("Only a submitted plan can be withdrawn for editing.");
+  const done = await db.transaction(async (tx) => {
+    const rows = await tx.update(fieldworkPlans).set({ status: "draft", submittedAt: null, updatedAt: new Date() }).where(and(eq(fieldworkPlans.id, planId), eq(fieldworkPlans.status, "submitted"))).returning({ id: fieldworkPlans.id });
+    if (!rows.length) return false;
+    await tx.insert(fieldworkAuditEvents).values({ planId, actorId: user.id, eventType: "plan_withdrawn", details: {} });
+    return true;
+  });
+  if (!done) return fail("This plan has already been reviewed, so it can no longer be withdrawn. Refresh to see its status.");
+  refresh(); return { success: true as const };
+}
+
+/**
+ * Changes to an approved plan (dates, times, agenda, staff). Allowed only while no visit has started.
+ * The owner reopens it as a draft; the assigned REDO or an admin sends it back as returned. It must be approved again.
+ */
+export async function reopenFieldworkPlan(planId: number, reason: string) {
+  const user = await currentUser();
+  if (!user || !can(user.role, [...EDO_ROLES, ...REVIEWER_ROLES])) return fail("You cannot change this plan.");
+  if (reason.trim().length < 5) return fail("Explain why the approved plan needs to change (at least 5 characters).");
+  const plan = await db.query.fieldworkPlans.findFirst({ where: eq(fieldworkPlans.id, planId), columns: { createdById: true, assignedRedoId: true, status: true }, with: { visits: { columns: { status: true } } } });
+  if (!plan) return fail("Plan not found.");
+  const mode = reopenMode(user, plan);
+  if (!mode) return fail("You cannot change this plan.");
+  if (plan.visits.some((v) => v.status !== "scheduled")) return fail("Visits have already started or been recorded, so this plan can no longer be changed. Cancel it or create a new plan for the remaining work.");
+  const done = await db.transaction(async (tx) => {
+    const rows = await tx.update(fieldworkPlans).set({
+      status: mode, returnReason: mode === "returned" ? reason.trim() : null, reviewedById: null, reviewedAt: null, updatedAt: new Date(),
+    }).where(and(eq(fieldworkPlans.id, planId), eq(fieldworkPlans.status, "approved"))).returning({ id: fieldworkPlans.id });
+    if (!rows.length) return false;
+    await tx.insert(fieldworkAuditEvents).values({ planId, actorId: user.id, eventType: "plan_reopened", details: { reason: reason.trim(), mode } });
+    return true;
+  });
+  if (!done) return fail("This plan changed while you were editing it. Refresh and try again.");
+  refresh(); return { success: true as const, data: { status: mode } };
+}
+
 export async function cancelFieldworkPlan(planId: number, reason: string) {
   const user = await currentUser();
   if (!user || !can(user.role, EDO_ROLES)) return fail("Only EDOs can cancel fieldwork plans.");
@@ -218,7 +272,7 @@ export async function getFieldworkWorkspace() {
         id: p.id, title: p.title, status: p.status as PlanStatus, returnReason: p.returnReason, cancellationReason: p.cancellationReason,
         createdById: p.createdById, assignedRedoId: p.assignedRedoId,
         scheduledStartAt: p.scheduledStartAt, scheduledEndAt: p.scheduledEndAt,
-        visits: p.visits.map((v) => ({ id: v.id, agenda: v.agenda, scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staff.map((s) => s.userId), staffNames: v.staff.map((s) => names.get(s.userId) ?? "Unknown officer") })),
+        visits: p.visits.map((v) => ({ id: v.id, status: v.status as string, agenda: v.agenda, scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staff.map((s) => s.userId), staffNames: v.staff.map((s) => names.get(s.userId) ?? "Unknown officer") })),
       })),
       staff, counties,
       redos: staff.filter((s) => s.role === "redo"),

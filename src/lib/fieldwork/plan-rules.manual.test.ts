@@ -39,7 +39,8 @@ test("status transitions are constrained", () => {
   assert.ok(canTransition("returned", "submitted"));
   assert.ok(canTransition("approved", "cancelled"));
   assert.equal(canTransition("draft", "approved"), false);
-  assert.equal(canTransition("approved", "returned"), false);
+  assert.equal(canTransition("approved", "submitted"), false);
+  assert.equal(canTransition("cancelled", "draft"), false);
   assert.deepEqual(PLAN_TRANSITIONS.cancelled, []);
 });
 

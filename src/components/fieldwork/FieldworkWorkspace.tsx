@@ -4,15 +4,15 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cancelFieldworkPlan, reviewFieldworkPlan, submitFieldworkPlan } from "@/lib/actions/fieldwork";
-import { canCancelPlan, canEditPlan, canReviewPlan, type PlanStatus } from "@/lib/fieldwork/plan-rules";
+import { cancelFieldworkPlan, reopenFieldworkPlan, reviewFieldworkPlan, submitFieldworkPlan, withdrawFieldworkPlan } from "@/lib/actions/fieldwork";
+import { canCancelPlan, canEditPlan, canReviewPlan, canWithdrawPlan, reopenMode, type PlanStatus } from "@/lib/fieldwork/plan-rules";
 import { formatNairobi } from "@/lib/fieldwork/time";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldworkPlanBuilder, type BuilderStaff } from "./FieldworkPlanBuilder";
 
-type Visit = { id: number; agenda: string; scheduledStartAt: Date; estimatedDurationMinutes: number; business: { id: number; name: string; county: string | null; city: string }; staffIds: string[]; staffNames: string[] };
+type Visit = { id: number; status: string; agenda: string; scheduledStartAt: Date; estimatedDurationMinutes: number; business: { id: number; name: string; county: string | null; city: string }; staffIds: string[]; staffNames: string[] };
 type Plan = { id: number; title: string; status: PlanStatus; returnReason: string | null; cancellationReason: string | null; createdById: string; assignedRedoId: string | null; scheduledStartAt: Date; scheduledEndAt: Date; visits: Visit[] };
 type Props = {
   currentUserId: string;
@@ -34,7 +34,7 @@ const STATUS_STYLE: Record<PlanStatus, string> = {
 };
 const FILTERS: (PlanStatus | "all")[] = ["all", "draft", "submitted", "returned", "approved", "cancelled"];
 
-type Pending = { kind: "return" | "cancel" | "submit"; plan: Plan } | null;
+type Pending = { kind: "return" | "cancel" | "submit" | "reopen"; plan: Plan } | null;
 
 export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redos, canCreate, reviewerRole, isAdmin }: Props) {
   const router = useRouter();
@@ -49,15 +49,19 @@ export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redo
   const visible = plans.filter((p) => filter === "all" || p.status === filter);
   const awaitingReview = reviewerRole ? plans.filter((p) => canReviewPlan(user, p)).length : 0;
 
-  function run(work: () => Promise<{ success: boolean; error?: string }>, success: string) {
+  function run(work: () => Promise<{ success: boolean; error?: string }>, success: string, after?: () => void) {
     startTransition(async () => {
       const result = await work();
       if (!result.success) return void toast.error(result.error ?? "Something went wrong.");
       toast.success(success);
       setPending(null); setReason(""); setRedoId("");
+      after?.();
       router.refresh();
     });
   }
+
+  /** An approved plan can be changed only while every visit is still just scheduled. */
+  const changeMode = (plan: Plan) => (plan.visits.every((v) => v.status === "scheduled") ? reopenMode(user, plan) : null);
 
   const closeBuilder = () => { setBuilder({ open: false, plan: null }); router.refresh(); };
 
@@ -122,6 +126,9 @@ export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redo
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => setPending({ kind: "return", plan })}>Return</Button>
                     </>
                   )}
+                  {canCreate && canWithdrawPlan(user, plan) && <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => withdrawFieldworkPlan(plan.id), "Plan withdrawn. You can now edit it.", () => { setBuilder({ open: true, plan }); window.scrollTo({ top: 0, behavior: "smooth" }); })}>Withdraw to edit</Button>}
+                  {changeMode(plan) === "draft" && <Button size="sm" variant="outline" disabled={busy} onClick={() => setPending({ kind: "reopen", plan })}>Change schedule or details</Button>}
+                  {changeMode(plan) === "returned" && <Button size="sm" variant="outline" disabled={busy} onClick={() => setPending({ kind: "reopen", plan })}>Request changes</Button>}
                   {canCreate && canCancelPlan(user, plan) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setPending({ kind: "cancel", plan })}>Cancel plan</Button>}
                 </div>
               </div>
@@ -170,17 +177,29 @@ export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redo
           {pending && pending.kind !== "submit" && (
             <>
               <DialogHeader>
-                <DialogTitle>{pending.kind === "return" ? "Return plan for correction" : "Cancel plan"}</DialogTitle>
+                <DialogTitle>{pending.kind === "return" ? "Return plan for correction" : pending.kind === "reopen" ? (changeMode(pending.plan) === "draft" ? "Change an approved plan" : "Request changes to an approved plan") : "Cancel plan"}</DialogTitle>
                 <DialogDescription>
-                  {pending.kind === "return" ? "The EDO will see this reason and can edit and resubmit." : "Cancelling is recorded in the audit trail and cancels all scheduled visits."}
+                  {pending.kind === "return" ? "The EDO will see this reason and can edit and resubmit."
+                    : pending.kind === "reopen" ? (changeMode(pending.plan) === "draft"
+                      ? "The plan goes back to draft so you can edit dates, times, agendas or staff. Visits cannot start until your REDO approves it again, and everyone is emailed the revised itinerary."
+                      : "The plan goes back to the EDO as returned, with your reason. They edit it and your approval is needed again.")
+                    : "Cancelling is recorded in the audit trail and cancels all scheduled visits."}
                 </DialogDescription>
               </DialogHeader>
               <Textarea aria-label="Reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)" />
               <DialogFooter>
                 <Button variant="outline" onClick={() => setPending(null)}>Back</Button>
                 <Button variant="destructive" disabled={busy || reason.trim().length < 3}
-                  onClick={() => run(() => pending.kind === "return" ? reviewFieldworkPlan(pending.plan.id, "returned", reason) : cancelFieldworkPlan(pending.plan.id, reason), pending.kind === "return" ? "Plan returned." : "Plan cancelled.")}>
-                  {pending.kind === "return" ? "Return plan" : "Cancel plan"}
+                  onClick={() => {
+                    const target = pending.plan;
+                    if (pending.kind === "reopen") {
+                      const mode = changeMode(target);
+                      return run(() => reopenFieldworkPlan(target.id, reason), mode === "draft" ? "Plan reopened. Make your changes, then submit it again." : "Changes requested. The EDO has been notified on the plan.",
+                        mode === "draft" ? () => { setBuilder({ open: true, plan: target }); window.scrollTo({ top: 0, behavior: "smooth" }); } : undefined);
+                    }
+                    run(() => pending.kind === "return" ? reviewFieldworkPlan(target.id, "returned", reason) : cancelFieldworkPlan(target.id, reason), pending.kind === "return" ? "Plan returned." : "Plan cancelled.");
+                  }}>
+                  {pending.kind === "return" ? "Return plan" : pending.kind === "reopen" ? "Continue" : "Cancel plan"}
                 </Button>
               </DialogFooter>
             </>
