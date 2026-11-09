@@ -27,6 +27,8 @@ function qs(base: Record<string, string | undefined>) {
 }
 
 const field = "h-9 w-full rounded-md border bg-background px-2 text-sm";
+/** Long free-text columns wrap; everything else stays on one line so rows stay short. */
+const LONG_TEXT = /Notes|Reason|Details|Agenda|Title|Plan$|Failure|Activities|Findings|Challenges|Solutions|Recommendations|Action|Timeline/;
 
 export default async function AdminFieldworkPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await auth();
@@ -145,12 +147,12 @@ export default async function AdminFieldworkPage({ searchParams }: { searchParam
           )}
         </div>
         {result.total > EXPORT_ROW_CAP && canExport && <p className="border-b bg-amber-50 px-4 py-2 text-xs text-amber-900">Exports are limited to {EXPORT_ROW_CAP.toLocaleString()} rows. Narrow the filters to export this set.</p>}
-        <div className="overflow-x-auto">
+        <div className="max-h-[65vh] overflow-auto" tabIndex={0} role="region" aria-label={`${TAB_LABEL[tab]} table, scrollable`}>
           <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs"><tr>{columns.map((c) => <th key={c} scope="col" className="whitespace-nowrap p-2">{c.replace(/_/g, " ")}</th>)}</tr></thead>
+            <thead className="sticky top-0 z-10 bg-muted text-left text-xs shadow-[0_1px_0_0_theme(colors.slate.200)]"><tr>{columns.map((c) => <th key={c} scope="col" className="whitespace-nowrap p-2">{c.replace(/_/g, " ")}</th>)}</tr></thead>
             <tbody>
               {result.rows.map((row, i) => (
-                <tr key={i} className="border-t align-top">{columns.map((c) => <td key={c} className="max-w-xs p-2 break-words">{row[c] === null ? "" : String(row[c])}</td>)}</tr>
+                <tr key={i} className="border-t align-top">{columns.map((c) => <td key={c} className={`p-2 ${LONG_TEXT.test(c) ? "min-w-[16rem] max-w-sm whitespace-normal break-words" : "whitespace-nowrap"}`}>{row[c] === null ? "" : String(row[c])}</td>)}</tr>
               ))}
               {result.rows.length === 0 && <tr><td className="p-8 text-center text-muted-foreground" colSpan={Math.max(1, columns.length)}>No records match these filters.</td></tr>}
             </tbody>

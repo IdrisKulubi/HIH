@@ -89,6 +89,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/a2f", label: "A2F Administration", icon: Bank },
       { href: "/a2f", label: "Passed Pipeline", icon: Bank },
       { href: "/admin/kyc", label: "KYC", icon: ShieldCheck },
+      { href: "/fieldwork", label: "Fieldwork Plans", icon: MapPin },
+      { href: "/fieldwork/execution", label: "Visit Execution", icon: MapPin },
       { href: "/admin/fieldwork", label: "Fieldwork Oversight", icon: MapPin },
       { href: "/admin/cna", label: "CNA", icon: ListChecks },
       { href: "/admin/cdp", label: "CDP Work Queue", icon: Target },

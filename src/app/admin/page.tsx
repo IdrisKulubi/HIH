@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FieldworkHubCard } from "@/components/fieldwork/FieldworkHubCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getApplicationStats } from "@/lib/actions";
@@ -188,6 +189,8 @@ export default async function AdminDashboard() {
           </Link>
         </Button>
       </div>
+
+      {user ? <FieldworkHubCard user={{ id: user.id as string, role: String(user.role) }} /> : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatPanel
