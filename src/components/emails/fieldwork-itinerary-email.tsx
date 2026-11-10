@@ -8,6 +8,7 @@ export interface FieldworkItineraryVisit {
   enterprise: string;
   location: string;
   agenda: string;
+  outcomes?: string[];
   officers: string[];
 }
 
@@ -52,6 +53,11 @@ export const FieldworkItineraryEmail = ({
         <Text className="text-[14px] leading-[22px] text-slate-700 m-0 mt-[8px]">
           <strong>Agenda:</strong> {visit.agenda}
         </Text>
+        {visit.outcomes?.length ? (
+          <Text className="text-[13px] leading-[20px] text-slate-600 m-0 mt-[4px]">
+            <strong>Programme outcomes:</strong> {visit.outcomes.join("; ")}
+          </Text>
+        ) : null}
         {visit.officers.length ? (
           <Text className="text-[13px] text-slate-600 m-0 mt-[4px]">
             <strong>Field officers:</strong> {visit.officers.join(", ")}

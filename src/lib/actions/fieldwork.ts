@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import db from "@/db/drizzle";
-import { businesses, fieldworkAuditEvents, fieldworkNotificationDeliveries, fieldworkPlans, fieldworkVisitStaff, fieldworkVisits, userProfiles } from "@/db/schema";
+import { businesses, fieldworkAuditEvents, fieldworkNotificationDeliveries, fieldworkPlanAttachments, fieldworkPlans, fieldworkVisitStaff, fieldworkVisits, userProfiles } from "@/db/schema";
 import { FieldworkItineraryEmail } from "@/components/emails/fieldwork-itinerary-email";
 import { sendEmail } from "@/lib/email";
 import { checkFieldworkRateLimit } from "@/lib/fieldwork/rate-limit";
@@ -10,7 +10,7 @@ import { logFieldwork } from "@/lib/fieldwork/log";
 import { getGateStatus } from "@/lib/fieldwork/outstanding";
 import {
   canCancelPlan, canEditPlan, canReviewPlan, canViewPlan, canWithdrawPlan, derivePlanWindow, EDO_ROLES, hasRole, OBSERVER_ROLES, planInputSchema,
-  REVIEWER_ROLES, reopenMode, STAFF_ASSIGNABLE_ROLES, type PlanInput, type PlanStatus,
+  outcomeLabel, REVIEWER_ROLES, reopenMode, STAFF_ASSIGNABLE_ROLES, type PlanInput, type PlanStatus,
 } from "@/lib/fieldwork/plan-rules";
 import { and, asc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -51,8 +51,15 @@ async function validatePlan(input: unknown) {
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** Replaces a plan's optional attachments with the submitted list (documents are optional, so an empty list clears them). */
+async function replaceAttachments(tx: Tx, planId: number, userId: string, items: PlanInput["attachments"]) {
+  await tx.delete(fieldworkPlanAttachments).where(eq(fieldworkPlanAttachments.planId, planId));
+  if (!items?.length) return;
+  await tx.insert(fieldworkPlanAttachments).values(items.map((a) => ({ planId, url: a.url, fileKey: a.fileKey ?? null, fileName: a.fileName, fileType: a.fileType ?? null, fileSize: a.fileSize ?? null, uploadedById: userId })));
+}
+
 async function insertVisits(tx: Tx, planId: number, visits: PlanInput["visits"]) {
-  const rows = await tx.insert(fieldworkVisits).values(visits.map((v) => ({ planId, businessId: v.businessId, agenda: v.agenda, scheduledStartAt: new Date(v.scheduledStartAt), estimatedDurationMinutes: v.estimatedDurationMinutes }))).returning({ id: fieldworkVisits.id, businessId: fieldworkVisits.businessId });
+  const rows = await tx.insert(fieldworkVisits).values(visits.map((v) => ({ planId, businessId: v.businessId, agenda: v.agenda, outcomes: v.outcomes, scheduledStartAt: new Date(v.scheduledStartAt), estimatedDurationMinutes: v.estimatedDurationMinutes }))).returning({ id: fieldworkVisits.id, businessId: fieldworkVisits.businessId });
   const byBusiness = new Map(rows.map((r) => [r.businessId, r.id]));
   await tx.insert(fieldworkVisitStaff).values(visits.flatMap((v) => [...new Set(v.staffIds)].map((userId) => ({ visitId: byBusiness.get(v.businessId)!, userId }))));
 }
@@ -74,7 +81,7 @@ async function sendApprovedItinerary(planId: number, reviewerEmail: string | nul
     const timeFmt = new Intl.DateTimeFormat("en-KE", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
     const emailVisits = plan.visits.map((v) => ({
       dateLabel: dateFmt.format(v.scheduledStartAt), timeLabel: timeFmt.format(v.scheduledStartAt), durationMinutes: v.estimatedDurationMinutes,
-      enterprise: v.business.name, location: [v.business.city, v.business.county?.replace(/_/g, " ")].filter(Boolean).join(", "), agenda: v.agenda,
+      outcomes: (v.outcomes ?? []).map((o) => outcomeLabel(o)), enterprise: v.business.name, location: [v.business.city, v.business.county?.replace(/_/g, " ")].filter(Boolean).join(", "), agenda: v.agenda,
       officers: staffRows.filter((s) => s.visitId === v.id).map((s) => nameOf.get(s.userId) ?? "").filter(Boolean),
     }));
     const plannedBy = nameOf.get(plan.createdById) ?? "Field officer";
@@ -105,7 +112,8 @@ export async function createFieldworkPlan(input: PlanInput) {
   const id = await db.transaction(async (tx) => {
     const [plan] = await tx.insert(fieldworkPlans).values({ title: data.title, scheduledStartAt: window.scheduledStartAt, scheduledEndAt: window.scheduledEndAt, estimatedDurationMinutes: window.estimatedDurationMinutes, createdById: user.id }).returning({ id: fieldworkPlans.id });
     await insertVisits(tx, plan.id, data.visits);
-    await tx.insert(fieldworkAuditEvents).values({ planId: plan.id, actorId: user.id, eventType: "plan_created", details: { visitCount: data.visits.length } });
+    await replaceAttachments(tx, plan.id, user.id, data.attachments);
+    await tx.insert(fieldworkAuditEvents).values({ planId: plan.id, actorId: user.id, eventType: "plan_created", details: { visitCount: data.visits.length, attachmentCount: data.attachments?.length ?? 0 } });
     return plan.id;
   });
   refresh(); return { success: true as const, data: { id } };
@@ -127,7 +135,8 @@ export async function updateFieldworkPlan(planId: number, input: PlanInput) {
     if (!updated.length) return false;
     await tx.delete(fieldworkVisits).where(eq(fieldworkVisits.planId, planId));
     await insertVisits(tx, planId, data.visits);
-    await tx.insert(fieldworkAuditEvents).values({ planId, actorId: user.id, eventType: "plan_updated", details: { visitCount: data.visits.length } });
+    await replaceAttachments(tx, planId, user.id, data.attachments);
+    await tx.insert(fieldworkAuditEvents).values({ planId, actorId: user.id, eventType: "plan_updated", details: { visitCount: data.visits.length, attachmentCount: data.attachments?.length ?? 0 } });
     return true;
   });
   if (!changed) return fail("This plan can no longer be edited.");
@@ -259,7 +268,7 @@ export async function getFieldworkWorkspace() {
     where: scope,
     orderBy: (p, { desc }) => [desc(p.createdAt)],
     limit: 200,
-    with: { visits: { orderBy: (v, { asc }) => [asc(v.scheduledStartAt)], with: { business: { columns: { id: true, name: true, county: true, city: true } }, staff: { columns: { userId: true } } } } },
+    with: { attachments: { orderBy: (a, { asc }) => [asc(a.id)] }, visits: { orderBy: (v, { asc }) => [asc(v.scheduledStartAt)], with: { business: { columns: { id: true, name: true, county: true, city: true } }, staff: { columns: { userId: true } } } } },
   });
   const staff = await db.query.userProfiles.findMany({ where: inArray(userProfiles.role, [...STAFF_ASSIGNABLE_ROLES]), columns: { userId: true, firstName: true, lastName: true, role: true }, orderBy: (p, { asc }) => [asc(p.firstName)] });
   const names = new Map(staff.map((s) => [s.userId, `${s.firstName} ${s.lastName}`.trim()]));
@@ -271,8 +280,9 @@ export async function getFieldworkWorkspace() {
       plans: plans.map((p) => ({
         id: p.id, title: p.title, status: p.status as PlanStatus, returnReason: p.returnReason, cancellationReason: p.cancellationReason,
         createdById: p.createdById, assignedRedoId: p.assignedRedoId,
+        attachments: p.attachments.map((a) => ({ id: a.id, url: a.url, fileKey: a.fileKey, fileName: a.fileName, fileType: a.fileType, fileSize: a.fileSize })),
         scheduledStartAt: p.scheduledStartAt, scheduledEndAt: p.scheduledEndAt,
-        visits: p.visits.map((v) => ({ id: v.id, status: v.status as string, agenda: v.agenda, scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staff.map((s) => s.userId), staffNames: v.staff.map((s) => names.get(s.userId) ?? "Unknown officer") })),
+        visits: p.visits.map((v) => ({ id: v.id, status: v.status as string, agenda: v.agenda, outcomes: v.outcomes ?? [], scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staff.map((s) => s.userId), staffNames: v.staff.map((s) => names.get(s.userId) ?? "Unknown officer") })),
       })),
       staff, counties,
       redos: staff.filter((s) => s.role === "redo"),

@@ -28,17 +28,31 @@ export function hasRole(role: string | null | undefined, roles: readonly string[
   return !!role && roles.includes(role);
 }
 
+/** Programme outcomes a visit plan can contribute to. Ids are stored; labels are for display and exports. */
+export const FIELDWORK_OUTCOMES = [
+  { id: "commercialization_scale_up", label: "Increased commercialization and scale-up of supported MSEs across sectors" },
+  { id: "market_and_finance_access", label: "Increased access to market information and financial services for MSEs" },
+  { id: "circular_economy_safeguards", label: "Increased adoption of circular economy models and social safeguards by MSEs" },
+  { id: "sector_actor_capacity", label: "Strengthened systems and capacity of sector actors to support sustainable enterprise development" },
+] as const;
+export type FieldworkOutcomeId = (typeof FIELDWORK_OUTCOMES)[number]["id"];
+export const OUTCOME_IDS = FIELDWORK_OUTCOMES.map((o) => o.id) as [FieldworkOutcomeId, ...FieldworkOutcomeId[]];
+export const outcomeLabel = (id: string) => FIELDWORK_OUTCOMES.find((o) => o.id === id)?.label ?? id;
+
 export const visitInputSchema = z.object({
   businessId: z.number().int().positive(),
   agenda: z.string().trim().min(3, "Every selected enterprise needs an agenda (at least 3 characters).").max(8000),
   scheduledStartAt: z.string().datetime(),
   estimatedDurationMinutes: z.number().int().min(15, "Visits must be at least 15 minutes.").max(1440),
   staffIds: z.array(z.string().min(1)).min(1, "Assign at least one field officer to every visit.").max(10),
+  outcomes: z.array(z.enum(OUTCOME_IDS)).min(1, "Select at least one programme outcome for every visit.").max(OUTCOME_IDS.length),
 });
 
 export const planInputSchema = z.object({
   title: z.string().trim().min(3, "Give the plan a title.").max(255),
   visits: z.array(visitInputSchema).min(1, "Select at least one enterprise.").max(100),
+  /** Optional supporting documents, e.g. the intervention plan for the enterprises. */
+  attachments: z.array(z.lazy(() => attachmentInputSchema)).max(5, "You can attach up to 5 documents.").optional(),
 });
 
 export type PlanInput = z.infer<typeof planInputSchema>;
@@ -107,3 +121,26 @@ export function reopenMode(user: { id: string; role?: string | null }, plan: Pla
   if (user.role === "redo" && plan.assignedRedoId === user.id) return "returned";
   return null;
 }
+
+export const MAX_PLAN_ATTACHMENTS = 5;
+
+/** A document already uploaded through the fieldwork uploader; only trusted storage hosts are accepted. */
+export const attachmentInputSchema = z.object({
+  url: z.string().url().max(2000).refine((value) => {
+    try {
+      const host = new URL(value).hostname.toLowerCase();
+      return host === "utfs.io" || host === "ufs.sh" || host.endsWith(".utfs.io") || host.endsWith(".ufs.sh") || host.endsWith(".uploadthing.com");
+    } catch { return false; }
+  }, "Attachments must be uploaded through the platform."),
+  fileKey: z.string().max(255).nullish(),
+  fileName: z.string().trim().min(1).max(255),
+  fileType: z.string().max(120).nullish(),
+  fileSize: z.number().int().nonnegative().max(100_000_000).nullish(),
+});
+export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
+
+/** 1-based position of an outcome (matches the "Outcome N" wording in the UI). */
+export const outcomeNumber = (id: string) => {
+  const index = FIELDWORK_OUTCOMES.findIndex((o) => o.id === id);
+  return index === -1 ? "?" : String(index + 1);
+};

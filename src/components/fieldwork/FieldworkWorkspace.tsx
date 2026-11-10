@@ -5,15 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cancelFieldworkPlan, reopenFieldworkPlan, reviewFieldworkPlan, submitFieldworkPlan, withdrawFieldworkPlan } from "@/lib/actions/fieldwork";
-import { canCancelPlan, canEditPlan, canReviewPlan, canWithdrawPlan, reopenMode, type PlanStatus } from "@/lib/fieldwork/plan-rules";
+import { canCancelPlan, canEditPlan, canReviewPlan, canWithdrawPlan, outcomeLabel, outcomeNumber, reopenMode, type PlanStatus } from "@/lib/fieldwork/plan-rules";
 import { formatNairobi } from "@/lib/fieldwork/time";
 import { Button } from "@/components/ui/button";
+import { getDocumentViewerHref } from "@/lib/document-view-url";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FieldworkPlanBuilder, type BuilderStaff } from "./FieldworkPlanBuilder";
 
-type Visit = { id: number; status: string; agenda: string; scheduledStartAt: Date; estimatedDurationMinutes: number; business: { id: number; name: string; county: string | null; city: string }; staffIds: string[]; staffNames: string[] };
-type Plan = { id: number; title: string; status: PlanStatus; returnReason: string | null; cancellationReason: string | null; createdById: string; assignedRedoId: string | null; scheduledStartAt: Date; scheduledEndAt: Date; visits: Visit[] };
+type Visit = { id: number; status: string; outcomes: string[]; agenda: string; scheduledStartAt: Date; estimatedDurationMinutes: number; business: { id: number; name: string; county: string | null; city: string }; staffIds: string[]; staffNames: string[] };
+type Attachment = { id: number; url: string; fileKey: string | null; fileName: string; fileType: string | null; fileSize: number | null };
+type Plan = { attachments: Attachment[]; id: number; title: string; status: PlanStatus; returnReason: string | null; cancellationReason: string | null; createdById: string; assignedRedoId: string | null; scheduledStartAt: Date; scheduledEndAt: Date; visits: Visit[] };
 type Props = {
   currentUserId: string;
   plans: Plan[];
@@ -80,12 +82,18 @@ export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redo
 
       {builder.open && canCreate && (
         <FieldworkPlanBuilder key={builder.plan?.id ?? "new"} staff={staff} counties={counties} onDone={closeBuilder}
-          editing={builder.plan ? { id: builder.plan.id, title: builder.plan.title, visits: builder.plan.visits.map((v) => ({ agenda: v.agenda, scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staffIds })) } : null} />
+          editing={builder.plan ? { id: builder.plan.id, title: builder.plan.title, attachments: builder.plan.attachments, visits: builder.plan.visits.map((v) => ({ outcomes: v.outcomes, agenda: v.agenda, scheduledStartAt: v.scheduledStartAt, estimatedDurationMinutes: v.estimatedDurationMinutes, business: v.business, staffIds: v.staffIds })) } : null} />
       )}
 
       <section className="rounded-xl border bg-background" aria-labelledby="plans-heading">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
-          <h2 id="plans-heading" className="font-semibold">Plans</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="plans-heading" className="font-semibold">Plans</h2>
+            <div className="flex gap-1" role="group" aria-label="Export plans">
+              <Button asChild size="sm" variant="outline"><a href={`/api/fieldwork/plans-export?format=xlsx${filter === "all" ? "" : `&status=${filter}`}`}>Export Excel</a></Button>
+              <Button asChild size="sm" variant="outline"><a href={`/api/fieldwork/plans-export?format=csv${filter === "all" ? "" : `&status=${filter}`}`}>Export CSV</a></Button>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter plans by status">
             {FILTERS.map((f) => (
               <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)} className="capitalize">{f}</Button>
@@ -134,15 +142,23 @@ export function FieldworkWorkspace({ currentUserId, plans, staff, counties, redo
               </div>
               <details className="mt-3" open={plan.status === "submitted" && !!reviewerRole}>
                 <summary className="cursor-pointer text-sm text-primary">View itinerary</summary>
+                {plan.attachments.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-2" aria-label="Supporting documents">
+                    {plan.attachments.map((file) => (
+                      <li key={file.id}><a href={getDocumentViewerHref(file.url, file.fileName)} target="_blank" rel="noreferrer" className="inline-flex max-w-xs items-center gap-1.5 rounded-full border bg-muted/50 px-3 py-1 text-xs text-primary hover:underline"><span aria-hidden>📎</span><span className="truncate">{file.fileName}</span></a></li>
+                    ))}
+                  </ul>
+                )}
                 <div className="mt-2 overflow-x-auto rounded-lg border">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted text-left text-xs"><tr><th className="p-2">When</th><th className="p-2">Enterprise</th><th className="p-2">Agenda</th><th className="p-2">Officers</th></tr></thead>
+                    <thead className="bg-muted text-left text-xs"><tr><th className="p-2">When</th><th className="p-2">Enterprise</th><th className="p-2">Agenda</th><th className="p-2">Outcomes</th><th className="p-2">Officers</th></tr></thead>
                     <tbody>
                       {plan.visits.map((v) => (
                         <tr key={v.id} className="border-t align-top">
                           <td className="whitespace-nowrap p-2">{formatNairobi(v.scheduledStartAt)}<br /><span className="text-xs text-muted-foreground">{v.estimatedDurationMinutes} min</span></td>
                           <td className="p-2">{v.business.name}<br /><span className="text-xs text-muted-foreground">{[v.business.city, v.business.county?.replace(/_/g, " ")].filter(Boolean).join(", ")}</span></td>
                           <td className="p-2">{v.agenda}</td>
+                          <td className="p-2"><div className="flex flex-wrap gap-1">{v.outcomes.map((o) => <span key={o} title={outcomeLabel(o)} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-800">Outcome {outcomeNumber(o)}</span>)}</div></td>
                           <td className="p-2">{v.staffNames.join(", ")}</td>
                         </tr>
                       ))}
