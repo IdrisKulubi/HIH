@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { FieldworkHubCard } from "@/components/fieldwork/FieldworkHubCard";
 import { OversightHub } from "@/components/oversight/OversightHub";
 import { getOversightDashboardSummary } from "@/lib/actions/oversight-dashboard";
 import { getCurrentUser } from "@/lib/actions/user.actions";
@@ -35,6 +36,7 @@ export default async function OversightDashboard() {
           {summaryResult.error ?? "Some dashboard counts could not be loaded"}
         </p>
       )}
+      <div className="mb-6"><FieldworkHubCard user={{ id: user.id as string, role: String(user.role) }} /></div>
       <OversightHub
         user={{
           firstName:

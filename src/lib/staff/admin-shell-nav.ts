@@ -50,12 +50,16 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
   admin: "all",
   bds_edo: [
     "/a2f",
+    "/fieldwork",
+    "/fieldwork/execution",
     "/admin/cdp",
     "/admin/mentorship/approvals",
     "/admin/mel/monitoring",
   ],
   redo: [
     "/a2f",
+    "/fieldwork",
+    "/fieldwork/execution",
     "/admin/cdp",
     "/admin/cdp/approvals",
     "/admin/mentorship/approvals",
@@ -84,6 +88,7 @@ const ROLE_ALLOWED_HREFS: Record<string, readonly string[] | "all"> = {
     "/admin/cdp/approvals",
     "/admin/mentorship/approved",
     "/admin/fieldwork",
+    "/fieldwork",
     "/admin/mentorship/analytics",
   ],
   mentor: [

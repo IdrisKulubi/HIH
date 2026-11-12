@@ -4,6 +4,7 @@ import {
 } from "@/db/schema";
 import { and, count, desc, eq, gt, gte, ilike, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { outcomeNumber } from "./plan-rules";
 import { countWords } from "./report-rules";
 import { isoToNairobiLocal } from "./time";
 
@@ -115,6 +116,7 @@ async function visitsDataset(f: AdminFilters, o: QueryOptions): Promise<DatasetR
       Check_In_Distance_m: v.checkInDistanceMeters, Check_Out_Distance_m: v.checkOutDistanceMeters,
       Check_In_Accuracy_m: v.checkInAccuracyMeters, Check_Out_Accuracy_m: v.checkOutAccuracyMeters,
       Check_In_Location: v.checkInLocationState, Check_Out_Location: v.checkOutLocationState,
+      Outcomes: (v.outcomes ?? []).map((o) => `Outcome ${outcomeNumber(o)}`).join(", "),
       Exception_Reason: v.exceptionReason, Missed_Reason: v.missedReason, Report_Status: r.reportStatus,
       // Precise coordinates are excluded unless explicitly requested by an authorised admin export.
       ...(o.includeLocation ? { Check_In_Latitude: v.checkInLatitude, Check_In_Longitude: v.checkInLongitude, Check_Out_Latitude: v.checkOutLatitude, Check_Out_Longitude: v.checkOutLongitude } : {}),
