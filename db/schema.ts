@@ -1328,6 +1328,23 @@ export const fieldworkPlans = pgTable(
   })
 );
 
+/** Optional supporting documents an EDO attaches to a plan (for example the intervention plan for an enterprise). */
+export const fieldworkPlanAttachments = pgTable(
+  'fieldwork_plan_attachments',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    fileKey: varchar('file_key', { length: 255 }),
+    fileName: varchar('file_name', { length: 255 }).notNull(),
+    fileType: varchar('file_type', { length: 120 }),
+    fileSize: integer('file_size'),
+    uploadedById: text('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({ planIdx: index('fieldwork_plan_attachments_plan_idx').on(table.planId) })
+);
+
 /** One scheduled enterprise visit within a fieldwork plan. */
 export const fieldworkVisits = pgTable(
   'fieldwork_visits',
@@ -1336,6 +1353,8 @@ export const fieldworkVisits = pgTable(
     planId: integer('plan_id').notNull().references(() => fieldworkPlans.id, { onDelete: 'cascade' }),
     businessId: integer('business_id').notNull().references(() => businesses.id, { onDelete: 'restrict' }),
     agenda: text('agenda').notNull(),
+    /** Programme outcome ids this visit contributes to (see FIELDWORK_OUTCOMES). */
+    outcomes: text('outcomes').array().notNull().default(sql`'{}'::text[]`),
     scheduledStartAt: timestamp('scheduled_start_at').notNull(),
     estimatedDurationMinutes: integer('estimated_duration_minutes').notNull(),
     status: fieldworkVisitStatusEnum('status').default('scheduled').notNull(),
@@ -4489,6 +4508,10 @@ export const fieldworkPlansRelations = relations(fieldworkPlans, ({ one, many })
   createdBy: one(users, { fields: [fieldworkPlans.createdById], references: [users.id], relationName: 'fieldworkPlanCreator' }),
   reviewedBy: one(users, { fields: [fieldworkPlans.reviewedById], references: [users.id], relationName: 'fieldworkPlanReviewer' }),
   visits: many(fieldworkVisits),
+  attachments: many(fieldworkPlanAttachments),
+}));
+export const fieldworkPlanAttachmentsRelations = relations(fieldworkPlanAttachments, ({ one }) => ({
+  plan: one(fieldworkPlans, { fields: [fieldworkPlanAttachments.planId], references: [fieldworkPlans.id] }),
 }));
 export const fieldworkVisitsRelations = relations(fieldworkVisits, ({ one, many }) => ({
   plan: one(fieldworkPlans, { fields: [fieldworkVisits.planId], references: [fieldworkPlans.id] }),

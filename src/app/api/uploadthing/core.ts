@@ -184,6 +184,30 @@ export const ourFileRouter = {
   cdpEvidenceUploader,
   melEvidenceUploader,
   mentorshipEvidenceUploader,
+  fieldworkPlanDocumentUploader: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 5 },
+    image: { maxFileSize: "8MB", maxFileCount: 5 },
+    "application/msword": { maxFileSize: "16MB", maxFileCount: 5 },
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { maxFileSize: "16MB", maxFileCount: 5 },
+    "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 5 },
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { maxFileSize: "16MB", maxFileCount: 5 },
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": { maxFileSize: "32MB", maxFileCount: 5 },
+  })
+    .middleware(async () => {
+      const session = await auth();
+      if (!session?.user?.id || !["bds_edo", "admin"].includes(session.user.role ?? "")) {
+        throw new UploadThingError("Only field staff can attach fieldwork documents");
+      }
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => ({
+      uploadedBy: metadata.userId,
+      fileKey: file.key,
+      fileName: file.name,
+      fileUrl: file.ufsUrl ?? file.url,
+      fileType: file.type ?? "application/octet-stream",
+      fileSize: file.size,
+    })),
   signedContractUploader: f({
     pdf: { maxFileSize: "16MB", maxFileCount: 1 },
     image: { maxFileSize: "8MB", maxFileCount: 1 },

@@ -1,6 +1,7 @@
 import React from "react";
 import db from "@/db/drizzle";
 import { fieldworkNotificationDeliveries, fieldworkPlans, fieldworkVisits, userProfiles } from "@/db/schema";
+import { FieldworkReminderEmail } from "@/components/emails/fieldwork-reminder-email";
 import { sendEmail } from "@/lib/email";
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { logFieldwork } from "./log";
@@ -50,13 +51,13 @@ export async function dispatchFieldworkReminders(now = new Date()): Promise<Remi
       await sendEmail({
         to: profile.email,
         subject: tasks.total ? `You have ${tasks.total} pending fieldwork ${tasks.total === 1 ? "item" : "items"}` : "Fieldwork visits still open today",
-        react: React.createElement("div", null,
-          React.createElement("p", null, `Hello ${profile.firstName},`),
-          tasks.total ? React.createElement("p", null, `You have ${tasks.reports.length} report(s) and ${tasks.missed.length} missed-visit reason(s) outstanding. New bookings are blocked until they are done.`) : null,
-          ...tasks.reports.map((r) => React.createElement("p", { key: `r${r.visitId}` }, `Report due: ${r.businessName} (${r.status})`)),
-          ...tasks.missed.map((m) => React.createElement("p", { key: `m${m.visitId}` }, `Reason needed: ${m.businessName}`)),
-          todays.length ? React.createElement("p", null, `${todays.length} visit(s) scheduled today are not yet completed. Check out, or record a reason if they did not happen.`) : null,
-          React.createElement("p", null, React.createElement("a", { href: link }, "Open visit execution"))),
+        react: React.createElement(FieldworkReminderEmail, {
+          firstName: profile.firstName,
+          reportsDue: tasks.reports.map((r) => ({ enterprise: r.businessName, status: r.status })),
+          missedReasonsDue: tasks.missed.map((m) => ({ enterprise: m.businessName })),
+          openTodayCount: todays.length,
+          executionUrl: link,
+        }),
       });
       await db.update(fieldworkNotificationDeliveries).set({ status: "sent", sentAt: new Date(), updatedAt: new Date() }).where(eq(fieldworkNotificationDeliveries.id, delivery.id));
       result.sent++;

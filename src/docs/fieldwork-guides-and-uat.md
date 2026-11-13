@@ -5,9 +5,11 @@
 **Plan visits** (Fieldwork, then New visit plan)
 1. Give the plan a title. Search or filter the enterprise list (it loads 25 at a time; use Load more) and tick the enterprises you will visit. The top checkbox selects everything shown.
 2. For every enterprise set the agenda, start time (Nairobi time), duration in minutes and the field officer(s). Each visit needs all four.
-3. Save draft. You can Edit a draft or returned plan at any time.
+3. Optionally attach supporting documents (for example your intervention plan for the enterprise): up to 5 files, PDF, Word, Excel, PowerPoint or images. They are not required, and your REDO sees them on the plan.
+4. Save draft. You can Edit a draft or returned plan at any time.
 4. Submit for review and choose your REDO. If you choose none, an administrator reviews it.
-5. When approved, you, your REDO and the ESM recipients receive the itinerary by email. An approved plan cannot be edited. Cancel it with a reason and create a new one if something changes.
+5. When approved, you, your REDO and the ESM recipients receive the itinerary by email.
+6. **Changing a plan.** Draft and returned plans: Edit. Submitted (not yet decided): Withdraw to edit. Approved: Change schedule or details (give a reason). It returns to draft, you edit and resubmit, your REDO approves again, and everyone gets a "revised itinerary" email. This is allowed only while no visit has started. Your REDO or an admin can also use Request changes on an approved plan, which returns it to you with their reason. Once any visit has started, cancel the plan or create a new one for the remaining work.
 
 **On the day** (Fieldwork, then Visit execution)
 1. Open Today. Tap Check in on arrival. Read the privacy notice, tick the box, and tap Share my location. Wait for the accuracy reading (aim for 100 m or better; go outdoors and Try again if it is worse).
@@ -87,3 +89,7 @@
 3. Monitor for 48 hours: the oversight banner, email failures in the logs, and rate-limit warnings.
 4. Rollback is forward-fix: the code paths are additive, so redeploy the previous build; the extra tables and columns are harmless. Do not drop fieldwork tables once real visits exist.
 5. Open items before production sign-off: retention period for precise coordinates, backup and restore drill, and an accessibility and load review at expected scale.
+
+## 6. Exporting your plans
+
+On Fieldwork, the Plans header has **Export Excel** and **Export CSV**. EDOs get their own plans, REDOs the plans routed to them (no drafts), and admins every plan. The file has one row per enterprise visit with plan status, schedule, agenda, officers, visit status, report status and attachment names. It respects the status filter currently selected. Coordinates and report text are never included, and each export is logged.

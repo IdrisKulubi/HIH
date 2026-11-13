@@ -6,6 +6,7 @@ import {
   businesses, fieldworkAuditEvents, fieldworkGateOverrides, fieldworkNotificationDeliveries, fieldworkPlans, fieldworkReportEvents,
   fieldworkReports, fieldworkVisitStaff, fieldworkVisits, userProfiles,
 } from "@/db/schema";
+import { FieldworkFeedbackEmail } from "@/components/emails/fieldwork-feedback-email";
 import { sendEmail } from "@/lib/email";
 import { checkFieldworkRateLimit } from "@/lib/fieldwork/rate-limit";
 import { logFieldwork } from "@/lib/fieldwork/log";
@@ -283,15 +284,16 @@ async function sendClientFeedback(reportId: number, actorId: string | null) {
       await db.update(fieldworkNotificationDeliveries).set({ status: "skipped", failureReason: "No verified enterprise contact email on file.", updatedAt: new Date() }).where(eq(fieldworkNotificationDeliveries.id, deliveryId!));
     } else {
       try {
+        const officer = report.edoResponsibleId ? await db.query.userProfiles.findFirst({ where: eq(userProfiles.userId, report.edoResponsibleId), columns: { firstName: true, lastName: true } }) : null;
         await sendEmail({
           to: email, subject: `Field visit feedback — ${visit.business.name}`,
-          react: React.createElement("div", null,
-            React.createElement("h1", null, "Field visit feedback"),
-            React.createElement("p", null, `Enterprise: ${visit.business.name}`), React.createElement("p", null, `Agenda: ${visit.agenda}`),
-            React.createElement("h2", null, "Activities conducted"), React.createElement("p", null, report.activitiesConducted),
-            React.createElement("h2", null, "Findings and gaps"), React.createElement("p", null, report.findingsAndGaps),
-            React.createElement("h2", null, "Recommendations"), React.createElement("p", null, report.recommendations),
-            React.createElement("p", null, `Action points: ${report.actionPoints}`), React.createElement("p", null, `Timeline: ${report.timeline}`)),
+          react: React.createElement(FieldworkFeedbackEmail, {
+            enterpriseName: visit.business.name,
+            visitDate: new Intl.DateTimeFormat("en-KE", { timeZone: "Africa/Nairobi", dateStyle: "long" }).format(visit.scheduledStartAt),
+            officerName: officer ? `${officer.firstName} ${officer.lastName}`.trim() : "your business advisor",
+            agenda: visit.agenda, activities: report.activitiesConducted ?? "", findings: report.findingsAndGaps ?? "",
+            recommendations: report.recommendations ?? "", actionPoints: report.actionPoints ?? "", timeline: report.timeline ?? "",
+          }),
         });
         await db.update(fieldworkNotificationDeliveries).set({ status: "sent", sentAt: new Date(), failureReason: null, updatedAt: new Date() }).where(eq(fieldworkNotificationDeliveries.id, deliveryId!));
       } catch (error) {

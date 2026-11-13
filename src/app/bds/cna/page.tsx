@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AdminCnaBusinessTable } from "@/components/admin/cna/AdminCnaBusinessTable";
 import { BdsEdoHub } from "@/components/bds/BdsEdoHub";
+import { FieldworkHubCard } from "@/components/fieldwork/FieldworkHubCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getBdsEdoDashboardSummary } from "@/lib/actions/bds-edo-dashboard";
 import { listBusinessesForCnaRole } from "@/lib/actions/role-cna";
@@ -31,6 +32,8 @@ export default async function BdsCnaPage() {
           {summaryResult.error ?? "Some dashboard counts could not be loaded"}
         </p>
       )}
+
+      <FieldworkHubCard user={{ id: user.id as string, role: String(user.role) }} />
 
       <BdsEdoHub
         user={{

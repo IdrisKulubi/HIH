@@ -8,10 +8,12 @@ let passed = 0;
 function test(name: string, fn: () => void) { fn(); passed++; console.log(`ok - ${name}`); }
 
 const now = new Date("2026-11-05T06:00:00Z");
-const visit = (businessId: number, start: string, minutes = 60, extra = {}) => ({ businessId, agenda: "Review bookkeeping", scheduledStartAt: start, estimatedDurationMinutes: minutes, staffIds: ["edo-1"], ...extra });
+const visit = (businessId: number, start: string, minutes = 60, extra = {}) => ({ businessId, outcomes: ["commercialization_scale_up"], agenda: "Review bookkeeping", scheduledStartAt: start, estimatedDurationMinutes: minutes, staffIds: ["edo-1"], ...extra });
 const plan = (status: PlanStatus, extra = {}) => ({ createdById: "edo-1", assignedRedoId: "redo-1", status, ...extra });
 
-test("schema rejects a visit with no agenda or no officer", () => {
+test("schema rejects a visit with no agenda, officer or outcome", () => {
+  assert.equal(planInputSchema.safeParse({ title: "Week 45", visits: [visit(1, "2026-11-06T06:00:00Z", 60, { outcomes: [] })] }).success, false);
+  assert.equal(planInputSchema.safeParse({ title: "Week 45", visits: [visit(1, "2026-11-06T06:00:00Z", 60, { outcomes: ["nonsense"] })] }).success, false);
   assert.equal(planInputSchema.safeParse({ title: "Week 45", visits: [visit(1, "2026-11-06T06:00:00Z", 60, { agenda: " " })] }).success, false);
   assert.equal(planInputSchema.safeParse({ title: "Week 45", visits: [visit(1, "2026-11-06T06:00:00Z", 60, { staffIds: [] })] }).success, false);
   assert.equal(planInputSchema.safeParse({ title: "Week 45", visits: [] }).success, false);
@@ -39,7 +41,8 @@ test("status transitions are constrained", () => {
   assert.ok(canTransition("returned", "submitted"));
   assert.ok(canTransition("approved", "cancelled"));
   assert.equal(canTransition("draft", "approved"), false);
-  assert.equal(canTransition("approved", "returned"), false);
+  assert.equal(canTransition("approved", "submitted"), false);
+  assert.equal(canTransition("cancelled", "draft"), false);
   assert.deepEqual(PLAN_TRANSITIONS.cancelled, []);
 });
 
